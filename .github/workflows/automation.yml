@@ -1,0 +1,303 @@
+name: Project Automation
+
+on:
+  issues:
+    types: [opened, assigned, closed]
+  pull_request:
+    types: [opened, closed]
+    branches:
+      - '**'
+
+env:
+  PROJECT_OWNER: ${{ github.repository_owner }}
+  PROJECT_NUMBER: 3
+  PROJECT_STATUS_FIELD: Status
+  PROJECT_STATUS_IN_PROGRESS: In Progress
+  PROJECT_STATUS_DONE: Done
+
+jobs:
+  notify-new-issue:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Slack 알림 전송
+        if: env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "새 이슈가 생성되었습니다.",
+              "attachments": [
+                {
+                  "color": "#36a64f",
+                  "fields": [
+                    {
+                      "title": "제목",
+                      "value": ${{ toJson(github.event.issue.title) }},
+                      "short": false
+                    },
+                    {
+                      "title": "작성자",
+                      "value": ${{ toJson(github.event.issue.user.login) }},
+                      "short": true
+                    },
+                    {
+                      "title": "링크",
+                      "value": ${{ toJson(github.event.issue.html_url) }},
+                      "short": false
+                    }
+                  ]
+                }
+              ]
+            }
+
+  update-project-status:
+    if: >-
+      (github.event_name == 'issues' &&
+        (github.event.action == 'assigned' || github.event.action == 'closed')) ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'closed' &&
+        github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Project 상태 변경
+        uses: actions/github-script@v7
+        env:
+          HAS_PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN != '' }}
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN || github.token }}
+          script: |
+            if (process.env.HAS_PROJECT_TOKEN !== 'true') {
+              core.warning('PROJECT_TOKEN secret이 없어 GITHUB_TOKEN으로 실행합니다. Project V2 권한이 부족하면 이 단계가 실패할 수 있습니다.');
+            }
+
+            const owner = process.env.PROJECT_OWNER;
+            const projectNumber = Number(process.env.PROJECT_NUMBER);
+            const statusFieldName = process.env.PROJECT_STATUS_FIELD;
+            const inProgressStatus = process.env.PROJECT_STATUS_IN_PROGRESS;
+            const doneStatus = process.env.PROJECT_STATUS_DONE;
+
+            const isIssueEvent = context.eventName === 'issues';
+            const targetStatus =
+              isIssueEvent && context.payload.action === 'assigned'
+                ? inProgressStatus
+                : doneStatus;
+            const contentId = isIssueEvent
+              ? context.payload.issue.node_id
+              : context.payload.pull_request.node_id;
+
+            async function loadProjectFor(ownerType) {
+              const data = await github.graphql(`
+                query($login: String!, $number: Int!) {
+                  ${ownerType}(login: $login) {
+                    projectV2(number: $number) {
+                      id
+                      fields(first: 50) {
+                        nodes {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options {
+                              id
+                              name
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              `, { login: owner, number: projectNumber });
+
+              return data[ownerType]?.projectV2;
+            }
+
+            async function loadProject() {
+              const errors = [];
+
+              for (const ownerType of ['organization', 'user']) {
+                try {
+                  const project = await loadProjectFor(ownerType);
+                  if (project) {
+                    return project;
+                  }
+                  errors.push(`${ownerType}: project not found`);
+                } catch (error) {
+                  errors.push(`${ownerType}: ${error.message}`);
+                }
+              }
+
+              throw new Error(
+                `Project V2 #${projectNumber}를 ${owner}의 organization/user 어느 쪽에서도 찾지 못했습니다. ${errors.join(' | ')}`
+              );
+            }
+
+            async function findProjectItemId(projectId, contentId) {
+              const data = await github.graphql(`
+                query($contentId: ID!) {
+                  node(id: $contentId) {
+                    ... on Issue {
+                      projectItems(first: 50) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
+                    }
+                    ... on PullRequest {
+                      projectItems(first: 50) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              `, { contentId });
+
+              const items = data.node?.projectItems?.nodes ?? [];
+              return items.find((item) => item.project.id === projectId)?.id;
+            }
+
+            async function ensureProjectItemId(projectId, contentId) {
+              const existingItemId = await findProjectItemId(projectId, contentId);
+              if (existingItemId) {
+                return existingItemId;
+              }
+
+              const item = await github.graphql(`
+                mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: {
+                    projectId: $projectId
+                    contentId: $contentId
+                  }) {
+                    item {
+                      id
+                    }
+                  }
+                }
+              `, { projectId, contentId });
+
+              return item.addProjectV2ItemById.item.id;
+            }
+
+            const project = await loadProject();
+            const statusField = project.fields.nodes.find((field) => field.name === statusFieldName);
+            if (!statusField) {
+              throw new Error(`Project field "${statusFieldName}"를 찾지 못했습니다.`);
+            }
+
+            const option = statusField.options.find((statusOption) => statusOption.name === targetStatus);
+            if (!option) {
+              throw new Error(`Project status option "${targetStatus}"를 찾지 못했습니다.`);
+            }
+
+            const itemId = await ensureProjectItemId(project.id, contentId);
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId
+                  itemId: $itemId
+                  fieldId: $fieldId
+                  value: {
+                    singleSelectOptionId: $optionId
+                  }
+                }) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }
+            `, {
+              projectId: project.id,
+              itemId,
+              fieldId: statusField.id,
+              optionId: option.id
+            });
+
+  notify-new-pr:
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Slack 알림 전송
+        if: env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "새 PR이 생성되었습니다.",
+              "attachments": [
+                {
+                  "color": "#0075ff",
+                  "fields": [
+                    {
+                      "title": "제목",
+                      "value": ${{ toJson(github.event.pull_request.title) }},
+                      "short": false
+                    },
+                    {
+                      "title": "작성자",
+                      "value": ${{ toJson(github.event.pull_request.user.login) }},
+                      "short": true
+                    },
+                    {
+                      "title": "링크",
+                      "value": ${{ toJson(github.event.pull_request.html_url) }},
+                      "short": false
+                    }
+                  ]
+                }
+              ]
+            }
+
+  notify-merged-pr:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Slack 알림 전송
+        if: env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "PR이 머지되었습니다.",
+              "attachments": [
+                {
+                  "color": "#9b59b6",
+                  "fields": [
+                    {
+                      "title": "제목",
+                      "value": ${{ toJson(github.event.pull_request.title) }},
+                      "short": false
+                    },
+                    {
+                      "title": "머지한 사람",
+                      "value": ${{ toJson(github.event.pull_request.merged_by.login) }},
+                      "short": true
+                    },
+                    {
+                      "title": "링크",
+                      "value": ${{ toJson(github.event.pull_request.html_url) }},
+                      "short": false
+                    }
+                  ]
+                }
+              ]
+            }
