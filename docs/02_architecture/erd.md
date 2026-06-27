@@ -4,12 +4,22 @@
 
 ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 
+## Source Files
+
+- ERDCloud import SQL: `docs/02_architecture/erdcloud/init_erd_v0.5_refined_erdcloud.sql`
+- Human-readable model: `docs/02_architecture/data-model.md`
+- Human-readable relationships: `docs/02_architecture/erd.md`
+- Runtime migrations: `infra/db/migrations`
+
+`erdcloud/*.sql`은 설계/ERDCloud import용 기준 DDL이다. 실제 애플리케이션에서 실행할 PostgreSQL migration은 `infra/db/migrations`에 별도로 작성한다.
+
 ## Design Notes
 
 - `email_verifications` 테이블은 제거되었고 인증 코드는 Redis/TTL 캐시에서 관리한다.
 - 평가 기준은 자유 서술이 아니라 `criterion_tags`를 선택해 `evaluation_criteria`로 연결한다.
 - `embeddings`는 JD, 질문, 서류, 답변, 리포트 검색/추천/근거 조회를 위한 공통 저장소다.
 - 파일 원본은 Object Storage에 두고 `file_assets.storage_key`로 참조한다.
+- ERDCloud SQL은 sequence/identity, runtime index, check constraint, migration rollback 정책을 확정하는 파일이 아니다.
 
 ## Table Summary
 

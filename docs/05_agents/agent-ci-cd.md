@@ -1,34 +1,10 @@
-# Agent CI/CD
+# Legacy Alias: CI/CD
 
-> Source: `init/docs/00_source` 기준. Generated at 2026-06-27.
+이 파일은 기존 문서 호환용 alias다. 신규 분업 기준에서는 A 담당 문서를 사용한다.
 
-빌드, 테스트, 계약 검증, 배포 준비를 담당한다.
+## Use Instead
 
-## Mission
+- `docs/05_agents/agent-a-auth-infra.md`
+- `infra/AGENTS.md`
+- `.github/AGENTS.md`
 
-빌드, 테스트, 계약 검증, 배포 준비를 담당한다.
-
-## Owns
-
-- CI workflow
-- 계약 검증 스크립트
-- 테스트 실행 정책
-- 릴리즈 체크리스트
-
-## Reads
-
-- 03_contracts/*
-- 04_implementation/test-strategy.md
-- 04_implementation/milestones.md
-
-## Outputs
-
-- PR 검증 결과
-- 빌드/테스트 실패 원인
-- 배포 가능 여부
-
-## Required Checks
-
-- API index와 구현 라우트 일치
-- enum/error code 스냅샷 검증
-- 핵심 E2E 통과
