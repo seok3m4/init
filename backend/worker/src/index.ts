@@ -1,5 +1,6 @@
 export * from "./ai-result.repository";
 export * from "./mock-ai-task.handler";
+export * from "./prisma-process-log.repository";
 export * from "./process-log.repository";
 export * from "./queue";
 export * from "./worker-env";
