@@ -1,16 +1,13 @@
 # AGENTS
 
-> Source: `init/docs/00_source` 기준. Generated at 2026-06-27.
-
 init 프로젝트를 여러 에이전트가 나눠 작업할 때의 공통 운영 규칙이다.
 
-## Source Priority
+## Document Priority
 
-1. `init/docs/00_source` 원본
-2. `init/docs/03_contracts` API/enum/error 계약
-3. `init/docs/02_architecture` 데이터 모델/파이프라인
-4. `init/docs/01_product` 화면/기능 흐름
-5. `init/docs/04_implementation` 작업 분할/테스트 전략
+1. `init/docs/03_contracts` API/enum/error 계약
+2. `init/docs/02_architecture` 데이터 모델/파이프라인
+3. `init/docs/01_product` 화면/기능 흐름
+4. `init/docs/04_implementation` 작업 분할/테스트 전략
 
 ## Agent Map
 
