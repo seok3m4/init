@@ -6,7 +6,7 @@ import { AiProcessLogRepository, InMemoryAiProcessLogRepository } from "./proces
 import { PrismaAiResultRepository } from "./prisma-ai-result.repository";
 import { PrismaAiProcessLogRepository } from "./prisma-process-log.repository";
 import { AiJobQueue } from "./queue";
-import { createReportFailureHandler } from "./report-failure.handler";
+import { createDocumentExtractionStartHandler, createReportFailureHandler } from "./report-failure.handler";
 import { WorkerEnv } from "./worker-env";
 import { AiWorkerRunner } from "./worker-runner";
 
@@ -33,6 +33,7 @@ export async function createWorkerRuntime(queue: AiJobQueue, env: WorkerEnv): Pr
   return {
     runner: new AiWorkerRunner(queue, repositories.processLogs, handler, {
       maxMessages: env.workerBatchSize,
+      onStart: createDocumentExtractionStartHandler(repositories.results),
       onFailure: createReportFailureHandler(repositories.results)
     }),
     disconnect: repositories.disconnect

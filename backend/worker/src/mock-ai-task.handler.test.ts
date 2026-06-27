@@ -4,25 +4,27 @@ import { InMemoryAiResultRepository } from "./ai-result.repository";
 import { MockAiTaskHandler } from "./mock-ai-task.handler";
 import { InMemoryAiProcessLogRepository } from "./process-log.repository";
 import { InMemoryAiJobQueue } from "./queue";
-import { createReportFailureHandler } from "./report-failure.handler";
+import { createDocumentExtractionStartHandler, createReportFailureHandler } from "./report-failure.handler";
 import { AiWorkerRunner } from "./worker-runner";
 import { AiProcessType, AiQueueMessage } from "./worker.types";
 
 test("document extraction uses S3 reference and does not persist raw file content", async () => {
   const results = new InMemoryAiResultRepository();
-
-  await run({
-    processLogId: 10,
-    processType: "DOCUMENT_EXTRACT",
-    input: {
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(10, "DOCUMENT_EXTRACT", {
       kind: "DOCUMENT_EXTRACT",
       payload: {
         documentId: 7,
         s3Key: "candidate/1/resume.pdf"
       }
-    },
-    results
-  });
+    })
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results), {
+    onStart: createDocumentExtractionStartHandler(results),
+    onFailure: createReportFailureHandler(results)
+  }).processBatch();
 
   assert.deepEqual(results.documentExtractions, [
     {
@@ -32,6 +34,39 @@ test("document extraction uses S3 reference and does not persist raw file conten
     }
   ]);
   assert.equal("fileContent" in results.documentExtractions[0], false);
+  assert.equal(results.documentParseStatuses.get(7), "EXTRACTED");
+  assert.deepEqual(
+    results.documentParseStatusEvents.map((event) => event.status),
+    ["EXTRACTING", "EXTRACTED"]
+  );
+});
+
+test("document extraction marks application document failed when input is invalid", async () => {
+  const results = new InMemoryAiResultRepository();
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(24, "DOCUMENT_EXTRACT", {
+      kind: "DOCUMENT_EXTRACT",
+      payload: {
+        documentId: 7,
+        s3Key: "candidate/1/resume.pdf",
+        fileContent: "raw pdf bytes must not be here"
+      }
+    })
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results), {
+    onStart: createDocumentExtractionStartHandler(results),
+    onFailure: createReportFailureHandler(results)
+  }).processBatch();
+
+  assert.equal(repository.get(24).status, "FAILED");
+  assert.equal(repository.get(24).failure?.category, "NON_RETRYABLE");
+  assert.equal(results.documentParseStatuses.get(7), "FAILED");
+  assert.deepEqual(
+    results.documentParseStatusEvents.map((event) => event.status),
+    ["EXTRACTING", "FAILED"]
+  );
 });
 
 test("STT stores transcript against the target interview answer", async () => {

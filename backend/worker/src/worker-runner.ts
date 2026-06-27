@@ -6,12 +6,13 @@ import { AiQueueMessage, AiTaskHandler, AiWorkerJob, FailureReason } from "./wor
 export interface AiWorkerRunnerOptions {
   maxMessages?: number;
   guardrailPolicyName?: string;
+  onStart?: (job: AiWorkerJob) => Promise<void>;
   onFailure?: (job: AiWorkerJob, failure: FailureReason) => Promise<void>;
 }
 
 export class AiWorkerRunner {
   private readonly options: Required<Pick<AiWorkerRunnerOptions, "maxMessages" | "guardrailPolicyName">> &
-    Pick<AiWorkerRunnerOptions, "onFailure">;
+    Pick<AiWorkerRunnerOptions, "onStart" | "onFailure">;
 
   constructor(
     private readonly queue: AiJobQueue,
@@ -39,6 +40,7 @@ export class AiWorkerRunner {
     await this.repository.markRunning(message.job.processLogId);
 
     try {
+      await this.options.onStart?.(message.job);
       const result = await this.handler.handle(message.job);
 
       if (result.guardrail) {

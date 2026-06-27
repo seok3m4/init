@@ -5,11 +5,35 @@ interface ReportJobInput {
   payload?: {
     reportId?: unknown;
     reportType?: unknown;
+    documentId?: unknown;
+  };
+}
+
+export function createDocumentExtractionStartHandler(results: AiResultRepository) {
+  return async (job: AiWorkerJob): Promise<void> => {
+    if (job.processType !== "DOCUMENT_EXTRACT") {
+      return;
+    }
+
+    const documentId = documentIdFromJob(job);
+    if (!documentId) {
+      return;
+    }
+
+    await results.markDocumentExtractionStarted({ documentId });
   };
 }
 
 export function createReportFailureHandler(results: AiResultRepository) {
   return async (job: AiWorkerJob, failure: FailureReason): Promise<void> => {
+    if (job.processType === "DOCUMENT_EXTRACT") {
+      const documentId = documentIdFromJob(job);
+      if (documentId) {
+        await results.markDocumentExtractionFailed({ documentId });
+      }
+      return;
+    }
+
     if (job.processType !== "REPORT_GENERATE") {
       return;
     }
@@ -21,6 +45,19 @@ export function createReportFailureHandler(results: AiResultRepository) {
 
     await results.markReportFailed(failedReport);
   };
+}
+
+function documentIdFromJob(job: AiWorkerJob): number | undefined {
+  try {
+    const input = JSON.parse(job.inputRef) as ReportJobInput;
+    const documentId = Number(input.payload?.documentId);
+    if (!Number.isInteger(documentId) || documentId <= 0) {
+      return undefined;
+    }
+    return documentId;
+  } catch {
+    return undefined;
+  }
 }
 
 function failedReportFromJob(job: AiWorkerJob, failure: FailureReason): FailedReportRecord | undefined {

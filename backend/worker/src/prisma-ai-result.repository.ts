@@ -1,7 +1,9 @@
 import {
   AiResultRepository,
   DocumentExtractionRecord,
+  DocumentExtractionStatusRecord,
   EmbeddingRecord,
+  FailedDocumentExtractionRecord,
   FailedReportRecord,
   FollowUpQuestionRecord,
   GeneratedDraftRecord,
@@ -35,12 +37,30 @@ interface PrismaAiResultClient {
 export class PrismaAiResultRepository implements AiResultRepository {
   constructor(private readonly prisma: PrismaAiResultClient) {}
 
+  async markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void> {
+    await this.prisma.applicationDocument.update({
+      where: { documentId: BigInt(record.documentId) },
+      data: {
+        parseStatus: "EXTRACTING"
+      }
+    });
+  }
+
   async saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void> {
     await this.prisma.applicationDocument.update({
       where: { documentId: BigInt(record.documentId) },
       data: {
         parseStatus: "EXTRACTED",
         extractedText: record.extractedText
+      }
+    });
+  }
+
+  async markDocumentExtractionFailed(record: FailedDocumentExtractionRecord): Promise<void> {
+    await this.prisma.applicationDocument.update({
+      where: { documentId: BigInt(record.documentId) },
+      data: {
+        parseStatus: "FAILED"
       }
     });
   }

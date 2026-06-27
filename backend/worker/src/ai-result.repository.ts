@@ -6,6 +6,14 @@ export interface DocumentExtractionRecord {
   extractedText: string;
 }
 
+export interface DocumentExtractionStatusRecord {
+  documentId: number;
+}
+
+export interface FailedDocumentExtractionRecord {
+  documentId: number;
+}
+
 export interface TranscriptRecord {
   answerId: number;
   transcript: string;
@@ -64,7 +72,9 @@ export interface EmbeddingRecord {
 }
 
 export interface AiResultRepository {
+  markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void>;
   saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void>;
+  markDocumentExtractionFailed(record: FailedDocumentExtractionRecord): Promise<void>;
   saveTranscript(record: TranscriptRecord): Promise<void>;
   saveFollowUpQuestion(record: FollowUpQuestionRecord): Promise<void>;
   saveGeneratedDraft(record: GeneratedDraftRecord): Promise<void>;
@@ -75,6 +85,8 @@ export interface AiResultRepository {
 
 export class InMemoryAiResultRepository implements AiResultRepository {
   readonly documentExtractions: DocumentExtractionRecord[] = [];
+  readonly documentParseStatuses = new Map<number, "EXTRACTING" | "EXTRACTED" | "FAILED">();
+  readonly documentParseStatusEvents: Array<{ documentId: number; status: "EXTRACTING" | "EXTRACTED" | "FAILED" }> = [];
   readonly transcripts: TranscriptRecord[] = [];
   readonly followUpQuestions: FollowUpQuestionRecord[] = [];
   readonly generatedDrafts: GeneratedDraftRecord[] = [];
@@ -86,6 +98,11 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   private readonly transcriptsByAnswerId = new Map<number, TranscriptRecord>();
   private readonly followUpQuestionsByKey = new Map<string, FollowUpQuestionRecord>();
 
+  async markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void> {
+    this.documentParseStatuses.set(record.documentId, "EXTRACTING");
+    this.documentParseStatusEvents.push({ documentId: record.documentId, status: "EXTRACTING" });
+  }
+
   async saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void> {
     if (this.documentExtractionsById.has(record.documentId)) {
       return;
@@ -93,6 +110,13 @@ export class InMemoryAiResultRepository implements AiResultRepository {
 
     this.documentExtractionsById.set(record.documentId, record);
     this.documentExtractions.push(record);
+    this.documentParseStatuses.set(record.documentId, "EXTRACTED");
+    this.documentParseStatusEvents.push({ documentId: record.documentId, status: "EXTRACTED" });
+  }
+
+  async markDocumentExtractionFailed(record: FailedDocumentExtractionRecord): Promise<void> {
+    this.documentParseStatuses.set(record.documentId, "FAILED");
+    this.documentParseStatusEvents.push({ documentId: record.documentId, status: "FAILED" });
   }
 
   async saveTranscript(record: TranscriptRecord): Promise<void> {

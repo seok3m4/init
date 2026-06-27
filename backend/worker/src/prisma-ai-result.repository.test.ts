@@ -25,6 +25,31 @@ test("PrismaAiResultRepository stores document extraction into application_docum
   });
 });
 
+test("PrismaAiResultRepository marks document extraction started and failed", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.markDocumentExtractionStarted({ documentId: 7 });
+  await repository.markDocumentExtractionFailed({ documentId: 7 });
+
+  assert.deepEqual(calls[0], {
+    model: "applicationDocument",
+    method: "update",
+    args: {
+      where: { documentId: BigInt(7) },
+      data: { parseStatus: "EXTRACTING" }
+    }
+  });
+  assert.deepEqual(calls[1], {
+    model: "applicationDocument",
+    method: "update",
+    args: {
+      where: { documentId: BigInt(7) },
+      data: { parseStatus: "FAILED" }
+    }
+  });
+});
+
 test("PrismaAiResultRepository stores STT transcript into interview_answers", async () => {
   const calls: Array<{ model: string; method: string; args: any }> = [];
   const repository = new PrismaAiResultRepository(fakePrisma(calls));
