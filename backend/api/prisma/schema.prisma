@@ -50,6 +50,45 @@ model ReportEvidence {
   @@map("report_evidences")
 }
 
+model ApplicationDocument {
+  documentId    BigInt    @id @map("document_id")
+  applicationId BigInt    @map("application_id")
+  fileId        BigInt?   @map("file_id")
+  documentType  String    @map("document_type") @db.VarChar(50)
+  parseStatus   String    @map("parse_status") @db.VarChar(40)
+  extractedText String?   @map("extracted_text")
+  uploadedAt    DateTime  @map("uploaded_at")
+
+  @@index([applicationId])
+  @@map("application_documents")
+}
+
+model InterviewAnswer {
+  answerId        BigInt    @id @map("answer_id")
+  sessionId       BigInt    @map("session_id")
+  questionId      BigInt?   @map("question_id")
+  videoFileId     BigInt?   @map("video_file_id")
+  audioFileId     BigInt?   @map("audio_file_id")
+  transcript      String?
+  durationSeconds Int?      @map("duration_seconds")
+  submittedAt     DateTime? @map("submitted_at")
+
+  @@index([sessionId])
+  @@map("interview_answers")
+}
+
+model FollowUpQuestion {
+  followUpId       BigInt   @id @map("follow_up_id")
+  answerId         BigInt   @map("answer_id")
+  content          String
+  generationStatus String   @map("generation_status") @db.VarChar(40)
+  policy           String   @db.VarChar(40)
+  createdAt        DateTime @map("created_at")
+
+  @@unique([answerId, policy], name: "answerIdPolicy", map: "uq_follow_up_questions_answer_policy")
+  @@map("follow_up_questions")
+}
+
 model AiProcessLog {
   processLogId BigInt   @id @map("process_log_id")
   applicationId BigInt? @map("application_id")
