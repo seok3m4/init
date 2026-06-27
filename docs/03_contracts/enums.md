@@ -7,6 +7,7 @@ API와 DB에서 공유해야 하는 상태값을 정리한다.
 | Enum | Values | Description |
 | --- |--- |--- |
 | user_type | ADMIN, COMPANY, CANDIDATE | 사용자 유형 |
+| current_user_type | ADMIN, COMPANY, CANDIDATE | API 권한 판단에 사용하는 CurrentUser 사용자 유형. `user_type`과 같은 값을 사용한다. |
 | auth_provider | LOCAL, GOOGLE | 로그인/가입 방식 |
 | user_status | ACTIVE, PENDING, SUSPENDED, DEACTIVATED | 계정 상태 |
 | posting_status | DRAFT, OPEN, CLOSING_SOON, CLOSED, ARCHIVED | 공고 상태 |
