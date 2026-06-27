@@ -4,6 +4,7 @@ import { InMemoryAiResultRepository } from "./ai-result.repository";
 import { MockAiTaskHandler } from "./mock-ai-task.handler";
 import { InMemoryAiProcessLogRepository } from "./process-log.repository";
 import { InMemoryAiJobQueue } from "./queue";
+import { createReportFailureHandler } from "./report-failure.handler";
 import { AiWorkerRunner } from "./worker-runner";
 import { AiProcessType, AiQueueMessage } from "./worker.types";
 
@@ -169,6 +170,38 @@ test("question generation stores review-required drafts after guardrail pass", a
   assert.deepEqual(results.generatedDrafts[0].items.length, 2);
 });
 
+test("report generation stores scores and evidences after guardrail pass", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  await run({
+    processLogId: 22,
+    processType: "REPORT_GENERATE",
+    input: reportGenerateInput("RECRUITING_REPORT", "Redis cache evidence."),
+    results
+  });
+
+  const report = results.generatedReports.get(30);
+  assert.equal(report?.reportType, "RECRUITING_REPORT");
+  assert.equal(report?.scores.length, 1);
+  assert.equal(report?.scores[0].evidences.length, 2);
+});
+
+test("mock report generation marks report failed when expression policy is blocked", async () => {
+  const results = new InMemoryAiResultRepository();
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(23, "REPORT_GENERATE", reportGenerateInput("MOCK_INTERVIEW_REPORT", "합격 가능성이 높습니다."))
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results), {
+    onFailure: createReportFailureHandler(results)
+  }).processBatch();
+
+  assert.equal(repository.get(23).status, "FAILED");
+  assert.equal(results.generatedReports.has(30), false);
+  assert.equal(results.failedReports.get(30)?.failureCategory, "NON_RETRYABLE");
+});
+
 test("mock interview generated output is not saved when expression policy is blocked", async () => {
   const results = new InMemoryAiResultRepository();
   const repository = new InMemoryAiProcessLogRepository();
@@ -245,6 +278,31 @@ function message(processLogId: number, processType: AiProcessType, input: unknow
       processType,
       inputRef: JSON.stringify(input),
       attempt: 1
+    }
+  };
+}
+
+function reportGenerateInput(reportType: "RECRUITING_REPORT" | "MOCK_INTERVIEW_REPORT", transcript: string) {
+  return {
+    kind: reportType === "MOCK_INTERVIEW_REPORT" ? "MOCK_REPORT_GENERATE" : "RECRUITING_REPORT_GENERATE",
+    payload: {
+      reportId: 30,
+      reportType,
+      jobDescription: "Backend engineer with NestJS and PostgreSQL.",
+      documentText: "The candidate has worked on NestJS APIs.",
+      criteria: [
+        {
+          criterionId: 1,
+          name: "Problem solving",
+          weight: 40
+        }
+      ],
+      answers: [
+        {
+          answerId: 10,
+          transcript
+        }
+      ]
     }
   };
 }

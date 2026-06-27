@@ -1,4 +1,8 @@
-import { AiResultRepository } from "./ai-result.repository";
+import {
+  AiResultRepository,
+  GeneratedReportRecord,
+  GeneratedReportScoreRecord
+} from "./ai-result.repository";
 import { NonRetryableAiWorkerFailure } from "./worker-errors";
 import { AiTaskHandler, AiTaskResult, AiWorkerJob } from "./worker.types";
 
@@ -23,6 +27,8 @@ export class MockAiTaskHandler implements AiTaskHandler {
         return this.stt(payload);
       case "FOLLOW_UP":
         return this.followUp(input.kind ?? "RECRUITING_FOLLOW_UP", payload);
+      case "REPORT_GENERATE":
+        return this.reportGenerate(input.kind ?? "RECRUITING_REPORT_GENERATE", payload);
       case "CRITERIA_SUGGEST":
         return this.criteriaSuggest(payload);
       case "QUESTION_GENERATE":
@@ -92,6 +98,34 @@ export class MockAiTaskHandler implements AiTaskHandler {
     const items = [`Problem solving from ${shorten(jobDescription)}`, `Talent fit: ${shorten(talentProfile)}`];
 
     return this.generatedDraft("CRITERIA_SUGGEST", items);
+  }
+
+  private reportGenerate(kind: string, payload: Record<string, unknown>): AiTaskResult {
+    const reportId = positiveNumber(payload.reportId, "reportId");
+    const reportType = reportTypeOf(payload.reportType);
+    const jobDescription = requiredText(payload.jobDescription, "jobDescription");
+    const criteria = criteriaOf(payload.criteria);
+    const answers = answersOf(payload.answers);
+    const documentText = typeof payload.documentText === "string" ? payload.documentText : undefined;
+    const scores = this.scoreReport(criteria, answers, documentText);
+    const totalScore = Math.round(scores.reduce((sum, score) => sum + score.score, 0) / scores.length);
+    const summary =
+      reportType === "RECRUITING_REPORT"
+        ? `Recruiting report generated from ${answers.length} answer(s) for ${shorten(jobDescription)}.`
+        : `Mock interview feedback generated from ${answers.length} answer(s).`;
+    const report: GeneratedReportRecord = {
+      reportId,
+      reportType,
+      summary,
+      totalScore,
+      scores
+    };
+
+    return {
+      outputRef: JSON.stringify({ reportId, reportType }),
+      guardrail: this.validateReport(report),
+      finalSave: () => this.results.saveGeneratedReport(report)
+    };
   }
 
   private questionGenerate(kind: string, payload: Record<string, unknown>): AiTaskResult {
@@ -165,6 +199,62 @@ export class MockAiTaskHandler implements AiTaskHandler {
       ? { result: "BLOCKED" as const, reason: `mock interview output cannot include hiring decision expression: ${banned}` }
       : { result: "PASS" as const, reason: null };
   }
+
+  private scoreReport(
+    criteria: Array<{ criterionId: number; name: string; weight: number }>,
+    answers: Array<{ answerId: number; transcript: string }>,
+    documentText?: string
+  ): GeneratedReportScoreRecord[] {
+    return criteria.map((criterion, index) => {
+      const answer = answers[index % answers.length];
+      const evidenceText = pickEvidence(answer.transcript, documentText);
+      const score = Math.min(95, 70 + Math.min(10, Math.round(criterion.weight / 10)) + Math.min(10, Math.floor(evidenceText.length / 30)));
+      return {
+        criterionId: criterion.criterionId,
+        criterionName: criterion.name,
+        score,
+        rationale: `${criterion.name} was evaluated from interview answer and document evidence.`,
+        evidences: [
+          {
+            sourceType: "INTERVIEW_ANSWER",
+            answerId: answer.answerId,
+            text: pickEvidence(answer.transcript)
+          },
+          ...(documentText?.trim()
+            ? [
+                {
+                  sourceType: "APPLICATION_DOCUMENT" as const,
+                  documentRef: "payload.documentText",
+                  text: pickEvidence(documentText)
+                }
+              ]
+            : [])
+        ]
+      };
+    });
+  }
+
+  private validateReport(report: GeneratedReportRecord) {
+    for (const score of report.scores) {
+      if (!score.rationale.trim()) {
+        return { result: "BLOCKED" as const, reason: `rationale is required for criterion ${score.criterionId}` };
+      }
+      if (score.evidences.length === 0 || score.evidences.some((evidence) => !evidence.text.trim())) {
+        return { result: "BLOCKED" as const, reason: `evidence is required for criterion ${score.criterionId}` };
+      }
+    }
+
+    if (report.reportType === "MOCK_INTERVIEW_REPORT") {
+      const combinedText = [
+        report.summary,
+        ...report.scores.map((score) => score.rationale),
+        ...report.scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
+      ].join("\n");
+      return this.validateMockPolicy("MOCK", combinedText);
+    }
+
+    return { result: "PASS" as const, reason: null };
+  }
 }
 
 function parseInput(inputRef: string): WorkerInput {
@@ -192,6 +282,53 @@ function requiredText(value: unknown, name: string): string {
     throw new NonRetryableAiWorkerFailure(`${name} is required`);
   }
   return value;
+}
+
+function reportTypeOf(value: unknown): GeneratedReportRecord["reportType"] {
+  if (value === "RECRUITING_REPORT" || value === "MOCK_INTERVIEW_REPORT") {
+    return value;
+  }
+  throw new NonRetryableAiWorkerFailure("reportType is invalid");
+}
+
+function criteriaOf(value: unknown): Array<{ criterionId: number; name: string; weight: number }> {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new NonRetryableAiWorkerFailure("criteria is required");
+  }
+
+  return value.map((item) => {
+    if (!item || typeof item !== "object") {
+      throw new NonRetryableAiWorkerFailure("criteria item must be an object");
+    }
+    const record = item as Record<string, unknown>;
+    return {
+      criterionId: positiveNumber(record.criterionId, "criterionId"),
+      name: requiredText(record.name, "criterion name"),
+      weight: Number.isFinite(Number(record.weight)) ? Number(record.weight) : 0
+    };
+  });
+}
+
+function answersOf(value: unknown): Array<{ answerId: number; transcript: string }> {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new NonRetryableAiWorkerFailure("answers is required");
+  }
+
+  return value.map((item) => {
+    if (!item || typeof item !== "object") {
+      throw new NonRetryableAiWorkerFailure("answers item must be an object");
+    }
+    const record = item as Record<string, unknown>;
+    return {
+      answerId: positiveNumber(record.answerId, "answerId"),
+      transcript: requiredText(record.transcript, "transcript")
+    };
+  });
+}
+
+function pickEvidence(transcript: string, documentText?: string): string {
+  const source = transcript.trim() || documentText?.trim() || "";
+  return shorten(source);
 }
 
 function shorten(value: string): string {

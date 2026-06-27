@@ -1,6 +1,8 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
 import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
+import { CurrentUser } from "../common/dev-auth/current-user";
 import { ok } from "../common/response/api-response";
+import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
 import { AiReportPipelineService } from "./ai-report-pipeline.service";
 import {
   AnswerEvaluationRequest,
@@ -15,6 +17,7 @@ type HeaderMap = Record<string, string | string[] | undefined>;
 export class ReportsController {
   constructor(
     private readonly devAuthAdapter: DevAuthAdapter,
+    private readonly dispatcher: AiJobDispatcherService,
     private readonly aiReportPipelineService: AiReportPipelineService
   ) {}
 
@@ -92,13 +95,43 @@ export class ReportsController {
       });
     }
 
-    const result = await this.aiReportPipelineService.generate({
-      currentUser,
-      reportId: this.parseReportId(reportIdParam),
-      body
+    const reportId = this.parseReportId(reportIdParam);
+    this.validateGeneratePayload(body);
+
+    const result = await this.dispatcher.dispatchReportGeneration({
+      reportId,
+      reportType: body.reportType,
+      input: this.reportInput("RECRUITING_REPORT_GENERATE", reportId, body, currentUser)
     });
 
     return ok(result);
+  }
+
+  private reportInput(kind: string, reportId: number, body: GenerateReportRequest, currentUser: CurrentUser) {
+    return {
+      kind,
+      requestedBy: {
+        userId: currentUser.userId,
+        userType: currentUser.userType,
+        companyId: currentUser.companyId
+      },
+      payload: {
+        ...body,
+        reportId
+      }
+    };
+  }
+
+  private validateGeneratePayload(body: GenerateReportRequest): void {
+    if (!body.jobDescription?.trim()) {
+      throw this.validation("jobDescription is required.");
+    }
+    if (!Array.isArray(body.criteria) || body.criteria.length === 0) {
+      throw this.validation("criteria is required.");
+    }
+    if (!Array.isArray(body.answers) || body.answers.length === 0) {
+      throw this.validation("answers is required.");
+    }
   }
 
   private parseReportId(reportIdParam: string): number {
@@ -111,12 +144,20 @@ export class ReportsController {
     }
     return reportId;
   }
+
+  private validation(message: string): BadRequestException {
+    return new BadRequestException({
+      code: "COMMON_VALIDATION_FAILED",
+      message
+    });
+  }
 }
 
 @Controller("candidate/mock-interview/reports")
 export class CandidateMockReportsController {
   constructor(
     private readonly devAuthAdapter: DevAuthAdapter,
+    private readonly dispatcher: AiJobDispatcherService,
     private readonly aiReportPipelineService: AiReportPipelineService
   ) {}
 
@@ -137,13 +178,43 @@ export class CandidateMockReportsController {
       });
     }
 
-    const result = await this.aiReportPipelineService.generate({
-      currentUser,
-      reportId: this.parseReportId(reportIdParam),
-      body
+    const reportId = this.parseReportId(reportIdParam);
+    this.validateGeneratePayload(body);
+
+    const result = await this.dispatcher.dispatchReportGeneration({
+      reportId,
+      reportType: body.reportType,
+      input: this.reportInput("MOCK_REPORT_GENERATE", reportId, body, currentUser)
     });
 
     return ok(result);
+  }
+
+  private reportInput(kind: string, reportId: number, body: GenerateReportRequest, currentUser: CurrentUser) {
+    return {
+      kind,
+      requestedBy: {
+        userId: currentUser.userId,
+        userType: currentUser.userType,
+        candidateId: currentUser.candidateId
+      },
+      payload: {
+        ...body,
+        reportId
+      }
+    };
+  }
+
+  private validateGeneratePayload(body: GenerateReportRequest): void {
+    if (!body.jobDescription?.trim()) {
+      throw this.validation("jobDescription is required.");
+    }
+    if (!Array.isArray(body.criteria) || body.criteria.length === 0) {
+      throw this.validation("criteria is required.");
+    }
+    if (!Array.isArray(body.answers) || body.answers.length === 0) {
+      throw this.validation("answers is required.");
+    }
   }
 
   private parseReportId(reportIdParam: string): number {
@@ -155,5 +226,12 @@ export class CandidateMockReportsController {
       });
     }
     return reportId;
+  }
+
+  private validation(message: string): BadRequestException {
+    return new BadRequestException({
+      code: "COMMON_VALIDATION_FAILED",
+      message
+    });
   }
 }

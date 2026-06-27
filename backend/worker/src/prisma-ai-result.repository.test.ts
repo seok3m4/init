@@ -87,6 +87,53 @@ test("PrismaAiResultRepository upserts embeddings by source_type and source_text
   assert.equal(embedding.sourceTextHash, calls[0].args.where.sourceTypeSourceTextHash.sourceTextHash);
 });
 
+test("PrismaAiResultRepository stores generated reports after guardrail pass", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.saveGeneratedReport({
+    reportId: 30,
+    reportType: "RECRUITING_REPORT",
+    summary: "summary",
+    totalScore: 82,
+    scores: [
+      {
+        criterionId: 1,
+        criterionName: "Problem solving",
+        score: 82,
+        rationale: "evidence-based score",
+        evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "answer evidence" }]
+      }
+    ]
+  });
+
+  assert.equal(calls[0].model, "evaluationReport");
+  assert.equal(calls[0].method, "upsert");
+  assert.equal(calls[0].args.update.status, "COMPLETED");
+  assert.equal(calls[1].model, "reportScore");
+  assert.equal(calls[1].method, "deleteMany");
+  assert.equal(calls[2].model, "reportScore");
+  assert.equal(calls[2].method, "create");
+  assert.equal(calls[2].args.data.evidences.create[0].sourceType, "INTERVIEW_ANSWER");
+});
+
+test("PrismaAiResultRepository marks generated reports failed with retryability", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.markReportFailed({
+    reportId: 30,
+    reportType: "MOCK_INTERVIEW_REPORT",
+    failureCategory: "NON_RETRYABLE",
+    failureReason: "guardrail blocked output"
+  });
+
+  assert.equal(calls[0].model, "evaluationReport");
+  assert.equal(calls[0].method, "upsert");
+  assert.equal(calls[0].args.update.status, "FAILED");
+  assert.equal(calls[0].args.update.failureCategory, "NON_RETRYABLE");
+});
+
 function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) {
   return {
     applicationDocument: {
@@ -102,6 +149,19 @@ function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) 
     followUpQuestion: {
       async upsert(args: any) {
         calls.push({ model: "followUpQuestion", method: "upsert", args });
+      }
+    },
+    evaluationReport: {
+      async upsert(args: any) {
+        calls.push({ model: "evaluationReport", method: "upsert", args });
+      }
+    },
+    reportScore: {
+      async deleteMany(args: any) {
+        calls.push({ model: "reportScore", method: "deleteMany", args });
+      },
+      async create(args: any) {
+        calls.push({ model: "reportScore", method: "create", args });
       }
     },
     embedding: {

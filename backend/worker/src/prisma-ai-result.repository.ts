@@ -2,8 +2,10 @@ import {
   AiResultRepository,
   DocumentExtractionRecord,
   EmbeddingRecord,
+  FailedReportRecord,
   FollowUpQuestionRecord,
   GeneratedDraftRecord,
+  GeneratedReportRecord,
   TranscriptRecord,
   hashSourceText
 } from "./ai-result.repository";
@@ -17,6 +19,13 @@ interface PrismaAiResultClient {
   };
   followUpQuestion: {
     upsert(args: unknown): Promise<unknown>;
+  };
+  evaluationReport: {
+    upsert(args: unknown): Promise<unknown>;
+  };
+  reportScore: {
+    deleteMany(args: unknown): Promise<unknown>;
+    create(args: unknown): Promise<unknown>;
   };
   embedding: {
     upsert(args: unknown): Promise<EmbeddingRecord & { embeddingId?: bigint }>;
@@ -77,6 +86,74 @@ export class PrismaAiResultRepository implements AiResultRepository {
         inputRef: JSON.stringify({ reviewRequired: record.reviewRequired }),
         outputRef: JSON.stringify({ items: record.items }),
         createdAt: new Date()
+      }
+    });
+  }
+
+  async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
+    await this.prisma.evaluationReport.upsert({
+      where: { reportId: BigInt(record.reportId) },
+      create: {
+        reportId: BigInt(record.reportId),
+        reportType: record.reportType,
+        status: "COMPLETED",
+        summary: record.summary,
+        totalScore: record.totalScore,
+        generatedAt: new Date()
+      },
+      update: {
+        reportType: record.reportType,
+        status: "COMPLETED",
+        summary: record.summary,
+        totalScore: record.totalScore,
+        generatedAt: new Date(),
+        failureCategory: null,
+        failureReason: null
+      }
+    });
+
+    await this.prisma.reportScore.deleteMany({
+      where: { reportId: BigInt(record.reportId) }
+    });
+
+    for (const score of record.scores) {
+      await this.prisma.reportScore.create({
+        data: {
+          scoreId: this.nextId(),
+          reportId: BigInt(record.reportId),
+          criterionId: BigInt(score.criterionId),
+          score: score.score,
+          rationale: score.rationale,
+          evidences: {
+            create: score.evidences.map((evidence) => ({
+              evidenceId: this.nextId(),
+              sourceType: evidence.sourceType,
+              answerId: evidence.answerId ? BigInt(evidence.answerId) : null,
+              documentId: evidence.documentId ? BigInt(evidence.documentId) : null,
+              documentRef: evidence.documentRef ?? null,
+              evidenceText: evidence.text
+            }))
+          }
+        }
+      });
+    }
+  }
+
+  async markReportFailed(record: FailedReportRecord): Promise<void> {
+    await this.prisma.evaluationReport.upsert({
+      where: { reportId: BigInt(record.reportId) },
+      create: {
+        reportId: BigInt(record.reportId),
+        reportType: record.reportType,
+        status: "FAILED",
+        failureCategory: record.failureCategory,
+        failureReason: record.failureReason
+      },
+      update: {
+        reportType: record.reportType,
+        status: "FAILED",
+        failureCategory: record.failureCategory,
+        failureReason: record.failureReason
       }
     });
   }

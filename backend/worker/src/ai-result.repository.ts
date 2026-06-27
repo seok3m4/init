@@ -24,6 +24,37 @@ export interface GeneratedDraftRecord {
   reviewRequired: true;
 }
 
+export interface GeneratedReportEvidenceRecord {
+  sourceType: "INTERVIEW_ANSWER" | "APPLICATION_DOCUMENT";
+  answerId?: number;
+  documentId?: number;
+  documentRef?: string;
+  text: string;
+}
+
+export interface GeneratedReportScoreRecord {
+  criterionId: number;
+  criterionName: string;
+  score: number;
+  rationale: string;
+  evidences: GeneratedReportEvidenceRecord[];
+}
+
+export interface GeneratedReportRecord {
+  reportId: number;
+  reportType: "RECRUITING_REPORT" | "MOCK_INTERVIEW_REPORT";
+  summary: string;
+  totalScore: number;
+  scores: GeneratedReportScoreRecord[];
+}
+
+export interface FailedReportRecord {
+  reportId: number;
+  reportType: "RECRUITING_REPORT" | "MOCK_INTERVIEW_REPORT";
+  failureCategory: "RETRYABLE" | "NON_RETRYABLE";
+  failureReason: string;
+}
+
 export interface EmbeddingRecord {
   sourceType: string;
   sourceTextHash: string;
@@ -37,6 +68,8 @@ export interface AiResultRepository {
   saveTranscript(record: TranscriptRecord): Promise<void>;
   saveFollowUpQuestion(record: FollowUpQuestionRecord): Promise<void>;
   saveGeneratedDraft(record: GeneratedDraftRecord): Promise<void>;
+  saveGeneratedReport(record: GeneratedReportRecord): Promise<void>;
+  markReportFailed(record: FailedReportRecord): Promise<void>;
   upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord>;
 }
 
@@ -45,6 +78,8 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   readonly transcripts: TranscriptRecord[] = [];
   readonly followUpQuestions: FollowUpQuestionRecord[] = [];
   readonly generatedDrafts: GeneratedDraftRecord[] = [];
+  readonly generatedReports = new Map<number, GeneratedReportRecord>();
+  readonly failedReports = new Map<number, FailedReportRecord>();
   readonly embeddings = new Map<string, EmbeddingRecord>();
 
   private readonly documentExtractionsById = new Map<number, DocumentExtractionRecord>();
@@ -81,6 +116,15 @@ export class InMemoryAiResultRepository implements AiResultRepository {
 
   async saveGeneratedDraft(record: GeneratedDraftRecord): Promise<void> {
     this.generatedDrafts.push(record);
+  }
+
+  async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
+    this.generatedReports.set(record.reportId, record);
+    this.failedReports.delete(record.reportId);
+  }
+
+  async markReportFailed(record: FailedReportRecord): Promise<void> {
+    this.failedReports.set(record.reportId, record);
   }
 
   async upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord> {

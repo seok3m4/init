@@ -1,7 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AI_JOB_QUEUE_PUBLISHER, AiJobQueuePublisher } from "./ai-job-queue.publisher";
 import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
-import { AiProcessRefs, AiProcessType, QueuedAiProcessSnapshot } from "./report.types";
+import {
+  AiProcessRefs,
+  AiProcessType,
+  EvaluationReportSnapshot,
+  QueuedAiProcessSnapshot,
+  ReportType
+} from "./report.types";
 
 export interface DispatchAiJobCommand {
   processType: AiProcessType;
@@ -11,6 +17,16 @@ export interface DispatchAiJobCommand {
 
 export interface DispatchAiJobResult extends QueuedAiProcessSnapshot {
   queued: true;
+}
+
+export interface DispatchReportGenerationCommand {
+  reportId: number;
+  reportType: ReportType;
+  input: unknown;
+}
+
+export interface DispatchReportGenerationResult extends DispatchAiJobResult {
+  report: EvaluationReportSnapshot;
 }
 
 @Injectable()
@@ -34,6 +50,19 @@ export class AiJobDispatcherService {
     return {
       ...process,
       queued: true
+    };
+  }
+
+  async dispatchReportGeneration(command: DispatchReportGenerationCommand): Promise<DispatchReportGenerationResult> {
+    const report = await this.repository.markReportGenerating(command.reportId, command.reportType);
+    const process = await this.dispatch({
+      processType: "REPORT_GENERATE",
+      input: command.input
+    });
+
+    return {
+      ...process,
+      report
     };
   }
 }

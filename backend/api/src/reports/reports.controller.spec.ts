@@ -64,10 +64,12 @@ describe("ReportsController", () => {
   it("generates a recruiting report for a company dev user", async () => {
     const response = await companyRequest("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(202);
 
-    expect(response.body.data.status).toBe("COMPLETED");
-    expect(response.body.data.report.status).toBe("COMPLETED");
-    expect(response.body.data.guardrail.result).toBe("PASS");
-    expect(response.body.data.scores[0].evidences[0].text).toContain("Redis cache");
+    expect(response.body.data.processType).toBe("REPORT_GENERATE");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+    expect(response.body.data.report.status).toBe("GENERATING");
+    expect(response.body.data.inputRef).toContain("\"reportId\":1");
+    expect(response.body.data.inputRef).toContain("Redis cache");
     expect(response.body.meta.traceId).toBeTruthy();
   });
 
@@ -81,8 +83,11 @@ describe("ReportsController", () => {
       .send(payload)
       .expect(202);
 
+    expect(response.body.data.processType).toBe("REPORT_GENERATE");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
     expect(response.body.data.report.reportType).toBe("MOCK_INTERVIEW_REPORT");
-    expect(response.body.data.guardrail.result).toBe("PASS");
+    expect(response.body.data.report.status).toBe("GENERATING");
   });
 
   it("validates guardrails for an admin dev user", async () => {
