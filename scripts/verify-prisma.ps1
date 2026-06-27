@@ -17,6 +17,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $apiDir "package.json"))) {
   throw "schema.prisma exists but backend/api/package.json is missing"
 }
 
+$rootEnvExample = Join-Path $root ".env.example"
+if (-not $env:DATABASE_URL -and (Test-Path -LiteralPath $rootEnvExample)) {
+  $databaseUrlLine = Get-Content -Encoding UTF8 -LiteralPath $rootEnvExample | Where-Object { $_ -match "^DATABASE_URL=" } | Select-Object -First 1
+  if ($databaseUrlLine) {
+    $env:DATABASE_URL = $databaseUrlLine.Substring("DATABASE_URL=".Length)
+  }
+}
+
 Push-Location $apiDir
 try {
   $localPrismaCmd = Join-Path $apiDir "node_modules/.bin/prisma.cmd"

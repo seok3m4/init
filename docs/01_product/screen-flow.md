@@ -32,7 +32,7 @@ flowchart TD
 | Screen | Path | Actor | Depth | Linked API/Route |
 | --- |--- |--- |--- |--- |
 | 랜딩 화면 | / | 공통 |  | /login |
-| 로그인 화면 | /login | 공통 | 로그인 | POST /auth/login / /password/reset / /signup / GET /auth/google |
+| 로그인 화면 | /login | 공통 | 로그인 | POST /auth/login / /password/reset / /signup / GET /auth/google (지원자 전용) |
 | 회원가입 화면 | /signup | 공통 | 회원가입 |  |
 | 지원자 회원가입 화면 | /signup/candidate | 공통 | 회원가입 | POST /auth/signup/candidate / POST /auth/email/send-code / POST /auth/email/verify-code |
 | 기업 회원가입 화면 | /signup/company | 공통 | 회원가입 | POST /auth/signup/company / POST /auth/email/send-code / POST /auth/email/verify-code |
@@ -62,7 +62,7 @@ flowchart TD
 | HTML ID | Title | Path | Primary Buttons | Input Labels | Panels |
 | --- |--- |--- |--- |--- |--- |
 | landing | 1. 랜딩 화면 | / | 로그인, 로그인하기 |  |  |
-| login | 2. 로그인 화면 | /login | 기업, 지원자, 보기, 로그인, Google로 로그인 | 로그인 사용자 유형, 이메일, 비밀번호 |  |
+| login | 2. 로그인 화면 | /login | 기업, 지원자, 보기, 로그인, Google로 로그인(지원자 선택 시) | 로그인 사용자 유형, 이메일, 비밀번호 |  |
 | signup | 3. 회원가입 유형 선택 | /signup | 다음 |  |  |
 | signup-candidate | 4. 지원자 회원가입 | /signup/candidate | 인증 메일 발송, 인증 확인, 보기, 가입하기 | 이름, 이메일, 인증 코드, 비밀번호, 비밀번호 확인 |  |
 | signup-company | 5. 기업 회원가입 | /signup/company | 인증 메일 발송, 인증 확인, 보기, 가입하기 | 담당자 이름, 회사명, 이메일, 인증 코드, 비밀번호, 비밀번호 확인 |  |

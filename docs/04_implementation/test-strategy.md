@@ -38,6 +38,7 @@ bash scripts/check-local.sh -Role A
 | `verify-dev-auth-seed.ps1` | Dev Auth 계약과 Prisma seed 골격 확인 | seed 골격은 없으면 실패 |
 | `verify-ai-golden.ps1` | AI golden case JSON shape 확인 | golden case가 없으면 skip |
 | `smoke-local.ps1` | 실행 중인 API `/health` 확인 | base URL 없으면 skip |
+| `e2e-auth.ps1` | T1/M1 인증 플로우(회원가입, 로그인, 비밀번호 재설정, Google 지원자 전용 정책) 확인 | 로컬 API, 프론트엔드, Mailpit이 실행 중이어야 함 |
 
 macOS/Linux의 `check-local.sh`는 PowerShell Core 설치를 요구하지 않고 bash, git, grep/find/sed/awk, curl 또는 Node.js만 사용한다. 실행 권한(`chmod +x`)에 의존하지 않도록 문서상 표준 명령은 `bash scripts/check-local.sh`로 둔다.
 
@@ -70,6 +71,7 @@ macOS 호환성을 자동으로 강제하려면 `.github/workflows/ci.yml`에 `m
 ## Critical E2E Scenarios
 
 - 기업 회원가입 -> 로그인 -> 공고 관리 진입
+- T1/M1 인증: 기업/지원자 회원가입 -> 로그인 -> 기본 화면 진입, 지원자 비밀번호 재설정, Google 로그인 지원자 전용 정책
 - 기업 공고 상세 -> 지원자 등록 -> 초대 링크 발송 -> 면접 세션 생성
 - 지원자 회원가입 -> 회사 리스트 -> 회사 상세 -> 기업별 이력서 제출
 - 지원현황 -> 동의 -> 장치 점검 -> 채용 AI 면접 시작 -> 답변 저장 -> 완료

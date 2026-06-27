@@ -7,7 +7,7 @@ API 전체 목록을 도메인별로 빠르게 탐색한다.
 | API ID | Domain | Method | Path | Summary | Auth | Async | Status |
 | --- |--- |--- |--- |--- |--- |--- |--- |
 | API-001 | 인증/계정 | POST | /auth/login | 이메일/비밀번호 입력 / 로그인 요청 | 비로그인 허용 | N | 200 OK |
-| API-002 | 인증/계정 | GET | /auth/google | Google OAuth 로그인 | 비로그인 허용 | N | 200 OK |
+| API-002 | 인증/계정 | GET | /auth/google | 지원자 전용 Google OAuth 로그인 | 비로그인 허용 | N | 200 OK |
 | API-003 | 인증/계정 | POST | /auth/signup/candidate | 지원자 계정 생성 | 비로그인 허용 | N | 201 Created |
 | API-004 | 인증/계정 | POST | /auth/email/send-code | 이메일 인증 요청 | 비로그인 허용 | N | 200 OK |
 | API-005 | 인증/계정 | POST | /auth/email/verify-code | 이메일 인증 코드 확인 | 비로그인 허용 | N | 200 OK |
@@ -15,6 +15,9 @@ API 전체 목록을 도메인별로 빠르게 탐색한다.
 | API-007 | 인증/계정 | POST | /auth/password/reset | 비밀번호 재설정 | 비로그인 허용 | N | 200 OK |
 | API-008 | 인증/계정 | POST | /auth/password/send-code | 비밀번호 재설정 인증 요청 | 비로그인 허용 | N | 200 OK |
 | API-009 | 인증/계정 | POST | /auth/password/verify-code | 비밀번호 재설정 인증 확인 | 비로그인 허용 | N | 200 OK |
+| API-080 | 인증/계정 | GET | /auth/me | 현재 로그인 사용자 조회 | 로그인 필요 | N | 200 OK |
+| API-081 | 인증/계정 | POST | /auth/refresh | refreshToken 쿠키로 accessToken 재발급 | refreshToken 쿠키 | N | 200 OK |
+| API-082 | 인증/계정 | POST | /auth/logout | refreshToken 쿠키 제거 | 로그인 권장 | N | 200 OK |
 | API-010 | 기업 - 대시보드 | GET | /company/dashboard | 공고 목록 및 운영 현황 조회 | 기업 / 기업 사용자 로그인 | N | 200 OK |
 | API-011 | 기업 - 채용공고 | GET | /company/recruitments | 회사별 공고 목록 조회 / 채용 공고 목록 조회 / 채용 공고 리스트 표시 | 기업 / 기업 사용자 로그인 | N | 200 OK |
 | API-012 | 기업 - 지원자/리포트 | PATCH | /company/applicants/{applicantId}/screening-status | 전형 상태 지정 | 기업 / 기업 사용자 로그인 | N | 200 OK |

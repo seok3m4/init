@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userId         BigInt   @id @default(autoincrement()) @map("user_id")
+  email          String   @unique @db.VarChar(255)
+  passwordHash   String?  @map("password_hash") @db.VarChar(255)
+  userType       String   @map("user_type") @db.VarChar(30)
+  name           String   @db.VarChar(100)
+  phone          String?  @db.VarChar(50)
+  status         String   @db.VarChar(30)
+  createdAt      DateTime @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @map("updated_at") @db.Timestamp(6)
+  authProvider   String   @map("auth_provider") @db.VarChar(30)
+  providerUserId String?  @map("provider_user_id") @db.VarChar(255)
+
+  @@unique([authProvider, providerUserId], map: "uk_users_provider_user")
+  @@map("users")
+}
+
+model Company {
+  companyId                  BigInt   @id @default(autoincrement()) @map("company_id")
+  ownerUserId                BigInt   @map("owner_user_id")
+  name                       String   @db.VarChar(150)
+  businessRegistrationNumber String   @unique @map("business_registration_number") @db.VarChar(10)
+  verificationStatus         String   @map("verification_status") @db.VarChar(30)
+  industry                   String?  @db.VarChar(100)
+  profile                    String?
+  talentProfile              String?  @map("talent_profile")
+  evaluationPolicy           String?  @map("evaluation_policy")
+  createdAt                  DateTime @map("created_at") @db.Timestamp(6)
+  updatedAt                  DateTime @map("updated_at") @db.Timestamp(6)
+
+  @@index([ownerUserId], map: "idx_companies_owner_user")
+  @@map("companies")
+}
+
+model FileAsset {
+  fileId       BigInt   @id @default(autoincrement()) @map("file_id")
+  ownerUserId  BigInt   @map("owner_user_id")
+  storageKey   String   @map("storage_key") @db.VarChar(500)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  sizeBytes    BigInt   @map("size_bytes")
+  status       String   @db.VarChar(30)
+  createdAt    DateTime @map("created_at") @db.Timestamp(6)
+
+  @@map("file_assets")
+}
+
+model CandidateProfile {
+  candidateId         BigInt   @id @default(autoincrement()) @map("candidate_id")
+  userId              BigInt   @unique @map("user_id")
+  defaultResumeFileId BigInt?  @map("default_resume_file_id")
+  portfolioUrl        String?  @map("portfolio_url") @db.VarChar(500)
+  githubUrl           String?  @map("github_url") @db.VarChar(500)
+  summary             String?
+  createdAt           DateTime @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime @map("updated_at") @db.Timestamp(6)
+
+  @@map("candidate_profiles")
+}
+
+model Posting {
+  postingId      BigInt    @id @default(autoincrement()) @map("posting_id")
+  companyId      BigInt    @map("company_id")
+  title          String    @db.VarChar(200)
+  jobRole        String    @map("job_role") @db.VarChar(100)
+  jobDescription String?   @map("job_description")
+  startsOn       DateTime? @map("starts_on") @db.Date
+  endsOn         DateTime? @map("ends_on") @db.Date
+  status         String    @db.VarChar(30)
+  createdAt      DateTime  @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime  @map("updated_at") @db.Timestamp(6)
+
+  @@index([companyId], map: "idx_postings_company")
+  @@map("postings")
+}
+
+model CriterionTag {
+  tagId       BigInt  @id @default(autoincrement()) @map("tag_id")
+  jobRole     String  @map("job_role") @db.VarChar(100)
+  name        String  @db.VarChar(100)
+  description String?
+  category    String  @db.VarChar(80)
+  isActive    Boolean @default(true) @map("is_active")
+  sortOrder   Int     @map("sort_order")
+
+  @@index([jobRole], map: "idx_criterion_tags_job_role")
+  @@map("criterion_tags")
+}
+
+model EvaluationCriteria {
+  criterionId BigInt @id @default(autoincrement()) @map("criterion_id")
+  postingId   BigInt @map("posting_id")
+  tagId       BigInt @map("tag_id")
+  weight      Int
+  passScore   Int?   @map("pass_score")
+  sortOrder   Int    @map("sort_order")
+
+  @@unique([postingId, tagId], map: "uk_evaluation_criteria_posting_tag")
+  @@index([postingId], map: "idx_evaluation_criteria_posting")
+  @@map("evaluation_criteria")
+}
+
+model QuestionBank {
+  questionId   BigInt  @id @default(autoincrement()) @map("question_id")
+  companyId    BigInt  @map("company_id")
+  postingId    BigInt? @map("posting_id")
+  criterionId  BigInt? @map("criterion_id")
+  questionType String  @map("question_type") @db.VarChar(50)
+  content      String
+  isActive     Boolean @default(true) @map("is_active")
+
+  @@index([postingId], map: "idx_question_bank_posting")
+  @@map("question_bank")
+}
+
+model Application {
+  applicationId      BigInt    @id @default(autoincrement()) @map("application_id")
+  postingId          BigInt    @map("posting_id")
+  candidateId        BigInt    @map("candidate_id")
+  applicationStatus  String    @map("application_status") @db.VarChar(40)
+  documentStatus     String    @map("document_status") @db.VarChar(40)
+  interviewStatus    String    @map("interview_status") @db.VarChar(40)
+  reportStatus       String    @map("report_status") @db.VarChar(40)
+  screeningDecision  String?   @map("screening_decision") @db.VarChar(40)
+  screeningMemo      String?   @map("screening_memo")
+  submittedAt        DateTime? @map("submitted_at") @db.Timestamp(6)
+  updatedAt          DateTime  @map("updated_at") @db.Timestamp(6)
+
+  @@index([postingId], map: "idx_applications_posting")
+  @@index([candidateId], map: "idx_applications_candidate")
+  @@map("applications")
+}
+
+model ApplicationDocument {
+  documentId    BigInt    @id @default(autoincrement()) @map("document_id")
+  applicationId BigInt    @map("application_id")
+  fileId        BigInt?   @map("file_id")
+  documentType  String    @map("document_type") @db.VarChar(50)
+  parseStatus   String    @map("parse_status") @db.VarChar(40)
+  extractedText String?   @map("extracted_text")
+  uploadedAt    DateTime  @map("uploaded_at") @db.Timestamp(6)
+
+  @@map("application_documents")
+}
+
+model ConsentRecord {
+  consentId     BigInt    @id @default(autoincrement()) @map("consent_id")
+  applicationId BigInt    @map("application_id")
+  consentType   String    @map("consent_type") @db.VarChar(80)
+  agreed        Boolean
+  agreedAt      DateTime? @map("agreed_at") @db.Timestamp(6)
+
+  @@map("consent_records")
+}
+
+model InterviewSession {
+  sessionId        BigInt    @id @default(autoincrement()) @map("session_id")
+  applicationId    BigInt?   @map("application_id")
+  candidateId      BigInt    @map("candidate_id")
+  interviewType    String    @map("interview_type") @db.VarChar(40)
+  status           String    @db.VarChar(40)
+  showQuestionText Boolean   @default(false) @map("show_question_text")
+  startedAt        DateTime? @map("started_at") @db.Timestamp(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamp(6)
+
+  @@index([applicationId], map: "idx_interview_sessions_application")
+  @@map("interview_sessions")
+}
+
+model InterviewAnswer {
+  answerId        BigInt    @id @default(autoincrement()) @map("answer_id")
+  sessionId       BigInt    @map("session_id")
+  questionId      BigInt?   @map("question_id")
+  videoFileId     BigInt?   @map("video_file_id")
+  audioFileId     BigInt?   @map("audio_file_id")
+  transcript      String?
+  durationSeconds Int?      @map("duration_seconds")
+  submittedAt     DateTime? @map("submitted_at") @db.Timestamp(6)
+
+  @@map("interview_answers")
+}
+
+model FollowUpQuestion {
+  followUpId       BigInt   @id @default(autoincrement()) @map("follow_up_id")
+  answerId         BigInt   @map("answer_id")
+  content          String
+  generationStatus String   @map("generation_status") @db.VarChar(40)
+  createdAt        DateTime @map("created_at") @db.Timestamp(6)
+
+  @@map("follow_up_questions")
+}
+
+model EvaluationReport {
+  reportId      BigInt    @id @default(autoincrement()) @map("report_id")
+  applicationId BigInt?   @map("application_id")
+  sessionId     BigInt?   @map("session_id")
+  reportType    String    @map("report_type") @db.VarChar(50)
+  status        String    @db.VarChar(40)
+  totalScore    Int?      @map("total_score")
+  summary       String?
+  generatedAt   DateTime? @map("generated_at") @db.Timestamp(6)
+
+  @@index([applicationId], map: "idx_evaluation_reports_application")
+  @@map("evaluation_reports")
+}
+
+model ReportScore {
+  scoreId     BigInt  @id @default(autoincrement()) @map("score_id")
+  reportId    BigInt  @map("report_id")
+  criterionId BigInt? @map("criterion_id")
+  score       Int
+  rationale   String?
+
+  @@map("report_scores")
+}
+
+model ReportEvidence {
+  evidenceId   BigInt  @id @default(autoincrement()) @map("evidence_id")
+  scoreId      BigInt  @map("score_id")
+  answerId     BigInt? @map("answer_id")
+  evidenceText String  @map("evidence_text")
+
+  @@map("report_evidences")
+}
+
+model ManualEvaluation {
+  manualEvalId   BigInt    @id @default(autoincrement()) @map("manual_eval_id")
+  reportId       BigInt    @map("report_id")
+  reviewerUserId BigInt    @map("reviewer_user_id")
+  decision       String?   @db.VarChar(40)
+  memo           String?
+  reviewedAt     DateTime? @map("reviewed_at") @db.Timestamp(6)
+
+  @@map("manual_evaluations")
+}
+
+model Notification {
+  notificationId   BigInt    @id @default(autoincrement()) @map("notification_id")
+  userId           BigInt    @map("user_id")
+  applicationId    BigInt?   @map("application_id")
+  channel          String    @db.VarChar(40)
+  notificationType String    @map("notification_type") @db.VarChar(80)
+  status           String    @db.VarChar(40)
+  sentAt           DateTime? @map("sent_at") @db.Timestamp(6)
+
+  @@map("notifications")
+}
+
+model AiProcessLog {
+  processLogId BigInt   @id @default(autoincrement()) @map("process_log_id")
+  applicationId BigInt?  @map("application_id")
+  sessionId     BigInt?  @map("session_id")
+  processType   String   @map("process_type") @db.VarChar(80)
+  status        String   @db.VarChar(40)
+  inputRef      String?  @map("input_ref")
+  outputRef     String?  @map("output_ref")
+  createdAt     DateTime @map("created_at") @db.Timestamp(6)
+
+  @@index([applicationId], map: "idx_ai_process_logs_application")
+  @@map("ai_process_logs")
+}
+
+model AiGuardrailLog {
+  guardrailLogId BigInt   @id @default(autoincrement()) @map("guardrail_log_id")
+  processLogId   BigInt   @map("process_log_id")
+  policyName     String   @map("policy_name") @db.VarChar(120)
+  result         String   @db.VarChar(40)
+  reason         String?
+  createdAt      DateTime @map("created_at") @db.Timestamp(6)
+
+  @@map("ai_guardrail_logs")
+}
+
+model Embedding {
+  embeddingId        BigInt   @id @default(autoincrement()) @map("embedding_id")
+  postingId          BigInt?  @map("posting_id")
+  tagId              BigInt?  @map("tag_id")
+  questionId         BigInt?  @map("question_id")
+  documentId         BigInt?  @map("document_id")
+  answerId           BigInt?  @map("answer_id")
+  reportId           BigInt?  @map("report_id")
+  sourceType         String   @map("source_type") @db.VarChar(80)
+  sourceTextHash     String   @map("source_text_hash") @db.VarChar(128)
+  embeddingModel     String   @map("embedding_model") @db.VarChar(120)
+  embeddingDimension Int      @map("embedding_dimension")
+  embeddingVector    String   @map("embedding_vector")
+  metadataJson       String?  @map("metadata_json")
+  createdAt          DateTime @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime @map("updated_at") @db.Timestamp(6)
+
+  @@index([sourceType], map: "idx_embeddings_source_type")
+  @@index([sourceTextHash], map: "idx_embeddings_source_hash")
+  @@map("embeddings")
+}

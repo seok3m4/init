@@ -11,6 +11,9 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - Error: `{ "error": { "code": "STRING", "message": "사용자 표시 메시지", "details": [] } }`
 - Auth: 공개 API를 제외하고 `Authorization: Bearer {accessToken}`
 - CurrentUser/Dev Auth: `docs/03_contracts/dev-auth-contract.md` 기준. JWT 구현 전에는 local/dev 환경에서 `X-Dev-*` 헤더로 동일한 `CurrentUser`를 만든다.
+- Session: 로그인 성공 시 `accessToken`은 응답 본문으로 반환하고 `refreshToken`은 HttpOnly cookie로 설정한다. 프론트엔드는 protected API에 `Authorization: Bearer {accessToken}`을 사용한다.
+- Google OAuth: 지원자(`CANDIDATE`) 개인 계정만 허용한다. 기업(`COMPANY`) 계정은 이메일 회원가입/로그인만 사용하며 Google OAuth 요청은 `AUTH_USER_TYPE_MISMATCH` 또는 `COMMON_FORBIDDEN`으로 거부한다.
+- Email delivery: 이메일 인증과 비밀번호 재설정 코드는 Redis TTL 캐시에 저장하고 SMTP로 발송한다.
 
 ## 인증/계정
 
@@ -47,16 +50,19 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 200 OK
 - 비동기: N
 - 요청 데이터:
-  - Google 계정 정보, 사용자 유형
+  - Google 계정 정보, 사용자 유형(CANDIDATE)
 - 검증/전제조건:
+  - 사용자 유형은 지원자(CANDIDATE)만 허용
   - Google OAuth 인증 성공 및 계정 연동 성공
 - 성공 응답/처리:
-  - 기업은 지원현황 > 공고 관리로 이동, 지원자는 AI 모의면접 > 면접시작으로 이동
+  - 지원자는 AI 모의면접 > 면접시작으로 이동
 - 오류/예외:
+  - 기업(COMPANY) 유형으로 요청하면 `AUTH_USER_TYPE_MISMATCH`로 거부한다.
   - OAuth 인증 실패, 계정 연동 실패, 권한 거부 시 로그인 실패 메시지를 표시한다.
 - 관련 ERD 테이블:
   - users, companies, candidate_profiles, postings, applications, interview_sessions, notifications, ai_process_logs
 - 비고/미결:
+  - Google 로그인은 지원자 개인 계정만 허용한다.
   - 이메일 회원가입과 달리 별도 이메일 인증 입력 단계는 적용하지 않음
 
 ### API-003 POST /auth/signup/candidate
@@ -192,6 +198,60 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 코드 불일치, 인증 만료, 재시도 횟수 초과 시 오류 메시지를 표시한다.
 - 관련 ERD 테이블:
   - users, notifications, Redis/TTL cache
+
+### API-080 GET /auth/me
+- 도메인: 인증/계정
+- 권한/인증: 로그인 필요
+- 관련 화면: 로그인 이후 공통 세션 확인
+- UI Type: system process
+- 상태 코드: 200 OK
+- 비동기: N
+- 요청 데이터
+  - Authorization: Bearer accessToken
+- 검증/전제조건:
+  - accessToken이 유효하고 만료되지 않아야 함
+- 성공 응답/처리:
+  - `CurrentUser`와 기본 프로필 식별자(`companyId`, `candidateId`)를 반환
+- 오류/예외:
+  - 토큰 없음, 만료, 위조 시 `COMMON_UNAUTHORIZED`를 반환한다.
+- 관련 ERD 테이블
+  - users, companies, candidate_profiles
+
+### API-081 POST /auth/refresh
+- 도메인: 인증/계정
+- 권한/인증: refreshToken HttpOnly cookie
+- 관련 화면: 로그인 이후 공통 세션 갱신
+- UI Type: system process
+- 상태 코드: 200 OK
+- 비동기: N
+- 요청 데이터
+  - Cookie: refreshToken
+- 검증/전제조건:
+  - refreshToken이 유효하고 만료되지 않아야 함
+- 성공 응답/처리:
+  - 새 accessToken을 응답 본문으로 반환하고 refreshToken cookie를 갱신
+- 오류/예외:
+  - refreshToken 없음, 만료, 위조 시 `COMMON_UNAUTHORIZED`를 반환한다.
+- 관련 ERD 테이블
+  - users, companies, candidate_profiles
+
+### API-082 POST /auth/logout
+- 도메인: 인증/계정
+- 권한/인증: 로그인 권장
+- 관련 화면: 로그인 이후 공통 로그아웃
+- UI Type: button, system process
+- 상태 코드: 200 OK
+- 비동기: N
+- 요청 데이터
+  - Cookie: refreshToken
+- 검증/전제조건:
+  - 없음. cookie가 없어도 성공 처리한다.
+- 성공 응답/처리:
+  - refreshToken cookie를 제거하고 로그인 화면으로 이동
+- 오류/예외:
+  - cookie가 없어도 오류로 처리하지 않는다.
+- 관련 ERD 테이블
+  - users
 
 ## 기업 - 대시보드
 

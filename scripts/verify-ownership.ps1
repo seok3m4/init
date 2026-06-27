@@ -26,6 +26,8 @@ if (-not $changed -or $changed.Count -eq 0) {
 
 $common = @(
   "^AGENTS\.md$",
+  "^\.env\.example$",
+  "^\.gitignore$",
   "^docs/05_agents/",
   "^docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md$",
   "^scripts/",
@@ -33,7 +35,24 @@ $common = @(
 )
 
 $allowed = @{
-  A = $common + @("^backend/common/", "^backend/api/(src|prisma)/", "^infra/", "^docs/03_contracts/", "^docs/02_architecture/")
+  A = $common + @(
+    "^backend/common/",
+    "^backend/api/(src|prisma)/",
+    "^backend/api/(package|package-lock|tsconfig|tsconfig\.build|nest-cli|jest\.config)\.(json|js)$",
+    "^frontend/(package|package-lock|tsconfig|next-env|next\.config)\.(json|js|d\.ts)$",
+    "^frontend/src/api/",
+    "^frontend/src/features/auth/",
+    "^frontend/src/styles/",
+    "^frontend/src/app/(page|layout)\.tsx$",
+    "^frontend/src/app/login/",
+    "^frontend/src/app/signup/",
+    "^frontend/src/app/password/",
+    "^frontend/src/app/company/applications/dashboard/",
+    "^frontend/src/app/candidate/mock-interview/start/",
+    "^infra/",
+    "^docs/03_contracts/",
+    "^docs/02_architecture/"
+  )
   B = $common + @("^frontend/src/features/company-recruiting/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
   C = $common + @("^frontend/src/features/company-interview-criteria/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
   D = $common + @("^frontend/src/features/candidate-application-interview/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")

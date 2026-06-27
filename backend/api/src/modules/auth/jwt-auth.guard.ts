@@ -1,0 +1,51 @@
+import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import jwt from "jsonwebtoken";
+import { ERROR_CODES, isUserType } from "@init/common";
+import { ApiException } from "../../shared/api-exception";
+import type { JwtPayload } from "./auth.types";
+
+@Injectable()
+export class JwtAuthGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const authHeader = request.headers.authorization as string | undefined;
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
+
+    if (bearerToken) {
+      request.currentUser = this.verifyToken(bearerToken, "access");
+      return true;
+    }
+
+    const devUser = this.readDevAuth(request.headers);
+    if (devUser) {
+      request.currentUser = devUser;
+      return true;
+    }
+
+    throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "로그인이 필요합니다.", 401);
+  }
+
+  verifyToken(token: string, tokenType: "access" | "refresh"): JwtPayload {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET ?? "local-dev-jwt-secret-change-me") as unknown as JwtPayload;
+      if (decoded.tokenType !== tokenType) throw new Error("token type mismatch");
+      return decoded;
+    } catch {
+      throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "토큰이 유효하지 않습니다.", 401);
+    }
+  }
+
+  private readDevAuth(headers: Record<string, string | undefined>) {
+    if (!["local", "development", "test"].includes(process.env.NODE_ENV ?? "development")) return null;
+    const userId = Number(headers["x-dev-user-id"]);
+    const userType = headers["x-dev-user-type"];
+    if (!userId || !isUserType(userType)) return null;
+    return {
+      sub: userId,
+      userType,
+      companyId: headers["x-dev-company-id"] ? Number(headers["x-dev-company-id"]) : null,
+      candidateId: headers["x-dev-candidate-id"] ? Number(headers["x-dev-candidate-id"]) : null,
+      tokenType: "access" as const,
+    };
+  }
+}
