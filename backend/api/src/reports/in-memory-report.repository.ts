@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
   EvaluationContext,
@@ -22,7 +23,7 @@ interface GuardrailLogRecord {
 }
 
 @Injectable()
-export class InMemoryReportRepository {
+export class InMemoryReportRepository implements ReportRepository {
   private nextProcessLogId = 1;
   private nextScoreId = 1;
   private nextEvidenceId = 1;
@@ -35,7 +36,7 @@ export class InMemoryReportRepository {
   private readonly scoresByReport = new Map<number, ReportScore[]>();
   private readonly guardrailLogs: GuardrailLogRecord[] = [];
 
-  startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): ProcessLogSnapshot {
+  async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
     this.ensureReport(reportId, reportType);
     const processLog: ProcessLogSnapshot = {
       processLogId: this.nextProcessLogId++,
@@ -47,19 +48,19 @@ export class InMemoryReportRepository {
     return { ...processLog };
   }
 
-  markProcessRunning(processLogId: number): ProcessLogSnapshot {
+  async markProcessRunning(processLogId: number): Promise<ProcessLogSnapshot> {
     return this.updateProcess(processLogId, { status: "RUNNING" });
   }
 
-  markProcessCompleted(processLogId: number): ProcessLogSnapshot {
+  async markProcessCompleted(processLogId: number): Promise<ProcessLogSnapshot> {
     return this.updateProcess(processLogId, { status: "COMPLETED" });
   }
 
-  markProcessFailed(processLogId: number, failure: FailureReason): ProcessLogSnapshot {
+  async markProcessFailed(processLogId: number, failure: FailureReason): Promise<ProcessLogSnapshot> {
     return this.updateProcess(processLogId, { status: "FAILED", failure });
   }
 
-  markReportGenerating(reportId: number, reportType: ReportType): EvaluationReportSnapshot {
+  async markReportGenerating(reportId: number, reportType: ReportType): Promise<EvaluationReportSnapshot> {
     const report = this.ensureReport(reportId, reportType);
     const updated: EvaluationReportSnapshot = {
       ...report,
@@ -71,7 +72,7 @@ export class InMemoryReportRepository {
     return { ...updated };
   }
 
-  markReportCompleted(reportId: number, summary: string, totalScore: number): EvaluationReportSnapshot {
+  async markReportCompleted(reportId: number, summary: string, totalScore: number): Promise<EvaluationReportSnapshot> {
     const report = this.requireReport(reportId);
     const updated: EvaluationReportSnapshot = {
       ...report,
@@ -84,7 +85,7 @@ export class InMemoryReportRepository {
     return { ...updated };
   }
 
-  markReportFailed(reportId: number, failure: FailureReason): EvaluationReportSnapshot {
+  async markReportFailed(reportId: number, failure: FailureReason): Promise<EvaluationReportSnapshot> {
     const report = this.requireReport(reportId);
     const updated: EvaluationReportSnapshot = {
       ...report,
@@ -95,15 +96,15 @@ export class InMemoryReportRepository {
     return { ...updated };
   }
 
-  saveContext(reportId: number, context: EvaluationContext): void {
+  async saveContext(reportId: number, context: EvaluationContext): Promise<void> {
     this.contexts.set(reportId, context);
   }
 
-  saveCommunicationAnalysis(reportId: number, communicationAnalysis: CommunicationAnalysis): void {
+  async saveCommunicationAnalysis(reportId: number, communicationAnalysis: CommunicationAnalysis): Promise<void> {
     this.communicationAnalyses.set(reportId, communicationAnalysis);
   }
 
-  saveScoresAndEvidences(reportId: number, scores: ReportScore[]): StoredCounts {
+  async saveScoresAndEvidences(reportId: number, scores: ReportScore[]): Promise<StoredCounts> {
     const storedScores = scores.map((score) => ({
       ...score,
       scoreId: this.nextScoreId++,
@@ -121,7 +122,7 @@ export class InMemoryReportRepository {
     };
   }
 
-  saveGuardrailLog(processLogId: number, policyName: string, decision: GuardrailDecision): number {
+  async saveGuardrailLog(processLogId: number, policyName: string, decision: GuardrailDecision): Promise<number> {
     const guardrailLogId = this.nextGuardrailLogId++;
     this.guardrailLogs.push({
       guardrailLogId,
@@ -134,11 +135,11 @@ export class InMemoryReportRepository {
     return guardrailLogId;
   }
 
-  getReport(reportId: number): EvaluationReportSnapshot {
+  async getReport(reportId: number): Promise<EvaluationReportSnapshot> {
     return { ...this.requireReport(reportId) };
   }
 
-  countStored(reportId: number): StoredCounts {
+  async countStored(reportId: number): Promise<StoredCounts> {
     const scores = this.scoresByReport.get(reportId) ?? [];
     return {
       scoreCount: scores.length,

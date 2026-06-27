@@ -70,14 +70,29 @@ export class MockAiReportProvider {
         criterionName: criterion.name,
         score,
         rationale: `${criterion.name} was evaluated from the candidate answer and document context.`,
-        evidences: [
-          {
-            answerId: answer.answerId,
-            text: evidenceText
-          }
-        ]
+        evidences: this.buildEvidences(answer.answerId, answer.transcript, documentText)
       };
     });
+  }
+
+  private buildEvidences(answerId: number, transcript: string, documentText?: string): ReportScore["evidences"] {
+    const evidences: ReportScore["evidences"] = [
+      {
+        sourceType: "INTERVIEW_ANSWER",
+        answerId,
+        text: this.pickEvidence(transcript)
+      }
+    ];
+
+    if (documentText?.trim()) {
+      evidences.push({
+        sourceType: "APPLICATION_DOCUMENT",
+        documentRef: "application.documentText",
+        text: this.pickEvidence(documentText)
+      });
+    }
+
+    return evidences;
   }
 
   private pickEvidence(transcript: string, documentText?: string): string {

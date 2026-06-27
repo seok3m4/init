@@ -20,7 +20,7 @@ export class ReportsController {
 
   @Post(":reportId/evaluation-context")
   @HttpCode(HttpStatus.ACCEPTED)
-  buildEvaluationContext(
+  async buildEvaluationContext(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
     @Body() body: EvaluationContextRequest
@@ -28,7 +28,7 @@ export class ReportsController {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
 
-    const result = this.aiReportPipelineService.buildEvaluationContext({
+    const result = await this.aiReportPipelineService.buildEvaluationContext({
       currentUser,
       reportId: this.parseReportId(reportIdParam),
       body
@@ -39,7 +39,7 @@ export class ReportsController {
 
   @Post(":reportId/answer-evaluation")
   @HttpCode(HttpStatus.ACCEPTED)
-  evaluateAnswers(
+  async evaluateAnswers(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
     @Body() body: AnswerEvaluationRequest
@@ -47,7 +47,7 @@ export class ReportsController {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
 
-    const result = this.aiReportPipelineService.evaluateAnswers({
+    const result = await this.aiReportPipelineService.evaluateAnswers({
       currentUser,
       reportId: this.parseReportId(reportIdParam),
       body
@@ -58,7 +58,7 @@ export class ReportsController {
 
   @Post(":reportId/communication-analysis")
   @HttpCode(HttpStatus.ACCEPTED)
-  analyzeCommunication(
+  async analyzeCommunication(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
     @Body() body: CommunicationAnalysisRequest
@@ -66,7 +66,7 @@ export class ReportsController {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
 
-    const result = this.aiReportPipelineService.analyzeCommunication({
+    const result = await this.aiReportPipelineService.analyzeCommunication({
       currentUser,
       reportId: this.parseReportId(reportIdParam),
       body
@@ -77,7 +77,7 @@ export class ReportsController {
 
   @Post(":reportId/generate")
   @HttpCode(HttpStatus.ACCEPTED)
-  generateRecruitingReport(
+  async generateRecruitingReport(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
     @Body() body: GenerateReportRequest
@@ -92,7 +92,7 @@ export class ReportsController {
       });
     }
 
-    const result = this.aiReportPipelineService.generate({
+    const result = await this.aiReportPipelineService.generate({
       currentUser,
       reportId: this.parseReportId(reportIdParam),
       body
@@ -122,7 +122,7 @@ export class CandidateMockReportsController {
 
   @Post(":reportId/generate")
   @HttpCode(HttpStatus.ACCEPTED)
-  generateMockInterviewReport(
+  async generateMockInterviewReport(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
     @Body() body: GenerateReportRequest
@@ -137,7 +137,7 @@ export class CandidateMockReportsController {
       });
     }
 
-    const result = this.aiReportPipelineService.generate({
+    const result = await this.aiReportPipelineService.generate({
       currentUser,
       reportId: this.parseReportId(reportIdParam),
       body

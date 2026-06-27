@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { GuardrailService } from "./guardrail.service";
-import { InMemoryReportRepository } from "./in-memory-report.repository";
 import { MockAiReportProvider } from "./mock-ai-report.provider";
+import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
 import {
   AnswerEvaluationRequest,
   AnswerEvaluationResult,
@@ -22,148 +22,156 @@ export class AiReportPipelineService {
   constructor(
     private readonly mockProvider: MockAiReportProvider,
     private readonly guardrailService: GuardrailService,
-    private readonly repository: InMemoryReportRepository
+    @Inject(REPORT_REPOSITORY) private readonly repository: ReportRepository
   ) {}
 
-  buildEvaluationContext(command: ReportCommand<EvaluationContextRequest>): EvaluationContextResult {
+  async buildEvaluationContext(command: ReportCommand<EvaluationContextRequest>): Promise<EvaluationContextResult> {
     this.validateEvaluationContext(command.body);
-    const processLog = this.start(command.reportId, command.body.reportType, "EVALUATION_CONTEXT");
+    const processLog = await this.start(command.reportId, command.body.reportType, "EVALUATION_CONTEXT");
 
     try {
       const context = this.mockProvider.buildEvaluationContext(command.body);
-      this.repository.saveContext(command.reportId, context);
-      const completedProcess = this.repository.markProcessCompleted(processLog.processLogId);
+      await this.repository.saveContext(command.reportId, context);
+      const completedProcess = await this.repository.markProcessCompleted(processLog.processLogId);
 
       return {
-        ...this.baseResult(command.reportId, completedProcess),
+        ...(await this.baseResult(command.reportId, completedProcess)),
         context
       };
     } catch (error) {
-      return this.fail(command.reportId, processLog.processLogId, this.toFailure(error, "RETRYABLE")) as EvaluationContextResult;
+      return (await this.fail(
+        command.reportId,
+        processLog.processLogId,
+        this.toFailure(error, "RETRYABLE")
+      )) as EvaluationContextResult;
     }
   }
 
-  evaluateAnswers(command: ReportCommand<AnswerEvaluationRequest>): AnswerEvaluationResult {
+  async evaluateAnswers(command: ReportCommand<AnswerEvaluationRequest>): Promise<AnswerEvaluationResult> {
     this.validateAnswerEvaluation(command.body);
-    const processLog = this.start(command.reportId, command.body.reportType, "ANSWER_EVALUATION");
+    const processLog = await this.start(command.reportId, command.body.reportType, "ANSWER_EVALUATION");
 
     try {
       const scores = this.mockProvider.evaluateAnswers(command.body);
       const guardrail = this.guardrailService.validateScores(command.body.reportType, scores);
-      this.repository.saveGuardrailLog(processLog.processLogId, "ANSWER_EVIDENCE_REQUIRED", guardrail);
+      await this.repository.saveGuardrailLog(processLog.processLogId, "ANSWER_EVIDENCE_REQUIRED", guardrail);
 
       if (guardrail.result !== "PASS") {
         const failure = this.failure("NON_RETRYABLE", guardrail.reason ?? "answer evaluation blocked by guardrail");
-        const failed = this.fail(command.reportId, processLog.processLogId, failure);
+        const failed = await this.fail(command.reportId, processLog.processLogId, failure);
         return {
           ...failed,
           scores,
           guardrail,
-          stored: this.repository.countStored(command.reportId)
+          stored: await this.repository.countStored(command.reportId)
         };
       }
 
-      const stored = this.repository.saveScoresAndEvidences(command.reportId, scores);
-      const completedProcess = this.repository.markProcessCompleted(processLog.processLogId);
+      const stored = await this.repository.saveScoresAndEvidences(command.reportId, scores);
+      const completedProcess = await this.repository.markProcessCompleted(processLog.processLogId);
 
       return {
-        ...this.baseResult(command.reportId, completedProcess),
+        ...(await this.baseResult(command.reportId, completedProcess)),
         scores,
         guardrail,
         stored
       };
     } catch (error) {
-      const failed = this.fail(command.reportId, processLog.processLogId, this.toFailure(error, "RETRYABLE"));
+      const failed = await this.fail(command.reportId, processLog.processLogId, this.toFailure(error, "RETRYABLE"));
       return {
         ...failed,
         scores: [],
         guardrail: { result: "BLOCKED", reason: failed.failure?.reason ?? "answer evaluation failed" },
-        stored: this.repository.countStored(command.reportId)
+        stored: await this.repository.countStored(command.reportId)
       };
     }
   }
 
-  analyzeCommunication(command: ReportCommand<CommunicationAnalysisRequest>): CommunicationAnalysisResult {
+  async analyzeCommunication(command: ReportCommand<CommunicationAnalysisRequest>): Promise<CommunicationAnalysisResult> {
     this.validateCommunicationAnalysis(command.body);
-    const processLog = this.start(command.reportId, command.body.reportType, "COMMUNICATION_ANALYSIS");
+    const processLog = await this.start(command.reportId, command.body.reportType, "COMMUNICATION_ANALYSIS");
 
     try {
       const communicationAnalysis = this.mockProvider.analyzeCommunication(command.body);
-      this.repository.saveCommunicationAnalysis(command.reportId, communicationAnalysis);
-      const completedProcess = this.repository.markProcessCompleted(processLog.processLogId);
+      await this.repository.saveCommunicationAnalysis(command.reportId, communicationAnalysis);
+      const completedProcess = await this.repository.markProcessCompleted(processLog.processLogId);
 
       return {
-        ...this.baseResult(command.reportId, completedProcess),
+        ...(await this.baseResult(command.reportId, completedProcess)),
         communicationAnalysis
       };
     } catch (error) {
-      return this.fail(command.reportId, processLog.processLogId, this.toFailure(error, "RETRYABLE")) as CommunicationAnalysisResult;
+      return (await this.fail(
+        command.reportId,
+        processLog.processLogId,
+        this.toFailure(error, "RETRYABLE")
+      )) as CommunicationAnalysisResult;
     }
   }
 
-  generate(command: ReportCommand<GenerateReportRequest>): GenerateReportResult {
+  async generate(command: ReportCommand<GenerateReportRequest>): Promise<GenerateReportResult> {
     this.validateGenerateReport(command.body);
-    const processLog = this.start(command.reportId, command.body.reportType, "REPORT_GENERATE");
+    const processLog = await this.start(command.reportId, command.body.reportType, "REPORT_GENERATE");
 
     try {
       const generatedReport = this.mockProvider.generate(command.body);
       const guardrail = this.guardrailService.validateReport(command.body.reportType, generatedReport);
-      this.repository.saveGuardrailLog(processLog.processLogId, "REPORT_FINAL_SAVE", guardrail);
+      await this.repository.saveGuardrailLog(processLog.processLogId, "REPORT_FINAL_SAVE", guardrail);
 
       if (guardrail.result !== "PASS") {
         const failure = this.failure("NON_RETRYABLE", guardrail.reason ?? "report blocked by guardrail");
-        const failed = this.fail(command.reportId, processLog.processLogId, failure);
+        const failed = await this.fail(command.reportId, processLog.processLogId, failure);
         return {
           ...failed,
           ...generatedReport,
           guardrail,
-          stored: this.repository.countStored(command.reportId)
+          stored: await this.repository.countStored(command.reportId)
         };
       }
 
-      const stored = this.repository.saveScoresAndEvidences(command.reportId, generatedReport.scores);
-      this.repository.markReportCompleted(command.reportId, generatedReport.summary, generatedReport.totalScore);
-      const completedProcess = this.repository.markProcessCompleted(processLog.processLogId);
+      const stored = await this.repository.saveScoresAndEvidences(command.reportId, generatedReport.scores);
+      await this.repository.markReportCompleted(command.reportId, generatedReport.summary, generatedReport.totalScore);
+      const completedProcess = await this.repository.markProcessCompleted(processLog.processLogId);
 
       return {
-        ...this.baseResult(command.reportId, completedProcess),
+        ...(await this.baseResult(command.reportId, completedProcess)),
         ...generatedReport,
         guardrail,
         stored
       };
     } catch (error) {
-      const failed = this.fail(command.reportId, processLog.processLogId, this.toFailure(error, "RETRYABLE"));
+      const failed = await this.fail(command.reportId, processLog.processLogId, this.toFailure(error, "RETRYABLE"));
       return {
         ...failed,
         summary: "",
         totalScore: 0,
         scores: [],
         guardrail: { result: "BLOCKED", reason: failed.failure?.reason ?? "report generation failed" },
-        stored: this.repository.countStored(command.reportId)
+        stored: await this.repository.countStored(command.reportId)
       };
     }
   }
 
-  private start(reportId: number, reportType: ReportType, step: ReportPipelineStep) {
-    const processLog = this.repository.startProcess(reportId, reportType, step);
-    this.repository.markReportGenerating(reportId, reportType);
+  private async start(reportId: number, reportType: ReportType, step: ReportPipelineStep) {
+    const processLog = await this.repository.startProcess(reportId, reportType, step);
+    await this.repository.markReportGenerating(reportId, reportType);
     return this.repository.markProcessRunning(processLog.processLogId);
   }
 
-  private baseResult(reportId: number, processLog: ReturnType<InMemoryReportRepository["markProcessCompleted"]>) {
+  private async baseResult(reportId: number, processLog: Awaited<ReturnType<ReportRepository["markProcessCompleted"]>>) {
     return {
       processLogId: processLog.processLogId,
       processType: processLog.processType,
       step: processLog.step,
       status: processLog.status,
-      report: this.repository.getReport(reportId),
+      report: await this.repository.getReport(reportId),
       failure: processLog.failure
     };
   }
 
-  private fail(reportId: number, processLogId: number, failure: FailureReason) {
-    const failedProcess = this.repository.markProcessFailed(processLogId, failure);
-    this.repository.markReportFailed(reportId, failure);
+  private async fail(reportId: number, processLogId: number, failure: FailureReason) {
+    const failedProcess = await this.repository.markProcessFailed(processLogId, failure);
+    await this.repository.markReportFailed(reportId, failure);
     return this.baseResult(reportId, failedProcess);
   }
 

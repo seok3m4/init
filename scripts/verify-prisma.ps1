@@ -33,12 +33,21 @@ try {
         exit 1
     }
 
+    $hadDatabaseUrl = [bool][Environment]::GetEnvironmentVariable("DATABASE_URL")
+    if (-not $hadDatabaseUrl) {
+        $env:DATABASE_URL = "postgresql://user:pass@localhost:5432/init"
+    }
+
     if (Test-Path -LiteralPath "node_modules/.bin/prisma.cmd") {
         & .\node_modules\.bin\prisma.cmd validate
     } elseif (Get-Command npx -ErrorAction SilentlyContinue) {
         npx prisma validate
     } else {
         Write-Host "Prisma harness skipped runtime validation: npx/prisma is not available." -ForegroundColor Yellow
+    }
+
+    if (-not $hadDatabaseUrl) {
+        Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
     }
 
     if (-not (Test-Path -LiteralPath $migrationsPath)) {

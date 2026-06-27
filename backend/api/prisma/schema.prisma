@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EvaluationReport {
+  reportId    BigInt       @id @map("report_id")
+  applicationId BigInt?    @map("application_id")
+  sessionId   BigInt?      @map("session_id")
+  reportType  String       @map("report_type") @db.VarChar(50)
+  status      String       @db.VarChar(40)
+  totalScore  Int?         @map("total_score")
+  summary     String?
+  generatedAt DateTime?    @map("generated_at")
+  failureCategory String?  @map("failure_category") @db.VarChar(40)
+  failureReason   String?  @map("failure_reason")
+  scores      ReportScore[]
+
+  @@map("evaluation_reports")
+}
+
+model ReportScore {
+  scoreId     BigInt           @id @map("score_id")
+  reportId    BigInt           @map("report_id")
+  criterionId BigInt?          @map("criterion_id")
+  score       Int
+  rationale   String?
+  report      EvaluationReport @relation(fields: [reportId], references: [reportId], onDelete: Cascade)
+  evidences   ReportEvidence[]
+
+  @@index([reportId])
+  @@map("report_scores")
+}
+
+model ReportEvidence {
+  evidenceId   BigInt      @id @map("evidence_id")
+  scoreId      BigInt      @map("score_id")
+  sourceType   String      @map("source_type") @db.VarChar(80)
+  answerId     BigInt?     @map("answer_id")
+  documentId   BigInt?     @map("document_id")
+  documentRef  String?     @map("document_ref") @db.VarChar(255)
+  evidenceText String      @map("evidence_text")
+  score        ReportScore @relation(fields: [scoreId], references: [scoreId], onDelete: Cascade)
+
+  @@index([scoreId])
+  @@map("report_evidences")
+}
+
+model AiProcessLog {
+  processLogId BigInt   @id @map("process_log_id")
+  applicationId BigInt? @map("application_id")
+  sessionId    BigInt?  @map("session_id")
+  processType  String   @map("process_type") @db.VarChar(80)
+  status       String   @db.VarChar(40)
+  inputRef     String?  @map("input_ref")
+  outputRef    String?  @map("output_ref")
+  failureCategory String? @map("failure_category") @db.VarChar(40)
+  failureReason   String? @map("failure_reason")
+  createdAt    DateTime @map("created_at")
+  guardrailLogs AiGuardrailLog[]
+
+  @@map("ai_process_logs")
+}
+
+model AiGuardrailLog {
+  guardrailLogId BigInt       @id @map("guardrail_log_id")
+  processLogId   BigInt       @map("process_log_id")
+  policyName     String       @map("policy_name") @db.VarChar(120)
+  result         String       @db.VarChar(40)
+  reason         String?
+  createdAt      DateTime     @map("created_at")
+  processLog     AiProcessLog @relation(fields: [processLogId], references: [processLogId], onDelete: Cascade)
+
+  @@index([processLogId])
+  @@map("ai_guardrail_logs")
+}
+
+model Embedding {
+  embeddingId BigInt   @id @map("embedding_id")
+  postingId   BigInt?  @map("posting_id")
+  tagId       BigInt?  @map("tag_id")
+  questionId  BigInt?  @map("question_id")
+  documentId  BigInt?  @map("document_id")
+  answerId    BigInt?  @map("answer_id")
+  reportId    BigInt?  @map("report_id")
+  sourceType  String   @map("source_type") @db.VarChar(80)
+  sourceTextHash String @map("source_text_hash") @db.VarChar(128)
+  embeddingModel String @map("embedding_model") @db.VarChar(120)
+  embeddingDimension Int @map("embedding_dimension")
+  embeddingVector String @map("embedding_vector")
+  metadataJson String? @map("metadata_json")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+
+  @@unique([sourceType, sourceTextHash])
+  @@map("embeddings")
+}

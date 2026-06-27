@@ -415,7 +415,13 @@ CREATE TABLE evaluation_reports (
     summary TEXT,
 
     -- 리포트 생성 시각
-    generated_at TIMESTAMP
+    generated_at TIMESTAMP,
+
+    -- 실패 구분: RETRYABLE, NON_RETRYABLE
+    failure_category VARCHAR(40),
+
+    -- 실패 사유
+    failure_reason TEXT
 );
 
 CREATE TABLE report_scores (
@@ -442,8 +448,17 @@ CREATE TABLE report_evidences (
     -- 연결된 점수 FK
     score_id BIGINT NOT NULL,
 
+    -- 근거 출처 유형: INTERVIEW_ANSWER, APPLICATION_DOCUMENT
+    source_type VARCHAR(80) NOT NULL,
+
     -- 근거가 된 답변 FK
     answer_id BIGINT,
+
+    -- 근거가 된 지원서 첨부 서류 FK
+    document_id BIGINT,
+
+    -- 서류 원문이 아직 별도 document_id로 연결되지 않았을 때의 참조값
+    document_ref VARCHAR(255),
 
     -- 근거 텍스트
     evidence_text TEXT NOT NULL
@@ -517,6 +532,12 @@ CREATE TABLE ai_process_logs (
 
     -- 출력 참조값
     output_ref TEXT,
+
+    -- 실패 구분: RETRYABLE, NON_RETRYABLE
+    failure_category VARCHAR(40),
+
+    -- 실패 사유
+    failure_reason TEXT,
 
     -- 생성 시각
     created_at TIMESTAMP NOT NULL
@@ -706,6 +727,10 @@ ALTER TABLE report_evidences
 ALTER TABLE report_evidences
     ADD CONSTRAINT fk_report_evidences_answer
     FOREIGN KEY (answer_id) REFERENCES interview_answers(answer_id);
+
+ALTER TABLE report_evidences
+    ADD CONSTRAINT fk_report_evidences_document
+    FOREIGN KEY (document_id) REFERENCES application_documents(document_id);
 
 ALTER TABLE manual_evaluations
     ADD CONSTRAINT fk_manual_evaluations_report

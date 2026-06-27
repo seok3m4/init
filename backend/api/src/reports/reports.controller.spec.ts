@@ -43,7 +43,7 @@ describe("ReportsController", () => {
     expect(response.body.data.step).toBe("ANSWER_EVALUATION");
     expect(response.body.data.guardrail.result).toBe("PASS");
     expect(response.body.data.stored.scoreCount).toBe(1);
-    expect(response.body.data.stored.evidenceCount).toBe(1);
+    expect(response.body.data.stored.evidenceCount).toBe(2);
   });
 
   it("stores communication analysis as auxiliary-only data", async () => {

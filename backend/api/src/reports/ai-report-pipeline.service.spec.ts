@@ -21,8 +21,8 @@ describe("AiReportPipelineService", () => {
     service = new AiReportPipelineService(new MockAiReportProvider(), guardrailService, repository);
   });
 
-  it("builds evaluation context from company, posting, criteria, application, answers, and manual evaluation", () => {
-    const result = service.buildEvaluationContext({
+  it("builds evaluation context from company, posting, criteria, application, answers, and manual evaluation", async () => {
+    const result = await service.buildEvaluationContext({
       currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
       reportId: 1,
       body: validContextRequest()
@@ -36,8 +36,8 @@ describe("AiReportPipelineService", () => {
     expect(result.context.manualEvaluations).toHaveLength(1);
   });
 
-  it("saves answer scores only when every score has rationale and evidence", () => {
-    const result = service.evaluateAnswers({
+  it("saves answer scores only when every score has rationale and evidence", async () => {
+    const result = await service.evaluateAnswers({
       currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
       reportId: 1,
       body: {
@@ -51,10 +51,14 @@ describe("AiReportPipelineService", () => {
     expect(result.status).toBe("COMPLETED");
     expect(result.guardrail.result).toBe("PASS");
     expect(result.stored.scoreCount).toBe(1);
-    expect(result.stored.evidenceCount).toBe(1);
+    expect(result.stored.evidenceCount).toBe(2);
+    expect(result.scores[0].evidences.map((evidence) => evidence.sourceType)).toEqual([
+      "INTERVIEW_ANSWER",
+      "APPLICATION_DOCUMENT"
+    ]);
   });
 
-  it("does not store scores or evidences when guardrail blocks final report generation", () => {
+  it("does not store scores or evidences when guardrail blocks final report generation", async () => {
     const blockedReport: GeneratedReport = {
       summary: "Generated summary.",
       totalScore: 80,
@@ -72,7 +76,7 @@ describe("AiReportPipelineService", () => {
     jest.spyOn(blockedProvider, "generate").mockReturnValue(blockedReport);
     const blockedService = new AiReportPipelineService(blockedProvider, guardrailService, new InMemoryReportRepository());
 
-    const result = blockedService.generate({
+    const result = await blockedService.generate({
       currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
       reportId: 1,
       body: validGenerateRequest()
@@ -86,8 +90,8 @@ describe("AiReportPipelineService", () => {
     expect(result.stored.evidenceCount).toBe(0);
   });
 
-  it("marks communication analysis as auxiliary only with zero decision weight", () => {
-    const result = service.analyzeCommunication({
+  it("marks communication analysis as auxiliary only with zero decision weight", async () => {
+    const result = await service.analyzeCommunication({
       currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
       reportId: 1,
       body: {
@@ -111,7 +115,7 @@ describe("AiReportPipelineService", () => {
         criterionName: "Communication",
         score: 80,
         rationale: "이 지원자는 합격 가능성이 높습니다.",
-        evidences: [{ answerId: 10, text: "Clear answer." }]
+        evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "Clear answer." }]
       }
     ];
 
@@ -119,8 +123,8 @@ describe("AiReportPipelineService", () => {
     expect(guardrailService.validateScores("MOCK_INTERVIEW_REPORT", scores).result).toBe("BLOCKED");
   });
 
-  it("records missing consent as a non-retryable failure", () => {
-    expect(() =>
+  it("records missing consent as a non-retryable failure", async () => {
+    await expect(
       service.analyzeCommunication({
         currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
         reportId: 1,
@@ -130,7 +134,7 @@ describe("AiReportPipelineService", () => {
           mediaQuality: "GOOD"
         }
       })
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
   });
 });
 

@@ -1,0 +1,30 @@
+import {
+  CommunicationAnalysis,
+  EvaluationContext,
+  EvaluationReportSnapshot,
+  FailureReason,
+  GuardrailDecision,
+  ProcessLogSnapshot,
+  ReportPipelineStep,
+  ReportScore,
+  ReportType,
+  StoredCounts
+} from "./report.types";
+
+export const REPORT_REPOSITORY = Symbol("REPORT_REPOSITORY");
+
+export interface ReportRepository {
+  startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot>;
+  markProcessRunning(processLogId: number): Promise<ProcessLogSnapshot>;
+  markProcessCompleted(processLogId: number): Promise<ProcessLogSnapshot>;
+  markProcessFailed(processLogId: number, failure: FailureReason): Promise<ProcessLogSnapshot>;
+  markReportGenerating(reportId: number, reportType: ReportType): Promise<EvaluationReportSnapshot>;
+  markReportCompleted(reportId: number, summary: string, totalScore: number): Promise<EvaluationReportSnapshot>;
+  markReportFailed(reportId: number, failure: FailureReason): Promise<EvaluationReportSnapshot>;
+  saveContext(reportId: number, context: EvaluationContext): Promise<void>;
+  saveCommunicationAnalysis(reportId: number, communicationAnalysis: CommunicationAnalysis): Promise<void>;
+  saveScoresAndEvidences(reportId: number, scores: ReportScore[]): Promise<StoredCounts>;
+  saveGuardrailLog(processLogId: number, policyName: string, decision: GuardrailDecision): Promise<number>;
+  getReport(reportId: number): Promise<EvaluationReportSnapshot>;
+  countStored(reportId: number): Promise<StoredCounts>;
+}

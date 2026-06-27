@@ -26,6 +26,22 @@ export class GuardrailService {
       if (score.evidences.length === 0 || score.evidences.some((evidence) => !evidence.text.trim())) {
         return this.block(`evidence is required for criterion ${score.criterionId}`);
       }
+
+      for (const evidence of score.evidences) {
+        if (!["INTERVIEW_ANSWER", "APPLICATION_DOCUMENT"].includes(evidence.sourceType)) {
+          return this.block(`evidence source type is required for criterion ${score.criterionId}`);
+        }
+        if (evidence.sourceType === "INTERVIEW_ANSWER" && !evidence.answerId) {
+          return this.block(`answer evidence source is required for criterion ${score.criterionId}`);
+        }
+        if (
+          evidence.sourceType === "APPLICATION_DOCUMENT" &&
+          !evidence.documentId &&
+          !evidence.documentRef?.trim()
+        ) {
+          return this.block(`document evidence source is required for criterion ${score.criterionId}`);
+        }
+      }
     }
 
     if (reportType === "MOCK_INTERVIEW_REPORT") {

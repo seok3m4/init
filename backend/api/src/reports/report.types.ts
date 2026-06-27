@@ -86,8 +86,12 @@ export interface ReportCommand<TBody> {
   body: TBody;
 }
 
+export type EvidenceSourceType = "INTERVIEW_ANSWER" | "APPLICATION_DOCUMENT";
+
 export interface ReportEvidence {
+  sourceType: EvidenceSourceType;
   answerId?: number;
+  documentId?: number;
   documentRef?: string;
   text: string;
 }
