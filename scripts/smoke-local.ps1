@@ -1,32 +1,19 @@
-param(
-    [string]$BaseUrl = $env:SMOKE_BASE_URL,
-    [switch]$Quiet
-)
+param([string]$BaseUrl = $env:SMOKE_BASE_URL)
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 if (-not $BaseUrl) {
-    if (-not $Quiet) {
-        Write-Host "Smoke harness skipped: SMOKE_BASE_URL or -BaseUrl is not set." -ForegroundColor Yellow
-    }
-    exit 0
+  Write-Host "[skip] SMOKE_BASE_URL is not set"
+  exit 0
 }
 
-$healthUrl = "$($BaseUrl.TrimEnd('/'))/health"
-try {
-    $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 10
-    if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
-        Write-Host "Smoke harness failed: $healthUrl returned $($response.StatusCode)." -ForegroundColor Red
-        exit 1
-    }
-} catch {
-    Write-Host "Smoke harness failed: $healthUrl is not reachable. $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
+$base = $BaseUrl.TrimEnd("/")
+$url = "$base/health"
+$response = Invoke-WebRequest -UseBasicParsing -Uri $url -Method GET -TimeoutSec 10
+if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+  throw "health check failed: $($response.StatusCode)"
 }
 
-if (-not $Quiet) {
-    Write-Host "Smoke harness passed: $healthUrl" -ForegroundColor Green
-}
-
+Write-Host "[ok] smoke-local passed: $url"

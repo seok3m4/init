@@ -10,7 +10,7 @@
 - security helper
 - validation helper
 - time/id utility
-- Prisma/shared type helper
+- Prisma-safe shared type mapping
 
 ## Rules
 

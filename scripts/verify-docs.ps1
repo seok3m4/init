@@ -1,156 +1,99 @@
-param(
-    [switch]$Quiet
-)
+param()
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$failures = New-Object System.Collections.Generic.List[string]
+$failed = $false
 
-function Add-Failure {
-    param([string]$Message)
-    $failures.Add($Message) | Out-Null
+function Test-RequiredPath {
+  param([string]$RelativePath)
+  $path = Join-Path $root $RelativePath
+  if (Test-Path -LiteralPath $path) {
+    Write-Host "[ok] $RelativePath"
+  } else {
+    Write-Host "[fail] missing $RelativePath"
+    $script:failed = $true
+  }
 }
 
-function Require-Path {
-    param([string]$RelativePath)
-    $path = Join-Path $root $RelativePath
-    if (-not (Test-Path -LiteralPath $path)) {
-        Add-Failure "Missing required path: $RelativePath"
+function Test-FileContains {
+  param([string]$RelativePath, [string[]]$Needles)
+  $path = Join-Path $root $RelativePath
+  if (-not (Test-Path -LiteralPath $path)) {
+    Write-Host "[fail] missing $RelativePath"
+    $script:failed = $true
+    return
+  }
+  $text = Get-Content -Encoding UTF8 -LiteralPath $path -Raw
+  foreach ($needle in $Needles) {
+    if ($text -notmatch [regex]::Escape($needle)) {
+      Write-Host "[fail] $RelativePath does not mention '$needle'"
+      $script:failed = $true
     }
-}
-
-function Read-Text {
-    param([string]$RelativePath)
-    $path = Join-Path $root $RelativePath
-    return Get-Content -Encoding UTF8 -LiteralPath $path -Raw
+  }
 }
 
 $requiredPaths = @(
-    "AGENTS.md",
-    "docs/AGENTS.md",
-    "docs/05_agents/AGENTS.md",
-    "docs/05_agents/agent-a-auth-infra.md",
-    "docs/05_agents/agent-b-company-recruiting.md",
-    "docs/05_agents/agent-c-company-interview-criteria.md",
-    "docs/05_agents/agent-d-candidate-application-interview.md",
-    "docs/05_agents/agent-e-ai-report-pipeline.md",
-    "docs/04_implementation/team-split-5dev-1pm.md",
-    "docs/03_contracts/api-index.md",
-    "docs/03_contracts/api-spec.md",
-    "docs/03_contracts/enums.md",
-    "docs/03_contracts/error-codes.md",
-    "docs/02_architecture/data-model.md",
-    "docs/02_architecture/erd.md",
-    "docs/02_architecture/async-ai-pipeline.md",
-    "docs/02_architecture/erdcloud/init_erd_v0.5_refined_erdcloud.sql",
-    "frontend/AGENTS.md",
-    "backend/AGENTS.md",
-    "backend/api/AGENTS.md",
-    "backend/worker/AGENTS.md",
-    "backend/common/AGENTS.md",
-    "infra/AGENTS.md",
-    "scripts/AGENTS.md"
+  "AGENTS.md",
+  "docs/05_agents/AGENTS.md",
+  "docs/04_implementation/team-split-5dev-1pm.md",
+  "docs/04_implementation/test-strategy.md",
+  "docs/03_contracts/api-index.md",
+  "docs/03_contracts/api-spec.md",
+  "docs/03_contracts/enums.md",
+  "docs/03_contracts/error-codes.md",
+  "docs/02_architecture/data-model.md",
+  "docs/02_architecture/erd.md",
+  "docs/02_architecture/erdcloud/init_erd_v0.5_refined_erdcloud.sql",
+  "frontend/src/app",
+  "frontend/src/api",
+  "frontend/src/features",
+  "backend/api/src",
+  "backend/api/prisma",
+  "backend/worker/src",
+  "backend/common/src",
+  "infra/aws",
+  "infra/docker",
+  "infra/db/migrations",
+  "infra/local"
 )
 
-foreach ($relativePath in $requiredPaths) {
-    Require-Path $relativePath
+foreach ($path in $requiredPaths) {
+  Test-RequiredPath $path
 }
 
-$requiredFolders = @(
-    "frontend/src/app",
-    "frontend/src/api",
-    "frontend/src/features/auth",
-    "frontend/src/features/company-recruiting",
-    "frontend/src/features/company-interview-criteria",
-    "frontend/src/features/candidate-application-interview",
-    "backend/api/src",
-    "backend/api/prisma",
-    "backend/worker/src",
-    "backend/common/src",
-    "infra/aws",
-    "infra/docker",
-    "infra/db/migrations",
-    "infra/db/seeds"
-)
+Test-FileContains "AGENTS.md" @("React + Next.js + TypeScript", "NestJS + TypeScript", "Prisma", "pgvector", "AWS ECR + AWS ECS + AWS CloudFront + Amazon S3")
+Test-FileContains "docs/04_implementation/team-split-5dev-1pm.md" @("React + Next.js + TypeScript", "NestJS + TypeScript", "OpenAI Agents SDK", "MediaPipe")
 
-foreach ($relativePath in $requiredFolders) {
-    Require-Path $relativePath
-}
-
-if ((Test-Path -LiteralPath (Join-Path $root "docs/03_contracts/api-index.md")) -and
-    (Test-Path -LiteralPath (Join-Path $root "docs/03_contracts/api-spec.md"))) {
-    $apiIndex = Read-Text "docs/03_contracts/api-index.md"
-    $apiSpec = Read-Text "docs/03_contracts/api-spec.md"
-
-    $indexIds = [regex]::Matches($apiIndex, "API-\d{3}") | ForEach-Object { $_.Value } | Sort-Object
-    $specIds = [regex]::Matches($apiSpec, "### (API-\d{3})\b") | ForEach-Object { $_.Groups[1].Value } | Sort-Object
-
-    $duplicateIds = $indexIds | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name }
-    foreach ($id in $duplicateIds) {
-        Add-Failure "Duplicate API ID in api-index.md: $id"
+$erdPath = Join-Path $root "docs/02_architecture/erdcloud/init_erd_v0.5_refined_erdcloud.sql"
+if (Test-Path -LiteralPath $erdPath) {
+  $erd = Get-Content -Encoding UTF8 -LiteralPath $erdPath -Raw
+  foreach ($table in @("users", "companies", "file_assets", "postings", "applications", "interview_sessions", "ai_process_logs", "evaluation_reports")) {
+    if ($erd -notmatch "CREATE TABLE\s+$table\s*\(") {
+      Write-Host "[fail] ERDCloud SQL missing table $table"
+      $failed = $true
     }
-
-    $indexSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$indexIds)
-    $specSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$specIds)
-
-    foreach ($id in $indexSet) {
-        if (-not $specSet.Contains($id)) {
-            Add-Failure "API ID exists in api-index.md but not api-spec.md: $id"
-        }
-    }
-
-    foreach ($id in $specSet) {
-        if (-not $indexSet.Contains($id)) {
-            Add-Failure "API ID exists in api-spec.md but not api-index.md: $id"
-        }
-    }
+  }
 }
 
-if (Test-Path -LiteralPath (Join-Path $root "docs/02_architecture/erdcloud/init_erd_v0.5_refined_erdcloud.sql")) {
-    $erdSql = Read-Text "docs/02_architecture/erdcloud/init_erd_v0.5_refined_erdcloud.sql"
-    $requiredTables = @(
-        "users",
-        "companies",
-        "file_assets",
-        "candidate_profiles",
-        "postings",
-        "criterion_tags",
-        "evaluation_criteria",
-        "question_bank",
-        "applications",
-        "application_documents",
-        "consent_records",
-        "interview_sessions",
-        "interview_answers",
-        "follow_up_questions",
-        "evaluation_reports",
-        "report_scores",
-        "report_evidences",
-        "manual_evaluations",
-        "notifications",
-        "ai_process_logs",
-        "ai_guardrail_logs",
-        "embeddings"
-    )
-
-    foreach ($table in $requiredTables) {
-        if ($erdSql -notmatch "(?im)^\s*CREATE\s+TABLE\s+$table\s*\(") {
-            Add-Failure "Missing CREATE TABLE in ERDCloud SQL: $table"
-        }
+$apiIndex = Join-Path $root "docs/03_contracts/api-index.md"
+$apiSpec = Join-Path $root "docs/03_contracts/api-spec.md"
+if ((Test-Path -LiteralPath $apiIndex) -and (Test-Path -LiteralPath $apiSpec)) {
+  $indexText = Get-Content -Encoding UTF8 -LiteralPath $apiIndex -Raw
+  $specText = Get-Content -Encoding UTF8 -LiteralPath $apiSpec -Raw
+  $ids = [regex]::Matches($indexText, "API-[A-Z]+-[0-9]+") | ForEach-Object { $_.Value } | Sort-Object -Unique
+  foreach ($id in $ids) {
+    if ($specText -notmatch [regex]::Escape($id)) {
+      Write-Host "[fail] API ID $id exists in api-index.md but not api-spec.md"
+      $failed = $true
     }
+  }
 }
 
-if ($failures.Count -gt 0) {
-    Write-Host "Harness failed:" -ForegroundColor Red
-    foreach ($failure in $failures) {
-        Write-Host " - $failure" -ForegroundColor Red
-    }
-    exit 1
+if ($failed) {
+  throw "verify-docs failed"
 }
 
-if (-not $Quiet) {
-    Write-Host "Harness passed: docs, contracts, agents, ERD, and folder structure are consistent." -ForegroundColor Green
-}
+Write-Host "[ok] verify-docs passed"

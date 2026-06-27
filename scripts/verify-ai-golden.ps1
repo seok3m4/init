@@ -1,47 +1,35 @@
-param(
-    [string]$CasesDir = "docs/04_implementation/ai-golden",
-    [switch]$Quiet
-)
+param()
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$casesPath = Join-Path $root $CasesDir
+$dir = Join-Path $root "docs/04_implementation/ai-golden"
 
-if (-not (Test-Path -LiteralPath $casesPath)) {
-    if (-not $Quiet) {
-        Write-Host "AI golden harness skipped: $CasesDir not found yet." -ForegroundColor Yellow
-    }
-    exit 0
+if (-not (Test-Path -LiteralPath $dir)) {
+  Write-Host "[skip] ai-golden directory not found"
+  exit 0
 }
 
-$jsonFiles = Get-ChildItem -LiteralPath $casesPath -Filter "*.json" -File
-if ($jsonFiles.Count -eq 0) {
-    if (-not $Quiet) {
-        Write-Host "AI golden harness skipped: no golden JSON files found." -ForegroundColor Yellow
-    }
-    exit 0
+$files = Get-ChildItem -LiteralPath $dir -File -Filter "*.json"
+if (-not $files -or $files.Count -eq 0) {
+  Write-Host "[skip] no ai golden JSON files found"
+  exit 0
 }
 
-foreach ($file in $jsonFiles) {
-    $json = Get-Content -Encoding UTF8 -LiteralPath $file.FullName -Raw | ConvertFrom-Json
-    if (-not $json.input) {
-        Write-Host "AI golden harness failed: missing input in $($file.Name)." -ForegroundColor Red
-        exit 1
-    }
-    if (-not $json.expected) {
-        Write-Host "AI golden harness failed: missing expected in $($file.Name)." -ForegroundColor Red
-        exit 1
-    }
-    if (-not $json.expected.outputShape) {
-        Write-Host "AI golden harness failed: missing expected.outputShape in $($file.Name)." -ForegroundColor Red
-        exit 1
-    }
+foreach ($file in $files) {
+  $json = Get-Content -Encoding UTF8 -LiteralPath $file.FullName -Raw | ConvertFrom-Json
+  if ($null -eq $json.input) {
+    throw "$($file.Name) missing input"
+  }
+  if ($null -eq $json.expected) {
+    throw "$($file.Name) missing expected"
+  }
+  if ($null -eq $json.expected.outputShape) {
+    throw "$($file.Name) missing expected.outputShape"
+  }
+  Write-Host "[ok] $($file.Name)"
 }
 
-if (-not $Quiet) {
-    Write-Host "AI golden harness passed." -ForegroundColor Green
-}
-
+Write-Host "[ok] verify-ai-golden passed"

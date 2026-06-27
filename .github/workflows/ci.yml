@@ -5,97 +5,171 @@ on:
     branches:
       - main
       - dev
-      - 'feature/**'
+      - "feature/**"
   pull_request:
     branches:
       - main
       - dev
 
-permissions:
-  contents: read
-
 jobs:
   docs-harness:
-    name: Docs and Contract Harness
+    name: Docs and Harness
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify docs, contracts, agents, ERD, and folder structure
+      - name: Verify docs, contracts, and folder structure
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\verify-docs.ps1
+        run: ./scripts/verify-docs.ps1
 
   extended-harness:
-    name: Extended Harness
+    name: Extended Local Harness
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify Prisma readiness
+      - name: Verify Prisma
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\verify-prisma.ps1
-
-      - name: Verify Dockerfiles
+        run: ./scripts/verify-prisma.ps1
+      - name: Verify Dev Auth seed
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\verify-docker.ps1
-
+        run: ./scripts/verify-dev-auth-seed.ps1
+      - name: Verify Docker
+        shell: pwsh
+        run: ./scripts/verify-docker.ps1
       - name: Verify environment examples
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\verify-env.ps1
-
+        run: ./scripts/verify-env.ps1
       - name: Verify AI golden cases
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\verify-ai-golden.ps1
-
-      - name: Smoke test when SMOKE_BASE_URL is configured
+        run: ./scripts/verify-ai-golden.ps1
+      - name: Smoke test
         shell: pwsh
         env:
           SMOKE_BASE_URL: ${{ vars.SMOKE_BASE_URL }}
-        run: powershell -ExecutionPolicy Bypass -File scripts\smoke-local.ps1
+        run: ./scripts/smoke-local.ps1
+
+  docker-build:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Dockerfiles
+        id: detect
+        shell: bash
+        run: |
+          mapfile -t files < <(find . -type f -name 'Dockerfile*' \
+            ! -path './.git/*' \
+            ! -path '*/node_modules/*' \
+            ! -path '*/.next/*' \
+            ! -path '*/dist/*' | sort)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "has_dockerfiles=false" >> "$GITHUB_OUTPUT"
+            echo "No Dockerfiles found; skipping Docker image build"
+          else
+            echo "has_dockerfiles=true" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "${files[@]}" > /tmp/dockerfiles.txt
+            echo "Detected Dockerfiles:"
+            cat /tmp/dockerfiles.txt
+          fi
+      - name: Build Docker images
+        if: steps.detect.outputs.has_dockerfiles == 'true'
+        shell: bash
+        run: |
+          while IFS= read -r dockerfile; do
+            context="$(dirname "$dockerfile")"
+            name="$(echo "$context" | sed 's#^\./##; s#[^A-Za-z0-9_.-]#-#g' | tr '[:upper:]' '[:lower:]')"
+            if [ -z "$name" ] || [ "$name" = "." ]; then
+              name="root"
+            fi
+            docker build -f "$dockerfile" -t "init-ci-${name}:latest" "$context"
+          done < /tmp/dockerfiles.txt
+
+  frontend:
+    name: Frontend Next.js
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package lock
+        id: detect
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_lock=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lock=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.has_lock == 'true'
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        if: steps.detect.outputs.has_lock == 'true'
+        run: npm ci
+      - name: Typecheck
+        if: steps.detect.outputs.has_lock == 'true'
+        run: npm run typecheck --if-present
+      - name: Lint
+        if: steps.detect.outputs.has_lock == 'true'
+        run: npm run lint --if-present
+      - name: Test
+        if: steps.detect.outputs.has_lock == 'true'
+        run: npm test --if-present
+      - name: Build
+        if: steps.detect.outputs.has_lock == 'true'
+        run: npm run build --if-present
+      - name: Skip empty frontend
+        if: steps.detect.outputs.has_lock != 'true'
+        run: echo "frontend/package-lock.json not found; skipping frontend npm checks"
 
   backend-api:
-    name: Backend API
+    name: Backend API NestJS
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend/api
     steps:
       - uses: actions/checkout@v4
-
+      - name: Detect package lock
+        id: detect
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_lock=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lock=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+        if: steps.detect.outputs.has_lock == 'true'
         with:
-          node-version: '20'
+          node-version: 20
           cache: npm
           cache-dependency-path: backend/api/package-lock.json
-
-      - name: Install dependencies when package exists
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+      - name: Install
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm ci
-
-      - name: Generate Prisma client when configured
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+      - name: Prisma generate
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run prisma:generate --if-present
-
-      - name: Typecheck when configured
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+      - name: Typecheck
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run typecheck --if-present
-
-      - name: Lint when configured
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+      - name: Lint
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run lint --if-present
-
-      - name: Test when configured
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+      - name: Test
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm test --if-present
-
-      - name: Build when configured
-        if: ${{ hashFiles('backend/api/package-lock.json') != '' }}
+      - name: Build
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run build --if-present
-
-      - name: Skip until backend API package exists
-        if: ${{ hashFiles('backend/api/package-lock.json') == '' }}
-        run: echo "No backend/api/package-lock.json yet. Skipping backend API checks."
+      - name: Skip empty backend API
+        if: steps.detect.outputs.has_lock != 'true'
+        run: echo "backend/api/package-lock.json not found; skipping backend API npm checks"
 
   backend-worker:
     name: Backend Worker
@@ -105,37 +179,39 @@ jobs:
         working-directory: backend/worker
     steps:
       - uses: actions/checkout@v4
-
+      - name: Detect package lock
+        id: detect
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_lock=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lock=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
-        if: ${{ hashFiles('backend/worker/package-lock.json') != '' }}
+        if: steps.detect.outputs.has_lock == 'true'
         with:
-          node-version: '20'
+          node-version: 20
           cache: npm
           cache-dependency-path: backend/worker/package-lock.json
-
-      - name: Install dependencies when package exists
-        if: ${{ hashFiles('backend/worker/package-lock.json') != '' }}
+      - name: Install
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm ci
-
-      - name: Typecheck when configured
-        if: ${{ hashFiles('backend/worker/package-lock.json') != '' }}
+      - name: Typecheck
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run typecheck --if-present
-
-      - name: Lint when configured
-        if: ${{ hashFiles('backend/worker/package-lock.json') != '' }}
+      - name: Lint
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run lint --if-present
-
-      - name: Test when configured
-        if: ${{ hashFiles('backend/worker/package-lock.json') != '' }}
+      - name: Test
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm test --if-present
-
-      - name: Build when configured
-        if: ${{ hashFiles('backend/worker/package-lock.json') != '' }}
+      - name: Build
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run build --if-present
-
-      - name: Skip until backend worker package exists
-        if: ${{ hashFiles('backend/worker/package-lock.json') == '' }}
-        run: echo "No backend/worker/package-lock.json yet. Skipping backend worker checks."
+      - name: Skip empty backend worker
+        if: steps.detect.outputs.has_lock != 'true'
+        run: echo "backend/worker/package-lock.json not found; skipping backend worker npm checks"
 
   backend-common:
     name: Backend Common
@@ -145,74 +221,36 @@ jobs:
         working-directory: backend/common
     steps:
       - uses: actions/checkout@v4
-
+      - name: Detect package lock
+        id: detect
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "has_lock=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lock=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
-        if: ${{ hashFiles('backend/common/package-lock.json') != '' }}
+        if: steps.detect.outputs.has_lock == 'true'
         with:
-          node-version: '20'
+          node-version: 20
           cache: npm
           cache-dependency-path: backend/common/package-lock.json
-
-      - name: Install dependencies when package exists
-        if: ${{ hashFiles('backend/common/package-lock.json') != '' }}
+      - name: Install
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm ci
-
-      - name: Typecheck when configured
-        if: ${{ hashFiles('backend/common/package-lock.json') != '' }}
+      - name: Typecheck
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run typecheck --if-present
-
-      - name: Lint when configured
-        if: ${{ hashFiles('backend/common/package-lock.json') != '' }}
+      - name: Lint
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run lint --if-present
-
-      - name: Test when configured
-        if: ${{ hashFiles('backend/common/package-lock.json') != '' }}
+      - name: Test
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm test --if-present
-
-      - name: Build when configured
-        if: ${{ hashFiles('backend/common/package-lock.json') != '' }}
+      - name: Build
+        if: steps.detect.outputs.has_lock == 'true'
         run: npm run build --if-present
-
-      - name: Skip until backend common package exists
-        if: ${{ hashFiles('backend/common/package-lock.json') == '' }}
-        run: echo "No backend/common/package-lock.json yet. Skipping backend common checks."
-
-  frontend:
-    name: Frontend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies when package exists
-        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
-        run: npm ci
-
-      - name: Typecheck when configured
-        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
-        run: npm run typecheck --if-present
-
-      - name: Lint when configured
-        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
-        run: npm run lint --if-present
-
-      - name: Test when configured
-        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
-        run: npm test --if-present
-
-      - name: Build when configured
-        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
-        run: npm run build --if-present
-
-      - name: Skip until frontend package exists
-        if: ${{ hashFiles('frontend/package-lock.json') == '' }}
-        run: echo "No frontend/package-lock.json yet. Skipping frontend checks."
+      - name: Skip empty backend common
+        if: steps.detect.outputs.has_lock != 'true'
+        run: echo "backend/common/package-lock.json not found; skipping backend common npm checks"

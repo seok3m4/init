@@ -1,24 +1,17 @@
-# AI Golden Harness
+# AI Golden Cases
 
-이 폴더는 AI worker의 mock/golden 테스트 케이스를 보관한다.
+AI report/pipeline 회귀 검증용 golden case를 둔다.
 
-각 JSON 파일은 다음 구조를 따른다.
+각 JSON 파일은 최소한 아래 shape을 가진다.
 
 ```json
 {
-  "input": {
-    "type": "REPORT_GENERATE",
-    "payload": {}
-  },
+  "name": "case name",
+  "input": {},
   "expected": {
-    "outputShape": {
-      "summary": "string",
-      "scores": "array",
-      "evidences": "array"
-    }
+    "outputShape": {}
   }
 }
 ```
 
-`scripts/verify-ai-golden.ps1`는 실제 OpenAI API를 호출하지 않고 케이스 파일의 구조만 검증한다. 실제 worker가 구현되면 이 golden case를 worker test fixture로 연결한다.
-
+`scripts/verify-ai-golden.ps1`은 JSON parse 가능 여부와 `input`, `expected`, `expected.outputShape` 존재 여부를 확인한다.

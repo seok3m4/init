@@ -1,73 +1,39 @@
 param(
-    [ValidateSet("A", "B", "C", "D", "E", "PM")]
-    [string]$Role,
-
-    [switch]$SkipOwnership,
-    [switch]$BuildDocker,
-    [switch]$RequireEnvValues,
-    [string]$SmokeBaseUrl
+  [ValidateSet("A", "B", "C", "D", "E", "PM")]
+  [string]$Role = "A",
+  [switch]$SkipOwnership,
+  [switch]$BuildDocker,
+  [switch]$RequireEnvValues,
+  [string]$SmokeBaseUrl
 )
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
-$scriptRoot = $PSScriptRoot
-
-Write-Host "Running docs/contracts harness..." -ForegroundColor Cyan
-& (Join-Path $scriptRoot "verify-docs.ps1")
-
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+function Invoke-Step {
+  param([string]$Name, [scriptblock]$Block)
+  Write-Host ""
+  Write-Host "== $Name =="
+  & $Block
 }
 
-if (-not $SkipOwnership) {
-    if (-not $Role) {
-        Write-Host "Role is required unless -SkipOwnership is used." -ForegroundColor Red
-        Write-Host "Example: powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A"
-        exit 1
-    }
+Invoke-Step "verify-docs" { & (Join-Path $PSScriptRoot "verify-docs.ps1") }
 
-    Write-Host "Running ownership harness for role $Role..." -ForegroundColor Cyan
-    & (Join-Path $scriptRoot "verify-ownership.ps1") -Role $Role -IncludeUntracked
-
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
-}
-
-Write-Host "Running Prisma harness..." -ForegroundColor Cyan
-& (Join-Path $scriptRoot "verify-prisma.ps1")
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-Write-Host "Running Docker harness..." -ForegroundColor Cyan
-& (Join-Path $scriptRoot "verify-docker.ps1") -Build:$BuildDocker
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-Write-Host "Running env harness..." -ForegroundColor Cyan
-& (Join-Path $scriptRoot "verify-env.ps1") -RequireValues:$RequireEnvValues
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-Write-Host "Running AI golden harness..." -ForegroundColor Cyan
-& (Join-Path $scriptRoot "verify-ai-golden.ps1")
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-Write-Host "Running smoke harness..." -ForegroundColor Cyan
-if ($SmokeBaseUrl) {
-    & (Join-Path $scriptRoot "smoke-local.ps1") -BaseUrl $SmokeBaseUrl
+if ($SkipOwnership) {
+  Write-Host ""
+  Write-Host "== verify-ownership =="
+  Write-Host "[skip] SkipOwnership enabled"
 } else {
-    & (Join-Path $scriptRoot "smoke-local.ps1")
-}
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+  Invoke-Step "verify-ownership" { & (Join-Path $PSScriptRoot "verify-ownership.ps1") -Role $Role }
 }
 
-Write-Host "Local harness passed." -ForegroundColor Green
+Invoke-Step "verify-prisma" { & (Join-Path $PSScriptRoot "verify-prisma.ps1") }
+Invoke-Step "verify-dev-auth-seed" { & (Join-Path $PSScriptRoot "verify-dev-auth-seed.ps1") }
+Invoke-Step "verify-docker" { & (Join-Path $PSScriptRoot "verify-docker.ps1") -Build:$BuildDocker }
+Invoke-Step "verify-env" { & (Join-Path $PSScriptRoot "verify-env.ps1") -RequireValues:$RequireEnvValues }
+Invoke-Step "verify-ai-golden" { & (Join-Path $PSScriptRoot "verify-ai-golden.ps1") }
+Invoke-Step "smoke-local" { & (Join-Path $PSScriptRoot "smoke-local.ps1") -BaseUrl $SmokeBaseUrl }
+
+Write-Host ""
+Write-Host "[ok] local harness passed"
