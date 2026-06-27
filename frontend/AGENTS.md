@@ -1,6 +1,6 @@
 # Frontend AGENTS
 
-React + TypeScript 클라이언트 영역이다. B/C/D가 주로 작업하고, A는 인증 연동을 리뷰한다.
+React + Next.js + TypeScript 클라이언트 영역이다. B/C/D가 주로 작업하고, A는 인증 연동을 리뷰한다.
 
 ## Structure
 
@@ -19,4 +19,3 @@ React + TypeScript 클라이언트 영역이다. B/C/D가 주로 작업하고, A
 - 인증 토큰 처리와 401/403 처리는 A와 합의한 공통 client를 사용한다.
 - 기업 화면은 B/C 소유 도메인을 넘나들 때 담당자 리뷰를 받는다.
 - 지원자 화면은 내부 평가 점수와 기업 메모를 노출하지 않는다.
-

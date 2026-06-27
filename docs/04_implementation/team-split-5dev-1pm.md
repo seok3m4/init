@@ -6,7 +6,7 @@
 
 | Member | Role | Scope | Main Tables/APIs |
 | --- | --- | --- | --- |
-| A | Auth/Common + CI/CD/AWS | 로그인, 회원가입, 이메일 인증, 비밀번호 재설정, JWT/권한, 공통 에러, Docker, GitHub Actions, AWS 배포 | `users`, `companies`, `candidate_profiles`, Redis, `/auth/*`, ECS/EC2, RDS, Redis, S3, SQS |
+| A | Auth/Common + CI/CD/AWS | 로그인, 회원가입, 이메일 인증, 비밀번호 재설정, JWT/권한, 공통 에러, Docker, GitHub Actions, AWS 배포 | `users`, `companies`, `candidate_profiles`, Redis, `/auth/*`, ECS, ECR, CloudFront, RDS/PostgreSQL, Redis, S3, SQS |
 | B | Company Recruiting | 기업 공고, 공고 상세, 지원자 등록/CSV, 초대 메일, 전형 상태 | `postings`, `applications`, `notifications`, `/company/recruitments`, `/company/applicants` |
 | C | Company Interview/Criteria | 면접 설정, 평가 기준, 질문 뱅크, JD 기반 질문 생성 요청부 | `criterion_tags`, `evaluation_criteria`, `question_bank`, `/company/interviews/*` |
 | D | Candidate/Application/Interview | 공고 조회, 지원서 제출, 지원현황, 모의/채용 면접 진행, 답변 업로드 | `applications`, `application_documents`, `interview_sessions`, `interview_answers`, `/candidate/*` |
@@ -19,18 +19,23 @@
 
 | Area | Stack | Owner | Notes |
 | --- | --- | --- | --- |
-| Frontend | React + TypeScript | B/C/D | 기업/지원자 화면 구현. 라우팅, 상태 관리, API client 규칙은 초기에 공통화한다. |
-| Backend API | Java + Spring Boot | A/B/C/D/E | REST API, 인증/인가, 도메인 비즈니스 로직 구현. |
-| Database | PostgreSQL | A | `docs/02_architecture/data-model.md` 기준. 임베딩은 MVP에서 TEXT로 시작하고, 필요 시 pgvector로 전환한다. |
+| Runtime | Node.js | A/B/C/D/E | frontend, NestJS API, worker의 공통 런타임. CI 기본 버전은 Node 20. |
+| Frontend | React + Next.js + TypeScript | B/C/D | 기업/지원자 화면 구현. 라우팅, 상태 관리, API client 규칙은 초기에 공통화한다. |
+| Backend API | NestJS + TypeScript | A/B/C/D/E | REST API, 인증/인가, 도메인 비즈니스 로직 구현. |
+| ORM | Prisma | A/B/C/D/E | PostgreSQL schema, migration, query layer. DB schema 변경은 문서/Prisma schema/migration을 함께 맞춘다. |
+| Database | PostgreSQL | A | `docs/02_architecture/data-model.md` 기준. 관계형 데이터 저장소. |
+| Vector DB | pgvector on PostgreSQL | E | 임베딩 검색/추천/근거 조회. ERDCloud SQL은 TEXT로 두고 runtime migration에서 pgvector 적용 여부를 확정한다. |
 | Cache | Redis | A | 이메일 인증 코드 TTL, 임시 상태, rate limit 보조 용도. |
 | Object Storage | AWS S3 | A/D/E | 이력서, 포트폴리오 첨부, 면접 영상/음성 원본 저장. 원본 파일은 DB에 저장하지 않는다. |
 | Async Queue | AWS SQS | A/E | STT, 서류 추출, 꼬리질문, 리포트 생성 등 장기 작업 큐. |
-| Worker | Spring Boot worker 또는 별도 worker process | E | `ai_process_logs` 상태 전이를 소유한다. API 서버와 장기 AI 작업을 분리한다. |
-| AI Provider | OpenAI API 또는 팀 지정 AI API | E | STT, 질문 생성, 평가/리포트 생성, 임베딩. prompt/version 관리가 필요하다. |
-| CI/CD | GitHub Actions | A | test/build, Docker image build, AWS 배포 자동화. |
-| Deployment | AWS ECS 또는 EC2 | A | MVP는 단순 구성을 우선한다. API 서버, worker, DB, Redis, S3, SQS 연결을 검증한다. |
+| Worker | Node.js worker | E | `ai_process_logs` 상태 전이를 소유한다. API 서버와 장기 AI 작업을 분리한다. |
+| AI Services | OpenAI Agents SDK, GPT-4 class model, MediaPipe | E | STT/질문 생성/평가/리포트/임베딩/영상 보조 분석. prompt/version 관리가 필요하다. |
+| CI/CD | GitHub Actions | A | harness, test/build, Docker image build, ECR push, ECS 배포 자동화. |
+| Container Registry | AWS ECR | A | API/worker Docker image 저장소. |
+| Deployment | AWS ECS | A | API 서버와 worker를 분리 배포한다. DB, Redis, S3, SQS 연결을 검증한다. |
+| CDN / Static Assets | AWS CloudFront + S3 | A/B/D | Next.js static asset, public asset, 정적 파일 배포. |
 | Container | Docker | A | 로컬/배포 실행 환경을 맞춘다. |
-| Test | JUnit, API/E2E 테스트 도구 | 각 담당자, PM 검증 | 각 담당 API 단위 테스트와 핵심 happy path 검증. |
+| Test | npm scripts, Jest/Vitest, Playwright 또는 API/E2E 테스트 도구 | 각 담당자, PM 검증 | 각 담당 API 단위 테스트와 핵심 happy path 검증. |
 
 ## Rationale
 
