@@ -57,6 +57,42 @@ test("STT stores transcript against the target interview answer", async () => {
   ]);
 });
 
+test("duplicate STT requests keep the existing transcript result", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  await run({
+    processLogId: 18,
+    processType: "STT",
+    input: {
+      kind: "MOCK_INTERVIEW_STT",
+      payload: {
+        answerId: 42,
+        audioS3Key: "candidate/1/answer-42-first.wav"
+      }
+    },
+    results
+  });
+
+  await run({
+    processLogId: 19,
+    processType: "STT",
+    input: {
+      kind: "MOCK_INTERVIEW_STT",
+      payload: {
+        answerId: 42,
+        audioS3Key: "candidate/1/answer-42-second.wav"
+      }
+    },
+    results
+  });
+
+  assert.equal(results.transcripts.length, 1);
+  assert.deepEqual(results.transcripts[0], {
+    answerId: 42,
+    transcript: "Transcript generated from candidate/1/answer-42-first.wav"
+  });
+});
+
 test("follow-up question policy is separated for mock and recruiting interviews", async () => {
   const results = new InMemoryAiResultRepository();
 
@@ -92,6 +128,24 @@ test("follow-up question policy is separated for mock and recruiting interviews"
   assert.match(results.followUpQuestions[0].content, /Practice follow-up/);
   assert.equal(results.followUpQuestions[1].policy, "RECRUITING");
   assert.match(results.followUpQuestions[1].content, /Recruiting follow-up/);
+});
+
+test("duplicate follow-up requests keep one result per session, answer and policy", async () => {
+  const results = new InMemoryAiResultRepository();
+  const input = {
+    kind: "MOCK_FOLLOW_UP",
+    payload: {
+      sessionId: 3,
+      answerId: 4,
+      transcript: "I used Redis cache invalidation."
+    }
+  };
+
+  await run({ processLogId: 20, processType: "FOLLOW_UP", input, results });
+  await run({ processLogId: 21, processType: "FOLLOW_UP", input, results });
+
+  assert.equal(results.followUpQuestions.length, 1);
+  assert.equal(results.followUpQuestions[0].policy, "MOCK");
 });
 
 test("question generation stores review-required drafts after guardrail pass", async () => {

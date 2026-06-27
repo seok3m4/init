@@ -47,15 +47,35 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   readonly generatedDrafts: GeneratedDraftRecord[] = [];
   readonly embeddings = new Map<string, EmbeddingRecord>();
 
+  private readonly documentExtractionsById = new Map<number, DocumentExtractionRecord>();
+  private readonly transcriptsByAnswerId = new Map<number, TranscriptRecord>();
+  private readonly followUpQuestionsByKey = new Map<string, FollowUpQuestionRecord>();
+
   async saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void> {
+    if (this.documentExtractionsById.has(record.documentId)) {
+      return;
+    }
+
+    this.documentExtractionsById.set(record.documentId, record);
     this.documentExtractions.push(record);
   }
 
   async saveTranscript(record: TranscriptRecord): Promise<void> {
+    if (this.transcriptsByAnswerId.has(record.answerId)) {
+      return;
+    }
+
+    this.transcriptsByAnswerId.set(record.answerId, record);
     this.transcripts.push(record);
   }
 
   async saveFollowUpQuestion(record: FollowUpQuestionRecord): Promise<void> {
+    const key = `${record.policy}:${record.sessionId}:${record.answerId}`;
+    if (this.followUpQuestionsByKey.has(key)) {
+      return;
+    }
+
+    this.followUpQuestionsByKey.set(key, record);
     this.followUpQuestions.push(record);
   }
 
