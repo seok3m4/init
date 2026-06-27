@@ -57,6 +57,12 @@
 - 파일 원본은 DB에 저장하지 않고 S3에 저장한다. DB에는 `file_assets` 메타데이터만 저장한다.
 - 장기 작업은 API 서버에서 직접 오래 잡지 않고 SQS/worker와 `ai_process_logs` 상태 전이로 처리한다.
 - 각 담당자는 본인 소유 테이블/API 외 변경 시 관련 담당자에게 리뷰를 요청한다.
+- 모든 작업자는 최종 답변 또는 작업 종료 전에 로컬 하네스를 실행하고 결과를 보고한다:
+  `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role <A|B|C|D|E|PM>`
+- 담당자 외 파일을 의도적으로 변경한 경우, 최종 답변 또는 PR 메모에 cross-owner review 필요성을 명시한다.
+- 모든 작업자는 최종 답변 또는 작업 종료 전에 로컬 하네스를 실행하고 결과를 보고한다:
+  `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role <A|B|C|D|E|PM>`
+- 담당자 외 파일을 의도적으로 변경한 경우, 최종 답변 또는 PR 메모에 cross-owner review 필요성을 명시한다.
 
 ## GitHub Issue/PR/Commit Rules
 
