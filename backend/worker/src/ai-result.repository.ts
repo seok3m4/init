@@ -99,6 +99,10 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   private readonly followUpQuestionsByKey = new Map<string, FollowUpQuestionRecord>();
 
   async markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void> {
+    if (this.documentParseStatuses.get(record.documentId) === "EXTRACTED") {
+      return;
+    }
+
     this.documentParseStatuses.set(record.documentId, "EXTRACTING");
     this.documentParseStatusEvents.push({ documentId: record.documentId, status: "EXTRACTING" });
   }
@@ -115,6 +119,10 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   }
 
   async markDocumentExtractionFailed(record: FailedDocumentExtractionRecord): Promise<void> {
+    if (this.documentParseStatuses.get(record.documentId) === "EXTRACTED") {
+      return;
+    }
+
     this.documentParseStatuses.set(record.documentId, "FAILED");
     this.documentParseStatusEvents.push({ documentId: record.documentId, status: "FAILED" });
   }

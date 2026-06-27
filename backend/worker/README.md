@@ -22,6 +22,11 @@ Required runtime environment variables:
 - `AI_PROVIDER_API_KEY`
 - `S3_BUCKET_NAME`
 
+The `.env.example` file also includes project-level aliases such as `SQS_QUEUE_URL`,
+`S3_BUCKET`, and `OPENAI_API_KEY` so the shared environment harness can validate
+the common deployment contract. The current worker runtime reads the `AI_*` and
+`S3_BUCKET_NAME` names above.
+
 Optional runtime environment variables:
 
 - `WORKER_BATCH_SIZE` defaults to `1`, max `10`.

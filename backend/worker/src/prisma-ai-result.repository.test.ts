@@ -14,9 +14,12 @@ test("PrismaAiResultRepository stores document extraction into application_docum
 
   assert.deepEqual(calls[0], {
     model: "applicationDocument",
-    method: "update",
+    method: "updateMany",
     args: {
-      where: { documentId: BigInt(7) },
+      where: {
+        documentId: BigInt(7),
+        parseStatus: { not: "EXTRACTED" }
+      },
       data: {
         parseStatus: "EXTRACTED",
         extractedText: "parsed resume text"
@@ -34,17 +37,23 @@ test("PrismaAiResultRepository marks document extraction started and failed", as
 
   assert.deepEqual(calls[0], {
     model: "applicationDocument",
-    method: "update",
+    method: "updateMany",
     args: {
-      where: { documentId: BigInt(7) },
+      where: {
+        documentId: BigInt(7),
+        parseStatus: { not: "EXTRACTED" }
+      },
       data: { parseStatus: "EXTRACTING" }
     }
   });
   assert.deepEqual(calls[1], {
     model: "applicationDocument",
-    method: "update",
+    method: "updateMany",
     args: {
-      where: { documentId: BigInt(7) },
+      where: {
+        documentId: BigInt(7),
+        parseStatus: { not: "EXTRACTED" }
+      },
       data: { parseStatus: "FAILED" }
     }
   });
@@ -61,9 +70,12 @@ test("PrismaAiResultRepository stores STT transcript into interview_answers", as
 
   assert.deepEqual(calls[0], {
     model: "interviewAnswer",
-    method: "update",
+    method: "updateMany",
     args: {
-      where: { answerId: BigInt(42) },
+      where: {
+        answerId: BigInt(42),
+        transcript: null
+      },
       data: {
         transcript: "hello"
       }
@@ -175,13 +187,13 @@ test("PrismaAiResultRepository marks generated reports failed with retryability"
 function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) {
   return {
     applicationDocument: {
-      async update(args: any) {
-        calls.push({ model: "applicationDocument", method: "update", args });
+      async updateMany(args: any) {
+        calls.push({ model: "applicationDocument", method: "updateMany", args });
       }
     },
     interviewAnswer: {
-      async update(args: any) {
-        calls.push({ model: "interviewAnswer", method: "update", args });
+      async updateMany(args: any) {
+        calls.push({ model: "interviewAnswer", method: "updateMany", args });
       }
     },
     followUpQuestion: {

@@ -14,10 +14,10 @@ import {
 
 interface PrismaAiResultClient {
   applicationDocument: {
-    update(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<unknown>;
   };
   interviewAnswer: {
-    update(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<unknown>;
   };
   followUpQuestion: {
     upsert(args: unknown): Promise<unknown>;
@@ -38,8 +38,11 @@ export class PrismaAiResultRepository implements AiResultRepository {
   constructor(private readonly prisma: PrismaAiResultClient) {}
 
   async markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void> {
-    await this.prisma.applicationDocument.update({
-      where: { documentId: BigInt(record.documentId) },
+    await this.prisma.applicationDocument.updateMany({
+      where: {
+        documentId: BigInt(record.documentId),
+        parseStatus: { not: "EXTRACTED" }
+      },
       data: {
         parseStatus: "EXTRACTING"
       }
@@ -47,8 +50,11 @@ export class PrismaAiResultRepository implements AiResultRepository {
   }
 
   async saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void> {
-    await this.prisma.applicationDocument.update({
-      where: { documentId: BigInt(record.documentId) },
+    await this.prisma.applicationDocument.updateMany({
+      where: {
+        documentId: BigInt(record.documentId),
+        parseStatus: { not: "EXTRACTED" }
+      },
       data: {
         parseStatus: "EXTRACTED",
         extractedText: record.extractedText
@@ -57,8 +63,11 @@ export class PrismaAiResultRepository implements AiResultRepository {
   }
 
   async markDocumentExtractionFailed(record: FailedDocumentExtractionRecord): Promise<void> {
-    await this.prisma.applicationDocument.update({
-      where: { documentId: BigInt(record.documentId) },
+    await this.prisma.applicationDocument.updateMany({
+      where: {
+        documentId: BigInt(record.documentId),
+        parseStatus: { not: "EXTRACTED" }
+      },
       data: {
         parseStatus: "FAILED"
       }
@@ -66,8 +75,11 @@ export class PrismaAiResultRepository implements AiResultRepository {
   }
 
   async saveTranscript(record: TranscriptRecord): Promise<void> {
-    await this.prisma.interviewAnswer.update({
-      where: { answerId: BigInt(record.answerId) },
+    await this.prisma.interviewAnswer.updateMany({
+      where: {
+        answerId: BigInt(record.answerId),
+        transcript: null
+      },
       data: {
         transcript: record.transcript
       }

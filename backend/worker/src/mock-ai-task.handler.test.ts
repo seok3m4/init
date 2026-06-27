@@ -69,6 +69,42 @@ test("document extraction marks application document failed when input is invali
   );
 });
 
+test("duplicate document extraction keeps the completed result", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  await runDocumentExtraction({
+    processLogId: 25,
+    input: {
+      kind: "DOCUMENT_EXTRACT",
+      payload: {
+        documentId: 7,
+        s3Key: "candidate/1/resume-first.pdf"
+      }
+    },
+    results
+  });
+
+  await runDocumentExtraction({
+    processLogId: 26,
+    input: {
+      kind: "DOCUMENT_EXTRACT",
+      payload: {
+        documentId: 7,
+        s3Key: "candidate/1/resume-second.pdf"
+      }
+    },
+    results
+  });
+
+  assert.equal(results.documentExtractions.length, 1);
+  assert.equal(results.documentExtractions[0].s3Key, "candidate/1/resume-first.pdf");
+  assert.equal(results.documentParseStatuses.get(7), "EXTRACTED");
+  assert.deepEqual(
+    results.documentParseStatusEvents.map((event) => event.status),
+    ["EXTRACTING", "EXTRACTED"]
+  );
+});
+
 test("STT stores transcript against the target interview answer", async () => {
   const results = new InMemoryAiResultRepository();
 
@@ -307,6 +343,23 @@ async function run(args: {
   const queue = new InMemoryAiJobQueue([message(args.processLogId, args.processType, args.input)]);
 
   await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(args.results)).processBatch();
+
+  assert.equal(repository.get(args.processLogId).status, "COMPLETED");
+  return repository;
+}
+
+async function runDocumentExtraction(args: {
+  processLogId: number;
+  input: unknown;
+  results: InMemoryAiResultRepository;
+}): Promise<InMemoryAiProcessLogRepository> {
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([message(args.processLogId, "DOCUMENT_EXTRACT", args.input)]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(args.results), {
+    onStart: createDocumentExtractionStartHandler(args.results),
+    onFailure: createReportFailureHandler(args.results)
+  }).processBatch();
 
   assert.equal(repository.get(args.processLogId).status, "COMPLETED");
   return repository;
