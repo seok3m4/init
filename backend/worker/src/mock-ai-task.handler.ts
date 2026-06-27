@@ -178,7 +178,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
   private generatedDraft(kind: string, items: string[]): AiTaskResult {
     const guardrail = this.validateMockPolicy(kind.startsWith("MOCK") ? "MOCK" : "RECRUITING", items.join("\n"));
     return {
-      outputRef: JSON.stringify({ kind, reviewRequired: true }),
+      outputRef: JSON.stringify({ kind, items, reviewRequired: true }),
       guardrail,
       finalSave: () =>
         this.results.saveGeneratedDraft({

@@ -87,6 +87,19 @@ test("PrismaAiResultRepository upserts embeddings by source_type and source_text
   assert.equal(embedding.sourceTextHash, calls[0].args.where.sourceTypeSourceTextHash.sourceTextHash);
 });
 
+test("PrismaAiResultRepository leaves generated draft output on the original process log", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.saveGeneratedDraft({
+    kind: "QUESTION_GENERATE",
+    items: ["Question 1"],
+    reviewRequired: true
+  });
+
+  assert.deepEqual(calls, []);
+});
+
 test("PrismaAiResultRepository stores generated reports after guardrail pass", async () => {
   const calls: Array<{ model: string; method: string; args: any }> = [];
   const repository = new PrismaAiResultRepository(fakePrisma(calls));

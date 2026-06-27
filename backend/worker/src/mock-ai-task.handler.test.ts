@@ -152,7 +152,7 @@ test("duplicate follow-up requests keep one result per session, answer and polic
 test("question generation stores review-required drafts after guardrail pass", async () => {
   const results = new InMemoryAiResultRepository();
 
-  await run({
+  const repository = await run({
     processLogId: 14,
     processType: "QUESTION_GENERATE",
     input: {
@@ -168,6 +168,13 @@ test("question generation stores review-required drafts after guardrail pass", a
   assert.equal(results.generatedDrafts.length, 1);
   assert.equal(results.generatedDrafts[0].reviewRequired, true);
   assert.deepEqual(results.generatedDrafts[0].items.length, 2);
+
+  const output = JSON.parse(repository.get(14).outputRef ?? "{}") as {
+    items?: string[];
+    reviewRequired?: boolean;
+  };
+  assert.equal(output.reviewRequired, true);
+  assert.equal(output.items?.length, 2);
 });
 
 test("report generation stores scores and evidences after guardrail pass", async () => {
@@ -260,13 +267,14 @@ async function run(args: {
   processType: AiProcessType;
   input: unknown;
   results: InMemoryAiResultRepository;
-}) {
+}): Promise<InMemoryAiProcessLogRepository> {
   const repository = new InMemoryAiProcessLogRepository();
   const queue = new InMemoryAiJobQueue([message(args.processLogId, args.processType, args.input)]);
 
   await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(args.results)).processBatch();
 
   assert.equal(repository.get(args.processLogId).status, "COMPLETED");
+  return repository;
 }
 
 function message(processLogId: number, processType: AiProcessType, input: unknown): AiQueueMessage {

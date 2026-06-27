@@ -30,9 +30,6 @@ interface PrismaAiResultClient {
   embedding: {
     upsert(args: unknown): Promise<EmbeddingRecord & { embeddingId?: bigint }>;
   };
-  aiProcessLog?: {
-    create(args: unknown): Promise<unknown>;
-  };
 }
 
 export class PrismaAiResultRepository implements AiResultRepository {
@@ -77,17 +74,8 @@ export class PrismaAiResultRepository implements AiResultRepository {
     });
   }
 
-  async saveGeneratedDraft(record: GeneratedDraftRecord): Promise<void> {
-    await this.prisma.aiProcessLog?.create({
-      data: {
-        processLogId: this.nextId(),
-        processType: record.kind,
-        status: "COMPLETED",
-        inputRef: JSON.stringify({ reviewRequired: record.reviewRequired }),
-        outputRef: JSON.stringify({ items: record.items }),
-        createdAt: new Date()
-      }
-    });
+  async saveGeneratedDraft(_record: GeneratedDraftRecord): Promise<void> {
+    return;
   }
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
