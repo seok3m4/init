@@ -85,6 +85,27 @@ describe("ReportsController", () => {
     expect(response.body.data.guardrail.result).toBe("PASS");
   });
 
+  it("validates guardrails for an admin dev user", async () => {
+    const response = await adminRequest("/api/v1/ai/guardrails/validate")
+      .send({
+        reportType: "MOCK_INTERVIEW_REPORT",
+        target: "SCORES",
+        scores: [
+          {
+            criterionId: 1,
+            criterionName: "Communication",
+            score: 80,
+            rationale: "This candidate is 합격.",
+            evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "Clear answer." }]
+          }
+        ]
+      })
+      .expect(200);
+
+    expect(response.body.data.target).toBe("SCORES");
+    expect(response.body.data.guardrail.result).toBe("BLOCKED");
+  });
+
   it("returns unauthorized when dev auth headers are missing", async () => {
     await request(app.getHttpServer()).post("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(401);
   });
@@ -99,12 +120,29 @@ describe("ReportsController", () => {
       .expect(403);
   });
 
+  it("returns forbidden for company users on guardrail validation", async () => {
+    await companyRequest("/api/v1/ai/guardrails/validate")
+      .send({
+        reportType: "RECRUITING_REPORT",
+        target: "SCORES",
+        scores: []
+      })
+      .expect(403);
+  });
+
   function companyRequest(path: string) {
     return request(app.getHttpServer())
       .post(path)
       .set("X-Dev-User-Id", "1")
       .set("X-Dev-User-Type", "COMPANY")
       .set("X-Dev-Company-Id", "1");
+  }
+
+  function adminRequest(path: string) {
+    return request(app.getHttpServer())
+      .post(path)
+      .set("X-Dev-User-Id", "9")
+      .set("X-Dev-User-Type", "ADMIN");
   }
 });
 

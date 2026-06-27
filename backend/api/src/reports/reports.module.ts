@@ -7,6 +7,7 @@ import { MockAiReportProvider } from "./mock-ai-report.provider";
 import { PrismaReportRepository } from "./prisma-report.repository";
 import { PrismaService } from "./prisma.service";
 import { REPORT_REPOSITORY } from "./report.repository";
+import { AiGuardrailsController } from "./ai-guardrails.controller";
 import { CandidateMockReportsController, ReportsController } from "./reports.controller";
 
 const repositoryProviders = process.env.DATABASE_URL
@@ -27,7 +28,7 @@ const repositoryProviders = process.env.DATABASE_URL
     ];
 
 @Module({
-  controllers: [ReportsController, CandidateMockReportsController],
+  controllers: [ReportsController, CandidateMockReportsController, AiGuardrailsController],
   providers: [
     DevAuthAdapter,
     AiReportPipelineService,

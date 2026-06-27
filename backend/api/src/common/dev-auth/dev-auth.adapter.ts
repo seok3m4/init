@@ -60,6 +60,15 @@ export class DevAuthAdapter {
     }
   }
 
+  assertAdmin(currentUser: CurrentUser): void {
+    if (currentUser.userType !== "ADMIN") {
+      throw new ForbiddenException({
+        code: "COMMON_FORBIDDEN",
+        message: "Admin user is required."
+      });
+    }
+  }
+
   private stringHeader(headers: HeaderBag, name: string): string | undefined {
     const value = headers[name] ?? headers[this.titleCaseHeader(name)];
     if (Array.isArray(value)) {

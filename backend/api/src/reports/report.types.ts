@@ -136,6 +136,24 @@ export interface GuardrailDecision {
   reason: string | null;
 }
 
+export type GuardrailValidationTarget = "REPORT" | "SCORES";
+
+export interface GuardrailValidationRequest {
+  reportType: ReportType;
+  target: GuardrailValidationTarget;
+  policyName?: string;
+  processLogId?: number;
+  summary?: string;
+  totalScore?: number;
+  scores: ReportScore[];
+}
+
+export interface GuardrailValidationResult {
+  target: GuardrailValidationTarget;
+  guardrail: GuardrailDecision;
+  guardrailLogId?: number;
+}
+
 export interface FailureReason {
   category: FailureCategory;
   reason: string;
