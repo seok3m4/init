@@ -106,6 +106,51 @@ describe("ReportsController", () => {
     expect(response.body.data.guardrail.result).toBe("BLOCKED");
   });
 
+  it("queues candidate document extraction without storing raw file content", async () => {
+    const response = await candidateRequest("/api/v1/candidate/documents/extract")
+      .send({
+        applicationId: 3,
+        documentId: 8,
+        fileId: 9,
+        s3Key: "candidate/4/resume.pdf"
+      })
+      .expect(202);
+
+    expect(response.body.data.processType).toBe("DOCUMENT_EXTRACT");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+    expect(response.body.data.inputRef).toContain("candidate/4/resume.pdf");
+    expect(response.body.data.inputRef).not.toContain("fileContent");
+  });
+
+  it("queues candidate STT work for worker processing", async () => {
+    const response = await candidateRequest("/api/v1/candidate/mock-interviews/7/stt")
+      .send({
+        answerId: 10,
+        audioFileId: 11,
+        audioS3Key: "candidate/4/answer-10.wav"
+      })
+      .expect(202);
+
+    expect(response.body.data.processType).toBe("STT");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+  });
+
+  it("queues company AI criteria suggestions", async () => {
+    const response = await companyRequest("/api/v1/company/interviews/evaluation-criteria/suggest")
+      .send({
+        postingId: 2,
+        jobDescription: "Backend engineer with NestJS and PostgreSQL experience.",
+        talentProfile: "Pragmatic problem solver"
+      })
+      .expect(202);
+
+    expect(response.body.data.processType).toBe("CRITERIA_SUGGEST");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+  });
+
   it("returns unauthorized when dev auth headers are missing", async () => {
     await request(app.getHttpServer()).post("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(401);
   });
@@ -136,6 +181,14 @@ describe("ReportsController", () => {
       .set("X-Dev-User-Id", "1")
       .set("X-Dev-User-Type", "COMPANY")
       .set("X-Dev-Company-Id", "1");
+  }
+
+  function candidateRequest(path: string) {
+    return request(app.getHttpServer())
+      .post(path)
+      .set("X-Dev-User-Id", "2")
+      .set("X-Dev-User-Type", "CANDIDATE")
+      .set("X-Dev-Candidate-Id", "1");
   }
 
   function adminRequest(path: string) {

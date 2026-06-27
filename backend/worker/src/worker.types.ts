@@ -4,7 +4,10 @@ export type AiProcessType =
   | "FOLLOW_UP"
   | "REPORT_GENERATE"
   | "EMBEDDING"
-  | "GUARDRAIL_VALIDATE";
+  | "GUARDRAIL_VALIDATE"
+  | "CRITERIA_SUGGEST"
+  | "QUESTION_GENERATE"
+  | "QUESTION_SET_GENERATE";
 
 export type AiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 export type FailureCategory = "RETRYABLE" | "NON_RETRYABLE";

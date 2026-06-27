@@ -6,7 +6,10 @@ import {
   EvaluationReportSnapshot,
   FailureReason,
   GuardrailDecision,
+  AiProcessRefs,
+  AiProcessType,
   ProcessLogSnapshot,
+  QueuedAiProcessSnapshot,
   ReportPipelineStep,
   ReportScore,
   ReportType,
@@ -37,6 +40,24 @@ export class InMemoryReportRepository implements ReportRepository {
   private readonly communicationAnalyses = new Map<number, CommunicationAnalysis>();
   private readonly scoresByReport = new Map<number, ReportScore[]>();
   private readonly guardrailLogs: GuardrailLogRecord[] = [];
+  private readonly queuedProcesses = new Map<number, QueuedAiProcessSnapshot>();
+
+  async createQueuedProcess(
+    processType: AiProcessType,
+    inputRef: string,
+    refs: AiProcessRefs = {}
+  ): Promise<QueuedAiProcessSnapshot> {
+    const process: QueuedAiProcessSnapshot = {
+      processLogId: this.nextProcessLogId++,
+      processType,
+      status: "PENDING",
+      inputRef,
+      applicationId: refs.applicationId,
+      sessionId: refs.sessionId
+    };
+    this.queuedProcesses.set(process.processLogId, process);
+    return { ...process };
+  }
 
   async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
     this.ensureReport(reportId, reportType);

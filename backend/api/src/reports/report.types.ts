@@ -2,7 +2,16 @@ import { CurrentUser } from "../common/dev-auth/current-user";
 
 export type ReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
 export type ReportStatus = "PENDING" | "GENERATING" | "COMPLETED" | "FAILED";
-export type AiProcessType = "REPORT_GENERATE";
+export type AiProcessType =
+  | "DOCUMENT_EXTRACT"
+  | "STT"
+  | "FOLLOW_UP"
+  | "REPORT_GENERATE"
+  | "EMBEDDING"
+  | "GUARDRAIL_VALIDATE"
+  | "CRITERIA_SUGGEST"
+  | "QUESTION_GENERATE"
+  | "QUESTION_SET_GENERATE";
 export type AiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 export type GuardrailResult = "PASS" | "BLOCKED" | "REGENERATED";
 export type ReportPipelineStep =
@@ -167,6 +176,15 @@ export interface ProcessLogSnapshot {
   failure?: FailureReason;
 }
 
+export interface QueuedAiProcessSnapshot {
+  processLogId: number;
+  processType: AiProcessType;
+  status: "PENDING";
+  inputRef: string;
+  applicationId?: number;
+  sessionId?: number;
+}
+
 export interface EvaluationReportSnapshot {
   reportId: number;
   reportType: ReportType;
@@ -180,6 +198,11 @@ export interface StoredCounts {
   scoreCount: number;
   evidenceCount: number;
   guardrailLogCount: number;
+}
+
+export interface AiProcessRefs {
+  applicationId?: number;
+  sessionId?: number;
 }
 
 export interface PipelineResult {

@@ -4,7 +4,10 @@ import {
   EvaluationReportSnapshot,
   FailureReason,
   GuardrailDecision,
+  AiProcessRefs,
+  AiProcessType,
   ProcessLogSnapshot,
+  QueuedAiProcessSnapshot,
   ReportPipelineStep,
   ReportScore,
   ReportType,
@@ -14,6 +17,11 @@ import {
 export const REPORT_REPOSITORY = Symbol("REPORT_REPOSITORY");
 
 export interface ReportRepository {
+  createQueuedProcess(
+    processType: AiProcessType,
+    inputRef: string,
+    refs?: AiProcessRefs
+  ): Promise<QueuedAiProcessSnapshot>;
   startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot>;
   markProcessRunning(processLogId: number): Promise<ProcessLogSnapshot>;
   markProcessCompleted(processLogId: number): Promise<ProcessLogSnapshot>;

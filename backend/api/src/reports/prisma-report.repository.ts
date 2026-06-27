@@ -7,7 +7,10 @@ import {
   EvaluationReportSnapshot,
   FailureReason,
   GuardrailDecision,
+  AiProcessRefs,
+  AiProcessType,
   ProcessLogSnapshot,
+  QueuedAiProcessSnapshot,
   ReportPipelineStep,
   ReportScore,
   ReportType,
@@ -17,6 +20,34 @@ import {
 @Injectable()
 export class PrismaReportRepository implements ReportRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createQueuedProcess(
+    processType: AiProcessType,
+    inputRef: string,
+    refs: AiProcessRefs = {}
+  ): Promise<QueuedAiProcessSnapshot> {
+    const processLogId = this.nextId();
+    const processLog = await this.prisma.aiProcessLog.create({
+      data: {
+        processLogId,
+        applicationId: refs.applicationId ? BigInt(refs.applicationId) : null,
+        sessionId: refs.sessionId ? BigInt(refs.sessionId) : null,
+        processType,
+        status: "PENDING",
+        inputRef,
+        createdAt: new Date()
+      }
+    });
+
+    return {
+      processLogId: Number(processLog.processLogId),
+      processType: processLog.processType as AiProcessType,
+      status: "PENDING",
+      inputRef: processLog.inputRef ?? "",
+      applicationId: processLog.applicationId ? Number(processLog.applicationId) : undefined,
+      sessionId: processLog.sessionId ? Number(processLog.sessionId) : undefined
+    };
+  }
 
   async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
     await this.ensureReport(reportId, reportType);
@@ -238,7 +269,7 @@ export class PrismaReportRepository implements ReportRepository {
     const input = processLog.inputRef ? JSON.parse(processLog.inputRef) : {};
     return {
       processLogId: Number(processLog.processLogId),
-      processType: "REPORT_GENERATE",
+      processType: processLog.processType as AiProcessType,
       step: input.step ?? "REPORT_GENERATE",
       status: processLog.status as ProcessLogSnapshot["status"],
       failure:
