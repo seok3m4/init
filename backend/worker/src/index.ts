@@ -7,5 +7,7 @@ export * from "./queue";
 export * from "./report-failure.handler";
 export * from "./worker-env";
 export * from "./worker-errors";
+export * from "./worker-bootstrap";
+export * from "./worker-loop";
 export * from "./worker-runner";
 export * from "./worker.types";

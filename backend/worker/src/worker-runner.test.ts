@@ -105,13 +105,21 @@ test("loads SQS, S3 and AI provider settings from environment variables", () => 
       AI_SQS_QUEUE_URL: "https://sqs.ap-northeast-2.amazonaws.com/1/init-ai",
       AWS_REGION: "ap-northeast-2",
       AI_PROVIDER_API_KEY: "test-key",
-      S3_BUCKET_NAME: "init-dev"
+      S3_BUCKET_NAME: "init-dev",
+      WORKER_BATCH_SIZE: "5",
+      WORKER_POLL_INTERVAL_MS: "2500",
+      WORKER_REPOSITORY_MODE: "prisma",
+      PRISMA_CLIENT_MODULE: "../api/node_modules/@prisma/client"
     }),
     {
       aiSqsQueueUrl: "https://sqs.ap-northeast-2.amazonaws.com/1/init-ai",
       awsRegion: "ap-northeast-2",
       aiProviderApiKey: "test-key",
-      s3BucketName: "init-dev"
+      s3BucketName: "init-dev",
+      workerBatchSize: 5,
+      workerPollIntervalMs: 2500,
+      workerRepositoryMode: "prisma",
+      prismaClientModule: "../api/node_modules/@prisma/client"
     }
   );
 });
