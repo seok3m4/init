@@ -34,6 +34,21 @@
 - CI/CD workflow
 - AWS dev/prod runtime configuration
 
+## Codex Operating Rules
+
+A 담당 Codex는 이 파일을 읽는 즉시 아래 규칙을 작업 전제에 포함한다. 별도 프롬프트로 다시 전달하지 않아도 된다.
+
+- A 담당자는 Auth/Common + CI/CD/AWS 영역만 구현한다.
+- 기술스택은 React + Next.js + TypeScript, NestJS + TypeScript, Prisma, PostgreSQL/pgvector다.
+- Spring Boot/Java로 구현하지 않는다.
+- 백엔드는 `backend/AGENTS.md`, `backend/api/AGENTS.md`, `backend/common/AGENTS.md`의 NestJS/TypeScript/Prisma 기준을 따른다.
+- 인프라는 `infra/AGENTS.md`의 Docker, AWS, Prisma/PostgreSQL migration 기준을 따른다.
+- API path, request/response, enum, error code를 바꿔야 하면 `docs/03_contracts`를 먼저 수정한다.
+- Prisma schema/migration 또는 DB 상태 전이를 바꿔야 하면 `docs/02_architecture`와 `docs/04_implementation`을 먼저 맞춘다.
+- 모든 protected API는 role guard와 공통 error response 기준을 맞춘다.
+- Windows 검증은 `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A`를 사용한다.
+- Windows 명령은 UTF-8 출력과 `-LiteralPath` 사용 규칙을 지킨다.
+
 ## Required Checks
 
 - 중복 이메일 차단
@@ -43,10 +58,10 @@
 - role guard 검증
 - CORS/OAuth redirect URI 검증
 - 배포 환경변수와 secret 누락 검증
+- Windows 검증 명령은 `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A`를 사용
 
 ## Must Coordinate With
 
 - E: SQS, worker, S3, AI provider 환경변수
 - B/C/D: protected API role guard
 - PM: 배포 검증과 demo happy path
-

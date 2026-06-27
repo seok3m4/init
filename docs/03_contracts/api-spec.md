@@ -10,6 +10,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - Success: `{ "data": ..., "meta": { "traceId": "...", "timestamp": "ISO-8601" } }`
 - Error: `{ "error": { "code": "STRING", "message": "사용자 표시 메시지", "details": [] } }`
 - Auth: 공개 API를 제외하고 `Authorization: Bearer {accessToken}`
+- CurrentUser/Dev Auth: `docs/03_contracts/dev-auth-contract.md` 기준. JWT 구현 전에는 local/dev 환경에서 `X-Dev-*` 헤더로 동일한 `CurrentUser`를 만든다.
 
 ## 인증/계정
 
