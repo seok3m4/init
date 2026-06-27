@@ -1,46 +1,61 @@
 import { BadRequestException } from "@nestjs/common";
 import { AiReportPipelineService } from "./ai-report-pipeline.service";
 import { GuardrailService } from "./guardrail.service";
+import { InMemoryReportRepository } from "./in-memory-report.repository";
 import { MockAiReportProvider } from "./mock-ai-report.provider";
-import { GenerateReportRequest, GeneratedReport } from "./report.types";
+import {
+  EvaluationContextRequest,
+  GenerateReportRequest,
+  GeneratedReport,
+  ReportScore
+} from "./report.types";
 
 describe("AiReportPipelineService", () => {
   let service: AiReportPipelineService;
   let guardrailService: GuardrailService;
+  let repository: InMemoryReportRepository;
 
   beforeEach(() => {
     guardrailService = new GuardrailService();
-    service = new AiReportPipelineService(new MockAiReportProvider(), guardrailService);
+    repository = new InMemoryReportRepository();
+    service = new AiReportPipelineService(new MockAiReportProvider(), guardrailService, repository);
   });
 
-  it("generates a completed recruiting report with scores and evidence", () => {
-    const result = service.generate({
+  it("builds evaluation context from company, posting, criteria, application, answers, and manual evaluation", () => {
+    const result = service.buildEvaluationContext({
       currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
       reportId: 1,
-      body: validRequest()
+      body: validContextRequest()
+    });
+
+    expect(result.status).toBe("COMPLETED");
+    expect(result.report.status).toBe("GENERATING");
+    expect(result.context.companyId).toBe(1);
+    expect(result.context.postingId).toBe(2);
+    expect(result.context.applicationId).toBe(3);
+    expect(result.context.manualEvaluations).toHaveLength(1);
+  });
+
+  it("saves answer scores only when every score has rationale and evidence", () => {
+    const result = service.evaluateAnswers({
+      currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
+      reportId: 1,
+      body: {
+        reportType: "RECRUITING_REPORT",
+        criteria: validGenerateRequest().criteria,
+        answers: validGenerateRequest().answers,
+        documentText: validGenerateRequest().documentText
+      }
     });
 
     expect(result.status).toBe("COMPLETED");
     expect(result.guardrail.result).toBe("PASS");
-    expect(result.scores).toHaveLength(1);
-    expect(result.scores[0].rationale).toContain("Problem solving");
-    expect(result.scores[0].evidences[0].answerId).toBe(10);
+    expect(result.stored.scoreCount).toBe(1);
+    expect(result.stored.evidenceCount).toBe(1);
   });
 
-  it("rejects missing criteria before report generation", () => {
-    const body = { ...validRequest(), criteria: [] };
-
-    expect(() =>
-      service.generate({
-        currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
-        reportId: 1,
-        body
-      })
-    ).toThrow(BadRequestException);
-  });
-
-  it("blocks generated reports that do not include evidence", () => {
-    const report: GeneratedReport = {
+  it("does not store scores or evidences when guardrail blocks final report generation", () => {
+    const blockedReport: GeneratedReport = {
       summary: "Generated summary.",
       totalScore: 80,
       scores: [
@@ -53,35 +68,93 @@ describe("AiReportPipelineService", () => {
         }
       ]
     };
+    const blockedProvider = new MockAiReportProvider();
+    jest.spyOn(blockedProvider, "generate").mockReturnValue(blockedReport);
+    const blockedService = new AiReportPipelineService(blockedProvider, guardrailService, new InMemoryReportRepository());
 
-    const decision = guardrailService.validate("RECRUITING_REPORT", report);
+    const result = blockedService.generate({
+      currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
+      reportId: 1,
+      body: validGenerateRequest()
+    });
 
-    expect(decision.result).toBe("BLOCKED");
-    expect(decision.reason).toContain("evidence");
+    expect(result.status).toBe("FAILED");
+    expect(result.report.status).toBe("FAILED");
+    expect(result.failure?.category).toBe("NON_RETRYABLE");
+    expect(result.guardrail.result).toBe("BLOCKED");
+    expect(result.stored.scoreCount).toBe(0);
+    expect(result.stored.evidenceCount).toBe(0);
   });
 
-  it("blocks hiring decision expressions in mock interview feedback", () => {
-    const report: GeneratedReport = {
-      summary: "이 지원자는 합격 가능성이 높습니다.",
-      totalScore: 80,
-      scores: [
-        {
-          criterionId: 1,
-          criterionName: "Communication",
-          score: 80,
-          rationale: "Reason exists.",
-          evidences: [{ answerId: 10, text: "Clear answer." }]
+  it("marks communication analysis as auxiliary only with zero decision weight", () => {
+    const result = service.analyzeCommunication({
+      currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
+      reportId: 1,
+      body: {
+        reportType: "RECRUITING_REPORT",
+        consentConfirmed: true,
+        mediaQuality: "LOW_AUDIO",
+        metrics: { speechPace: "NORMAL", audioClarity: 45 },
+        notes: ["Audio quality is not sufficient for decisive scoring."]
+      }
+    });
+
+    expect(result.status).toBe("COMPLETED");
+    expect(result.communicationAnalysis.usage).toBe("AUXILIARY_ONLY");
+    expect(result.communicationAnalysis.decisionWeight).toBe(0);
+  });
+
+  it("separates recruiting and mock interview expression policy", () => {
+    const scores: ReportScore[] = [
+      {
+        criterionId: 1,
+        criterionName: "Communication",
+        score: 80,
+        rationale: "이 지원자는 합격 가능성이 높습니다.",
+        evidences: [{ answerId: 10, text: "Clear answer." }]
+      }
+    ];
+
+    expect(guardrailService.validateScores("RECRUITING_REPORT", scores).result).toBe("PASS");
+    expect(guardrailService.validateScores("MOCK_INTERVIEW_REPORT", scores).result).toBe("BLOCKED");
+  });
+
+  it("records missing consent as a non-retryable failure", () => {
+    expect(() =>
+      service.analyzeCommunication({
+        currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
+        reportId: 1,
+        body: {
+          reportType: "RECRUITING_REPORT",
+          consentConfirmed: false,
+          mediaQuality: "GOOD"
         }
-      ]
-    };
-
-    const decision = guardrailService.validate("MOCK_INTERVIEW_REPORT", report);
-
-    expect(decision.result).toBe("BLOCKED");
+      })
+    ).toThrow(BadRequestException);
   });
 });
 
-function validRequest(): GenerateReportRequest {
+function validContextRequest(): EvaluationContextRequest {
+  return {
+    reportType: "RECRUITING_REPORT",
+    company: { companyId: 1, name: "Init Corp", talentProfile: "Pragmatic problem solver" },
+    posting: {
+      postingId: 2,
+      title: "Backend Engineer",
+      jobDescription: "Backend engineer with NestJS, PostgreSQL, and Redis experience."
+    },
+    application: {
+      applicationId: 3,
+      candidateId: 4,
+      documentText: "The candidate has worked on NestJS APIs and Redis cache policies."
+    },
+    criteria: validGenerateRequest().criteria,
+    answers: validGenerateRequest().answers,
+    manualEvaluations: [{ reviewerUserId: 9, decision: "HOLD", memo: "Needs human review." }]
+  };
+}
+
+function validGenerateRequest(): GenerateReportRequest {
   return {
     reportType: "RECRUITING_REPORT",
     jobDescription: "Backend engineer with NestJS, PostgreSQL, and Redis experience.",

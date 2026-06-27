@@ -1,9 +1,16 @@
 import { CurrentUser } from "../common/dev-auth/current-user";
 
 export type ReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
+export type ReportStatus = "PENDING" | "GENERATING" | "COMPLETED" | "FAILED";
 export type AiProcessType = "REPORT_GENERATE";
 export type AiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 export type GuardrailResult = "PASS" | "BLOCKED" | "REGENERATED";
+export type ReportPipelineStep =
+  | "EVALUATION_CONTEXT"
+  | "ANSWER_EVALUATION"
+  | "COMMUNICATION_ANALYSIS"
+  | "REPORT_GENERATE";
+export type FailureCategory = "RETRYABLE" | "NON_RETRYABLE";
 
 export interface EvaluationCriterionInput {
   criterionId: number;
@@ -18,6 +25,53 @@ export interface InterviewAnswerInput {
   transcript: string;
 }
 
+export interface ManualEvaluationInput {
+  reviewerUserId: number;
+  decision?: "UNDECIDED" | "PASS" | "HOLD" | "FAIL";
+  memo?: string;
+}
+
+export interface EvaluationContextRequest {
+  reportType: ReportType;
+  company: {
+    companyId: number;
+    name: string;
+    talentProfile?: string;
+  };
+  posting: {
+    postingId: number;
+    title: string;
+    jobDescription: string;
+  };
+  application: {
+    applicationId: number;
+    candidateId: number;
+    documentText?: string;
+  };
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+  manualEvaluations?: ManualEvaluationInput[];
+}
+
+export interface AnswerEvaluationRequest {
+  reportType: ReportType;
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+  documentText?: string;
+}
+
+export interface CommunicationAnalysisRequest {
+  reportType: ReportType;
+  consentConfirmed: boolean;
+  mediaQuality: "GOOD" | "LOW_AUDIO" | "LOW_VIDEO" | "FACE_NOT_DETECTED";
+  metrics?: {
+    speechPace?: "SLOW" | "NORMAL" | "FAST";
+    audioClarity?: number;
+    eyeContactRatio?: number;
+  };
+  notes?: string[];
+}
+
 export interface GenerateReportRequest {
   reportType: ReportType;
   jobDescription: string;
@@ -26,14 +80,15 @@ export interface GenerateReportRequest {
   answers: InterviewAnswerInput[];
 }
 
-export interface GenerateReportCommand {
+export interface ReportCommand<TBody> {
   currentUser: CurrentUser;
   reportId: number;
-  body: GenerateReportRequest;
+  body: TBody;
 }
 
 export interface ReportEvidence {
-  answerId: number;
+  answerId?: number;
+  documentRef?: string;
   text: string;
 }
 
@@ -51,21 +106,84 @@ export interface GeneratedReport {
   scores: ReportScore[];
 }
 
+export interface EvaluationContext {
+  reportType: ReportType;
+  companyId: number;
+  postingId: number;
+  applicationId: number;
+  candidateId: number;
+  jobDescription: string;
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+  documentText?: string;
+  manualEvaluations: ManualEvaluationInput[];
+}
+
+export interface CommunicationAnalysis {
+  usage: "AUXILIARY_ONLY";
+  mediaQuality: CommunicationAnalysisRequest["mediaQuality"];
+  metrics: NonNullable<CommunicationAnalysisRequest["metrics"]>;
+  notes: string[];
+  decisionWeight: 0;
+}
+
 export interface GuardrailDecision {
   result: GuardrailResult;
   reason: string | null;
 }
 
+export interface FailureReason {
+  category: FailureCategory;
+  reason: string;
+}
+
 export interface ProcessLogSnapshot {
   processLogId: number;
   processType: AiProcessType;
+  step: ReportPipelineStep;
   status: AiProcessStatus;
+  failure?: FailureReason;
 }
 
-export interface GenerateReportResult extends GeneratedReport {
+export interface EvaluationReportSnapshot {
+  reportId: number;
+  reportType: ReportType;
+  status: ReportStatus;
+  summary?: string;
+  totalScore?: number;
+  failure?: FailureReason;
+}
+
+export interface StoredCounts {
+  scoreCount: number;
+  evidenceCount: number;
+  guardrailLogCount: number;
+}
+
+export interface PipelineResult {
   processLogId: number;
   processType: AiProcessType;
+  step: ReportPipelineStep;
   status: AiProcessStatus;
-  reportId: number;
+  report: EvaluationReportSnapshot;
+  failure?: FailureReason;
+}
+
+export interface EvaluationContextResult extends PipelineResult {
+  context: EvaluationContext;
+}
+
+export interface AnswerEvaluationResult extends PipelineResult {
+  scores: ReportScore[];
   guardrail: GuardrailDecision;
+  stored: StoredCounts;
+}
+
+export interface CommunicationAnalysisResult extends PipelineResult {
+  communicationAnalysis: CommunicationAnalysis;
+}
+
+export interface GenerateReportResult extends PipelineResult, GeneratedReport {
+  guardrail: GuardrailDecision;
+  stored: StoredCounts;
 }

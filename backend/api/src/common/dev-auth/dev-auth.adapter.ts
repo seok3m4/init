@@ -51,6 +51,15 @@ export class DevAuthAdapter {
     }
   }
 
+  assertCandidate(currentUser: CurrentUser): void {
+    if (currentUser.userType !== "CANDIDATE" || !currentUser.candidateId) {
+      throw new ForbiddenException({
+        code: "COMMON_FORBIDDEN",
+        message: "Candidate user is required."
+      });
+    }
+  }
+
   private stringHeader(headers: HeaderBag, name: string): string | undefined {
     const value = headers[name] ?? headers[this.titleCaseHeader(name)];
     if (Array.isArray(value)) {

@@ -1,20 +1,24 @@
 import { Injectable } from "@nestjs/common";
-import { GeneratedReport, GuardrailDecision, ReportType } from "./report.types";
+import { GeneratedReport, GuardrailDecision, ReportScore, ReportType } from "./report.types";
 
 const MOCK_REPORT_BANNED_TERMS = ["합격", "탈락", "채용 적합", "채용 부적합", "선별"];
 
 @Injectable()
 export class GuardrailService {
-  validate(reportType: ReportType, report: GeneratedReport): GuardrailDecision {
+  validateReport(reportType: ReportType, report: GeneratedReport): GuardrailDecision {
     if (!report.summary.trim()) {
       return this.block("summary is required");
     }
 
-    if (report.scores.length === 0) {
+    return this.validateScores(reportType, report.scores, report.summary);
+  }
+
+  validateScores(reportType: ReportType, scores: ReportScore[], summary = ""): GuardrailDecision {
+    if (scores.length === 0) {
       return this.block("at least one score is required");
     }
 
-    for (const score of report.scores) {
+    for (const score of scores) {
       if (!score.rationale.trim()) {
         return this.block(`rationale is required for criterion ${score.criterionId}`);
       }
@@ -26,9 +30,9 @@ export class GuardrailService {
 
     if (reportType === "MOCK_INTERVIEW_REPORT") {
       const combinedText = [
-        report.summary,
-        ...report.scores.map((score) => score.rationale),
-        ...report.scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
+        summary,
+        ...scores.map((score) => score.rationale),
+        ...scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
       ].join("\n");
 
       const bannedTerm = MOCK_REPORT_BANNED_TERMS.find((term) => combinedText.includes(term));

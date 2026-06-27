@@ -1,12 +1,68 @@
 import { Injectable } from "@nestjs/common";
-import { GenerateReportRequest, GeneratedReport, ReportScore } from "./report.types";
+import {
+  AnswerEvaluationRequest,
+  CommunicationAnalysis,
+  CommunicationAnalysisRequest,
+  EvaluationContext,
+  EvaluationContextRequest,
+  GenerateReportRequest,
+  GeneratedReport,
+  ReportScore
+} from "./report.types";
 
 @Injectable()
 export class MockAiReportProvider {
+  buildEvaluationContext(input: EvaluationContextRequest): EvaluationContext {
+    return {
+      reportType: input.reportType,
+      companyId: input.company.companyId,
+      postingId: input.posting.postingId,
+      applicationId: input.application.applicationId,
+      candidateId: input.application.candidateId,
+      jobDescription: input.posting.jobDescription,
+      criteria: input.criteria,
+      answers: input.answers,
+      documentText: input.application.documentText,
+      manualEvaluations: input.manualEvaluations ?? []
+    };
+  }
+
+  evaluateAnswers(input: AnswerEvaluationRequest): ReportScore[] {
+    return this.scoreAnswers(input.criteria, input.answers, input.documentText);
+  }
+
+  analyzeCommunication(input: CommunicationAnalysisRequest): CommunicationAnalysis {
+    return {
+      usage: "AUXILIARY_ONLY",
+      mediaQuality: input.mediaQuality,
+      metrics: input.metrics ?? {},
+      notes: [
+        "Communication metrics are auxiliary only and must not be used as a decisive hiring signal.",
+        ...(input.notes ?? [])
+      ],
+      decisionWeight: 0
+    };
+  }
+
   generate(input: GenerateReportRequest): GeneratedReport {
-    const scores = input.criteria.map((criterion, index): ReportScore => {
-      const answer = input.answers[index % input.answers.length];
-      const evidenceText = this.pickEvidence(answer.transcript, input.documentText);
+    const scores = this.scoreAnswers(input.criteria, input.answers, input.documentText);
+    const totalScore = Math.round(scores.reduce((sum, item) => sum + item.score, 0) / scores.length);
+
+    return {
+      summary: this.summary(input, totalScore),
+      totalScore,
+      scores
+    };
+  }
+
+  private scoreAnswers(
+    criteria: AnswerEvaluationRequest["criteria"],
+    answers: AnswerEvaluationRequest["answers"],
+    documentText?: string
+  ): ReportScore[] {
+    return criteria.map((criterion, index): ReportScore => {
+      const answer = answers[index % answers.length];
+      const evidenceText = this.pickEvidence(answer.transcript, documentText);
       const score = this.scoreFor(criterion.weight, evidenceText);
 
       return {
@@ -22,14 +78,6 @@ export class MockAiReportProvider {
         ]
       };
     });
-
-    const totalScore = Math.round(scores.reduce((sum, item) => sum + item.score, 0) / scores.length);
-
-    return {
-      summary: this.summary(input, totalScore),
-      totalScore,
-      scores
-    };
   }
 
   private pickEvidence(transcript: string, documentText?: string): string {
