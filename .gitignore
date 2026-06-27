@@ -1,4 +1,8 @@
 .DS_Store
-
-.gitignore
-\nogitdocs
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+nogitdocs/
