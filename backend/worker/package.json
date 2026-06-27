@@ -5,5 +5,8 @@
   "scripts": {
     "build": "node ../api/node_modules/typescript/bin/tsc -p tsconfig.json",
     "test": "npm run build && node --test \"dist/**/*.test.js\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1075.0"
   }
 }
