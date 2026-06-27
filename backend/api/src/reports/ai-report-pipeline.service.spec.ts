@@ -90,6 +90,29 @@ describe("AiReportPipelineService", () => {
     expect(result.stored.evidenceCount).toBe(0);
   });
 
+  it("records unexpected report generation failures as retryable without storing final scores", async () => {
+    const failedProvider = new MockAiReportProvider();
+    jest.spyOn(failedProvider, "generate").mockImplementation(() => {
+      throw new Error("AI provider timeout");
+    });
+    const failedService = new AiReportPipelineService(failedProvider, guardrailService, new InMemoryReportRepository());
+
+    const result = await failedService.generate({
+      currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
+      reportId: 2,
+      body: validGenerateRequest()
+    });
+
+    expect(result.status).toBe("FAILED");
+    expect(result.report.status).toBe("FAILED");
+    expect(result.failure).toEqual({
+      category: "RETRYABLE",
+      reason: "AI provider timeout"
+    });
+    expect(result.stored.scoreCount).toBe(0);
+    expect(result.stored.evidenceCount).toBe(0);
+  });
+
   it("marks communication analysis as auxiliary only with zero decision weight", async () => {
     const result = await service.analyzeCommunication({
       currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
@@ -123,7 +146,7 @@ describe("AiReportPipelineService", () => {
     expect(guardrailService.validateScores("MOCK_INTERVIEW_REPORT", scores).result).toBe("BLOCKED");
   });
 
-  it("records missing consent as a non-retryable failure", async () => {
+  it("rejects missing communication-analysis consent as a validation error", async () => {
     await expect(
       service.analyzeCommunication({
         currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },

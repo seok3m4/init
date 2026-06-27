@@ -172,7 +172,15 @@ export class PrismaReportRepository implements ReportRepository {
       where: { reportId: BigInt(reportId) },
       include: { evidences: true }
     });
-    const guardrailLogCount = await this.prisma.aiGuardrailLog.count();
+    const guardrailLogCount = await this.prisma.aiGuardrailLog.count({
+      where: {
+        processLog: {
+          inputRef: {
+            contains: `"reportId":${reportId}`
+          }
+        }
+      }
+    });
     return {
       scoreCount: scores.length,
       evidenceCount: scores.reduce((sum, score) => sum + score.evidences.length, 0),

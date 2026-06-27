@@ -16,6 +16,7 @@ import {
 interface GuardrailLogRecord {
   guardrailLogId: number;
   processLogId: number;
+  reportId?: number;
   policyName: string;
   result: GuardrailDecision["result"];
   reason: string | null;
@@ -31,6 +32,7 @@ export class InMemoryReportRepository implements ReportRepository {
 
   private readonly reports = new Map<number, EvaluationReportSnapshot>();
   private readonly processLogs = new Map<number, ProcessLogSnapshot>();
+  private readonly processReportIds = new Map<number, number>();
   private readonly contexts = new Map<number, EvaluationContext>();
   private readonly communicationAnalyses = new Map<number, CommunicationAnalysis>();
   private readonly scoresByReport = new Map<number, ReportScore[]>();
@@ -45,6 +47,7 @@ export class InMemoryReportRepository implements ReportRepository {
       status: "PENDING"
     };
     this.processLogs.set(processLog.processLogId, processLog);
+    this.processReportIds.set(processLog.processLogId, reportId);
     return { ...processLog };
   }
 
@@ -127,6 +130,7 @@ export class InMemoryReportRepository implements ReportRepository {
     this.guardrailLogs.push({
       guardrailLogId,
       processLogId,
+      reportId: this.processReportIds.get(processLogId),
       policyName,
       result: decision.result,
       reason: decision.reason,
@@ -144,7 +148,7 @@ export class InMemoryReportRepository implements ReportRepository {
     return {
       scoreCount: scores.length,
       evidenceCount: scores.reduce((sum, score) => sum + score.evidences.length, 0),
-      guardrailLogCount: this.guardrailLogs.length
+      guardrailLogCount: this.guardrailLogs.filter((log) => log.reportId === reportId).length
     };
   }
 
