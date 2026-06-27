@@ -1,0 +1,130 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { InMemoryAiProcessLogRepository } from "./process-log.repository";
+import { InMemoryAiJobQueue } from "./queue";
+import { loadWorkerEnv } from "./worker-env";
+import { NonRetryableAiWorkerFailure, RetryableAiWorkerFailure } from "./worker-errors";
+import { AiWorkerRunner } from "./worker-runner";
+import { AiQueueMessage, AiTaskHandler } from "./worker.types";
+
+test("marks pending, running, completed and saves final output after guardrail pass", async () => {
+  const queue = new InMemoryAiJobQueue([message(1)]);
+  const repository = new InMemoryAiProcessLogRepository();
+  const saved: string[] = [];
+  const handler: AiTaskHandler = {
+    async handle() {
+      return {
+        outputRef: "s3://reports/1.json",
+        guardrail: { result: "PASS", reason: null },
+        finalSave: async () => {
+          saved.push("final");
+        }
+      };
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.deepEqual(
+    repository.events.map((event) => event.status),
+    ["PENDING", "RUNNING", "COMPLETED"]
+  );
+  assert.equal(repository.get(1).outputRef, "s3://reports/1.json");
+  assert.equal(repository.guardrailLogs[0].decision.result, "PASS");
+  assert.deepEqual(saved, ["final"]);
+  assert.deepEqual(queue.deletedMessageIds, ["message-1"]);
+});
+
+test("does not run final save when guardrail blocks output", async () => {
+  const queue = new InMemoryAiJobQueue([message(2)]);
+  const repository = new InMemoryAiProcessLogRepository();
+  let saved = false;
+  const handler: AiTaskHandler = {
+    async handle() {
+      return {
+        guardrail: { result: "BLOCKED", reason: "unsafe report wording" },
+        finalSave: async () => {
+          saved = true;
+        }
+      };
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.equal(repository.get(2).status, "FAILED");
+  assert.deepEqual(repository.get(2).failure, {
+    category: "NON_RETRYABLE",
+    reason: "unsafe report wording"
+  });
+  assert.equal(saved, false);
+  assert.deepEqual(queue.deletedMessageIds, ["message-2"]);
+});
+
+test("keeps retryable failures on the queue for redelivery", async () => {
+  const queue = new InMemoryAiJobQueue([message(3)]);
+  const repository = new InMemoryAiProcessLogRepository();
+  const handler: AiTaskHandler = {
+    async handle() {
+      throw new RetryableAiWorkerFailure("provider timeout");
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.equal(repository.get(3).status, "FAILED");
+  assert.deepEqual(repository.get(3).failure, {
+    category: "RETRYABLE",
+    reason: "provider timeout"
+  });
+  assert.deepEqual(queue.deletedMessageIds, []);
+});
+
+test("acks non-retryable failures after recording the reason", async () => {
+  const queue = new InMemoryAiJobQueue([message(4)]);
+  const repository = new InMemoryAiProcessLogRepository();
+  const handler: AiTaskHandler = {
+    async handle() {
+      throw new NonRetryableAiWorkerFailure("invalid input reference");
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.equal(repository.get(4).status, "FAILED");
+  assert.deepEqual(repository.get(4).failure, {
+    category: "NON_RETRYABLE",
+    reason: "invalid input reference"
+  });
+  assert.deepEqual(queue.deletedMessageIds, ["message-4"]);
+});
+
+test("loads SQS, S3 and AI provider settings from environment variables", () => {
+  assert.deepEqual(
+    loadWorkerEnv({
+      AI_SQS_QUEUE_URL: "https://sqs.ap-northeast-2.amazonaws.com/1/init-ai",
+      AWS_REGION: "ap-northeast-2",
+      AI_PROVIDER_API_KEY: "test-key",
+      S3_BUCKET_NAME: "init-dev"
+    }),
+    {
+      aiSqsQueueUrl: "https://sqs.ap-northeast-2.amazonaws.com/1/init-ai",
+      awsRegion: "ap-northeast-2",
+      aiProviderApiKey: "test-key",
+      s3BucketName: "init-dev"
+    }
+  );
+});
+
+function message(processLogId: number): AiQueueMessage {
+  return {
+    messageId: `message-${processLogId}`,
+    receiptHandle: `receipt-${processLogId}`,
+    job: {
+      processLogId,
+      processType: "REPORT_GENERATE",
+      inputRef: `report:${processLogId}`,
+      attempt: 1
+    }
+  };
+}
