@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "build": "node ../api/node_modules/typescript/bin/tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/worker-runner.test.js"
+    "test": "npm run build && node --test \"dist/**/*.test.js\""
   }
 }
