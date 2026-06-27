@@ -179,10 +179,12 @@ export interface ProcessLogSnapshot {
 export interface QueuedAiProcessSnapshot {
   processLogId: number;
   processType: AiProcessType;
-  status: "PENDING";
+  status: AiProcessStatus;
   inputRef: string;
+  outputRef?: string;
   applicationId?: number;
   sessionId?: number;
+  failure?: FailureReason;
 }
 
 export interface EvaluationReportSnapshot {

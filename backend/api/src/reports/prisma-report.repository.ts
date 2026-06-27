@@ -49,6 +49,13 @@ export class PrismaReportRepository implements ReportRepository {
     };
   }
 
+  async getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot> {
+    const processLog = await this.prisma.aiProcessLog.findUniqueOrThrow({
+      where: { processLogId: BigInt(processLogId) }
+    });
+    return this.toQueuedProcessSnapshot(processLog);
+  }
+
   async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
     await this.ensureReport(reportId, reportType);
     const processLogId = this.nextId();
@@ -272,6 +279,35 @@ export class PrismaReportRepository implements ReportRepository {
       processType: processLog.processType as AiProcessType,
       step: input.step ?? "REPORT_GENERATE",
       status: processLog.status as ProcessLogSnapshot["status"],
+      failure:
+        processLog.failureCategory && processLog.failureReason
+          ? {
+              category: processLog.failureCategory as FailureReason["category"],
+              reason: processLog.failureReason
+            }
+          : undefined
+    };
+  }
+
+  private toQueuedProcessSnapshot(processLog: {
+    processLogId: bigint;
+    applicationId: bigint | null;
+    sessionId: bigint | null;
+    processType: string;
+    status: string;
+    inputRef: string | null;
+    outputRef: string | null;
+    failureCategory: string | null;
+    failureReason: string | null;
+  }): QueuedAiProcessSnapshot {
+    return {
+      processLogId: Number(processLog.processLogId),
+      processType: processLog.processType as AiProcessType,
+      status: processLog.status as QueuedAiProcessSnapshot["status"],
+      inputRef: processLog.inputRef ?? "",
+      outputRef: processLog.outputRef ?? undefined,
+      applicationId: processLog.applicationId ? Number(processLog.applicationId) : undefined,
+      sessionId: processLog.sessionId ? Number(processLog.sessionId) : undefined,
       failure:
         processLog.failureCategory && processLog.failureReason
           ? {

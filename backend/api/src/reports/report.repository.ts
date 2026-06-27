@@ -22,6 +22,7 @@ export interface ReportRepository {
     inputRef: string,
     refs?: AiProcessRefs
   ): Promise<QueuedAiProcessSnapshot>;
+  getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot>;
   startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot>;
   markProcessRunning(processLogId: number): Promise<ProcessLogSnapshot>;
   markProcessCompleted(processLogId: number): Promise<ProcessLogSnapshot>;

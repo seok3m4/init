@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
 import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "./ai-job-queue.publisher";
-import { CandidateAiJobsController, CompanyAiJobsController } from "./ai-jobs.controller";
+import { AiJobsStatusController, CandidateAiJobsController, CompanyAiJobsController } from "./ai-jobs.controller";
 import { AiReportPipelineService } from "./ai-report-pipeline.service";
 import { GuardrailService } from "./guardrail.service";
 import { InMemoryReportRepository } from "./in-memory-report.repository";
@@ -36,7 +36,8 @@ const repositoryProviders = process.env.DATABASE_URL
     CandidateMockReportsController,
     AiGuardrailsController,
     CandidateAiJobsController,
-    CompanyAiJobsController
+    CompanyAiJobsController,
+    AiJobsStatusController
   ],
   providers: [
     DevAuthAdapter,

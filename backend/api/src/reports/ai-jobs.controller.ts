@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, HttpCode, HttpStatus, Inject, Param, Post } from "@nestjs/common";
 import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../common/dev-auth/current-user";
 import { ok } from "../common/response/api-response";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
+import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
 import { AiProcessType } from "./report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
@@ -233,5 +234,32 @@ export class CompanyAiJobsController {
       code: "COMMON_VALIDATION_FAILED",
       message
     });
+  }
+}
+
+@Controller("ai/jobs")
+export class AiJobsStatusController {
+  constructor(
+    private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(REPORT_REPOSITORY) private readonly repository: ReportRepository
+  ) {}
+
+  @Get(":processLogId/status")
+  async getStatus(@Param("processLogId") processLogIdParam: string, @Headers() headers: HeaderMap) {
+    this.devAuthAdapter.parse(headers);
+    const processLogId = this.parseId(processLogIdParam, "processLogId");
+
+    return ok(await this.repository.getProcess(processLogId));
+  }
+
+  private parseId(value: string, name: string): number {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException({
+        code: "COMMON_VALIDATION_FAILED",
+        message: `${name} must be a positive integer.`
+      });
+    }
+    return parsed;
   }
 }

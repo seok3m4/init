@@ -121,6 +121,10 @@ describe("ReportsController", () => {
     expect(response.body.data.queued).toBe(true);
     expect(response.body.data.inputRef).toContain("candidate/4/resume.pdf");
     expect(response.body.data.inputRef).not.toContain("fileContent");
+
+    const statusResponse = await candidateGet(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`).expect(200);
+    expect(statusResponse.body.data.processType).toBe("DOCUMENT_EXTRACT");
+    expect(statusResponse.body.data.status).toBe("PENDING");
   });
 
   it("queues candidate STT work for worker processing", async () => {
@@ -186,6 +190,14 @@ describe("ReportsController", () => {
   function candidateRequest(path: string) {
     return request(app.getHttpServer())
       .post(path)
+      .set("X-Dev-User-Id", "2")
+      .set("X-Dev-User-Type", "CANDIDATE")
+      .set("X-Dev-Candidate-Id", "1");
+  }
+
+  function candidateGet(path: string) {
+    return request(app.getHttpServer())
+      .get(path)
       .set("X-Dev-User-Id", "2")
       .set("X-Dev-User-Type", "CANDIDATE")
       .set("X-Dev-Candidate-Id", "1");

@@ -59,6 +59,26 @@ export class InMemoryReportRepository implements ReportRepository {
     return { ...process };
   }
 
+  async getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot> {
+    const queuedProcess = this.queuedProcesses.get(processLogId);
+    if (queuedProcess) {
+      return { ...queuedProcess };
+    }
+
+    const processLog = this.processLogs.get(processLogId);
+    if (!processLog) {
+      throw new Error(`Process log ${processLogId} was not initialized.`);
+    }
+
+    return {
+      processLogId: processLog.processLogId,
+      processType: processLog.processType,
+      status: processLog.status,
+      inputRef: JSON.stringify({ step: processLog.step }),
+      failure: processLog.failure
+    };
+  }
+
   async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
     this.ensureReport(reportId, reportType);
     const processLog: ProcessLogSnapshot = {
