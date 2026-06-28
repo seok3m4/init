@@ -57,3 +57,13 @@ sequenceDiagram
 | API-070 | POST | /candidate/interviews/{sessionId}/stt | STT 처리 | companies, candidate_profiles, file_assets, postings, applications, interview_sessions, interview_answers, ai_process_logs |
 | API-071 | POST | /candidate/interviews/{sessionId}/follow-up-question | 꼬리질문 생성 | candidate_profiles, postings, question_bank, applications, application_documents, interview_sessions, interview_answers, follow_up_questions, ai_process_logs |
 | API-076 | POST | /candidate/documents/extract | 서류 텍스트 추출 | candidate_profiles, file_assets, applications, application_documents, manual_evaluations, ai_process_logs |
+| API-079 | POST | /ai/guardrails/validate | AI 출력 안전성 검증 | evaluation_reports, report_scores, report_evidences, manual_evaluations, ai_process_logs, ai_guardrail_logs |
+| API-080 | GET | /ai/jobs/{processLogId}/status | AI 작업 상태 조회 | ai_process_logs, ai_guardrail_logs |
+
+## Status And Guardrail Contracts
+
+- 장기 작업 생성 API는 `202 Accepted`와 `processLogId`를 반환한다.
+- 화면은 `GET /ai/jobs/{processLogId}/status`로 `PENDING`, `RUNNING`, `COMPLETED`, `FAILED` 상태와 `output`, `failure`를 조회한다.
+- `FAILED` 상태는 `failure.category`, `failure.reason`, `failure.retryable`을 포함한다.
+- worker의 `finalSave`는 guardrail `PASS` 또는 `REGENERATED` 이후에만 실행된다.
+- `BLOCKED` 결과는 최종 저장 없이 `ai_guardrail_logs`와 `ai_process_logs.status=FAILED`로 기록한다.
