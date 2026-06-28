@@ -184,6 +184,18 @@ describe("ReportsController", () => {
       .expect(400);
   });
 
+  it("rejects document extraction raw file content before it can enter process logs", async () => {
+    await candidateRequest("/api/v1/candidate/documents/extract")
+      .send({
+        applicationId: 3,
+        documentId: 8,
+        fileId: 9,
+        s3Key: "candidate/4/resume.pdf",
+        fileContent: "raw pdf bytes"
+      })
+      .expect(400);
+  });
+
   it("queues candidate STT work for worker processing", async () => {
     const response = await candidateRequest("/api/v1/candidate/mock-interviews/7/stt")
       .send({
@@ -203,6 +215,17 @@ describe("ReportsController", () => {
       .send({
         answerId: 10,
         audioS3Key: "candidate/4/answer-10.wav"
+      })
+      .expect(400);
+  });
+
+  it("rejects STT raw audio content before it can enter process logs", async () => {
+    await candidateRequest("/api/v1/candidate/mock-interviews/7/stt")
+      .send({
+        answerId: 10,
+        audioFileId: 11,
+        audioS3Key: "candidate/4/answer-10.wav",
+        audioContent: "raw wav bytes"
       })
       .expect(400);
   });

@@ -36,6 +36,7 @@ export class CandidateAiJobsController {
     this.requirePositive(body.documentId, "documentId");
     this.requirePositive(body.fileId, "fileId");
     this.requireText(body.s3Key, "s3Key");
+    this.forbidRawPayload(body, ["fileContent", "rawContent", "base64", "fileBytes"]);
 
     return ok(
       await this.dispatcher.dispatch({
@@ -94,6 +95,7 @@ export class CandidateAiJobsController {
     this.requirePositive(body.answerId, "answerId");
     this.requirePositive(body.audioFileId, "audioFileId");
     this.requireText(body.audioS3Key, "audioS3Key");
+    this.forbidRawPayload(body, ["audioContent", "audioBase64", "fileContent", "rawContent", "base64", "fileBytes"]);
 
     return ok(
       await this.dispatcher.dispatch({
@@ -164,6 +166,13 @@ export class CandidateAiJobsController {
   private requireAnyText(body: JobBody, names: string[]): void {
     if (!names.some((name) => typeof body[name] === "string" && String(body[name]).trim())) {
       throw this.validation(`${names.join(" or ")} is required.`);
+    }
+  }
+
+  private forbidRawPayload(body: JobBody, names: string[]): void {
+    const providedName = names.find((name) => body[name] !== undefined && body[name] !== null);
+    if (providedName) {
+      throw this.validation(`${providedName} must not be sent. Use fileId and S3 object key references.`);
     }
   }
 

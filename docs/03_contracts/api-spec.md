@@ -1106,6 +1106,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - answerId, audioFileId, audioS3Key, 언어 설정
 - 검증/전제조건:
   - audioFileId는 file_assets.file_id를 참조하고 audioS3Key는 file_assets.storage_key와 같은 S3 object key여야 한다.
+  - audioContent, audioBase64, fileContent, rawContent, base64, fileBytes 같은 원본 파일 payload는 허용하지 않는다.
   - 음성 품질이 분석 가능해야 함
 - 성공 응답/처리:
   - 답변 스크립트 저장
@@ -1576,6 +1577,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - answerId, audioFileId, audioS3Key, 언어 설정
 - 검증/전제조건:
   - audioFileId는 file_assets.file_id를 참조하고 audioS3Key는 file_assets.storage_key와 같은 S3 object key여야 한다.
+  - audioContent, audioBase64, fileContent, rawContent, base64, fileBytes 같은 원본 파일 payload는 허용하지 않는다.
   - 음성 품질이 분석 가능해야 함
 - 성공 응답/처리:
   - 답변 스크립트 저장
@@ -1661,6 +1663,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - applicationId, documentId, fileId, s3Key
 - 검증/전제조건:
   - fileId는 file_assets.file_id를 참조하고 s3Key는 file_assets.storage_key와 같은 S3 object key여야 한다.
+  - fileContent, rawContent, base64, fileBytes 같은 원본 파일 payload는 허용하지 않는다.
   - 파일 파싱 가능, 링크 접근 권한 확보
 - 성공 응답/처리:
   - 추출 텍스트 저장 및 서류 분석 대기 상태 전환
