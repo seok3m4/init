@@ -77,7 +77,8 @@ export class GuardrailService {
   private block(reason: string): GuardrailDecision {
     return {
       result: "BLOCKED",
-      reason
+      reason,
+      failureCategory: "NON_RETRYABLE"
     };
   }
 }

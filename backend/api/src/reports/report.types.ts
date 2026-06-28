@@ -143,6 +143,7 @@ export interface CommunicationAnalysis {
 export interface GuardrailDecision {
   result: GuardrailResult;
   reason: string | null;
+  failureCategory?: FailureCategory | null;
 }
 
 export type GuardrailValidationTarget = "REPORT" | "SCORES";

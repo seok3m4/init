@@ -85,6 +85,7 @@ test("does not run final save when guardrail blocks output", async () => {
     category: "NON_RETRYABLE",
     reason: "unsafe report wording"
   });
+  assert.equal(repository.guardrailLogs[0].failureCategory, "NON_RETRYABLE");
   assert.equal(saved, false);
   assert.deepEqual(queue.deletedMessageIds, ["message-2"]);
 });

@@ -66,6 +66,7 @@ test("PrismaAiProcessLogRepository writes process state transitions to ai_proces
   assert.equal(calls[1].args.data.status, "RUNNING");
   assert.equal(calls[2].args.data.status, "COMPLETED");
   assert.equal(calls[3].args.data.result, "PASS");
+  assert.equal(calls[3].args.data.failureCategory, null);
 });
 
 test("PrismaAiProcessLogRepository records retryability on failed worker jobs", async () => {
@@ -116,4 +117,46 @@ test("PrismaAiProcessLogRepository records retryability on failed worker jobs", 
     category: "RETRYABLE",
     reason: "provider timeout"
   });
+});
+
+test("PrismaAiProcessLogRepository records guardrail retryability", async () => {
+  let guardrailCreateArgs: any;
+  const prisma = {
+    aiProcessLog: {
+      async upsert(args: any) {
+        return {
+          ...args.create,
+          outputRef: null,
+          failureCategory: null,
+          failureReason: null
+        };
+      },
+      async update(args: any) {
+        return {
+          processLogId: args.where.processLogId,
+          processType: "REPORT_GENERATE",
+          status: args.data.status,
+          inputRef: "report:12",
+          outputRef: null,
+          failureCategory: args.data.failureCategory ?? null,
+          failureReason: args.data.failureReason ?? null
+        };
+      }
+    },
+    aiGuardrailLog: {
+      async create(args: any) {
+        guardrailCreateArgs = args;
+        return { guardrailLogId: args.data.guardrailLogId };
+      }
+    }
+  };
+  const repository = new PrismaAiProcessLogRepository(prisma);
+
+  await repository.saveGuardrailLog(12, "REPORT_FINAL_SAVE", {
+    result: "BLOCKED",
+    reason: "unsafe report wording"
+  });
+
+  assert.equal(guardrailCreateArgs.data.result, "BLOCKED");
+  assert.equal(guardrailCreateArgs.data.failureCategory, "NON_RETRYABLE");
 });

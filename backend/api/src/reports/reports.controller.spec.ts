@@ -118,6 +118,7 @@ describe("ReportsController", () => {
 
     expect(response.body.data.target).toBe("SCORES");
     expect(response.body.data.guardrail.result).toBe("BLOCKED");
+    expect(response.body.data.guardrail.failureCategory).toBe("NON_RETRYABLE");
   });
 
   it("records regenerated guardrail results for passing regenerated output", async () => {

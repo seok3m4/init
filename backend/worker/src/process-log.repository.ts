@@ -21,6 +21,7 @@ export class InMemoryAiProcessLogRepository implements AiProcessLogRepository {
     processLogId: number;
     policyName: string;
     decision: GuardrailDecision;
+    failureCategory: GuardrailDecision["failureCategory"];
   }> = [];
 
   private nextGuardrailLogId = 1;
@@ -61,7 +62,8 @@ export class InMemoryAiProcessLogRepository implements AiProcessLogRepository {
       guardrailLogId,
       processLogId,
       policyName,
-      decision
+      decision,
+      failureCategory: this.guardrailFailureCategory(decision)
     });
     return guardrailLogId;
   }
@@ -84,5 +86,9 @@ export class InMemoryAiProcessLogRepository implements AiProcessLogRepository {
     this.processLogs.set(processLogId, updated);
     this.events.push({ processLogId, status: updated.status });
     return { ...updated };
+  }
+
+  private guardrailFailureCategory(decision: GuardrailDecision): GuardrailDecision["failureCategory"] {
+    return decision.failureCategory ?? (decision.result === "BLOCKED" ? "NON_RETRYABLE" : null);
   }
 }

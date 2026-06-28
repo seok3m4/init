@@ -29,6 +29,7 @@ export interface AiQueueMessage {
 export interface GuardrailDecision {
   result: GuardrailResult;
   reason: string | null;
+  failureCategory?: FailureCategory | null;
 }
 
 export interface FailureReason {

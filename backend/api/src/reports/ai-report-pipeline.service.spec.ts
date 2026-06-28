@@ -86,6 +86,7 @@ describe("AiReportPipelineService", () => {
     expect(result.report.status).toBe("FAILED");
     expect(result.failure?.category).toBe("NON_RETRYABLE");
     expect(result.guardrail.result).toBe("BLOCKED");
+    expect(result.guardrail.failureCategory).toBe("NON_RETRYABLE");
     expect(result.stored.scoreCount).toBe(0);
     expect(result.stored.evidenceCount).toBe(0);
   });

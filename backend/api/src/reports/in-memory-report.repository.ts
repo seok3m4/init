@@ -24,6 +24,7 @@ interface GuardrailLogRecord {
   policyName: string;
   result: GuardrailDecision["result"];
   reason: string | null;
+  failureCategory: GuardrailDecision["failureCategory"];
   createdAt: string;
 }
 
@@ -192,6 +193,7 @@ export class InMemoryReportRepository implements ReportRepository {
       policyName,
       result: decision.result,
       reason: decision.reason,
+      failureCategory: this.guardrailFailureCategory(decision),
       createdAt: new Date().toISOString()
     });
     return guardrailLogId;
@@ -242,6 +244,10 @@ export class InMemoryReportRepository implements ReportRepository {
     const updated = { ...processLog, ...patch };
     this.processLogs.set(processLogId, updated);
     return { ...updated };
+  }
+
+  private guardrailFailureCategory(decision: GuardrailDecision): GuardrailDecision["failureCategory"] {
+    return decision.failureCategory ?? (decision.result === "BLOCKED" ? "NON_RETRYABLE" : null);
   }
 
   private withParsedOutput(process: QueuedAiProcessSnapshot): QueuedAiProcessSnapshot {

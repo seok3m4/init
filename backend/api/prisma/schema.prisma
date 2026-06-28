@@ -111,6 +111,7 @@ model AiGuardrailLog {
   policyName     String       @map("policy_name") @db.VarChar(120)
   result         String       @db.VarChar(40)
   reason         String?
+  failureCategory String?     @map("failure_category") @db.VarChar(40)
   createdAt      DateTime     @map("created_at")
   processLog     AiProcessLog @relation(fields: [processLogId], references: [processLogId], onDelete: Cascade)
 

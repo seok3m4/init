@@ -336,7 +336,11 @@ export class MockAiTaskHandler implements AiTaskHandler {
 
     const banned = MOCK_HIRING_DECISION_TERMS.find((term) => text.includes(term));
     return banned
-      ? { result: "BLOCKED" as const, reason: `mock interview output cannot include hiring decision expression: ${banned}` }
+      ? {
+          result: "BLOCKED" as const,
+          reason: `mock interview output cannot include hiring decision expression: ${banned}`,
+          failureCategory: "NON_RETRYABLE" as const
+        }
       : { result: "PASS" as const, reason: null };
   }
 
@@ -385,10 +389,18 @@ export class MockAiTaskHandler implements AiTaskHandler {
   ) {
     for (const score of scores) {
       if (!score.rationale.trim()) {
-        return { result: "BLOCKED" as const, reason: `rationale is required for criterion ${score.criterionId}` };
+        return {
+          result: "BLOCKED" as const,
+          reason: `rationale is required for criterion ${score.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
       }
       if (score.evidences.length === 0 || score.evidences.some((evidence) => !evidence.text.trim())) {
-        return { result: "BLOCKED" as const, reason: `evidence is required for criterion ${score.criterionId}` };
+        return {
+          result: "BLOCKED" as const,
+          reason: `evidence is required for criterion ${score.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
       }
     }
 

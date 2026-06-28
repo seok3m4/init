@@ -52,7 +52,7 @@ export class AiWorkerRunner {
 
         if (result.guardrail.result === "BLOCKED") {
           await this.failAndAck(message, {
-            category: "NON_RETRYABLE",
+            category: result.guardrail.failureCategory ?? "NON_RETRYABLE",
             reason: result.guardrail.reason ?? "guardrail blocked output"
           });
           return;

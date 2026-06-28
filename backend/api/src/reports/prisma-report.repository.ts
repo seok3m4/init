@@ -186,15 +186,17 @@ export class PrismaReportRepository implements ReportRepository {
 
   async saveGuardrailLog(processLogId: number, policyName: string, decision: GuardrailDecision): Promise<number> {
     const guardrailLogId = this.nextId();
+    const data = {
+      guardrailLogId,
+      processLogId: BigInt(processLogId),
+      policyName,
+      result: decision.result,
+      reason: decision.reason,
+      failureCategory: this.guardrailFailureCategory(decision),
+      createdAt: new Date()
+    };
     await this.prisma.aiGuardrailLog.create({
-      data: {
-        guardrailLogId,
-        processLogId: BigInt(processLogId),
-        policyName,
-        result: decision.result,
-        reason: decision.reason,
-        createdAt: new Date()
-      }
+      data
     });
     return Number(guardrailLogId);
   }
@@ -347,5 +349,9 @@ export class PrismaReportRepository implements ReportRepository {
 
   private nextId(): bigint {
     return BigInt(Date.now()) * BigInt(1000) + BigInt(Math.floor(Math.random() * 1000));
+  }
+
+  private guardrailFailureCategory(decision: GuardrailDecision): GuardrailDecision["failureCategory"] {
+    return decision.failureCategory ?? (decision.result === "BLOCKED" ? "NON_RETRYABLE" : null);
   }
 }
