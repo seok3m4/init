@@ -27,6 +27,13 @@ The `.env.example` file also includes project-level aliases such as `SQS_QUEUE_U
 the common deployment contract. The current worker runtime reads the `AI_*` and
 `S3_BUCKET_NAME` names above.
 
+Deployment boundary with A:
+
+- A owns AWS resource creation, IAM permissions, secret injection, and worker restart/deployment.
+- E owns the runtime contract above, queue message handling, `ai_process_logs` transitions, and final-save behavior after guardrails.
+- The worker must receive SQS/S3/AI provider values through runtime environment variables. Do not put real secret values in git.
+- Local `.env.example` files may contain placeholder values only; production values must come from the deployment secret store.
+
 Optional runtime environment variables:
 
 - `WORKER_BATCH_SIZE` defaults to `1`, max `10`.

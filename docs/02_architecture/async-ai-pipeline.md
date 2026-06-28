@@ -18,16 +18,20 @@ sequenceDiagram
   participant UI
   participant API
   participant Log as ai_process_logs
-  participant AI
+  participant Queue as SQS
+  participant Worker as AI worker
   participant Guard as ai_guardrail_logs
   UI->>API: 요청
-  API->>Log: PENDING/RUNNING 기록
-  API->>AI: 서류 추출/STT/질문 생성/평가
-  AI-->>API: 결과 후보
-  API->>Guard: 정책 검증
-  Guard-->>API: PASS/BLOCKED/REGENERATED
-  API->>Log: COMPLETED 또는 FAILED
-  API-->>UI: processLogId 또는 결과
+  API->>Log: PENDING 작업 로그 생성
+  API->>Queue: processLogId, processType, inputRef 발행
+  API-->>UI: processLogId 반환
+  Worker->>Queue: 메시지 수신
+  Worker->>Log: RUNNING 기록
+  Worker->>Worker: 서류 추출/STT/질문 생성/평가
+  Worker->>Guard: 정책 검증
+  Guard-->>Worker: PASS/BLOCKED/REGENERATED
+  Worker->>Log: COMPLETED 또는 FAILED 기록
+  Worker-->>Queue: 성공 처리 후 메시지 삭제
 ```
 
 ## Async Endpoint Map

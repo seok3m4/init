@@ -20,8 +20,11 @@ $requiredNames = @(
     "REDIS_URL",
     "AWS_REGION",
     "S3_BUCKET",
+    "S3_BUCKET_NAME",
     "SQS_QUEUE_URL",
+    "AI_SQS_QUEUE_URL",
     "OPENAI_API_KEY",
+    "AI_PROVIDER_API_KEY",
     "JWT_SECRET"
 )
 
