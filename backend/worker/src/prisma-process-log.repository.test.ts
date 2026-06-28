@@ -109,13 +109,15 @@ test("PrismaAiProcessLogRepository records retryability on failed worker jobs", 
   });
   const failed = await repository.markFailed(11, {
     category: "RETRYABLE",
-    reason: "provider timeout"
+    reason: "provider timeout",
+    retryable: true
   });
 
   assert.equal(failed.status, "FAILED");
   assert.deepEqual(failed.failure, {
     category: "RETRYABLE",
-    reason: "provider timeout"
+    reason: "provider timeout",
+    retryable: true
   });
 });
 

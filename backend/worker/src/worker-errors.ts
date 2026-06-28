@@ -28,12 +28,14 @@ export function toFailureReason(error: unknown): FailureReason {
   if (error instanceof AiWorkerFailure) {
     return {
       category: error.category,
-      reason: error.message
+      reason: error.message,
+      retryable: error.category === "RETRYABLE"
     };
   }
 
   return {
     category: "RETRYABLE",
-    reason: error instanceof Error ? error.message : "unknown worker failure"
+    reason: error instanceof Error ? error.message : "unknown worker failure",
+    retryable: true
   };
 }

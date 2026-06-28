@@ -83,7 +83,8 @@ test("does not run final save when guardrail blocks output", async () => {
   assert.equal(repository.get(2).status, "FAILED");
   assert.deepEqual(repository.get(2).failure, {
     category: "NON_RETRYABLE",
-    reason: "unsafe report wording"
+    reason: "unsafe report wording",
+    retryable: false
   });
   assert.equal(repository.guardrailLogs[0].failureCategory, "NON_RETRYABLE");
   assert.equal(saved, false);
@@ -104,7 +105,8 @@ test("keeps retryable failures on the queue for redelivery", async () => {
   assert.equal(repository.get(3).status, "FAILED");
   assert.deepEqual(repository.get(3).failure, {
     category: "RETRYABLE",
-    reason: "provider timeout"
+    reason: "provider timeout",
+    retryable: true
   });
   assert.deepEqual(queue.deletedMessageIds, []);
 });
@@ -123,7 +125,8 @@ test("acks non-retryable failures after recording the reason", async () => {
   assert.equal(repository.get(4).status, "FAILED");
   assert.deepEqual(repository.get(4).failure, {
     category: "NON_RETRYABLE",
-    reason: "invalid input reference"
+    reason: "invalid input reference",
+    retryable: false
   });
   assert.deepEqual(queue.deletedMessageIds, ["message-4"]);
 });

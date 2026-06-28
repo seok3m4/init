@@ -299,7 +299,8 @@ export class PrismaReportRepository implements ReportRepository {
         processLog.failureCategory && processLog.failureReason
           ? {
               category: processLog.failureCategory as FailureReason["category"],
-              reason: processLog.failureReason
+              reason: processLog.failureReason,
+              retryable: processLog.failureCategory === "RETRYABLE"
             }
           : undefined
     };
@@ -329,7 +330,8 @@ export class PrismaReportRepository implements ReportRepository {
         processLog.failureCategory && processLog.failureReason
           ? {
               category: processLog.failureCategory as FailureReason["category"],
-              reason: processLog.failureReason
+              reason: processLog.failureReason,
+              retryable: processLog.failureCategory === "RETRYABLE"
             }
           : undefined
     };
@@ -354,7 +356,8 @@ export class PrismaReportRepository implements ReportRepository {
         report.failureCategory && report.failureReason
           ? {
               category: report.failureCategory as FailureReason["category"],
-              reason: report.failureReason
+              reason: report.failureReason,
+              retryable: report.failureCategory === "RETRYABLE"
             }
           : undefined
     };

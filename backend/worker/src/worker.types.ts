@@ -35,6 +35,7 @@ export interface GuardrailDecision {
 export interface FailureReason {
   category: FailureCategory;
   reason: string;
+  retryable: boolean;
 }
 
 export interface AiTaskResult {

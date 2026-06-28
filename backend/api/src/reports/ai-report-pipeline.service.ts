@@ -248,7 +248,7 @@ export class AiReportPipelineService {
   }
 
   private failure(category: FailureReason["category"], reason: string): FailureReason {
-    return { category, reason };
+    return { category, reason, retryable: category === "RETRYABLE" };
   }
 
   private toFailure(error: unknown, fallbackCategory: FailureReason["category"]): FailureReason {

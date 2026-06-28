@@ -170,6 +170,7 @@ export interface GuardrailValidationResult {
 export interface FailureReason {
   category: FailureCategory;
   reason: string;
+  retryable: boolean;
 }
 
 export interface ProcessLogSnapshot {

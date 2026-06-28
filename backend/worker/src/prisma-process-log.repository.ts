@@ -108,7 +108,8 @@ export class PrismaAiProcessLogRepository implements AiProcessLogRepository {
         processLog.failureCategory && processLog.failureReason
           ? {
               category: processLog.failureCategory as FailureReason["category"],
-              reason: processLog.failureReason
+              reason: processLog.failureReason,
+              retryable: processLog.failureCategory === "RETRYABLE"
             }
           : undefined
     };

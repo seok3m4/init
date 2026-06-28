@@ -127,7 +127,8 @@ describe("AiReportPipelineService", () => {
     expect(result.report.status).toBe("FAILED");
     expect(result.failure).toEqual({
       category: "RETRYABLE",
-      reason: "AI provider timeout"
+      reason: "AI provider timeout",
+      retryable: true
     });
     expect(result.stored.scoreCount).toBe(0);
     expect(result.stored.evidenceCount).toBe(0);

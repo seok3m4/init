@@ -10,6 +10,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - Success: `{ "data": ..., "meta": { "traceId": "...", "timestamp": "ISO-8601" } }`
 - Error: `{ "error": { "code": "STRING", "message": "사용자 표시 메시지", "details": [] } }`
 - Auth: 공개 API를 제외하고 `Authorization: Bearer {accessToken}`
+- AI status failure: `{ "category": "RETRYABLE|NON_RETRYABLE", "reason": "...", "retryable": true|false }`
 
 ## 인증/계정
 
