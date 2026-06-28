@@ -45,7 +45,11 @@
     "outputShape": {
       "context": "object",
       "report": "object",
-      "processLogId": "number"
+      "processLogId": "number",
+      "inputSources": "object",
+      "criteriaCount": 1,
+      "answersCount": 1,
+      "manualEvaluationCount": 1
     }
   }
 }

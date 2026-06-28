@@ -328,6 +328,77 @@ test("question set generation reflects criteria and question type conditions", a
   assert.deepEqual(output.items, ["TECHNICAL question 1 for Problem solving", "EXPERIENCE question 2 for Problem solving"]);
 });
 
+test("evaluation context records every required source group", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  const repository = await run({
+    processLogId: 33,
+    processType: "REPORT_GENERATE",
+    input: {
+      payload: {
+        step: "EVALUATION_CONTEXT",
+        reportId: 33,
+        reportType: "RECRUITING_REPORT",
+        company: {
+          companyId: 1,
+          name: "Init Corp"
+        },
+        posting: {
+          postingId: 2,
+          jobDescription: "Backend engineer with NestJS and PostgreSQL."
+        },
+        application: {
+          applicationId: 3,
+          candidateId: 4,
+          documentText: "The candidate has worked on NestJS APIs."
+        },
+        criteria: [
+          {
+            criterionId: 1,
+            name: "Problem solving",
+            weight: 40
+          }
+        ],
+        answers: [
+          {
+            answerId: 10,
+            transcript: "I improved read performance with Redis cache."
+          }
+        ],
+        manualEvaluations: [
+          {
+            reviewerUserId: 9,
+            decision: "HOLD",
+            memo: "Needs human review."
+          }
+        ]
+      }
+    },
+    results
+  });
+
+  const output = JSON.parse(repository.get(33).outputRef ?? "{}") as {
+    context?: {
+      manualEvaluations?: unknown[];
+    };
+    inputSources?: {
+      company?: boolean;
+      posting?: boolean;
+      criteriaCount?: number;
+      application?: boolean;
+      answersCount?: number;
+      manualEvaluationCount?: number;
+    };
+  };
+  assert.equal(output.inputSources?.company, true);
+  assert.equal(output.inputSources?.posting, true);
+  assert.equal(output.inputSources?.criteriaCount, 1);
+  assert.equal(output.inputSources?.application, true);
+  assert.equal(output.inputSources?.answersCount, 1);
+  assert.equal(output.inputSources?.manualEvaluationCount, 1);
+  assert.equal(output.context?.manualEvaluations?.length, 1);
+});
+
 test("answer evaluation step stores scores and evidences without completing the final report", async () => {
   const results = new InMemoryAiResultRepository();
 
@@ -640,9 +711,11 @@ function assertOutputShape(file: string, output: Record<string, unknown>, output
 }
 
 function nestedValue(output: Record<string, unknown>, key: string): unknown {
-  const communicationAnalysis = output.communicationAnalysis;
-  if (communicationAnalysis && typeof communicationAnalysis === "object" && key in communicationAnalysis) {
-    return (communicationAnalysis as Record<string, unknown>)[key];
+  for (const nestedKey of ["communicationAnalysis", "inputSources"]) {
+    const nested = output[nestedKey];
+    if (nested && typeof nested === "object" && key in nested) {
+      return (nested as Record<string, unknown>)[key];
+    }
   }
   return undefined;
 }

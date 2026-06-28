@@ -161,12 +161,21 @@ export class MockAiTaskHandler implements AiTaskHandler {
       documentText: typeof application.documentText === "string" ? application.documentText : undefined,
       manualEvaluations: Array.isArray(payload.manualEvaluations) ? payload.manualEvaluations : []
     };
+    const inputSources = {
+      company: true,
+      posting: true,
+      criteriaCount: context.criteria.length,
+      application: true,
+      answersCount: context.answers.length,
+      manualEvaluationCount: context.manualEvaluations.length
+    };
 
     return {
       outputRef: JSON.stringify({
         processLogId,
         report: reportSnapshot(reportId, reportType),
-        context
+        context,
+        inputSources
       }),
       guardrail: { result: "PASS", reason: null }
     };
