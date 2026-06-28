@@ -396,6 +396,10 @@ describe("ReportsController", () => {
       })
       .expect(202);
 
+    expect(response.body.data.inputRef).not.toContain("postingId");
+    expect(response.body.data.inputRef).not.toContain("jobDescription");
+    expect(response.body.data.inputRef).not.toContain("criteria");
+
     await repository.markQueuedProcessCompleted(
       response.body.data.processLogId,
       JSON.stringify({

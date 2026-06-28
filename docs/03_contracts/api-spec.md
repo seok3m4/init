@@ -966,16 +966,16 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 202 Accepted
 - 비동기: Y
 - 요청 데이터:
-  - 직무, 난이도, 질문 유형
+  - questionCount, 선택 입력(practiceRole, difficulty, questionTypes)
 - 검증/전제조건:
-  - 선택값이 존재해야 함
+  - questionCount는 양수여야 하며 JD, postingId, 기업 평가 기준은 필수 입력이 아니다.
 - 성공 응답/처리:
   - 모의면접 질문 목록 생성
   - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 목록 확정 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 생성 실패 시 기본 질문 세트를 제공한다.
 - 관련 ERD 테이블:
-  - companies, candidate_profiles, postings, criterion_tags, evaluation_criteria, question_bank, applications, interview_sessions, ai_process_logs
+  - candidate_profiles, question_bank, interview_sessions, ai_process_logs
 - 비고/미결:
   - 채용 질문과 달리 JD/기업 평가 기준을 사용하지 않음
 
