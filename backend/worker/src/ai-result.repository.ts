@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { NonRetryableAiWorkerFailure } from "./worker-errors";
 
 export interface DocumentExtractionRecord {
   documentId: number;
@@ -112,6 +113,18 @@ export interface AiResultRepository {
   upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord>;
 }
 
+export function assertScoresHaveEvidence(scores: GeneratedReportScoreRecord[]): void {
+  for (const score of scores) {
+    if (!score.rationale.trim()) {
+      throw new NonRetryableAiWorkerFailure(`rationale is required for criterion ${score.criterionId}`);
+    }
+
+    if (score.evidences.length === 0 || score.evidences.some((evidence) => !evidence.text.trim())) {
+      throw new NonRetryableAiWorkerFailure(`evidence is required for criterion ${score.criterionId}`);
+    }
+  }
+}
+
 export class InMemoryAiResultRepository implements AiResultRepository {
   readonly documentExtractions: DocumentExtractionRecord[] = [];
   readonly documentParseStatuses = new Map<number, "EXTRACTING" | "EXTRACTED" | "FAILED">();
@@ -186,6 +199,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   }
 
   async saveReportScoresAndEvidences(record: ReportScoresRecord): Promise<void> {
+    assertScoresHaveEvidence(record.scores);
     this.reportScores.set(record.reportId, record.scores);
   }
 
@@ -194,6 +208,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   }
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
+    assertScoresHaveEvidence(record.scores);
     await this.saveReportScoresAndEvidences({ reportId: record.reportId, scores: record.scores });
     this.generatedReports.set(record.reportId, record);
     this.failedReports.delete(record.reportId);

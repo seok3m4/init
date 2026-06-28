@@ -11,6 +11,7 @@ import {
   GeneratedReportRecord,
   GeneratedReportScoreRecord,
   TranscriptRecord,
+  assertScoresHaveEvidence,
   hashSourceText
 } from "./ai-result.repository";
 
@@ -120,6 +121,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
   }
 
   async saveReportScoresAndEvidences(record: { reportId: number; scores: GeneratedReportScoreRecord[] }): Promise<void> {
+    assertScoresHaveEvidence(record.scores);
     await this.replaceReportScores(record.reportId, record.scores);
   }
 
@@ -141,6 +143,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
   }
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
+    assertScoresHaveEvidence(record.scores);
     await this.prisma.evaluationReport.upsert({
       where: { reportId: BigInt(record.reportId) },
       create: {
@@ -224,6 +227,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
   }
 
   private async replaceReportScores(reportId: number, scores: GeneratedReportScoreRecord[]): Promise<void> {
+    assertScoresHaveEvidence(scores);
     await this.prisma.reportScore.deleteMany({
       where: { reportId: BigInt(reportId) }
     });

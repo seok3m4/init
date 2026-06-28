@@ -172,6 +172,61 @@ test("PrismaAiResultRepository stores report scores without completing a report"
   assert.equal(calls.some((call) => call.model === "evaluationReport"), false);
 });
 
+test("PrismaAiResultRepository rejects scores without evidence before deleting existing scores", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await assert.rejects(
+    () =>
+      repository.saveReportScoresAndEvidences({
+        reportId: 30,
+        scores: [
+          {
+            criterionId: 1,
+            criterionName: "Problem solving",
+            score: 82,
+            rationale: "evidence is missing",
+            evidences: []
+          }
+        ]
+      }),
+    {
+      name: "NonRetryableAiWorkerFailure",
+      message: "evidence is required for criterion 1"
+    }
+  );
+  assert.deepEqual(calls, []);
+});
+
+test("PrismaAiResultRepository rejects generated reports without evidence before completing the report", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await assert.rejects(
+    () =>
+      repository.saveGeneratedReport({
+        reportId: 30,
+        reportType: "RECRUITING_REPORT",
+        summary: "summary",
+        totalScore: 82,
+        scores: [
+          {
+            criterionId: 1,
+            criterionName: "Problem solving",
+            score: 82,
+            rationale: "evidence is missing",
+            evidences: []
+          }
+        ]
+      }),
+    {
+      name: "NonRetryableAiWorkerFailure",
+      message: "evidence is required for criterion 1"
+    }
+  );
+  assert.deepEqual(calls, []);
+});
+
 test("PrismaAiResultRepository stores communication analysis only on process output", async () => {
   const calls: Array<{ model: string; method: string; args: any }> = [];
   const repository = new PrismaAiResultRepository(fakePrisma(calls));
