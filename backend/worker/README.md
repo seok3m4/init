@@ -38,7 +38,7 @@ Optional runtime environment variables:
 
 - `WORKER_BATCH_SIZE` defaults to `1`, max `10`.
 - `WORKER_POLL_INTERVAL_MS` defaults to `1000`.
-- `WORKER_REPOSITORY_MODE` is `memory` by default and can be set to `prisma`.
+- `WORKER_REPOSITORY_MODE` is `memory` by default when unset, but integration runs must set it to `prisma` so worker updates are visible through API status polling.
 - `PRISMA_CLIENT_MODULE` overrides the Prisma client module path. The default resolves to the API package's `@prisma/client`.
 
 Secrets are read from environment variables only and must not be committed.
