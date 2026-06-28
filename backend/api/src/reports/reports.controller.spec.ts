@@ -257,8 +257,10 @@ describe("ReportsController", () => {
       response.body.data.processLogId,
       JSON.stringify({
         kind: "RECRUITING_QUESTION_GENERATE",
+        sourceProcessLogId: response.body.data.processLogId,
         items: ["Question 1", "Question 2"],
         reviewRequired: true,
+        reviewStatus: "PENDING_REVIEW",
         targetTables: ["question_bank"],
         postingId: 2
       })
@@ -267,8 +269,10 @@ describe("ReportsController", () => {
     const statusResponse = await companyGet(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`).expect(200);
 
     expect(statusResponse.body.data.status).toBe("COMPLETED");
+    expect(statusResponse.body.data.output.sourceProcessLogId).toBe(response.body.data.processLogId);
     expect(statusResponse.body.data.output.items).toEqual(["Question 1", "Question 2"]);
     expect(statusResponse.body.data.output.reviewRequired).toBe(true);
+    expect(statusResponse.body.data.output.reviewStatus).toBe("PENDING_REVIEW");
     expect(statusResponse.body.data.output.targetTables).toEqual(["question_bank"]);
     expect(statusResponse.body.data.output.postingId).toBe(2);
   });
@@ -309,8 +313,10 @@ describe("ReportsController", () => {
       response.body.data.processLogId,
       JSON.stringify({
         kind: "MOCK_QUESTION_GENERATE",
+        sourceProcessLogId: response.body.data.processLogId,
         items: ["Mock question 1", "Mock question 2"],
         reviewRequired: true,
+        reviewStatus: "PENDING_REVIEW",
         targetTables: ["question_bank"]
       })
     );
@@ -318,8 +324,10 @@ describe("ReportsController", () => {
     const statusResponse = await candidateGet(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`).expect(200);
 
     expect(statusResponse.body.data.status).toBe("COMPLETED");
+    expect(statusResponse.body.data.output.sourceProcessLogId).toBe(response.body.data.processLogId);
     expect(statusResponse.body.data.output.items).toEqual(["Mock question 1", "Mock question 2"]);
     expect(statusResponse.body.data.output.reviewRequired).toBe(true);
+    expect(statusResponse.body.data.output.reviewStatus).toBe("PENDING_REVIEW");
     expect(statusResponse.body.data.output.targetTables).toEqual(["question_bank"]);
   });
 

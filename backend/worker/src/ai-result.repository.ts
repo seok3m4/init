@@ -28,8 +28,10 @@ export interface FollowUpQuestionRecord {
 
 export interface GeneratedDraftRecord {
   kind: string;
+  sourceProcessLogId: number;
   items: string[];
   reviewRequired: true;
+  reviewStatus: "PENDING_REVIEW";
   targetTables: Array<"criterion_tags" | "evaluation_criteria" | "question_bank">;
   postingId?: number;
 }

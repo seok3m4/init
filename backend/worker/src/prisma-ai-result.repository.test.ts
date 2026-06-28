@@ -130,8 +130,10 @@ test("PrismaAiResultRepository leaves generated draft output on the original pro
 
   await repository.saveGeneratedDraft({
     kind: "QUESTION_GENERATE",
+    sourceProcessLogId: 14,
     items: ["Question 1"],
     reviewRequired: true,
+    reviewStatus: "PENDING_REVIEW",
     targetTables: ["question_bank"],
     postingId: 2
   });

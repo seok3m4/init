@@ -248,17 +248,23 @@ test("question generation stores review-required drafts after guardrail pass", a
   });
 
   assert.equal(results.generatedDrafts.length, 1);
+  assert.equal(results.generatedDrafts[0].sourceProcessLogId, 14);
   assert.equal(results.generatedDrafts[0].reviewRequired, true);
+  assert.equal(results.generatedDrafts[0].reviewStatus, "PENDING_REVIEW");
   assert.deepEqual(results.generatedDrafts[0].targetTables, ["question_bank"]);
   assert.deepEqual(results.generatedDrafts[0].items.length, 2);
 
   const output = JSON.parse(repository.get(14).outputRef ?? "{}") as {
     items?: string[];
+    sourceProcessLogId?: number;
     reviewRequired?: boolean;
+    reviewStatus?: string;
     targetTables?: string[];
     postingId?: number;
   };
+  assert.equal(output.sourceProcessLogId, 14);
   assert.equal(output.reviewRequired, true);
+  assert.equal(output.reviewStatus, "PENDING_REVIEW");
   assert.deepEqual(output.targetTables, ["question_bank"]);
   assert.equal(output.postingId, 2);
   assert.equal(output.items?.length, 2);
@@ -283,11 +289,15 @@ test("criteria suggestion uses JD, talent profile and evaluation policy", async 
 
   const output = JSON.parse(repository.get(28).outputRef ?? "{}") as {
     items?: string[];
+    sourceProcessLogId?: number;
     reviewRequired?: boolean;
+    reviewStatus?: string;
     targetTables?: string[];
     postingId?: number;
   };
+  assert.equal(output.sourceProcessLogId, 28);
   assert.equal(output.reviewRequired, true);
+  assert.equal(output.reviewStatus, "PENDING_REVIEW");
   assert.deepEqual(output.targetTables, ["criterion_tags", "evaluation_criteria"]);
   assert.equal(output.postingId, 2);
   assert.deepEqual(output.items, results.generatedDrafts[0].items);
@@ -320,9 +330,13 @@ test("question set generation reflects criteria and question type conditions", a
 
   const output = JSON.parse(repository.get(29).outputRef ?? "{}") as {
     items?: string[];
+    sourceProcessLogId?: number;
+    reviewStatus?: string;
     targetTables?: string[];
     postingId?: number;
   };
+  assert.equal(output.sourceProcessLogId, 29);
+  assert.equal(output.reviewStatus, "PENDING_REVIEW");
   assert.deepEqual(output.targetTables, ["question_bank"]);
   assert.equal(output.postingId, 2);
   assert.deepEqual(output.items, ["TECHNICAL question 1 for Problem solving", "EXPERIENCE question 2 for Problem solving"]);

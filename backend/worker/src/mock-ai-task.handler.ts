@@ -41,11 +41,11 @@ export class MockAiTaskHandler implements AiTaskHandler {
       case "REPORT_GENERATE":
         return this.reportGenerate(input.kind ?? "RECRUITING_REPORT_GENERATE", payload, job.processLogId);
       case "CRITERIA_SUGGEST":
-        return this.criteriaSuggest(payload);
+        return this.criteriaSuggest(payload, job.processLogId);
       case "QUESTION_GENERATE":
-        return this.questionGenerate(input.kind ?? "RECRUITING_QUESTION_GENERATE", payload);
+        return this.questionGenerate(input.kind ?? "RECRUITING_QUESTION_GENERATE", payload, job.processLogId);
       case "QUESTION_SET_GENERATE":
-        return this.questionSetGenerate(payload);
+        return this.questionSetGenerate(payload, job.processLogId);
       case "EMBEDDING":
         return this.embedding(payload);
       default:
@@ -113,7 +113,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
     };
   }
 
-  private criteriaSuggest(payload: Record<string, unknown>): AiTaskResult {
+  private criteriaSuggest(payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     const postingId = positiveNumber(payload.postingId, "postingId");
     const jobDescription = requiredText(payload.jobDescription, "jobDescription");
     const talentProfile = requiredText(payload.talentProfile, "talentProfile");
@@ -125,6 +125,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
     ];
 
     return this.generatedDraft("CRITERIA_SUGGEST", items, {
+      sourceProcessLogId: processLogId,
       postingId,
       targetTables: ["criterion_tags", "evaluation_criteria"]
     });
@@ -297,7 +298,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
     };
   }
 
-  private questionGenerate(kind: string, payload: Record<string, unknown>): AiTaskResult {
+  private questionGenerate(kind: string, payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     const questionCount = Number(payload.questionCount ?? 2);
     if (!Number.isInteger(questionCount) || questionCount <= 0) {
       throw new NonRetryableAiWorkerFailure("questionCount must be a positive integer");
@@ -311,12 +312,13 @@ export class MockAiTaskHandler implements AiTaskHandler {
     );
 
     return this.generatedDraft(kind, items, {
+      sourceProcessLogId: processLogId,
       postingId,
       targetTables: ["question_bank"]
     });
   }
 
-  private questionSetGenerate(payload: Record<string, unknown>): AiTaskResult {
+  private questionSetGenerate(payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     const postingId = positiveNumber(payload.postingId, "postingId");
     const questionCount = positiveNumber(payload.questionCount, "questionCount");
     const criteria = criteriaOf(payload.criteria);
@@ -328,6 +330,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
     });
 
     return this.generatedDraft("QUESTION_SET_GENERATE", items, {
+      sourceProcessLogId: processLogId,
       postingId,
       targetTables: ["question_bank"]
     });
@@ -361,6 +364,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
     kind: string,
     items: string[],
     options: {
+      sourceProcessLogId: number;
       targetTables: GeneratedDraftRecord["targetTables"];
       postingId?: number;
     }
@@ -368,8 +372,10 @@ export class MockAiTaskHandler implements AiTaskHandler {
     const guardrail = this.validateMockPolicy(kind.startsWith("MOCK") ? "MOCK" : "RECRUITING", items.join("\n"));
     const draft = {
       kind,
+      sourceProcessLogId: options.sourceProcessLogId,
       items,
       reviewRequired: true as const,
+      reviewStatus: "PENDING_REVIEW" as const,
       targetTables: options.targetTables,
       postingId: options.postingId
     };
