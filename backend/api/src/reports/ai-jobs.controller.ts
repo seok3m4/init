@@ -94,7 +94,11 @@ export class CandidateAiJobsController {
     const currentUser = this.candidate(headers);
     const sessionId = this.parseId(sessionIdParam, "sessionId");
     this.requirePositive(body.answerId, "answerId");
+    this.requireText(body.previousQuestion, "previousQuestion");
     this.requireText(body.transcript, "transcript");
+    if (kind === "RECRUITING_FOLLOW_UP") {
+      this.requireAnyText(body, ["jobDescription", "documentSummary"]);
+    }
 
     return ok(
       await this.dispatcher.dispatch({
@@ -140,6 +144,12 @@ export class CandidateAiJobsController {
   private requireText(value: unknown, name: string): void {
     if (typeof value !== "string" || !value.trim()) {
       throw this.validation(`${name} is required.`);
+    }
+  }
+
+  private requireAnyText(body: JobBody, names: string[]): void {
+    if (!names.some((name) => typeof body[name] === "string" && String(body[name]).trim())) {
+      throw this.validation(`${names.join(" or ")} is required.`);
     }
   }
 

@@ -78,15 +78,25 @@ export class MockAiTaskHandler implements AiTaskHandler {
   private followUp(kind: string, payload: Record<string, unknown>): AiTaskResult {
     const sessionId = positiveNumber(payload.sessionId, "sessionId");
     const answerId = positiveNumber(payload.answerId, "answerId");
+    const previousQuestion = requiredText(payload.previousQuestion, "previousQuestion");
     const transcript = requiredText(payload.transcript, "transcript");
     const policy = kind.startsWith("MOCK") ? "MOCK" : "RECRUITING";
+    const jobDescription = typeof payload.jobDescription === "string" ? payload.jobDescription : undefined;
+    const documentSummary = typeof payload.documentSummary === "string" ? payload.documentSummary : undefined;
+    const context =
+      policy === "MOCK"
+        ? previousQuestion
+        : [previousQuestion, jobDescription, documentSummary]
+            .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+            .map(shorten)
+            .join(" | ");
     const content =
       policy === "MOCK"
-        ? `Practice follow-up based on: ${shorten(transcript)}`
-        : `Recruiting follow-up based on job evidence: ${shorten(transcript)}`;
+        ? `Practice follow-up for "${shorten(previousQuestion)}" based on: ${shorten(transcript)}`
+        : `Recruiting follow-up using ${context} based on: ${shorten(transcript)}`;
 
     return {
-      outputRef: JSON.stringify({ sessionId, answerId, policy }),
+      outputRef: JSON.stringify({ sessionId, answerId, policy, previousQuestion, jobDescription, documentSummary }),
       guardrail: this.validateMockPolicy(policy, content),
       finalSave: () => this.results.saveFollowUpQuestion({ sessionId, answerId, content, policy })
     };

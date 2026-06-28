@@ -155,6 +155,45 @@ describe("ReportsController", () => {
     expect(response.body.data.queued).toBe(true);
   });
 
+  it("queues mock follow-up work with previous question context", async () => {
+    const response = await candidateRequest("/api/v1/candidate/mock-interviews/7/follow-up-question")
+      .send({
+        answerId: 10,
+        previousQuestion: "How did you use Redis?",
+        transcript: "I improved read performance with Redis cache."
+      })
+      .expect(202);
+
+    expect(response.body.data.processType).toBe("FOLLOW_UP");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.inputRef).toContain("How did you use Redis?");
+  });
+
+  it("queues recruiting follow-up work with JD or document context", async () => {
+    const response = await candidateRequest("/api/v1/candidate/interviews/7/follow-up-question")
+      .send({
+        answerId: 10,
+        previousQuestion: "How did you use Redis?",
+        transcript: "I improved read performance with Redis cache.",
+        jobDescription: "Backend engineer with Redis operations."
+      })
+      .expect(202);
+
+    expect(response.body.data.processType).toBe("FOLLOW_UP");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.inputRef).toContain("Backend engineer with Redis operations.");
+  });
+
+  it("rejects recruiting follow-up without JD or document context", async () => {
+    await candidateRequest("/api/v1/candidate/interviews/7/follow-up-question")
+      .send({
+        answerId: 10,
+        previousQuestion: "How did you use Redis?",
+        transcript: "I improved read performance with Redis cache."
+      })
+      .expect(400);
+  });
+
   it("queues company AI criteria suggestions", async () => {
     const response = await companyRequest("/api/v1/company/interviews/evaluation-criteria/suggest")
       .send({

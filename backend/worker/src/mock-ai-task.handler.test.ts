@@ -178,6 +178,7 @@ test("follow-up question policy is separated for mock and recruiting interviews"
       payload: {
         sessionId: 3,
         answerId: 4,
+        previousQuestion: "How did you use Redis?",
         transcript: "I used Redis cache invalidation."
       }
     },
@@ -192,7 +193,10 @@ test("follow-up question policy is separated for mock and recruiting interviews"
       payload: {
         sessionId: 5,
         answerId: 6,
-        transcript: "I used Redis cache invalidation."
+        previousQuestion: "How did you use Redis?",
+        transcript: "I used Redis cache invalidation.",
+        jobDescription: "Backend engineer with Redis operations.",
+        documentSummary: "Candidate operated production cache systems."
       }
     },
     results
@@ -200,8 +204,11 @@ test("follow-up question policy is separated for mock and recruiting interviews"
 
   assert.equal(results.followUpQuestions[0].policy, "MOCK");
   assert.match(results.followUpQuestions[0].content, /Practice follow-up/);
+  assert.match(results.followUpQuestions[0].content, /How did you use Redis/);
   assert.equal(results.followUpQuestions[1].policy, "RECRUITING");
   assert.match(results.followUpQuestions[1].content, /Recruiting follow-up/);
+  assert.match(results.followUpQuestions[1].content, /Backend engineer with Redis operations/);
+  assert.match(results.followUpQuestions[1].content, /production cache systems/);
 });
 
 test("duplicate follow-up requests keep one result per session, answer and policy", async () => {
@@ -211,6 +218,7 @@ test("duplicate follow-up requests keep one result per session, answer and polic
     payload: {
       sessionId: 3,
       answerId: 4,
+      previousQuestion: "How did you use Redis?",
       transcript: "I used Redis cache invalidation."
     }
   };
@@ -389,6 +397,7 @@ test("mock interview generated output is not saved when expression policy is blo
       payload: {
         sessionId: 3,
         answerId: 4,
+        previousQuestion: "합격 가능성을 말해주세요.",
         transcript: "합격 가능성을 말해주세요."
       }
     })

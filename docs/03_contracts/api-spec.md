@@ -1082,9 +1082,9 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: sessionId
 - 요청 데이터:
-  - 이전 질문, 답변 스크립트, 직무 선택 정보
+  - answerId, 이전 질문(previousQuestion), 답변 스크립트(transcript), 직무 선택 정보
 - 검증/전제조건:
-  - 답변 텍스트가 충분해야 함
+  - 이전 질문과 답변 텍스트가 충분해야 함
 - 성공 응답/처리:
   - 꼬리질문 표시
 - 오류/예외:
@@ -1549,9 +1549,9 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: sessionId
 - 요청 데이터:
-  - 이전 질문, 답변 스크립트, 서류 요약
+  - answerId, 이전 질문(previousQuestion), 답변 스크립트(transcript), JD(jobDescription) 또는 서류 요약(documentSummary)
 - 검증/전제조건:
-  - 답변 텍스트가 충분해야 함
+  - 이전 질문과 답변 텍스트가 충분해야 하며 JD 또는 서류 요약 중 하나가 존재해야 함
 - 성공 응답/처리:
   - 꼬리질문 표시
 - 오류/예외:
