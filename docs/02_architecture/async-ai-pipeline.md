@@ -9,7 +9,7 @@ AI 처리와 비동기 작업의 실행 흐름을 정리한다.
 - 장기 작업은 `ai_process_logs`에 작업 유형, 상태, 입력 참조, 출력 참조를 기록한다.
 - AI 결과 저장 전 `POST /ai/guardrails/validate`로 정책 위반 여부를 검증한다.
 - 실패한 작업은 `FAILED` 상태와 재시도 가능 사유를 화면에 노출한다.
-- 임베딩은 원문 해시(`source_text_hash`)로 중복 생성을 방지하고, `ai_process_logs.outputRef`에는 원문 대신 `sourceTextHash`, `dedupeKey`, `duplicatePolicy=UPSERT_BY_SOURCE_TEXT_HASH`만 남긴다.
+- 임베딩은 원문 해시(`source_text_hash`)로 중복 생성을 방지하고, `ai_guardrail_logs`에 PASS를 기록한 뒤 저장한다. `ai_process_logs.outputRef`에는 원문 대신 `sourceTextHash`, `dedupeKey`, `duplicatePolicy=UPSERT_BY_SOURCE_TEXT_HASH`만 남긴다.
 
 ## Main Flows
 

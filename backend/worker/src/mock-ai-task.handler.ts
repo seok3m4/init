@@ -378,6 +378,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
         dedupeKey: `embedding:${sourceType}:${sourceTextHash}`,
         duplicatePolicy: "UPSERT_BY_SOURCE_TEXT_HASH"
       }),
+      guardrail: { result: "PASS", reason: null },
       finalSave: async () => {
         const embedding = await this.results.upsertEmbedding({
           sourceType,

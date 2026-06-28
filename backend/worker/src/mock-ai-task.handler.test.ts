@@ -663,6 +663,11 @@ test("embedding generation reuses source_text_hash and avoids duplicate records"
   assert.equal(results.embeddings.size, 1);
   assert.equal(repository.get(16).status, "COMPLETED");
   assert.equal(repository.get(17).status, "COMPLETED");
+  assert.equal(repository.guardrailLogs.length, 2);
+  assert.deepEqual(
+    repository.guardrailLogs.map((log) => log.decision.result),
+    ["PASS", "PASS"]
+  );
 
   const firstOutput = JSON.parse(repository.get(16).outputRef ?? "{}") as {
     sourceTextHash?: string;
