@@ -90,6 +90,25 @@ describe("AiReportPipelineService", () => {
     expect(result.stored.evidenceCount).toBe(0);
   });
 
+  it("stores final report output when guardrail marks it regenerated", async () => {
+    jest.spyOn(guardrailService, "validateReport").mockReturnValue({
+      result: "REGENERATED",
+      reason: "Unsafe wording was regenerated before final validation."
+    });
+
+    const result = await service.generate({
+      currentUser: { userId: 1, userType: "COMPANY", companyId: 1 },
+      reportId: 1,
+      body: validGenerateRequest()
+    });
+
+    expect(result.status).toBe("COMPLETED");
+    expect(result.report.status).toBe("COMPLETED");
+    expect(result.guardrail.result).toBe("REGENERATED");
+    expect(result.stored.scoreCount).toBe(1);
+    expect(result.stored.evidenceCount).toBe(2);
+  });
+
   it("records unexpected report generation failures as retryable without storing final scores", async () => {
     const failedProvider = new MockAiReportProvider();
     jest.spyOn(failedProvider, "generate").mockImplementation(() => {

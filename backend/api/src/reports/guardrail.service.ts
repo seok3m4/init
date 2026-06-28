@@ -63,6 +63,17 @@ export class GuardrailService {
     };
   }
 
+  markRegenerated(decision: GuardrailDecision, reason?: string): GuardrailDecision {
+    if (decision.result !== "PASS") {
+      return decision;
+    }
+
+    return {
+      result: "REGENERATED",
+      reason: reason?.trim() || "output regenerated after guardrail review"
+    };
+  }
+
   private block(reason: string): GuardrailDecision {
     return {
       result: "BLOCKED",

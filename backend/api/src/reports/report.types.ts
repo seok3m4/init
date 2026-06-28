@@ -152,6 +152,8 @@ export interface GuardrailValidationRequest {
   target: GuardrailValidationTarget;
   policyName?: string;
   processLogId?: number;
+  regenerated?: boolean;
+  regenerationReason?: string;
   summary?: string;
   totalScore?: number;
   scores: ReportScore[];

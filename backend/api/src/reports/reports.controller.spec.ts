@@ -120,6 +120,31 @@ describe("ReportsController", () => {
     expect(response.body.data.guardrail.result).toBe("BLOCKED");
   });
 
+  it("records regenerated guardrail results for passing regenerated output", async () => {
+    const response = await adminRequest("/api/v1/ai/guardrails/validate")
+      .send({
+        reportType: "RECRUITING_REPORT",
+        target: "SCORES",
+        regenerated: true,
+        regenerationReason: "Unsafe wording was regenerated before final validation.",
+        scores: [
+          {
+            criterionId: 1,
+            criterionName: "Communication",
+            score: 80,
+            rationale: "The answer is clear and evidence-backed.",
+            evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "Clear answer." }]
+          }
+        ]
+      })
+      .expect(200);
+
+    expect(response.body.data.guardrail).toEqual({
+      result: "REGENERATED",
+      reason: "Unsafe wording was regenerated before final validation."
+    });
+  });
+
   it("queues candidate document extraction without storing raw file content", async () => {
     const response = await candidateRequest("/api/v1/candidate/documents/extract")
       .send({

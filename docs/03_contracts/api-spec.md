@@ -863,6 +863,10 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - evaluation_reports, report_scores, report_evidences, manual_evaluations, ai_process_logs, ai_guardrail_logs
 - 비고/미결:
   - 독립 화면 아님. 모든 AI 평가/생성 단계의 공통 정책 레이어
+  - 구현 계약:
+    - request: reportType, target, scores, summary?, processLogId?, policyName?, regenerated?, regenerationReason?
+    - result: PASS는 정책 통과, BLOCKED는 최종 저장 차단, REGENERATED는 재생성된 출력이 정책을 통과했음을 의미한다.
+    - regenerated=true는 기본 검증이 PASS인 경우에만 REGENERATED로 기록된다. 기본 검증이 실패하면 BLOCKED가 우선한다.
 
 ## 기업 - 설정
 

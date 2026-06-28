@@ -56,7 +56,7 @@ export class AiReportPipelineService {
       const guardrail = this.guardrailService.validateScores(command.body.reportType, scores);
       await this.repository.saveGuardrailLog(processLog.processLogId, "ANSWER_EVIDENCE_REQUIRED", guardrail);
 
-      if (guardrail.result !== "PASS") {
+      if (guardrail.result === "BLOCKED") {
         const failure = this.failure("NON_RETRYABLE", guardrail.reason ?? "answer evaluation blocked by guardrail");
         const failed = await this.fail(command.reportId, processLog.processLogId, failure);
         return {
@@ -118,7 +118,7 @@ export class AiReportPipelineService {
       const guardrail = this.guardrailService.validateReport(command.body.reportType, generatedReport);
       await this.repository.saveGuardrailLog(processLog.processLogId, "REPORT_FINAL_SAVE", guardrail);
 
-      if (guardrail.result !== "PASS") {
+      if (guardrail.result === "BLOCKED") {
         const failure = this.failure("NON_RETRYABLE", guardrail.reason ?? "report blocked by guardrail");
         const failed = await this.fail(command.reportId, processLog.processLogId, failure);
         return {

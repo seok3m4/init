@@ -22,7 +22,7 @@ export class AiGuardrailsController {
     this.devAuthAdapter.assertAdmin(currentUser);
     this.validateBody(body);
 
-    const guardrail =
+    let guardrail =
       body.target === "REPORT"
         ? this.guardrailService.validateReport(body.reportType, {
             summary: body.summary ?? "",
@@ -30,6 +30,10 @@ export class AiGuardrailsController {
             scores: body.scores
           })
         : this.guardrailService.validateScores(body.reportType, body.scores);
+
+    if (body.regenerated) {
+      guardrail = this.guardrailService.markRegenerated(guardrail, body.regenerationReason);
+    }
 
     const result: GuardrailValidationResult = {
       target: body.target,
@@ -62,6 +66,12 @@ export class AiGuardrailsController {
     }
     if (body.processLogId && (!Number.isInteger(body.processLogId) || body.processLogId <= 0)) {
       throw this.validation("processLogId must be a positive integer.");
+    }
+    if (body.regenerated !== undefined && typeof body.regenerated !== "boolean") {
+      throw this.validation("regenerated must be a boolean.");
+    }
+    if (body.regenerationReason !== undefined && typeof body.regenerationReason !== "string") {
+      throw this.validation("regenerationReason must be a string.");
     }
   }
 

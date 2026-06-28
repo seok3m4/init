@@ -35,6 +35,34 @@ test("marks pending, running, completed and saves final output after guardrail p
   assert.deepEqual(queue.deletedMessageIds, ["message-1"]);
 });
 
+test("saves final output when guardrail result is regenerated", async () => {
+  const queue = new InMemoryAiJobQueue([message(5)]);
+  const repository = new InMemoryAiProcessLogRepository();
+  const saved: string[] = [];
+  const handler: AiTaskHandler = {
+    async handle() {
+      return {
+        outputRef: "s3://reports/5-regenerated.json",
+        guardrail: {
+          result: "REGENERATED",
+          reason: "Unsafe wording was regenerated before final validation."
+        },
+        finalSave: async () => {
+          saved.push("final");
+        }
+      };
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.equal(repository.get(5).status, "COMPLETED");
+  assert.equal(repository.get(5).outputRef, "s3://reports/5-regenerated.json");
+  assert.equal(repository.guardrailLogs[0].decision.result, "REGENERATED");
+  assert.deepEqual(saved, ["final"]);
+  assert.deepEqual(queue.deletedMessageIds, ["message-5"]);
+});
+
 test("does not run final save when guardrail blocks output", async () => {
   const queue = new InMemoryAiJobQueue([message(2)]);
   const repository = new InMemoryAiProcessLogRepository();
