@@ -3,7 +3,8 @@ import {
   CommunicationAnalysisRecord,
   GeneratedDraftRecord,
   GeneratedReportRecord,
-  GeneratedReportScoreRecord
+  GeneratedReportScoreRecord,
+  hashSourceText
 } from "./ai-result.repository";
 import { NonRetryableAiWorkerFailure } from "./worker-errors";
 import { AiTaskHandler, AiTaskResult, AiWorkerJob } from "./worker.types";
@@ -362,12 +363,21 @@ export class MockAiTaskHandler implements AiTaskHandler {
     const sourceText = requiredText(payload.sourceText, "sourceText");
     const embeddingModel = typeof payload.embeddingModel === "string" ? payload.embeddingModel : "text-embedding-3-small";
     const embeddingDimension = Number(payload.embeddingDimension ?? 1536);
+    const sourceTextHash = hashSourceText(sourceText);
     if (!Number.isInteger(embeddingDimension) || embeddingDimension <= 0) {
       throw new NonRetryableAiWorkerFailure("embeddingDimension must be a positive integer");
     }
 
     return {
-      outputRef: JSON.stringify({ sourceType }),
+      outputRef: JSON.stringify({
+        sourceType,
+        sourceTextHash,
+        embeddingModel,
+        embeddingDimension,
+        targetTable: "embeddings",
+        dedupeKey: `embedding:${sourceType}:${sourceTextHash}`,
+        duplicatePolicy: "UPSERT_BY_SOURCE_TEXT_HASH"
+      }),
       finalSave: async () => {
         const embedding = await this.results.upsertEmbedding({
           sourceType,

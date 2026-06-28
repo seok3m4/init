@@ -663,6 +663,20 @@ test("embedding generation reuses source_text_hash and avoids duplicate records"
   assert.equal(results.embeddings.size, 1);
   assert.equal(repository.get(16).status, "COMPLETED");
   assert.equal(repository.get(17).status, "COMPLETED");
+
+  const firstOutput = JSON.parse(repository.get(16).outputRef ?? "{}") as {
+    sourceTextHash?: string;
+    dedupeKey?: string;
+    duplicatePolicy?: string;
+    targetTable?: string;
+    sourceText?: string;
+  };
+  const secondOutput = JSON.parse(repository.get(17).outputRef ?? "{}") as typeof firstOutput;
+  assert.equal(firstOutput.sourceTextHash, secondOutput.sourceTextHash);
+  assert.equal(firstOutput.targetTable, "embeddings");
+  assert.equal(firstOutput.duplicatePolicy, "UPSERT_BY_SOURCE_TEXT_HASH");
+  assert.equal(firstOutput.dedupeKey, `embedding:APPLICATION_DOCUMENT:${firstOutput.sourceTextHash}`);
+  assert.equal("sourceText" in firstOutput, false);
 });
 
 test("AI golden fixtures execute through the mock worker handler", async () => {
