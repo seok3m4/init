@@ -34,6 +34,9 @@ describe("AiReportPipelineService", () => {
     expect(result.context.postingId).toBe(2);
     expect(result.context.applicationId).toBe(3);
     expect(result.context.manualEvaluations).toHaveLength(1);
+    await expect(repository.countStored(1)).resolves.toMatchObject({
+      guardrailLogCount: 1
+    });
   });
 
   it("saves answer scores only when every score has rationale and evidence", async () => {
@@ -150,6 +153,9 @@ describe("AiReportPipelineService", () => {
     expect(result.status).toBe("COMPLETED");
     expect(result.communicationAnalysis.usage).toBe("AUXILIARY_ONLY");
     expect(result.communicationAnalysis.decisionWeight).toBe(0);
+    await expect(repository.countStored(1)).resolves.toMatchObject({
+      guardrailLogCount: 1
+    });
   });
 
   it("separates recruiting and mock interview expression policy", () => {

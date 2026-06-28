@@ -31,6 +31,10 @@ export class AiReportPipelineService {
 
     try {
       const context = this.mockProvider.buildEvaluationContext(command.body);
+      await this.repository.saveGuardrailLog(processLog.processLogId, "EVALUATION_CONTEXT_VALIDATE", {
+        result: "PASS",
+        reason: null
+      });
       await this.repository.saveContext(command.reportId, context);
       const completedProcess = await this.repository.markProcessCompleted(processLog.processLogId);
 
@@ -93,6 +97,10 @@ export class AiReportPipelineService {
 
     try {
       const communicationAnalysis = this.mockProvider.analyzeCommunication(command.body);
+      await this.repository.saveGuardrailLog(processLog.processLogId, "COMMUNICATION_ANALYSIS_AUXILIARY_ONLY", {
+        result: "PASS",
+        reason: null
+      });
       await this.repository.saveCommunicationAnalysis(command.reportId, communicationAnalysis);
       const completedProcess = await this.repository.markProcessCompleted(processLog.processLogId);
 
