@@ -677,6 +677,7 @@ test("AI golden fixtures execute through the mock worker handler", async () => {
     const golden = JSON.parse(readFileSync(resolve(casesDir, file), "utf8")) as {
       input: {
         type: AiProcessType;
+        kind?: string;
         payload: Record<string, unknown>;
       };
       expected: {
@@ -689,6 +690,7 @@ test("AI golden fixtures execute through the mock worker handler", async () => {
     const repository = new InMemoryAiProcessLogRepository();
     const queue = new InMemoryAiJobQueue([
       message(processLogId, golden.input.type, {
+        kind: golden.input.kind,
         payload: golden.input.payload
       })
     ]);

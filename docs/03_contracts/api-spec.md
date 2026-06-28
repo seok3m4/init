@@ -971,6 +971,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 선택값이 존재해야 함
 - 성공 응답/처리:
   - 모의면접 질문 목록 생성
+  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 목록 확정 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 생성 실패 시 기본 질문 세트를 제공한다.
 - 관련 ERD 테이블:

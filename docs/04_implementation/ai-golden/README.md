@@ -20,5 +20,5 @@
 }
 ```
 
-`scripts/verify-ai-golden.ps1`는 실제 OpenAI API를 호출하지 않고 케이스 파일의 구조만 검증한다. 실제 worker가 구현되면 이 golden case를 worker test fixture로 연결한다.
+`scripts/verify-ai-golden.ps1`는 실제 OpenAI API를 호출하지 않고 케이스 파일의 구조만 검증한다. Worker 테스트는 이 golden case를 mock handler에 연결해 output shape와 guardrail 결과를 검증한다.
 
