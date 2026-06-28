@@ -11,7 +11,7 @@ interface WorkerInput {
   payload?: Record<string, unknown>;
 }
 
-const MOCK_HIRING_DECISION_TERMS = ["합격", "탈락", "채용 적합", "채용 부적합"];
+const MOCK_HIRING_DECISION_TERMS = ["합격", "탈락", "채용 적합", "채용 부적합", "hiring decision", "pass/fail"];
 
 export class MockAiTaskHandler implements AiTaskHandler {
   constructor(private readonly results: AiResultRepository) {}
@@ -28,7 +28,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
       case "FOLLOW_UP":
         return this.followUp(input.kind ?? "RECRUITING_FOLLOW_UP", payload);
       case "REPORT_GENERATE":
-        return this.reportGenerate(input.kind ?? "RECRUITING_REPORT_GENERATE", payload);
+        return this.reportGenerate(input.kind ?? "RECRUITING_REPORT_GENERATE", payload, job.processLogId);
       case "CRITERIA_SUGGEST":
         return this.criteriaSuggest(payload);
       case "QUESTION_GENERATE":
@@ -100,19 +100,129 @@ export class MockAiTaskHandler implements AiTaskHandler {
     return this.generatedDraft("CRITERIA_SUGGEST", items);
   }
 
-  private reportGenerate(kind: string, payload: Record<string, unknown>): AiTaskResult {
-    const reportId = positiveNumber(payload.reportId, "reportId");
+  private reportGenerate(kind: string, payload: Record<string, unknown>, processLogId: number): AiTaskResult {
+    switch (payload.step) {
+      case "EVALUATION_CONTEXT":
+        return this.evaluationContext(payload, processLogId);
+      case "ANSWER_EVALUATION":
+        return this.answerEvaluation(payload, processLogId);
+      case "COMMUNICATION_ANALYSIS":
+        return this.communicationAnalysis(payload, processLogId);
+      default:
+        return this.finalReportGenerate(kind, payload, processLogId);
+    }
+  }
+
+  private evaluationContext(payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     const reportType = reportTypeOf(payload.reportType);
-    const jobDescription = requiredText(payload.jobDescription, "jobDescription");
-    const criteria = criteriaOf(payload.criteria);
-    const answers = answersOf(payload.answers);
+    const reportId = optionalPositiveNumber(payload.reportId, "reportId") ?? processLogId;
+    const company = requiredObject(payload.company, "company");
+    const posting = requiredObject(payload.posting, "posting");
+    const application = requiredObject(payload.application, "application");
+    const context = {
+      reportType,
+      companyId: positiveNumber(company.companyId, "company.companyId"),
+      postingId: positiveNumber(posting.postingId, "posting.postingId"),
+      applicationId: positiveNumber(application.applicationId, "application.applicationId"),
+      candidateId: positiveNumber(application.candidateId, "application.candidateId"),
+      jobDescription: requiredText(posting.jobDescription, "posting.jobDescription"),
+      criteria: criteriaOf(payload.criteria),
+      answers: answersOf(payload.answers),
+      documentText: typeof application.documentText === "string" ? application.documentText : undefined,
+      manualEvaluations: Array.isArray(payload.manualEvaluations) ? payload.manualEvaluations : []
+    };
+
+    return {
+      outputRef: JSON.stringify({
+        processLogId,
+        report: reportSnapshot(reportId, reportType),
+        context
+      }),
+      guardrail: { result: "PASS", reason: null }
+    };
+  }
+
+  private answerEvaluation(payload: Record<string, unknown>, processLogId: number): AiTaskResult {
+    const reportType = reportTypeOf(payload.reportType);
+    const reportId = optionalPositiveNumber(payload.reportId, "reportId") ?? processLogId;
+    const scores = this.scoreReport(
+      criteriaOf(payload.criteria),
+      answersOf(payload.answers),
+      typeof payload.documentText === "string" ? payload.documentText : undefined
+    );
+    const guardrail = this.validateScores(reportType, scores);
+    const evidences = scores.flatMap((score) => score.evidences);
+
+    return {
+      outputRef: JSON.stringify({
+        processLogId,
+        report: reportSnapshot(reportId, reportType),
+        scores,
+        evidences,
+        guardrail,
+        stored: {
+          scoreCount: scores.length,
+          evidenceCount: evidences.length
+        }
+      }),
+      guardrail,
+      finalSave: () => this.results.saveReportScoresAndEvidences({ reportId, scores })
+    };
+  }
+
+  private communicationAnalysis(payload: Record<string, unknown>, processLogId: number): AiTaskResult {
+    const reportType = reportTypeOf(payload.reportType);
+    const reportId = optionalPositiveNumber(payload.reportId, "reportId") ?? processLogId;
+    if (payload.consentConfirmed !== true) {
+      throw new NonRetryableAiWorkerFailure("consentConfirmed is required for communication analysis");
+    }
+
+    const communicationAnalysis = {
+      usage: "AUXILIARY_ONLY" as const,
+      mediaQuality: requiredText(payload.mediaQuality, "mediaQuality"),
+      metrics: payload.metrics && typeof payload.metrics === "object" && !Array.isArray(payload.metrics) ? payload.metrics : {},
+      notes: [
+        "Communication metrics are auxiliary only and must not be used as a decisive hiring signal.",
+        ...stringArrayOf(payload.notes)
+      ],
+      decisionWeight: 0
+    };
+
+    return {
+      outputRef: JSON.stringify({
+        processLogId,
+        report: reportSnapshot(reportId, reportType),
+        communicationAnalysis
+      }),
+      guardrail: { result: "PASS", reason: null }
+    };
+  }
+
+  private finalReportGenerate(kind: string, payload: Record<string, unknown>, processLogId: number): AiTaskResult {
+    const reportId = optionalPositiveNumber(payload.reportId, "reportId") ?? processLogId;
+    const reportType = reportTypeOf(payload.reportType);
+    const generatedSummary = typeof payload.summary === "string" && payload.summary.trim() ? payload.summary : undefined;
+    const jobDescription = generatedSummary
+      ? typeof payload.jobDescription === "string" && payload.jobDescription.trim()
+        ? payload.jobDescription
+        : "generated report content"
+      : requiredText(payload.jobDescription, "jobDescription");
+    const criteria = Array.isArray(payload.criteria)
+      ? criteriaOf(payload.criteria)
+      : generatedSummary
+        ? [{ criterionId: 1, name: "Expression policy", weight: 0 }]
+        : criteriaOf(payload.criteria);
+    const answers = Array.isArray(payload.answers)
+      ? answersOf(payload.answers)
+      : generatedSummary
+        ? [{ answerId: 1, transcript: generatedSummary }]
+        : answersOf(payload.answers);
     const documentText = typeof payload.documentText === "string" ? payload.documentText : undefined;
     const scores = this.scoreReport(criteria, answers, documentText);
     const totalScore = Math.round(scores.reduce((sum, score) => sum + score.score, 0) / scores.length);
-    const summary =
-      reportType === "RECRUITING_REPORT"
+    const summary = generatedSummary ?? (reportType === "RECRUITING_REPORT"
         ? `Recruiting report generated from ${answers.length} answer(s) for ${shorten(jobDescription)}.`
-        : `Mock interview feedback generated from ${answers.length} answer(s).`;
+        : `Mock interview feedback generated from ${answers.length} answer(s).`);
     const report: GeneratedReportRecord = {
       reportId,
       reportType,
@@ -120,10 +230,19 @@ export class MockAiTaskHandler implements AiTaskHandler {
       totalScore,
       scores
     };
+    const guardrail = this.validateReport(report);
 
     return {
-      outputRef: JSON.stringify({ reportId, reportType }),
-      guardrail: this.validateReport(report),
+      outputRef: JSON.stringify({
+        reportId,
+        reportType,
+        summary,
+        totalScore,
+        scores,
+        evidences: scores.flatMap((score) => score.evidences),
+        guardrail
+      }),
+      guardrail,
       finalSave: () => this.results.saveGeneratedReport(report)
     };
   }
@@ -235,7 +354,15 @@ export class MockAiTaskHandler implements AiTaskHandler {
   }
 
   private validateReport(report: GeneratedReportRecord) {
-    for (const score of report.scores) {
+    return this.validateScores(report.reportType, report.scores, report.summary);
+  }
+
+  private validateScores(
+    reportType: GeneratedReportRecord["reportType"],
+    scores: GeneratedReportScoreRecord[],
+    summary = ""
+  ) {
+    for (const score of scores) {
       if (!score.rationale.trim()) {
         return { result: "BLOCKED" as const, reason: `rationale is required for criterion ${score.criterionId}` };
       }
@@ -244,11 +371,11 @@ export class MockAiTaskHandler implements AiTaskHandler {
       }
     }
 
-    if (report.reportType === "MOCK_INTERVIEW_REPORT") {
+    if (reportType === "MOCK_INTERVIEW_REPORT") {
       const combinedText = [
-        report.summary,
-        ...report.scores.map((score) => score.rationale),
-        ...report.scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
+        summary,
+        ...scores.map((score) => score.rationale),
+        ...scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
       ].join("\n");
       return this.validateMockPolicy("MOCK", combinedText);
     }
@@ -277,11 +404,40 @@ function positiveNumber(value: unknown, name: string): number {
   return parsed;
 }
 
+function optionalPositiveNumber(value: unknown, name: string): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return positiveNumber(value, name);
+}
+
 function requiredText(value: unknown, name: string): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new NonRetryableAiWorkerFailure(`${name} is required`);
   }
   return value;
+}
+
+function requiredObject(value: unknown, name: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new NonRetryableAiWorkerFailure(`${name} is required`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function stringArrayOf(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function reportSnapshot(reportId: number, reportType: GeneratedReportRecord["reportType"]) {
+  return {
+    reportId,
+    reportType,
+    status: "GENERATING"
+  };
 }
 
 function reportTypeOf(value: unknown): GeneratedReportRecord["reportType"] {

@@ -8,6 +8,7 @@ import {
   FollowUpQuestionRecord,
   GeneratedDraftRecord,
   GeneratedReportRecord,
+  GeneratedReportScoreRecord,
   TranscriptRecord,
   hashSourceText
 } from "./ai-result.repository";
@@ -110,6 +111,10 @@ export class PrismaAiResultRepository implements AiResultRepository {
     return;
   }
 
+  async saveReportScoresAndEvidences(record: { reportId: number; scores: GeneratedReportScoreRecord[] }): Promise<void> {
+    await this.replaceReportScores(record.reportId, record.scores);
+  }
+
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
     await this.prisma.evaluationReport.upsert({
       where: { reportId: BigInt(record.reportId) },
@@ -132,31 +137,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
       }
     });
 
-    await this.prisma.reportScore.deleteMany({
-      where: { reportId: BigInt(record.reportId) }
-    });
-
-    for (const score of record.scores) {
-      await this.prisma.reportScore.create({
-        data: {
-          scoreId: this.nextId(),
-          reportId: BigInt(record.reportId),
-          criterionId: BigInt(score.criterionId),
-          score: score.score,
-          rationale: score.rationale,
-          evidences: {
-            create: score.evidences.map((evidence) => ({
-              evidenceId: this.nextId(),
-              sourceType: evidence.sourceType,
-              answerId: evidence.answerId ? BigInt(evidence.answerId) : null,
-              documentId: evidence.documentId ? BigInt(evidence.documentId) : null,
-              documentRef: evidence.documentRef ?? null,
-              evidenceText: evidence.text
-            }))
-          }
-        }
-      });
-    }
+    await this.replaceReportScores(record.reportId, record.scores);
   }
 
   async markReportFailed(record: FailedReportRecord): Promise<void> {
@@ -215,5 +196,33 @@ export class PrismaAiResultRepository implements AiResultRepository {
 
   private nextId(): bigint {
     return BigInt(Date.now()) * BigInt(1000) + BigInt(Math.floor(Math.random() * 1000));
+  }
+
+  private async replaceReportScores(reportId: number, scores: GeneratedReportScoreRecord[]): Promise<void> {
+    await this.prisma.reportScore.deleteMany({
+      where: { reportId: BigInt(reportId) }
+    });
+
+    for (const score of scores) {
+      await this.prisma.reportScore.create({
+        data: {
+          scoreId: this.nextId(),
+          reportId: BigInt(reportId),
+          criterionId: BigInt(score.criterionId),
+          score: score.score,
+          rationale: score.rationale,
+          evidences: {
+            create: score.evidences.map((evidence) => ({
+              evidenceId: this.nextId(),
+              sourceType: evidence.sourceType,
+              answerId: evidence.answerId ? BigInt(evidence.answerId) : null,
+              documentId: evidence.documentId ? BigInt(evidence.documentId) : null,
+              documentRef: evidence.documentRef ?? null,
+              evidenceText: evidence.text
+            }))
+          }
+        }
+      });
+    }
   }
 }

@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { InMemoryAiResultRepository } from "./ai-result.repository";
 import { MockAiTaskHandler } from "./mock-ai-task.handler";
 import { InMemoryAiProcessLogRepository } from "./process-log.repository";
@@ -248,6 +250,48 @@ test("question generation stores review-required drafts after guardrail pass", a
   assert.equal(output.items?.length, 2);
 });
 
+test("answer evaluation step stores scores and evidences without completing the final report", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  const repository = await run({
+    processLogId: 27,
+    processType: "REPORT_GENERATE",
+    input: {
+      payload: {
+        step: "ANSWER_EVALUATION",
+        reportId: 31,
+        reportType: "RECRUITING_REPORT",
+        criteria: [
+          {
+            criterionId: 1,
+            name: "Problem solving",
+            weight: 40
+          }
+        ],
+        answers: [
+          {
+            answerId: 10,
+            transcript: "I improved read performance with Redis cache and invalidation policies."
+          }
+        ],
+        documentText: "The candidate has worked on NestJS APIs."
+      }
+    },
+    results
+  });
+
+  const output = JSON.parse(repository.get(27).outputRef ?? "{}") as {
+    scores?: unknown[];
+    evidences?: unknown[];
+    guardrail?: { result?: string };
+  };
+  assert.equal(output.guardrail?.result, "PASS");
+  assert.equal(output.scores?.length, 1);
+  assert.equal(output.evidences?.length, 2);
+  assert.equal(results.reportScores.get(31)?.length, 1);
+  assert.equal(results.generatedReports.has(31), false);
+});
+
 test("report generation stores scores and evidences after guardrail pass", async () => {
   const results = new InMemoryAiResultRepository();
 
@@ -333,6 +377,51 @@ test("embedding generation reuses source_text_hash and avoids duplicate records"
   assert.equal(repository.get(17).status, "COMPLETED");
 });
 
+test("AI golden fixtures execute through the mock worker handler", async () => {
+  const casesDir = goldenCasesDirectory();
+  const files = readdirSync(casesDir)
+    .filter((file) => file.endsWith(".json"))
+    .sort();
+
+  assert.ok(files.length > 0);
+
+  for (const [index, file] of files.entries()) {
+    const golden = JSON.parse(readFileSync(resolve(casesDir, file), "utf8")) as {
+      input: {
+        type: AiProcessType;
+        payload: Record<string, unknown>;
+      };
+      expected: {
+        outputShape: Record<string, unknown>;
+        guardrailResult?: string;
+      };
+    };
+    const processLogId = 1000 + index;
+    const results = new InMemoryAiResultRepository();
+    const repository = new InMemoryAiProcessLogRepository();
+    const queue = new InMemoryAiJobQueue([
+      message(processLogId, golden.input.type, {
+        payload: golden.input.payload
+      })
+    ]);
+
+    await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results), {
+      guardrailPolicyName: "AI_GOLDEN_VALIDATE"
+    }).processBatch();
+
+    const processLog = repository.get(processLogId);
+    if (golden.expected.guardrailResult === "BLOCKED") {
+      assert.equal(processLog.status, "FAILED", file);
+      assert.equal(repository.guardrailLogs.at(-1)?.decision.result, "BLOCKED", file);
+      continue;
+    }
+
+    assert.equal(processLog.status, "COMPLETED", file);
+    const output = JSON.parse(processLog.outputRef ?? "{}") as Record<string, unknown>;
+    assertOutputShape(file, output, golden.expected.outputShape);
+  }
+});
+
 async function run(args: {
   processLogId: number;
   processType: AiProcessType;
@@ -363,6 +452,42 @@ async function runDocumentExtraction(args: {
 
   assert.equal(repository.get(args.processLogId).status, "COMPLETED");
   return repository;
+}
+
+function goldenCasesDirectory(): string {
+  const candidates = [
+    resolve(process.cwd(), "../../docs/04_implementation/ai-golden"),
+    resolve(process.cwd(), "docs/04_implementation/ai-golden")
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  assert.ok(found, "AI golden cases directory must exist");
+  return found;
+}
+
+function assertOutputShape(file: string, output: Record<string, unknown>, outputShape: Record<string, unknown>): void {
+  for (const [key, expected] of Object.entries(outputShape)) {
+    const actual = key in output ? output[key] : nestedValue(output, key);
+
+    if (expected === "array") {
+      assert.ok(Array.isArray(actual), `${file}: ${key} must be an array`);
+      continue;
+    }
+
+    if (["object", "string", "number"].includes(String(expected))) {
+      assert.equal(typeof actual, expected, `${file}: ${key} must be ${expected}`);
+      continue;
+    }
+
+    assert.equal(actual, expected, `${file}: ${key} must equal ${String(expected)}`);
+  }
+}
+
+function nestedValue(output: Record<string, unknown>, key: string): unknown {
+  const communicationAnalysis = output.communicationAnalysis;
+  if (communicationAnalysis && typeof communicationAnalysis === "object" && key in communicationAnalysis) {
+    return (communicationAnalysis as Record<string, unknown>)[key];
+  }
+  return undefined;
 }
 
 function message(processLogId: number, processType: AiProcessType, input: unknown): AiQueueMessage {

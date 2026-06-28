@@ -137,6 +137,30 @@ test("PrismaAiResultRepository leaves generated draft output on the original pro
   assert.deepEqual(calls, []);
 });
 
+test("PrismaAiResultRepository stores report scores without completing a report", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.saveReportScoresAndEvidences({
+    reportId: 30,
+    scores: [
+      {
+        criterionId: 1,
+        criterionName: "Problem solving",
+        score: 82,
+        rationale: "evidence-based score",
+        evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "answer evidence" }]
+      }
+    ]
+  });
+
+  assert.equal(calls[0].model, "reportScore");
+  assert.equal(calls[0].method, "deleteMany");
+  assert.equal(calls[1].model, "reportScore");
+  assert.equal(calls[1].method, "create");
+  assert.equal(calls.some((call) => call.model === "evaluationReport"), false);
+});
+
 test("PrismaAiResultRepository stores generated reports after guardrail pass", async () => {
   const calls: Array<{ model: string; method: string; args: any }> = [];
   const repository = new PrismaAiResultRepository(fakePrisma(calls));

@@ -56,6 +56,11 @@ export interface GeneratedReportRecord {
   scores: GeneratedReportScoreRecord[];
 }
 
+export interface ReportScoresRecord {
+  reportId: number;
+  scores: GeneratedReportScoreRecord[];
+}
+
 export interface FailedReportRecord {
   reportId: number;
   reportType: "RECRUITING_REPORT" | "MOCK_INTERVIEW_REPORT";
@@ -78,6 +83,7 @@ export interface AiResultRepository {
   saveTranscript(record: TranscriptRecord): Promise<void>;
   saveFollowUpQuestion(record: FollowUpQuestionRecord): Promise<void>;
   saveGeneratedDraft(record: GeneratedDraftRecord): Promise<void>;
+  saveReportScoresAndEvidences(record: ReportScoresRecord): Promise<void>;
   saveGeneratedReport(record: GeneratedReportRecord): Promise<void>;
   markReportFailed(record: FailedReportRecord): Promise<void>;
   upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord>;
@@ -90,6 +96,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   readonly transcripts: TranscriptRecord[] = [];
   readonly followUpQuestions: FollowUpQuestionRecord[] = [];
   readonly generatedDrafts: GeneratedDraftRecord[] = [];
+  readonly reportScores = new Map<number, GeneratedReportScoreRecord[]>();
   readonly generatedReports = new Map<number, GeneratedReportRecord>();
   readonly failedReports = new Map<number, FailedReportRecord>();
   readonly embeddings = new Map<string, EmbeddingRecord>();
@@ -150,7 +157,12 @@ export class InMemoryAiResultRepository implements AiResultRepository {
     this.generatedDrafts.push(record);
   }
 
+  async saveReportScoresAndEvidences(record: ReportScoresRecord): Promise<void> {
+    this.reportScores.set(record.reportId, record.scores);
+  }
+
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
+    await this.saveReportScoresAndEvidences({ reportId: record.reportId, scores: record.scores });
     this.generatedReports.set(record.reportId, record);
     this.failedReports.delete(record.reportId);
   }
