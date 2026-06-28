@@ -6,6 +6,7 @@ interface ReportJobInput {
     reportId?: unknown;
     reportType?: unknown;
     documentId?: unknown;
+    fileId?: unknown;
   };
 }
 
@@ -15,21 +16,21 @@ export function createDocumentExtractionStartHandler(results: AiResultRepository
       return;
     }
 
-    const documentId = documentIdFromJob(job);
-    if (!documentId) {
+    const documentRef = documentRefFromJob(job);
+    if (!documentRef) {
       return;
     }
 
-    await results.markDocumentExtractionStarted({ documentId });
+    await results.markDocumentExtractionStarted(documentRef);
   };
 }
 
 export function createReportFailureHandler(results: AiResultRepository) {
   return async (job: AiWorkerJob, failure: FailureReason): Promise<void> => {
     if (job.processType === "DOCUMENT_EXTRACT") {
-      const documentId = documentIdFromJob(job);
-      if (documentId) {
-        await results.markDocumentExtractionFailed({ documentId });
+      const documentRef = documentRefFromJob(job);
+      if (documentRef) {
+        await results.markDocumentExtractionFailed(documentRef);
       }
       return;
     }
@@ -47,14 +48,18 @@ export function createReportFailureHandler(results: AiResultRepository) {
   };
 }
 
-function documentIdFromJob(job: AiWorkerJob): number | undefined {
+function documentRefFromJob(job: AiWorkerJob): { documentId: number; fileId?: number } | undefined {
   try {
     const input = JSON.parse(job.inputRef) as ReportJobInput;
     const documentId = Number(input.payload?.documentId);
     if (!Number.isInteger(documentId) || documentId <= 0) {
       return undefined;
     }
-    return documentId;
+    const fileId = Number(input.payload?.fileId);
+    return {
+      documentId,
+      ...(Number.isInteger(fileId) && fileId > 0 ? { fileId } : {})
+    };
   } catch {
     return undefined;
   }

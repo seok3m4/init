@@ -8,6 +8,7 @@ test("PrismaAiResultRepository stores document extraction into application_docum
 
   await repository.saveDocumentExtraction({
     documentId: 7,
+    fileId: 9,
     s3Key: "candidate/1/resume.pdf",
     extractedText: "parsed resume text"
   });
@@ -18,6 +19,7 @@ test("PrismaAiResultRepository stores document extraction into application_docum
     args: {
       where: {
         documentId: BigInt(7),
+        fileId: BigInt(9),
         parseStatus: { not: "EXTRACTED" }
       },
       data: {
@@ -32,8 +34,8 @@ test("PrismaAiResultRepository marks document extraction started and failed", as
   const calls: Array<{ model: string; method: string; args: any }> = [];
   const repository = new PrismaAiResultRepository(fakePrisma(calls));
 
-  await repository.markDocumentExtractionStarted({ documentId: 7 });
-  await repository.markDocumentExtractionFailed({ documentId: 7 });
+  await repository.markDocumentExtractionStarted({ documentId: 7, fileId: 9 });
+  await repository.markDocumentExtractionFailed({ documentId: 7, fileId: 9 });
 
   assert.deepEqual(calls[0], {
     model: "applicationDocument",
@@ -41,6 +43,7 @@ test("PrismaAiResultRepository marks document extraction started and failed", as
     args: {
       where: {
         documentId: BigInt(7),
+        fileId: BigInt(9),
         parseStatus: { not: "EXTRACTED" }
       },
       data: { parseStatus: "EXTRACTING" }
@@ -52,6 +55,7 @@ test("PrismaAiResultRepository marks document extraction started and failed", as
     args: {
       where: {
         documentId: BigInt(7),
+        fileId: BigInt(9),
         parseStatus: { not: "EXTRACTED" }
       },
       data: { parseStatus: "FAILED" }
@@ -65,6 +69,8 @@ test("PrismaAiResultRepository stores STT transcript into interview_answers", as
 
   await repository.saveTranscript({
     answerId: 42,
+    audioFileId: 11,
+    audioS3Key: "candidate/1/answer-42.wav",
     transcript: "hello"
   });
 
@@ -74,6 +80,7 @@ test("PrismaAiResultRepository stores STT transcript into interview_answers", as
     args: {
       where: {
         answerId: BigInt(42),
+        audioFileId: BigInt(11),
         transcript: null
       },
       data: {

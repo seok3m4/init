@@ -22,6 +22,7 @@ export class CandidateAiJobsController {
     const currentUser = this.candidate(headers);
     this.requirePositive(body.applicationId, "applicationId");
     this.requirePositive(body.documentId, "documentId");
+    this.requirePositive(body.fileId, "fileId");
     this.requireText(body.s3Key, "s3Key");
 
     return ok(
@@ -79,6 +80,7 @@ export class CandidateAiJobsController {
     const currentUser = this.candidate(headers);
     const sessionId = this.parseId(sessionIdParam, "sessionId");
     this.requirePositive(body.answerId, "answerId");
+    this.requirePositive(body.audioFileId, "audioFileId");
     this.requireText(body.audioS3Key, "audioS3Key");
 
     return ok(

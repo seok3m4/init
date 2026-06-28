@@ -59,15 +59,20 @@ export class MockAiTaskHandler implements AiTaskHandler {
     }
 
     const documentId = positiveNumber(payload.documentId, "documentId");
+    const fileId = positiveNumber(payload.fileId, "fileId");
     const s3Key = requiredText(payload.s3Key, "s3Key");
     const extractedText = `Extracted text from ${s3Key}`;
 
     return {
-      outputRef: JSON.stringify({ documentId, s3Key }),
+      outputRef: JSON.stringify({
+        documentId,
+        fileAsset: fileAssetRef(fileId, s3Key)
+      }),
       guardrail: { result: "PASS", reason: null },
       finalSave: () =>
         this.results.saveDocumentExtraction({
           documentId,
+          fileId,
           s3Key,
           extractedText
         })
@@ -76,13 +81,17 @@ export class MockAiTaskHandler implements AiTaskHandler {
 
   private stt(payload: Record<string, unknown>): AiTaskResult {
     const answerId = positiveNumber(payload.answerId, "answerId");
+    const audioFileId = positiveNumber(payload.audioFileId, "audioFileId");
     const audioS3Key = requiredText(payload.audioS3Key, "audioS3Key");
     const transcript = `Transcript generated from ${audioS3Key}`;
 
     return {
-      outputRef: JSON.stringify({ answerId, audioS3Key }),
+      outputRef: JSON.stringify({
+        answerId,
+        fileAsset: fileAssetRef(audioFileId, audioS3Key)
+      }),
       guardrail: { result: "PASS", reason: null },
-      finalSave: () => this.results.saveTranscript({ answerId, transcript })
+      finalSave: () => this.results.saveTranscript({ answerId, audioFileId, audioS3Key, transcript })
     };
   }
 
@@ -536,6 +545,13 @@ function reportSnapshot(reportId: number, reportType: GeneratedReportRecord["rep
     reportId,
     reportType,
     status: "GENERATING"
+  };
+}
+
+function fileAssetRef(fileId: number, storageKey: string) {
+  return {
+    fileId,
+    storageKey
   };
 }
 

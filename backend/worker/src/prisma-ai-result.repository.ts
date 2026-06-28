@@ -46,6 +46,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
     await this.prisma.applicationDocument.updateMany({
       where: {
         documentId: BigInt(record.documentId),
+        ...(record.fileId ? { fileId: BigInt(record.fileId) } : {}),
         parseStatus: { not: "EXTRACTED" }
       },
       data: {
@@ -58,6 +59,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
     await this.prisma.applicationDocument.updateMany({
       where: {
         documentId: BigInt(record.documentId),
+        fileId: BigInt(record.fileId),
         parseStatus: { not: "EXTRACTED" }
       },
       data: {
@@ -71,6 +73,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
     await this.prisma.applicationDocument.updateMany({
       where: {
         documentId: BigInt(record.documentId),
+        ...(record.fileId ? { fileId: BigInt(record.fileId) } : {}),
         parseStatus: { not: "EXTRACTED" }
       },
       data: {
@@ -83,6 +86,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
     await this.prisma.interviewAnswer.updateMany({
       where: {
         answerId: BigInt(record.answerId),
+        audioFileId: BigInt(record.audioFileId),
         transcript: null
       },
       data: {

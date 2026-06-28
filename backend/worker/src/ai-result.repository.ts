@@ -2,20 +2,25 @@ import { createHash } from "node:crypto";
 
 export interface DocumentExtractionRecord {
   documentId: number;
+  fileId: number;
   s3Key: string;
   extractedText: string;
 }
 
 export interface DocumentExtractionStatusRecord {
   documentId: number;
+  fileId?: number;
 }
 
 export interface FailedDocumentExtractionRecord {
   documentId: number;
+  fileId?: number;
 }
 
 export interface TranscriptRecord {
   answerId: number;
+  audioFileId: number;
+  audioS3Key: string;
   transcript: string;
 }
 
@@ -110,7 +115,11 @@ export interface AiResultRepository {
 export class InMemoryAiResultRepository implements AiResultRepository {
   readonly documentExtractions: DocumentExtractionRecord[] = [];
   readonly documentParseStatuses = new Map<number, "EXTRACTING" | "EXTRACTED" | "FAILED">();
-  readonly documentParseStatusEvents: Array<{ documentId: number; status: "EXTRACTING" | "EXTRACTED" | "FAILED" }> = [];
+  readonly documentParseStatusEvents: Array<{
+    documentId: number;
+    fileId?: number;
+    status: "EXTRACTING" | "EXTRACTED" | "FAILED";
+  }> = [];
   readonly transcripts: TranscriptRecord[] = [];
   readonly followUpQuestions: FollowUpQuestionRecord[] = [];
   readonly generatedDrafts: GeneratedDraftRecord[] = [];
@@ -130,7 +139,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
     }
 
     this.documentParseStatuses.set(record.documentId, "EXTRACTING");
-    this.documentParseStatusEvents.push({ documentId: record.documentId, status: "EXTRACTING" });
+    this.documentParseStatusEvents.push({ documentId: record.documentId, fileId: record.fileId, status: "EXTRACTING" });
   }
 
   async saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void> {
@@ -141,7 +150,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
     this.documentExtractionsById.set(record.documentId, record);
     this.documentExtractions.push(record);
     this.documentParseStatuses.set(record.documentId, "EXTRACTED");
-    this.documentParseStatusEvents.push({ documentId: record.documentId, status: "EXTRACTED" });
+    this.documentParseStatusEvents.push({ documentId: record.documentId, fileId: record.fileId, status: "EXTRACTED" });
   }
 
   async markDocumentExtractionFailed(record: FailedDocumentExtractionRecord): Promise<void> {
@@ -150,7 +159,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
     }
 
     this.documentParseStatuses.set(record.documentId, "FAILED");
-    this.documentParseStatusEvents.push({ documentId: record.documentId, status: "FAILED" });
+    this.documentParseStatusEvents.push({ documentId: record.documentId, fileId: record.fileId, status: "FAILED" });
   }
 
   async saveTranscript(record: TranscriptRecord): Promise<void> {

@@ -18,6 +18,7 @@ test("document extraction uses S3 reference and does not persist raw file conten
       kind: "DOCUMENT_EXTRACT",
       payload: {
         documentId: 7,
+        fileId: 9,
         s3Key: "candidate/1/resume.pdf"
       }
     })
@@ -31,15 +32,25 @@ test("document extraction uses S3 reference and does not persist raw file conten
   assert.deepEqual(results.documentExtractions, [
     {
       documentId: 7,
+      fileId: 9,
       s3Key: "candidate/1/resume.pdf",
       extractedText: "Extracted text from candidate/1/resume.pdf"
     }
   ]);
+  const output = JSON.parse(repository.get(10).outputRef ?? "{}") as {
+    fileAsset?: { fileId?: number; storageKey?: string };
+  };
+  assert.equal(output.fileAsset?.fileId, 9);
+  assert.equal(output.fileAsset?.storageKey, "candidate/1/resume.pdf");
   assert.equal("fileContent" in results.documentExtractions[0], false);
   assert.equal(results.documentParseStatuses.get(7), "EXTRACTED");
   assert.deepEqual(
     results.documentParseStatusEvents.map((event) => event.status),
     ["EXTRACTING", "EXTRACTED"]
+  );
+  assert.deepEqual(
+    results.documentParseStatusEvents.map((event) => event.fileId),
+    [9, 9]
   );
 });
 
@@ -51,6 +62,7 @@ test("document extraction marks application document failed when input is invali
       kind: "DOCUMENT_EXTRACT",
       payload: {
         documentId: 7,
+        fileId: 9,
         s3Key: "candidate/1/resume.pdf",
         fileContent: "raw pdf bytes must not be here"
       }
@@ -69,6 +81,10 @@ test("document extraction marks application document failed when input is invali
     results.documentParseStatusEvents.map((event) => event.status),
     ["EXTRACTING", "FAILED"]
   );
+  assert.deepEqual(
+    results.documentParseStatusEvents.map((event) => event.fileId),
+    [9, 9]
+  );
 });
 
 test("duplicate document extraction keeps the completed result", async () => {
@@ -80,6 +96,7 @@ test("duplicate document extraction keeps the completed result", async () => {
       kind: "DOCUMENT_EXTRACT",
       payload: {
         documentId: 7,
+        fileId: 9,
         s3Key: "candidate/1/resume-first.pdf"
       }
     },
@@ -92,6 +109,7 @@ test("duplicate document extraction keeps the completed result", async () => {
       kind: "DOCUMENT_EXTRACT",
       payload: {
         documentId: 7,
+        fileId: 9,
         s3Key: "candidate/1/resume-second.pdf"
       }
     },
@@ -105,18 +123,23 @@ test("duplicate document extraction keeps the completed result", async () => {
     results.documentParseStatusEvents.map((event) => event.status),
     ["EXTRACTING", "EXTRACTED"]
   );
+  assert.deepEqual(
+    results.documentParseStatusEvents.map((event) => event.fileId),
+    [9, 9]
+  );
 });
 
 test("STT stores transcript against the target interview answer", async () => {
   const results = new InMemoryAiResultRepository();
 
-  await run({
+  const repository = await run({
     processLogId: 11,
     processType: "STT",
     input: {
       kind: "MOCK_INTERVIEW_STT",
       payload: {
         answerId: 42,
+        audioFileId: 11,
         audioS3Key: "candidate/1/answer-42.wav"
       }
     },
@@ -126,9 +149,16 @@ test("STT stores transcript against the target interview answer", async () => {
   assert.deepEqual(results.transcripts, [
     {
       answerId: 42,
+      audioFileId: 11,
+      audioS3Key: "candidate/1/answer-42.wav",
       transcript: "Transcript generated from candidate/1/answer-42.wav"
     }
   ]);
+  const output = JSON.parse(repository.get(11).outputRef ?? "{}") as {
+    fileAsset?: { fileId?: number; storageKey?: string };
+  };
+  assert.equal(output.fileAsset?.fileId, 11);
+  assert.equal(output.fileAsset?.storageKey, "candidate/1/answer-42.wav");
 });
 
 test("duplicate STT requests keep the existing transcript result", async () => {
@@ -141,6 +171,7 @@ test("duplicate STT requests keep the existing transcript result", async () => {
       kind: "MOCK_INTERVIEW_STT",
       payload: {
         answerId: 42,
+        audioFileId: 11,
         audioS3Key: "candidate/1/answer-42-first.wav"
       }
     },
@@ -154,6 +185,7 @@ test("duplicate STT requests keep the existing transcript result", async () => {
       kind: "MOCK_INTERVIEW_STT",
       payload: {
         answerId: 42,
+        audioFileId: 11,
         audioS3Key: "candidate/1/answer-42-second.wav"
       }
     },
@@ -163,6 +195,8 @@ test("duplicate STT requests keep the existing transcript result", async () => {
   assert.equal(results.transcripts.length, 1);
   assert.deepEqual(results.transcripts[0], {
     answerId: 42,
+    audioFileId: 11,
+    audioS3Key: "candidate/1/answer-42-first.wav",
     transcript: "Transcript generated from candidate/1/answer-42-first.wav"
   });
 });
