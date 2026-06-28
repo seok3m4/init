@@ -12,7 +12,16 @@ interface WorkerInput {
   payload?: Record<string, unknown>;
 }
 
-const MOCK_HIRING_DECISION_TERMS = ["합격", "탈락", "채용 적합", "채용 부적합", "hiring decision", "pass/fail"];
+const MOCK_HIRING_DECISION_TERMS = [
+  "합격",
+  "불합격",
+  "탈락",
+  "채용 적합",
+  "채용 부적합",
+  "선별",
+  "hiring decision",
+  "pass/fail"
+];
 
 export class MockAiTaskHandler implements AiTaskHandler {
   constructor(private readonly results: AiResultRepository) {}

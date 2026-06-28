@@ -402,6 +402,22 @@ test("mock report generation marks report failed when expression policy is block
   assert.equal(results.failedReports.get(30)?.failureCategory, "NON_RETRYABLE");
 });
 
+test("mock report generation blocks Korean hiring decision expressions", async () => {
+  const results = new InMemoryAiResultRepository();
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(30, "REPORT_GENERATE", reportGenerateInput("MOCK_INTERVIEW_REPORT", "합격 가능성이 높습니다."))
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results), {
+    onFailure: createReportFailureHandler(results)
+  }).processBatch();
+
+  assert.equal(repository.get(30).status, "FAILED");
+  assert.equal(repository.get(30).failure?.category, "NON_RETRYABLE");
+  assert.equal(results.generatedReports.has(30), false);
+});
+
 test("mock interview generated output is not saved when expression policy is blocked", async () => {
   const results = new InMemoryAiResultRepository();
   const repository = new InMemoryAiProcessLogRepository();
@@ -421,6 +437,28 @@ test("mock interview generated output is not saved when expression policy is blo
 
   assert.equal(repository.get(15).status, "FAILED");
   assert.equal(repository.get(15).failure?.category, "NON_RETRYABLE");
+  assert.equal(results.followUpQuestions.length, 0);
+});
+
+test("mock follow-up generation blocks Korean hiring decision expressions", async () => {
+  const results = new InMemoryAiResultRepository();
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(31, "FOLLOW_UP", {
+      kind: "MOCK_FOLLOW_UP",
+      payload: {
+        sessionId: 3,
+        answerId: 4,
+        previousQuestion: "합격 가능성을 말해주세요.",
+        transcript: "합격 가능성을 말해주세요."
+      }
+    })
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results)).processBatch();
+
+  assert.equal(repository.get(31).status, "FAILED");
+  assert.equal(repository.get(31).failure?.category, "NON_RETRYABLE");
   assert.equal(results.followUpQuestions.length, 0);
 });
 
