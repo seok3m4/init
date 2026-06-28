@@ -58,6 +58,19 @@ export interface GeneratedReportRecord {
   scores: GeneratedReportScoreRecord[];
 }
 
+export interface CommunicationAnalysisRecord {
+  processLogId: number;
+  reportId: number;
+  reportType: "RECRUITING_REPORT" | "MOCK_INTERVIEW_REPORT";
+  analysis: {
+    usage: "AUXILIARY_ONLY";
+    mediaQuality: string;
+    metrics: Record<string, unknown>;
+    notes: string[];
+    decisionWeight: 0;
+  };
+}
+
 export interface ReportScoresRecord {
   reportId: number;
   scores: GeneratedReportScoreRecord[];
@@ -86,6 +99,7 @@ export interface AiResultRepository {
   saveFollowUpQuestion(record: FollowUpQuestionRecord): Promise<void>;
   saveGeneratedDraft(record: GeneratedDraftRecord): Promise<void>;
   saveReportScoresAndEvidences(record: ReportScoresRecord): Promise<void>;
+  saveCommunicationAnalysis(record: CommunicationAnalysisRecord): Promise<void>;
   saveGeneratedReport(record: GeneratedReportRecord): Promise<void>;
   markReportFailed(record: FailedReportRecord): Promise<void>;
   upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord>;
@@ -99,6 +113,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   readonly followUpQuestions: FollowUpQuestionRecord[] = [];
   readonly generatedDrafts: GeneratedDraftRecord[] = [];
   readonly reportScores = new Map<number, GeneratedReportScoreRecord[]>();
+  readonly communicationAnalyses = new Map<number, CommunicationAnalysisRecord>();
   readonly generatedReports = new Map<number, GeneratedReportRecord>();
   readonly failedReports = new Map<number, FailedReportRecord>();
   readonly embeddings = new Map<string, EmbeddingRecord>();
@@ -161,6 +176,10 @@ export class InMemoryAiResultRepository implements AiResultRepository {
 
   async saveReportScoresAndEvidences(record: ReportScoresRecord): Promise<void> {
     this.reportScores.set(record.reportId, record.scores);
+  }
+
+  async saveCommunicationAnalysis(record: CommunicationAnalysisRecord): Promise<void> {
+    this.communicationAnalyses.set(record.reportId, record);
   }
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {

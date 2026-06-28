@@ -370,6 +370,46 @@ test("answer evaluation step stores scores and evidences without completing the 
   assert.equal(results.generatedReports.has(31), false);
 });
 
+test("communication analysis is saved only as auxiliary report output", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  const repository = await run({
+    processLogId: 32,
+    processType: "REPORT_GENERATE",
+    input: {
+      payload: {
+        step: "COMMUNICATION_ANALYSIS",
+        reportId: 32,
+        reportType: "RECRUITING_REPORT",
+        consentConfirmed: true,
+        mediaQuality: "LOW_AUDIO",
+        metrics: {
+          speechRate: "FAST"
+        },
+        notes: ["Audio volume was unstable."]
+      }
+    },
+    results
+  });
+
+  const saved = results.communicationAnalyses.get(32);
+  const output = JSON.parse(repository.get(32).outputRef ?? "{}") as {
+    communicationAnalysis?: {
+      usage?: string;
+      mediaQuality?: string;
+      decisionWeight?: number;
+    };
+  };
+  assert.equal(saved?.processLogId, 32);
+  assert.equal(saved?.analysis.usage, "AUXILIARY_ONLY");
+  assert.equal(saved?.analysis.decisionWeight, 0);
+  assert.equal(output.communicationAnalysis?.usage, "AUXILIARY_ONLY");
+  assert.equal(output.communicationAnalysis?.mediaQuality, "LOW_AUDIO");
+  assert.equal(output.communicationAnalysis?.decisionWeight, 0);
+  assert.equal(results.reportScores.has(32), false);
+  assert.equal(results.generatedReports.has(32), false);
+});
+
 test("report generation stores scores and evidences after guardrail pass", async () => {
   const results = new InMemoryAiResultRepository();
 

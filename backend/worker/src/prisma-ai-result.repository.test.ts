@@ -163,6 +163,35 @@ test("PrismaAiResultRepository stores report scores without completing a report"
   assert.equal(calls.some((call) => call.model === "evaluationReport"), false);
 });
 
+test("PrismaAiResultRepository stores communication analysis only on process output", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.saveCommunicationAnalysis({
+    processLogId: 32,
+    reportId: 30,
+    reportType: "RECRUITING_REPORT",
+    analysis: {
+      usage: "AUXILIARY_ONLY",
+      mediaQuality: "LOW_AUDIO",
+      metrics: { speechRate: "FAST" },
+      notes: ["Communication metrics are auxiliary only."],
+      decisionWeight: 0
+    }
+  });
+
+  assert.equal(calls[0].model, "aiProcessLog");
+  assert.equal(calls[0].method, "update");
+  assert.deepEqual(calls[0].args.where, { processLogId: BigInt(32) });
+
+  const output = JSON.parse(calls[0].args.data.outputRef);
+  assert.equal(output.report.reportId, 30);
+  assert.equal(output.communicationAnalysis.usage, "AUXILIARY_ONLY");
+  assert.equal(output.communicationAnalysis.decisionWeight, 0);
+  assert.equal(calls.some((call) => call.model === "reportScore"), false);
+  assert.equal(calls.some((call) => call.model === "evaluationReport"), false);
+});
+
 test("PrismaAiResultRepository stores generated reports after guardrail pass", async () => {
   const calls: Array<{ model: string; method: string; args: any }> = [];
   const repository = new PrismaAiResultRepository(fakePrisma(calls));
@@ -255,6 +284,9 @@ function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) 
     aiProcessLog: {
       async create(args: any) {
         calls.push({ model: "aiProcessLog", method: "create", args });
+      },
+      async update(args: any) {
+        calls.push({ model: "aiProcessLog", method: "update", args });
       }
     }
   };

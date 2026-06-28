@@ -1,5 +1,6 @@
 import {
   AiResultRepository,
+  CommunicationAnalysisRecord,
   GeneratedDraftRecord,
   GeneratedReportRecord,
   GeneratedReportScoreRecord
@@ -206,24 +207,35 @@ export class MockAiTaskHandler implements AiTaskHandler {
       throw new NonRetryableAiWorkerFailure("consentConfirmed is required for communication analysis");
     }
 
-    const communicationAnalysis = {
+    const metrics = payload.metrics && typeof payload.metrics === "object" && !Array.isArray(payload.metrics)
+      ? (payload.metrics as Record<string, unknown>)
+      : {};
+    const communicationAnalysis: CommunicationAnalysisRecord["analysis"] = {
       usage: "AUXILIARY_ONLY" as const,
       mediaQuality: requiredText(payload.mediaQuality, "mediaQuality"),
-      metrics: payload.metrics && typeof payload.metrics === "object" && !Array.isArray(payload.metrics) ? payload.metrics : {},
+      metrics,
       notes: [
         "Communication metrics are auxiliary only and must not be used as a decisive hiring signal.",
         ...stringArrayOf(payload.notes)
       ],
       decisionWeight: 0
     };
+    const output = {
+      processLogId,
+      report: reportSnapshot(reportId, reportType),
+      communicationAnalysis
+    };
+    const record: CommunicationAnalysisRecord = {
+      processLogId,
+      reportId,
+      reportType,
+      analysis: communicationAnalysis
+    };
 
     return {
-      outputRef: JSON.stringify({
-        processLogId,
-        report: reportSnapshot(reportId, reportType),
-        communicationAnalysis
-      }),
-      guardrail: { result: "PASS", reason: null }
+      outputRef: JSON.stringify(output),
+      guardrail: { result: "PASS", reason: null },
+      finalSave: () => this.results.saveCommunicationAnalysis(record)
     };
   }
 

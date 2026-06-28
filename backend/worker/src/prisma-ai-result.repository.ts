@@ -1,5 +1,6 @@
 import {
   AiResultRepository,
+  CommunicationAnalysisRecord,
   DocumentExtractionRecord,
   DocumentExtractionStatusRecord,
   EmbeddingRecord,
@@ -32,6 +33,9 @@ interface PrismaAiResultClient {
   };
   embedding: {
     upsert(args: unknown): Promise<EmbeddingRecord & { embeddingId?: bigint }>;
+  };
+  aiProcessLog: {
+    update(args: unknown): Promise<unknown>;
   };
 }
 
@@ -113,6 +117,23 @@ export class PrismaAiResultRepository implements AiResultRepository {
 
   async saveReportScoresAndEvidences(record: { reportId: number; scores: GeneratedReportScoreRecord[] }): Promise<void> {
     await this.replaceReportScores(record.reportId, record.scores);
+  }
+
+  async saveCommunicationAnalysis(record: CommunicationAnalysisRecord): Promise<void> {
+    await this.prisma.aiProcessLog.update({
+      where: { processLogId: BigInt(record.processLogId) },
+      data: {
+        outputRef: JSON.stringify({
+          processLogId: record.processLogId,
+          report: {
+            reportId: record.reportId,
+            reportType: record.reportType,
+            status: "GENERATING"
+          },
+          communicationAnalysis: record.analysis
+        })
+      }
+    });
   }
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
