@@ -1,5 +1,6 @@
 import {
   AiResultRepository,
+  GeneratedDraftRecord,
   GeneratedReportRecord,
   GeneratedReportScoreRecord
 } from "./ai-result.repository";
@@ -103,6 +104,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
   }
 
   private criteriaSuggest(payload: Record<string, unknown>): AiTaskResult {
+    const postingId = positiveNumber(payload.postingId, "postingId");
     const jobDescription = requiredText(payload.jobDescription, "jobDescription");
     const talentProfile = requiredText(payload.talentProfile, "talentProfile");
     const evaluationPolicy = requiredText(payload.evaluationPolicy, "evaluationPolicy");
@@ -112,7 +114,10 @@ export class MockAiTaskHandler implements AiTaskHandler {
       `Evaluation policy alignment: ${shorten(evaluationPolicy)}`
     ];
 
-    return this.generatedDraft("CRITERIA_SUGGEST", items);
+    return this.generatedDraft("CRITERIA_SUGGEST", items, {
+      postingId,
+      targetTables: ["criterion_tags", "evaluation_criteria"]
+    });
   }
 
   private reportGenerate(kind: string, payload: Record<string, unknown>, processLogId: number): AiTaskResult {
@@ -267,6 +272,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
     if (!Number.isInteger(questionCount) || questionCount <= 0) {
       throw new NonRetryableAiWorkerFailure("questionCount must be a positive integer");
     }
+    const postingId = kind.startsWith("MOCK") ? undefined : positiveNumber(payload.postingId, "postingId");
 
     const items = Array.from({ length: questionCount }, (_, index) =>
       kind.startsWith("MOCK")
@@ -274,11 +280,14 @@ export class MockAiTaskHandler implements AiTaskHandler {
         : `Recruiting interview question ${index + 1}: ${shorten(requiredText(payload.jobDescription, "jobDescription"))}`
     );
 
-    return this.generatedDraft(kind, items);
+    return this.generatedDraft(kind, items, {
+      postingId,
+      targetTables: ["question_bank"]
+    });
   }
 
   private questionSetGenerate(payload: Record<string, unknown>): AiTaskResult {
-    positiveNumber(payload.postingId, "postingId");
+    const postingId = positiveNumber(payload.postingId, "postingId");
     const questionCount = positiveNumber(payload.questionCount, "questionCount");
     const criteria = criteriaOf(payload.criteria);
     const questionTypes = nonEmptyStringArrayOf(payload.questionTypes, "questionTypes");
@@ -288,7 +297,10 @@ export class MockAiTaskHandler implements AiTaskHandler {
       return `${questionType} question ${index + 1} for ${criterion.name}`;
     });
 
-    return this.generatedDraft("QUESTION_SET_GENERATE", items);
+    return this.generatedDraft("QUESTION_SET_GENERATE", items, {
+      postingId,
+      targetTables: ["question_bank"]
+    });
   }
 
   private embedding(payload: Record<string, unknown>): AiTaskResult {
@@ -315,17 +327,27 @@ export class MockAiTaskHandler implements AiTaskHandler {
     };
   }
 
-  private generatedDraft(kind: string, items: string[]): AiTaskResult {
+  private generatedDraft(
+    kind: string,
+    items: string[],
+    options: {
+      targetTables: GeneratedDraftRecord["targetTables"];
+      postingId?: number;
+    }
+  ): AiTaskResult {
     const guardrail = this.validateMockPolicy(kind.startsWith("MOCK") ? "MOCK" : "RECRUITING", items.join("\n"));
+    const draft = {
+      kind,
+      items,
+      reviewRequired: true as const,
+      targetTables: options.targetTables,
+      postingId: options.postingId
+    };
     return {
-      outputRef: JSON.stringify({ kind, items, reviewRequired: true }),
+      outputRef: JSON.stringify(draft),
       guardrail,
       finalSave: () =>
-        this.results.saveGeneratedDraft({
-          kind,
-          items,
-          reviewRequired: true
-        })
+        this.results.saveGeneratedDraft(draft)
     };
   }
 

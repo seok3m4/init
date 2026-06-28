@@ -30,6 +30,8 @@ export interface GeneratedDraftRecord {
   kind: string;
   items: string[];
   reviewRequired: true;
+  targetTables: Array<"criterion_tags" | "evaluation_criteria" | "question_bank">;
+  postingId?: number;
 }
 
 export interface GeneratedReportEvidenceRecord {

@@ -648,6 +648,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 채용 공고가 생성되어 있어야 하며 JD, 인재상, 평가 정책이 모두 존재해야 함
 - 성공 응답/처리:
   - 평가 역량 후보 표시
+  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["criterion_tags","evaluation_criteria"], output.reviewRequired=true로 검토 대상임을 표시한다.
 - 오류/예외:
   - AI 생성 실패 시 기본 역량 템플릿을 제공하고 재시도 버튼을 표시한다.
 - 관련 ERD 테이블:
@@ -708,6 +709,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 직무명세서 생성 완료 및 질문 수가 양수여야 함
 - 성공 응답/처리:
   - 직무 질문 후보 저장
+  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 뱅크 저장 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 품질 검증 실패 시 재생성 또는 수동 검토를 요청한다.
 - 관련 ERD 테이블:
@@ -728,6 +730,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 평가 기준과 질문 유형이 최소 1개 이상 존재하고 질문 수가 양수여야 함
 - 성공 응답/처리:
   - 면접 질문 목록 생성 및 세션 연결 가능 상태 전환
+  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 뱅크 저장 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 수 부족 시 AI 생성 또는 수동 추가를 안내한다.
 - 관련 ERD 테이블:

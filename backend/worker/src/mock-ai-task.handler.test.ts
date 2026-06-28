@@ -239,6 +239,7 @@ test("question generation stores review-required drafts after guardrail pass", a
     input: {
       kind: "RECRUITING_QUESTION_GENERATE",
       payload: {
+        postingId: 2,
         jobDescription: "Backend engineer with NestJS and PostgreSQL.",
         questionCount: 2
       }
@@ -248,13 +249,18 @@ test("question generation stores review-required drafts after guardrail pass", a
 
   assert.equal(results.generatedDrafts.length, 1);
   assert.equal(results.generatedDrafts[0].reviewRequired, true);
+  assert.deepEqual(results.generatedDrafts[0].targetTables, ["question_bank"]);
   assert.deepEqual(results.generatedDrafts[0].items.length, 2);
 
   const output = JSON.parse(repository.get(14).outputRef ?? "{}") as {
     items?: string[];
     reviewRequired?: boolean;
+    targetTables?: string[];
+    postingId?: number;
   };
   assert.equal(output.reviewRequired, true);
+  assert.deepEqual(output.targetTables, ["question_bank"]);
+  assert.equal(output.postingId, 2);
   assert.equal(output.items?.length, 2);
 });
 
@@ -278,8 +284,12 @@ test("criteria suggestion uses JD, talent profile and evaluation policy", async 
   const output = JSON.parse(repository.get(28).outputRef ?? "{}") as {
     items?: string[];
     reviewRequired?: boolean;
+    targetTables?: string[];
+    postingId?: number;
   };
   assert.equal(output.reviewRequired, true);
+  assert.deepEqual(output.targetTables, ["criterion_tags", "evaluation_criteria"]);
+  assert.equal(output.postingId, 2);
   assert.deepEqual(output.items, results.generatedDrafts[0].items);
   assert.match(output.items?.join("\n") ?? "", /Pragmatic problem solver/);
   assert.match(output.items?.join("\n") ?? "", /Evidence-backed backend ownership/);
@@ -310,7 +320,11 @@ test("question set generation reflects criteria and question type conditions", a
 
   const output = JSON.parse(repository.get(29).outputRef ?? "{}") as {
     items?: string[];
+    targetTables?: string[];
+    postingId?: number;
   };
+  assert.deepEqual(output.targetTables, ["question_bank"]);
+  assert.equal(output.postingId, 2);
   assert.deepEqual(output.items, ["TECHNICAL question 1 for Problem solving", "EXPERIENCE question 2 for Problem solving"]);
 });
 

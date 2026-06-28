@@ -131,7 +131,9 @@ test("PrismaAiResultRepository leaves generated draft output on the original pro
   await repository.saveGeneratedDraft({
     kind: "QUESTION_GENERATE",
     items: ["Question 1"],
-    reviewRequired: true
+    reviewRequired: true,
+    targetTables: ["question_bank"],
+    postingId: 2
   });
 
   assert.deepEqual(calls, []);
