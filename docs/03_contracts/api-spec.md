@@ -770,8 +770,9 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: reportId
 - 요청 데이터:
-  - JD, 평가 기준, 서류 요약, 답변 스크립트
+  - reportType=RECRUITING_REPORT, JD, 평가 기준, 서류 요약, 답변 스크립트
 - 검증/전제조건:
+  - 채용 리포트 파이프라인 전용 endpoint이므로 MOCK_INTERVIEW_REPORT는 허용하지 않는다.
   - 모든 필수 데이터가 존재
 - 성공 응답/처리:
   - ai_process_logs에 REPORT_GENERATE/EVALUATION_CONTEXT 작업을 생성하고 processLogId를 반환한다.
@@ -792,8 +793,9 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: reportId
 - 요청 데이터:
-  - 답변 스크립트, 평가 기준, 모범 답안
+  - reportType=RECRUITING_REPORT, 답변 스크립트, 평가 기준, 모범 답안
 - 검증/전제조건:
+  - 채용 리포트 파이프라인 전용 endpoint이므로 MOCK_INTERVIEW_REPORT는 허용하지 않는다.
   - 답변 스크립트 존재
 - 성공 응답/처리:
   - ai_process_logs에 REPORT_GENERATE/ANSWER_EVALUATION 작업을 생성하고 processLogId를 반환한다.
@@ -814,8 +816,9 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: reportId
 - 요청 데이터:
-  - 영상 파일, 음성 파일, 얼굴/시선/음성 피처
+  - reportType=RECRUITING_REPORT, 영상 파일, 음성 파일, 얼굴/시선/음성 피처
 - 검증/전제조건:
+  - 채용 리포트 파이프라인 전용 endpoint이므로 MOCK_INTERVIEW_REPORT는 허용하지 않는다.
   - 분석 동의 및 영상 품질 충족
 - 성공 응답/처리:
   - ai_process_logs에 REPORT_GENERATE/COMMUNICATION_ANALYSIS 작업을 생성하고 processLogId를 반환한다.

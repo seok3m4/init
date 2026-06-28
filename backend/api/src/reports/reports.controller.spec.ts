@@ -428,6 +428,34 @@ describe("ReportsController", () => {
     await companyGet("/api/v1/ai/jobs/999999/status").expect(404);
   });
 
+  it("separates recruiting and mock report endpoint report types", async () => {
+    await companyRequest("/api/v1/reports/1/evaluation-context")
+      .send({ ...validContextPayload(), reportType: "MOCK_INTERVIEW_REPORT" })
+      .expect(400);
+
+    await companyRequest("/api/v1/reports/1/answer-evaluation")
+      .send({
+        reportType: "MOCK_INTERVIEW_REPORT",
+        criteria: validGeneratePayload().criteria,
+        answers: validGeneratePayload().answers
+      })
+      .expect(400);
+
+    await companyRequest("/api/v1/reports/1/communication-analysis")
+      .send({
+        reportType: "MOCK_INTERVIEW_REPORT",
+        consentConfirmed: true,
+        mediaQuality: "LOW_AUDIO"
+      })
+      .expect(400);
+
+    await companyRequest("/api/v1/reports/1/generate")
+      .send({ ...validGeneratePayload(), reportType: "MOCK_INTERVIEW_REPORT" })
+      .expect(400);
+
+    await candidateRequest("/api/v1/candidate/mock-interview/reports/2/generate").send(validGeneratePayload()).expect(400);
+  });
+
   it("returns unauthorized when dev auth headers are missing", async () => {
     await request(app.getHttpServer()).post("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(401);
   });

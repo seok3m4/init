@@ -150,7 +150,7 @@ export class ReportsController {
   }
 
   private validateEvaluationContextPayload(body: EvaluationContextRequest): void {
-    this.validateReportType(body.reportType);
+    this.validateRecruitingReportType(body.reportType);
     if (!body.company?.companyId || !body.posting?.postingId || !body.application?.applicationId) {
       throw this.validation("company, posting, and application are required.");
     }
@@ -162,13 +162,13 @@ export class ReportsController {
   }
 
   private validateAnswerEvaluationPayload(body: AnswerEvaluationRequest): void {
-    this.validateReportType(body.reportType);
+    this.validateRecruitingReportType(body.reportType);
     this.validateCriteria(body.criteria);
     this.validateAnswers(body.answers);
   }
 
   private validateCommunicationAnalysisPayload(body: CommunicationAnalysisRequest): void {
-    this.validateReportType(body.reportType);
+    this.validateRecruitingReportType(body.reportType);
     if (!body.consentConfirmed) {
       throw this.validation("consentConfirmed is required for communication analysis.");
     }
@@ -189,6 +189,12 @@ export class ReportsController {
   private validateReportType(reportType: ReportType): void {
     if (!["RECRUITING_REPORT", "MOCK_INTERVIEW_REPORT"].includes(reportType)) {
       throw this.validation("reportType is invalid.");
+    }
+  }
+
+  private validateRecruitingReportType(reportType: ReportType): void {
+    if (reportType !== "RECRUITING_REPORT") {
+      throw this.validation("This endpoint only processes recruiting reports.");
     }
   }
 
