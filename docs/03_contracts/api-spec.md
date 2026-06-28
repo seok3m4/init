@@ -874,6 +874,34 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
     - ai_guardrail_logs.failure_category에는 BLOCKED일 때 NON_RETRYABLE을 기록한다. PASS/REGENERATED는 실패가 아니므로 null이다.
     - regenerated=true는 기본 검증이 PASS인 경우에만 REGENERATED로 기록된다. 기본 검증이 실패하면 BLOCKED가 우선한다.
 
+### API-080 GET /ai/jobs/{processLogId}/status
+- 도메인: AI/리포트 처리
+- 권한/인증: 로그인 사용자 / 개발 임시 인증
+- 관련 화면: C 담당 면접 관리 화면, D 담당 면접 런타임, B 담당 기업 기능 화면
+- UI Type: status polling
+- 상태 코드: 200 OK
+- 비동기: N
+- Path Params:
+  - processLogId: 조회할 ai_process_logs 식별자
+- 검증/전제조건:
+  - processLogId는 양의 정수여야 한다.
+  - 호출자는 공통 CurrentUser 또는 개발용 임시 인증 헤더로 식별되어야 한다.
+- 성공 응답/처리:
+  - ai_process_logs 기준 작업 상태를 반환한다.
+  - status는 PENDING, RUNNING, COMPLETED, FAILED 중 하나이다.
+  - COMPLETED 작업은 outputRef가 JSON이면 output으로 파싱해 반환한다.
+  - FAILED 작업은 failure.category, failure.reason, failure.retryable을 반환해 재시도 가능 여부를 구분한다.
+  - 생성형 작업 결과는 output.sourceProcessLogId, output.items, output.reviewRequired, output.reviewStatus, output.targetTables로 검토 대상과 저장 대상 테이블을 식별한다.
+  - 평가/리포트 작업 결과는 output.context, output.scores, output.evidences, output.report 등 작업 유형별 산출물을 반환한다.
+- 오류/예외:
+  - processLogId가 양의 정수가 아니면 400 COMMON_VALIDATION_FAILED를 반환한다.
+  - 존재하지 않는 processLogId는 조회 실패 응답으로 처리한다.
+- 관련 ERD 테이블:
+  - ai_process_logs, ai_guardrail_logs
+- 비고/미결:
+  - 장기 AI 작업을 요청한 API는 202 Accepted와 processLogId를 반환하고, 화면은 이 API로 상태와 결과를 조회한다.
+  - 질문/평가 기준/모의면접 질문 생성 결과는 reviewRequired=true 상태로 반환되며, 사용자 확정 전 targetTables에 최종 저장하지 않는다.
+
 ## 기업 - 설정
 
 ### API-041 PATCH /company/profile

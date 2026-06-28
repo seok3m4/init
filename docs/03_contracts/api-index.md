@@ -85,3 +85,4 @@ API 전체 목록을 도메인별로 빠르게 탐색한다.
 | API-077 | 지원자 - 마이페이지 | POST | /candidate/portfolio-links | 직무 관련 링크 등록 | 지원자 / 지원자 사용자 로그인 | N | 201 Created |
 | API-078 | 지원자 - 마이페이지 | GET | /candidate/notifications/interview-invitations | 응시 안내 메일 조회 | 지원자 / 지원자 사용자 로그인 | N | 200 OK |
 | API-079 | AI/리포트 처리 | POST | /ai/guardrails/validate | AI 출력 안전성 검증 | 시스템 / 자동 처리 | N | 200 OK |
+| API-080 | AI/리포트 처리 | GET | /ai/jobs/{processLogId}/status | AI 작업 상태 조회 | 로그인 사용자 / 개발 임시 인증 | N | 200 OK |
