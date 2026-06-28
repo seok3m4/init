@@ -156,15 +156,21 @@ test("STT stores transcript against the target interview answer", async () => {
   ]);
   const output = JSON.parse(repository.get(11).outputRef ?? "{}") as {
     fileAsset?: { fileId?: number; storageKey?: string };
+    transcriptTarget?: string;
+    dedupeKey?: string;
+    duplicatePolicy?: string;
   };
   assert.equal(output.fileAsset?.fileId, 11);
   assert.equal(output.fileAsset?.storageKey, "candidate/1/answer-42.wav");
+  assert.equal(output.transcriptTarget, "interview_answers.transcript");
+  assert.equal(output.dedupeKey, "answer:42:transcript");
+  assert.equal(output.duplicatePolicy, "KEEP_EXISTING_TRANSCRIPT");
 });
 
 test("duplicate STT requests keep the existing transcript result", async () => {
   const results = new InMemoryAiResultRepository();
 
-  await run({
+  const firstRepository = await run({
     processLogId: 18,
     processType: "STT",
     input: {
@@ -178,7 +184,7 @@ test("duplicate STT requests keep the existing transcript result", async () => {
     results
   });
 
-  await run({
+  const secondRepository = await run({
     processLogId: 19,
     processType: "STT",
     input: {
@@ -199,6 +205,8 @@ test("duplicate STT requests keep the existing transcript result", async () => {
     audioS3Key: "candidate/1/answer-42-first.wav",
     transcript: "Transcript generated from candidate/1/answer-42-first.wav"
   });
+  assert.equal(JSON.parse(firstRepository.get(18).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_TRANSCRIPT");
+  assert.equal(JSON.parse(secondRepository.get(19).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_TRANSCRIPT");
 });
 
 test("follow-up question policy is separated for mock and recruiting interviews", async () => {
@@ -257,11 +265,15 @@ test("duplicate follow-up requests keep one result per session, answer and polic
     }
   };
 
-  await run({ processLogId: 20, processType: "FOLLOW_UP", input, results });
-  await run({ processLogId: 21, processType: "FOLLOW_UP", input, results });
+  const firstRepository = await run({ processLogId: 20, processType: "FOLLOW_UP", input, results });
+  const secondRepository = await run({ processLogId: 21, processType: "FOLLOW_UP", input, results });
 
   assert.equal(results.followUpQuestions.length, 1);
   assert.equal(results.followUpQuestions[0].policy, "MOCK");
+  assert.equal(JSON.parse(firstRepository.get(20).outputRef ?? "{}").dedupeKey, "MOCK:3:4");
+  assert.equal(JSON.parse(firstRepository.get(20).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_FOLLOW_UP");
+  assert.equal(JSON.parse(secondRepository.get(21).outputRef ?? "{}").dedupeKey, "MOCK:3:4");
+  assert.equal(JSON.parse(secondRepository.get(21).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_FOLLOW_UP");
 });
 
 test("question generation stores review-required drafts after guardrail pass", async () => {

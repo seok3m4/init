@@ -1077,6 +1077,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 음성 품질이 분석 가능해야 함
 - 성공 응답/처리:
   - 답변 스크립트 저장
+  - 같은 answerId로 중복 STT 요청이 들어오면 기존 transcript를 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_TRANSCRIPT를 남긴다.
 - 오류/예외:
   - 음성 인식 실패 시 영상 원본 검토 상태로 표시한다.
 - 관련 ERD 테이블:
@@ -1098,6 +1099,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 이전 질문과 답변 텍스트가 충분해야 함
 - 성공 응답/처리:
   - 꼬리질문 표시
+  - 같은 sessionId, answerId, 모의면접 정책으로 중복 요청이 들어오면 기존 꼬리질문을 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_FOLLOW_UP을 남긴다.
 - 오류/예외:
   - 답변이 너무 짧거나 부적절하면 기본 꼬리질문을 제시한다.
 - 관련 ERD 테이블:
@@ -1545,6 +1547,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 음성 품질이 분석 가능해야 함
 - 성공 응답/처리:
   - 답변 스크립트 저장
+  - 같은 answerId로 중복 STT 요청이 들어오면 기존 transcript를 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_TRANSCRIPT를 남긴다.
 - 오류/예외:
   - 음성 인식 실패 시 영상 원본 검토 상태로 표시한다.
 - 관련 ERD 테이블:
@@ -1566,6 +1569,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 이전 질문과 답변 텍스트가 충분해야 하며 JD 또는 서류 요약 중 하나가 존재해야 함
 - 성공 응답/처리:
   - 꼬리질문 표시
+  - 같은 sessionId, answerId, 채용면접 정책으로 중복 요청이 들어오면 기존 꼬리질문을 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_FOLLOW_UP을 남긴다.
 - 오류/예외:
   - 답변이 너무 짧거나 부적절하면 기본 꼬리질문을 제시한다.
 - 관련 ERD 테이블:

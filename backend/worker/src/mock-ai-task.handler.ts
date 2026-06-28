@@ -88,7 +88,10 @@ export class MockAiTaskHandler implements AiTaskHandler {
     return {
       outputRef: JSON.stringify({
         answerId,
-        fileAsset: fileAssetRef(audioFileId, audioS3Key)
+        fileAsset: fileAssetRef(audioFileId, audioS3Key),
+        transcriptTarget: "interview_answers.transcript",
+        dedupeKey: `answer:${answerId}:transcript`,
+        duplicatePolicy: "KEEP_EXISTING_TRANSCRIPT"
       }),
       guardrail: { result: "PASS", reason: null },
       finalSave: () => this.results.saveTranscript({ answerId, audioFileId, audioS3Key, transcript })
@@ -116,7 +119,16 @@ export class MockAiTaskHandler implements AiTaskHandler {
         : `Recruiting follow-up using ${context} based on: ${shorten(transcript)}`;
 
     return {
-      outputRef: JSON.stringify({ sessionId, answerId, policy, previousQuestion, jobDescription, documentSummary }),
+      outputRef: JSON.stringify({
+        sessionId,
+        answerId,
+        policy,
+        previousQuestion,
+        jobDescription,
+        documentSummary,
+        dedupeKey: `${policy}:${sessionId}:${answerId}`,
+        duplicatePolicy: "KEEP_EXISTING_FOLLOW_UP"
+      }),
       guardrail: this.validateMockPolicy(policy, content),
       finalSave: () => this.results.saveFollowUpQuestion({ sessionId, answerId, content, policy })
     };
