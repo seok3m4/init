@@ -174,6 +174,16 @@ describe("ReportsController", () => {
     expect(statusResponse.body.data.status).toBe("PENDING");
   });
 
+  it("rejects document extraction without a file asset reference", async () => {
+    await candidateRequest("/api/v1/candidate/documents/extract")
+      .send({
+        applicationId: 3,
+        documentId: 8,
+        s3Key: "candidate/4/resume.pdf"
+      })
+      .expect(400);
+  });
+
   it("queues candidate STT work for worker processing", async () => {
     const response = await candidateRequest("/api/v1/candidate/mock-interviews/7/stt")
       .send({
@@ -186,6 +196,15 @@ describe("ReportsController", () => {
     expect(response.body.data.processType).toBe("STT");
     expect(response.body.data.status).toBe("PENDING");
     expect(response.body.data.queued).toBe(true);
+  });
+
+  it("rejects STT without an audio file asset reference", async () => {
+    await candidateRequest("/api/v1/candidate/mock-interviews/7/stt")
+      .send({
+        answerId: 10,
+        audioS3Key: "candidate/4/answer-10.wav"
+      })
+      .expect(400);
   });
 
   it("queues mock follow-up work with previous question context", async () => {
