@@ -5,6 +5,7 @@ import {
   AiProcessRefs,
   AiProcessType,
   EvaluationReportSnapshot,
+  FailureReason,
   QueuedAiProcessSnapshot,
   ReportType
 } from "./report.types";
@@ -16,7 +17,7 @@ export interface DispatchAiJobCommand {
 }
 
 export interface DispatchAiJobResult extends QueuedAiProcessSnapshot {
-  queued: true;
+  queued: boolean;
 }
 
 export interface DispatchReportGenerationCommand {
@@ -40,12 +41,20 @@ export class AiJobDispatcherService {
     const inputRef = JSON.stringify(command.input);
     const process = await this.repository.createQueuedProcess(command.processType, inputRef, command.refs);
 
-    await this.queuePublisher.publish({
-      processLogId: process.processLogId,
-      processType: process.processType,
-      inputRef: process.inputRef,
-      attempt: 1
-    });
+    try {
+      await this.queuePublisher.publish({
+        processLogId: process.processLogId,
+        processType: process.processType,
+        inputRef: process.inputRef,
+        attempt: 1
+      });
+    } catch (error) {
+      const failed = await this.repository.markQueuedProcessFailed(process.processLogId, this.queuePublishFailure(error));
+      return {
+        ...failed,
+        queued: false
+      };
+    }
 
     return {
       ...process,
@@ -59,10 +68,23 @@ export class AiJobDispatcherService {
       processType: "REPORT_GENERATE",
       input: command.input
     });
+    const finalReport =
+      process.status === "FAILED" && process.failure
+        ? await this.repository.markReportFailed(command.reportId, process.failure)
+        : report;
 
     return {
       ...process,
-      report
+      report: finalReport
+    };
+  }
+
+  private queuePublishFailure(error: unknown): FailureReason {
+    const reason = error instanceof Error ? error.message : "unknown queue publish failure";
+    return {
+      category: "RETRYABLE",
+      reason: `AI queue publish failed: ${reason}`,
+      retryable: true
     };
   }
 }

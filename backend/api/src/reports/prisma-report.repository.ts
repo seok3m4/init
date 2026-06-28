@@ -70,6 +70,18 @@ export class PrismaReportRepository implements ReportRepository {
     return this.toQueuedProcessSnapshot(processLog);
   }
 
+  async markQueuedProcessFailed(processLogId: number, failure: FailureReason): Promise<QueuedAiProcessSnapshot> {
+    const processLog = await this.prisma.aiProcessLog.update({
+      where: { processLogId: BigInt(processLogId) },
+      data: {
+        status: "FAILED",
+        failureCategory: failure.category,
+        failureReason: failure.reason
+      }
+    });
+    return this.toQueuedProcessSnapshot(processLog);
+  }
+
   async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
     await this.ensureReport(reportId, reportType);
     const processLogId = this.nextId();

@@ -24,6 +24,10 @@ sequenceDiagram
   UI->>API: 요청
   API->>Log: PENDING 작업 로그 생성
   API->>Queue: processLogId, processType, inputRef 발행
+  alt Queue publish failed
+    API->>Log: FAILED 및 retryable failure 기록
+    API-->>UI: processLogId와 실패 상태 반환
+  else Queue publish succeeded
   API-->>UI: processLogId 반환
   Worker->>Queue: 메시지 수신
   Worker->>Log: RUNNING 기록
@@ -32,6 +36,7 @@ sequenceDiagram
   Guard-->>Worker: PASS/BLOCKED/REGENERATED
   Worker->>Log: COMPLETED 또는 FAILED 기록
   Worker-->>Queue: 성공 처리 후 메시지 삭제
+  end
 ```
 
 ## Async Endpoint Map
