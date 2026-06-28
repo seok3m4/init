@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ai_guardrail_logs (
     policy_name VARCHAR(120) NOT NULL,
     result VARCHAR(40) NOT NULL,
     reason TEXT,
+    failure_category VARCHAR(40),
     created_at TIMESTAMP NOT NULL
 );
 

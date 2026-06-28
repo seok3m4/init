@@ -284,6 +284,7 @@
 | policy_name | VARCHAR(120) NOT NULL | 정책명 |
 | result | VARCHAR(40) NOT NULL | 검증 결과: PASS, BLOCKED, REGENERATED |
 | reason | TEXT | 사유 |
+| failure_category | VARCHAR(40) | BLOCKED 결과의 실패 구분. PASS/REGENERATED는 null |
 | created_at | TIMESTAMP NOT NULL | 생성 시각 |
 
 ### embeddings

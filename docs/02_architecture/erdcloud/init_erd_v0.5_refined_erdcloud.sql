@@ -559,6 +559,9 @@ CREATE TABLE ai_guardrail_logs (
     -- 사유
     reason TEXT,
 
+    -- BLOCKED 결과의 실패 구분. PASS/REGENERATED는 null
+    failure_category VARCHAR(40),
+
     -- 생성 시각
     created_at TIMESTAMP NOT NULL
 );
