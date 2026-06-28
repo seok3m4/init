@@ -3,12 +3,13 @@ import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../common/dev-auth/current-user";
 import { ok } from "../common/response/api-response";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
-import { AiReportPipelineService } from "./ai-report-pipeline.service";
 import {
   AnswerEvaluationRequest,
   CommunicationAnalysisRequest,
   EvaluationContextRequest,
-  GenerateReportRequest
+  GenerateReportRequest,
+  ReportPipelineStep,
+  ReportType
 } from "./report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
@@ -17,8 +18,7 @@ type HeaderMap = Record<string, string | string[] | undefined>;
 export class ReportsController {
   constructor(
     private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly dispatcher: AiJobDispatcherService,
-    private readonly aiReportPipelineService: AiReportPipelineService
+    private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post(":reportId/evaluation-context")
@@ -30,11 +30,13 @@ export class ReportsController {
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
+    this.validateEvaluationContextPayload(body);
 
-    const result = await this.aiReportPipelineService.buildEvaluationContext({
-      currentUser,
-      reportId: this.parseReportId(reportIdParam),
-      body
+    const reportId = this.parseReportId(reportIdParam);
+    const result = await this.dispatcher.dispatchReportGeneration({
+      reportId,
+      reportType: body.reportType,
+      input: this.reportStepInput("EVALUATION_CONTEXT", reportId, body, currentUser)
     });
 
     return ok(result);
@@ -49,11 +51,13 @@ export class ReportsController {
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
+    this.validateAnswerEvaluationPayload(body);
 
-    const result = await this.aiReportPipelineService.evaluateAnswers({
-      currentUser,
-      reportId: this.parseReportId(reportIdParam),
-      body
+    const reportId = this.parseReportId(reportIdParam);
+    const result = await this.dispatcher.dispatchReportGeneration({
+      reportId,
+      reportType: body.reportType,
+      input: this.reportStepInput("ANSWER_EVALUATION", reportId, body, currentUser)
     });
 
     return ok(result);
@@ -68,11 +72,13 @@ export class ReportsController {
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
+    this.validateCommunicationAnalysisPayload(body);
 
-    const result = await this.aiReportPipelineService.analyzeCommunication({
-      currentUser,
-      reportId: this.parseReportId(reportIdParam),
-      body
+    const reportId = this.parseReportId(reportIdParam);
+    const result = await this.dispatcher.dispatchReportGeneration({
+      reportId,
+      reportType: body.reportType,
+      input: this.reportStepInput("COMMUNICATION_ANALYSIS", reportId, body, currentUser)
     });
 
     return ok(result);
@@ -122,15 +128,89 @@ export class ReportsController {
     };
   }
 
+  private reportStepInput(
+    step: ReportPipelineStep,
+    reportId: number,
+    body: EvaluationContextRequest | AnswerEvaluationRequest | CommunicationAnalysisRequest,
+    currentUser: CurrentUser
+  ) {
+    return {
+      kind: "REPORT_PIPELINE_STEP",
+      requestedBy: {
+        userId: currentUser.userId,
+        userType: currentUser.userType,
+        companyId: currentUser.companyId
+      },
+      payload: {
+        ...body,
+        reportId,
+        step
+      }
+    };
+  }
+
+  private validateEvaluationContextPayload(body: EvaluationContextRequest): void {
+    this.validateReportType(body.reportType);
+    if (!body.company?.companyId || !body.posting?.postingId || !body.application?.applicationId) {
+      throw this.validation("company, posting, and application are required.");
+    }
+    if (!body.posting.jobDescription?.trim()) {
+      throw this.validation("posting.jobDescription is required.");
+    }
+    this.validateCriteria(body.criteria);
+    this.validateAnswers(body.answers);
+  }
+
+  private validateAnswerEvaluationPayload(body: AnswerEvaluationRequest): void {
+    this.validateReportType(body.reportType);
+    this.validateCriteria(body.criteria);
+    this.validateAnswers(body.answers);
+  }
+
+  private validateCommunicationAnalysisPayload(body: CommunicationAnalysisRequest): void {
+    this.validateReportType(body.reportType);
+    if (!body.consentConfirmed) {
+      throw this.validation("consentConfirmed is required for communication analysis.");
+    }
+    if (!body.mediaQuality) {
+      throw this.validation("mediaQuality is required.");
+    }
+  }
+
   private validateGeneratePayload(body: GenerateReportRequest): void {
+    this.validateReportType(body.reportType);
     if (!body.jobDescription?.trim()) {
       throw this.validation("jobDescription is required.");
     }
-    if (!Array.isArray(body.criteria) || body.criteria.length === 0) {
+    this.validateCriteria(body.criteria);
+    this.validateAnswers(body.answers);
+  }
+
+  private validateReportType(reportType: ReportType): void {
+    if (!["RECRUITING_REPORT", "MOCK_INTERVIEW_REPORT"].includes(reportType)) {
+      throw this.validation("reportType is invalid.");
+    }
+  }
+
+  private validateCriteria(criteria: GenerateReportRequest["criteria"]): void {
+    if (!Array.isArray(criteria) || criteria.length === 0) {
       throw this.validation("criteria is required.");
     }
-    if (!Array.isArray(body.answers) || body.answers.length === 0) {
+    for (const criterion of criteria) {
+      if (!Number.isInteger(criterion.criterionId) || criterion.criterionId <= 0 || !criterion.name?.trim()) {
+        throw this.validation("criterionId and criterion name are required.");
+      }
+    }
+  }
+
+  private validateAnswers(answers: GenerateReportRequest["answers"]): void {
+    if (!Array.isArray(answers) || answers.length === 0) {
       throw this.validation("answers is required.");
+    }
+    for (const answer of answers) {
+      if (!Number.isInteger(answer.answerId) || answer.answerId <= 0 || !answer.transcript?.trim()) {
+        throw this.validation("answerId and transcript are required.");
+      }
     }
   }
 
@@ -157,8 +237,7 @@ export class ReportsController {
 export class CandidateMockReportsController {
   constructor(
     private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly dispatcher: AiJobDispatcherService,
-    private readonly aiReportPipelineService: AiReportPipelineService
+    private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post(":reportId/generate")

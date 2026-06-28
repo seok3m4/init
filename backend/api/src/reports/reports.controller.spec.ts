@@ -23,17 +23,20 @@ describe("ReportsController", () => {
     await app.close();
   });
 
-  it("builds evaluation context for a company dev user", async () => {
+  it("queues evaluation context work for a company dev user", async () => {
     const response = await companyRequest("/api/v1/reports/1/evaluation-context")
       .send(validContextPayload())
       .expect(202);
 
-    expect(response.body.data.step).toBe("EVALUATION_CONTEXT");
-    expect(response.body.data.context.companyId).toBe(1);
-    expect(response.body.data.context.manualEvaluations).toHaveLength(1);
+    expect(response.body.data.processType).toBe("REPORT_GENERATE");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+    expect(response.body.data.report.status).toBe("GENERATING");
+    expect(response.body.data.inputRef).toContain("\"step\":\"EVALUATION_CONTEXT\"");
+    expect(response.body.data.inputRef).toContain("\"reportId\":1");
   });
 
-  it("evaluates answers and stores score/evidence counts", async () => {
+  it("queues answer evaluation work for a company dev user", async () => {
     const response = await companyRequest("/api/v1/reports/1/answer-evaluation")
       .send({
         reportType: "RECRUITING_REPORT",
@@ -43,13 +46,14 @@ describe("ReportsController", () => {
       })
       .expect(202);
 
-    expect(response.body.data.step).toBe("ANSWER_EVALUATION");
-    expect(response.body.data.guardrail.result).toBe("PASS");
-    expect(response.body.data.stored.scoreCount).toBe(1);
-    expect(response.body.data.stored.evidenceCount).toBe(2);
+    expect(response.body.data.processType).toBe("REPORT_GENERATE");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+    expect(response.body.data.report.status).toBe("GENERATING");
+    expect(response.body.data.inputRef).toContain("\"step\":\"ANSWER_EVALUATION\"");
   });
 
-  it("stores communication analysis as auxiliary-only data", async () => {
+  it("queues communication analysis work for a company dev user", async () => {
     const response = await companyRequest("/api/v1/reports/1/communication-analysis")
       .send({
         reportType: "RECRUITING_REPORT",
@@ -59,9 +63,11 @@ describe("ReportsController", () => {
       })
       .expect(202);
 
-    expect(response.body.data.step).toBe("COMMUNICATION_ANALYSIS");
-    expect(response.body.data.communicationAnalysis.usage).toBe("AUXILIARY_ONLY");
-    expect(response.body.data.communicationAnalysis.decisionWeight).toBe(0);
+    expect(response.body.data.processType).toBe("REPORT_GENERATE");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.queued).toBe(true);
+    expect(response.body.data.report.status).toBe("GENERATING");
+    expect(response.body.data.inputRef).toContain("\"step\":\"COMMUNICATION_ANALYSIS\"");
   });
 
   it("generates a recruiting report for a company dev user", async () => {

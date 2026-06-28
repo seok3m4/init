@@ -770,7 +770,8 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 검증/전제조건:
   - 모든 필수 데이터가 존재
 - 성공 응답/처리:
-  - 평가 컨텍스트 저장
+  - ai_process_logs에 REPORT_GENERATE/EVALUATION_CONTEXT 작업을 생성하고 processLogId를 반환한다.
+  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.context로 평가 컨텍스트를 조회한다.
 - 오류/예외:
   - 필수 데이터 누락 시 해당 평가 항목을 보류 상태로 표시한다.
 - 관련 ERD 테이블:
@@ -791,7 +792,8 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 검증/전제조건:
   - 답변 스크립트 존재
 - 성공 응답/처리:
-  - 답변 평가 결과 저장
+  - ai_process_logs에 REPORT_GENERATE/ANSWER_EVALUATION 작업을 생성하고 processLogId를 반환한다.
+  - worker 가드레일 통과 후 report_scores, report_evidences에 저장하고 status output.scores/output.evidences로 조회한다.
 - 오류/예외:
   - 근거 부족 또는 답변 불성실 판단 시 낮은 신뢰도와 수동 검토 상태를 표시한다.
 - 관련 ERD 테이블:
@@ -812,7 +814,8 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 검증/전제조건:
   - 분석 동의 및 영상 품질 충족
 - 성공 응답/처리:
-  - 커뮤니케이션 지표 저장
+  - ai_process_logs에 REPORT_GENERATE/COMMUNICATION_ANALYSIS 작업을 생성하고 processLogId를 반환한다.
+  - worker 완료 후 status output.communicationAnalysis로 보조 지표를 조회한다.
 - 오류/예외:
   - 얼굴 미검출, 음성 품질 저하 시 해당 지표를 제외하고 사유를 표시한다.
 - 관련 ERD 테이블:
