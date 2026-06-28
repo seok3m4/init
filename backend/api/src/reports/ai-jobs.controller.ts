@@ -161,39 +161,37 @@ export class CompanyAiJobsController {
   @Post("evaluation-criteria/suggest")
   @HttpCode(HttpStatus.ACCEPTED)
   async suggestCriteria(@Headers() headers: HeaderMap, @Body() body: JobBody) {
-    return this.companyJob("CRITERIA_SUGGEST", "CRITERIA_SUGGEST", headers, body, ["postingId", "jobDescription"]);
+    this.requirePositive(body.postingId, "postingId");
+    this.requireText(body.jobDescription, "jobDescription");
+    this.requireText(body.talentProfile, "talentProfile");
+    this.requireText(body.evaluationPolicy, "evaluationPolicy");
+
+    return this.dispatchCompanyJob("CRITERIA_SUGGEST", "CRITERIA_SUGGEST", headers, body);
   }
 
   @Post("questions/generate")
   @HttpCode(HttpStatus.ACCEPTED)
   async generateQuestions(@Headers() headers: HeaderMap, @Body() body: JobBody) {
-    return this.companyJob("QUESTION_GENERATE", "RECRUITING_QUESTION_GENERATE", headers, body, [
-      "postingId",
-      "jobDescription"
-    ]);
+    this.requirePositive(body.postingId, "postingId");
+    this.requireText(body.jobDescription, "jobDescription");
+    this.requirePositive(body.questionCount, "questionCount");
+
+    return this.dispatchCompanyJob("QUESTION_GENERATE", "RECRUITING_QUESTION_GENERATE", headers, body);
   }
 
   @Post("question-sets")
   @HttpCode(HttpStatus.ACCEPTED)
   async generateQuestionSet(@Headers() headers: HeaderMap, @Body() body: JobBody) {
-    return this.companyJob("QUESTION_SET_GENERATE", "QUESTION_SET_GENERATE", headers, body, ["postingId", "questionCount"]);
+    this.requirePositive(body.postingId, "postingId");
+    this.requirePositive(body.questionCount, "questionCount");
+    this.requireNonEmptyArray(body.criteria, "criteria");
+    this.requireNonEmptyArray(body.questionTypes, "questionTypes");
+
+    return this.dispatchCompanyJob("QUESTION_SET_GENERATE", "QUESTION_SET_GENERATE", headers, body);
   }
 
-  private async companyJob(
-    processType: AiProcessType,
-    kind: string,
-    headers: HeaderMap,
-    body: JobBody,
-    requiredFields: string[]
-  ) {
+  private async dispatchCompanyJob(processType: AiProcessType, kind: string, headers: HeaderMap, body: JobBody) {
     const currentUser = this.company(headers);
-    for (const field of requiredFields) {
-      if (field.endsWith("Id") || field === "questionCount") {
-        this.requirePositive(body[field], field);
-      } else {
-        this.requireText(body[field], field);
-      }
-    }
 
     return ok(
       await this.dispatcher.dispatch({
@@ -225,6 +223,12 @@ export class CompanyAiJobsController {
 
   private requireText(value: unknown, name: string): void {
     if (typeof value !== "string" || !value.trim()) {
+      throw this.validation(`${name} is required.`);
+    }
+  }
+
+  private requireNonEmptyArray(value: unknown, name: string): void {
+    if (!Array.isArray(value) || value.length === 0) {
       throw this.validation(`${name} is required.`);
     }
   }

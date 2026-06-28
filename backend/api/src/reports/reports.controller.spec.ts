@@ -160,13 +160,16 @@ describe("ReportsController", () => {
       .send({
         postingId: 2,
         jobDescription: "Backend engineer with NestJS and PostgreSQL experience.",
-        talentProfile: "Pragmatic problem solver"
+        talentProfile: "Pragmatic problem solver",
+        evaluationPolicy: "Prefer evidence-backed backend ownership."
       })
       .expect(202);
 
     expect(response.body.data.processType).toBe("CRITERIA_SUGGEST");
     expect(response.body.data.status).toBe("PENDING");
     expect(response.body.data.queued).toBe(true);
+    expect(response.body.data.inputRef).toContain("Pragmatic problem solver");
+    expect(response.body.data.inputRef).toContain("Prefer evidence-backed backend ownership.");
   });
 
   it("exposes parsed company generation output through AI job status", async () => {
@@ -192,6 +195,31 @@ describe("ReportsController", () => {
     expect(statusResponse.body.data.status).toBe("COMPLETED");
     expect(statusResponse.body.data.output.items).toEqual(["Question 1", "Question 2"]);
     expect(statusResponse.body.data.output.reviewRequired).toBe(true);
+  });
+
+  it("queues question-set generation with criteria and question type conditions", async () => {
+    const response = await companyRequest("/api/v1/company/interviews/question-sets")
+      .send({
+        postingId: 2,
+        questionCount: 2,
+        criteria: [{ criterionId: 1, name: "Problem solving", weight: 40 }],
+        questionTypes: ["TECHNICAL", "EXPERIENCE"]
+      })
+      .expect(202);
+
+    expect(response.body.data.processType).toBe("QUESTION_SET_GENERATE");
+    expect(response.body.data.status).toBe("PENDING");
+    expect(response.body.data.inputRef).toContain("Problem solving");
+    expect(response.body.data.inputRef).toContain("TECHNICAL");
+  });
+
+  it("rejects criteria suggestion without talent profile and evaluation policy", async () => {
+    await companyRequest("/api/v1/company/interviews/evaluation-criteria/suggest")
+      .send({
+        postingId: 2,
+        jobDescription: "Backend engineer with NestJS and PostgreSQL experience."
+      })
+      .expect(400);
   });
 
   it("exposes parsed candidate mock-question output through AI job status", async () => {

@@ -94,8 +94,13 @@ export class MockAiTaskHandler implements AiTaskHandler {
 
   private criteriaSuggest(payload: Record<string, unknown>): AiTaskResult {
     const jobDescription = requiredText(payload.jobDescription, "jobDescription");
-    const talentProfile = typeof payload.talentProfile === "string" ? payload.talentProfile : "team fit";
-    const items = [`Problem solving from ${shorten(jobDescription)}`, `Talent fit: ${shorten(talentProfile)}`];
+    const talentProfile = requiredText(payload.talentProfile, "talentProfile");
+    const evaluationPolicy = requiredText(payload.evaluationPolicy, "evaluationPolicy");
+    const items = [
+      `Problem solving from ${shorten(jobDescription)}`,
+      `Talent fit: ${shorten(talentProfile)}`,
+      `Evaluation policy alignment: ${shorten(evaluationPolicy)}`
+    ];
 
     return this.generatedDraft("CRITERIA_SUGGEST", items);
   }
@@ -265,7 +270,13 @@ export class MockAiTaskHandler implements AiTaskHandler {
   private questionSetGenerate(payload: Record<string, unknown>): AiTaskResult {
     positiveNumber(payload.postingId, "postingId");
     const questionCount = positiveNumber(payload.questionCount, "questionCount");
-    const items = Array.from({ length: questionCount }, (_, index) => `Question set item ${index + 1}`);
+    const criteria = criteriaOf(payload.criteria);
+    const questionTypes = nonEmptyStringArrayOf(payload.questionTypes, "questionTypes");
+    const items = Array.from({ length: questionCount }, (_, index) => {
+      const criterion = criteria[index % criteria.length];
+      const questionType = questionTypes[index % questionTypes.length];
+      return `${questionType} question ${index + 1} for ${criterion.name}`;
+    });
 
     return this.generatedDraft("QUESTION_SET_GENERATE", items);
   }
@@ -430,6 +441,14 @@ function stringArrayOf(value: unknown): string[] {
     return [];
   }
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function nonEmptyStringArrayOf(value: unknown, name: string): string[] {
+  const values = stringArrayOf(value);
+  if (values.length === 0) {
+    throw new NonRetryableAiWorkerFailure(`${name} is required`);
+  }
+  return values;
 }
 
 function reportSnapshot(reportId: number, reportType: GeneratedReportRecord["reportType"]) {

@@ -250,6 +250,62 @@ test("question generation stores review-required drafts after guardrail pass", a
   assert.equal(output.items?.length, 2);
 });
 
+test("criteria suggestion uses JD, talent profile and evaluation policy", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  const repository = await run({
+    processLogId: 28,
+    processType: "CRITERIA_SUGGEST",
+    input: {
+      payload: {
+        postingId: 2,
+        jobDescription: "Backend engineer with NestJS and PostgreSQL.",
+        talentProfile: "Pragmatic problem solver",
+        evaluationPolicy: "Evidence-backed backend ownership"
+      }
+    },
+    results
+  });
+
+  const output = JSON.parse(repository.get(28).outputRef ?? "{}") as {
+    items?: string[];
+    reviewRequired?: boolean;
+  };
+  assert.equal(output.reviewRequired, true);
+  assert.deepEqual(output.items, results.generatedDrafts[0].items);
+  assert.match(output.items?.join("\n") ?? "", /Pragmatic problem solver/);
+  assert.match(output.items?.join("\n") ?? "", /Evidence-backed backend ownership/);
+});
+
+test("question set generation reflects criteria and question type conditions", async () => {
+  const results = new InMemoryAiResultRepository();
+
+  const repository = await run({
+    processLogId: 29,
+    processType: "QUESTION_SET_GENERATE",
+    input: {
+      payload: {
+        postingId: 2,
+        questionCount: 2,
+        criteria: [
+          {
+            criterionId: 1,
+            name: "Problem solving",
+            weight: 40
+          }
+        ],
+        questionTypes: ["TECHNICAL", "EXPERIENCE"]
+      }
+    },
+    results
+  });
+
+  const output = JSON.parse(repository.get(29).outputRef ?? "{}") as {
+    items?: string[];
+  };
+  assert.deepEqual(output.items, ["TECHNICAL question 1 for Problem solving", "EXPERIENCE question 2 for Problem solving"]);
+});
+
 test("answer evaluation step stores scores and evidences without completing the final report", async () => {
   const results = new InMemoryAiResultRepository();
 
