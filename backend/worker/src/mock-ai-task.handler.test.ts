@@ -209,6 +209,30 @@ test("duplicate STT requests keep the existing transcript result", async () => {
   assert.equal(JSON.parse(secondRepository.get(19).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_TRANSCRIPT");
 });
 
+test("STT failure records failed process status and reason", async () => {
+  const results = new InMemoryAiResultRepository();
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(34, "STT", {
+      kind: "MOCK_INTERVIEW_STT",
+      payload: {
+        answerId: 42,
+        audioS3Key: "candidate/1/answer-42.wav"
+      }
+    })
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results)).processBatch();
+
+  assert.equal(repository.get(34).status, "FAILED");
+  assert.deepEqual(repository.get(34).failure, {
+    category: "NON_RETRYABLE",
+    reason: "audioFileId must be a positive integer",
+    retryable: false
+  });
+  assert.deepEqual(results.transcripts, []);
+});
+
 test("follow-up question policy is separated for mock and recruiting interviews", async () => {
   const results = new InMemoryAiResultRepository();
 
@@ -274,6 +298,32 @@ test("duplicate follow-up requests keep one result per session, answer and polic
   assert.equal(JSON.parse(firstRepository.get(20).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_FOLLOW_UP");
   assert.equal(JSON.parse(secondRepository.get(21).outputRef ?? "{}").dedupeKey, "MOCK:3:4");
   assert.equal(JSON.parse(secondRepository.get(21).outputRef ?? "{}").duplicatePolicy, "KEEP_EXISTING_FOLLOW_UP");
+});
+
+test("recruiting follow-up failure records missing JD or document context", async () => {
+  const results = new InMemoryAiResultRepository();
+  const repository = new InMemoryAiProcessLogRepository();
+  const queue = new InMemoryAiJobQueue([
+    message(35, "FOLLOW_UP", {
+      kind: "RECRUITING_FOLLOW_UP",
+      payload: {
+        sessionId: 5,
+        answerId: 6,
+        previousQuestion: "How did you use Redis?",
+        transcript: "I used Redis cache invalidation."
+      }
+    })
+  ]);
+
+  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(results)).processBatch();
+
+  assert.equal(repository.get(35).status, "FAILED");
+  assert.deepEqual(repository.get(35).failure, {
+    category: "NON_RETRYABLE",
+    reason: "jobDescription or documentSummary is required",
+    retryable: false
+  });
+  assert.deepEqual(results.followUpQuestions, []);
 });
 
 test("question generation stores review-required drafts after guardrail pass", async () => {

@@ -107,6 +107,9 @@ export class MockAiTaskHandler implements AiTaskHandler {
     const policy = kind.startsWith("MOCK") ? "MOCK" : "RECRUITING";
     const jobDescription = typeof payload.jobDescription === "string" ? payload.jobDescription : undefined;
     const documentSummary = typeof payload.documentSummary === "string" ? payload.documentSummary : undefined;
+    if (policy === "RECRUITING" && !hasText(jobDescription) && !hasText(documentSummary)) {
+      throw new NonRetryableAiWorkerFailure("jobDescription or documentSummary is required");
+    }
     const context =
       policy === "MOCK"
         ? previousQuestion
@@ -539,6 +542,10 @@ function requiredText(value: unknown, name: string): string {
     throw new NonRetryableAiWorkerFailure(`${name} is required`);
   }
   return value;
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function requiredObject(value: unknown, name: string): Record<string, unknown> {
