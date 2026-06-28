@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { parseAiJobOutput } from "./ai-job-output";
 import { PrismaService } from "./prisma.service";
-import { ReportRepository } from "./report.repository";
+import { AiProcessNotFoundError, ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
   EvaluationContext,
@@ -51,9 +51,12 @@ export class PrismaReportRepository implements ReportRepository {
   }
 
   async getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot> {
-    const processLog = await this.prisma.aiProcessLog.findUniqueOrThrow({
+    const processLog = await this.prisma.aiProcessLog.findUnique({
       where: { processLogId: BigInt(processLogId) }
     });
+    if (!processLog) {
+      throw new AiProcessNotFoundError(processLogId);
+    }
     return this.toQueuedProcessSnapshot(processLog);
   }
 

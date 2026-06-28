@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { parseAiJobOutput } from "./ai-job-output";
-import { ReportRepository } from "./report.repository";
+import { AiProcessNotFoundError, ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
   EvaluationContext,
@@ -69,7 +69,7 @@ export class InMemoryReportRepository implements ReportRepository {
 
     const processLog = this.processLogs.get(processLogId);
     if (!processLog) {
-      throw new Error(`Process log ${processLogId} was not initialized.`);
+      throw new AiProcessNotFoundError(processLogId);
     }
 
     return {

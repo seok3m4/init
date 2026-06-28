@@ -422,6 +422,12 @@ describe("ReportsController", () => {
     expect(statusResponse.body.data.output.targetTables).toEqual(["question_bank"]);
   });
 
+  it("enforces auth and processLogId validation on AI job status lookup", async () => {
+    await request(app.getHttpServer()).get("/api/v1/ai/jobs/1/status").expect(401);
+    await companyGet("/api/v1/ai/jobs/not-a-number/status").expect(400);
+    await companyGet("/api/v1/ai/jobs/999999/status").expect(404);
+  });
+
   it("returns unauthorized when dev auth headers are missing", async () => {
     await request(app.getHttpServer()).post("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(401);
   });

@@ -1,9 +1,21 @@
-import { BadRequestException, Body, Controller, Get, Headers, HttpCode, HttpStatus, Inject, Param, Post } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  NotFoundException,
+  Param,
+  Post
+} from "@nestjs/common";
 import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../common/dev-auth/current-user";
 import { ok } from "../common/response/api-response";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
-import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
+import { AiProcessNotFoundError, REPORT_REPOSITORY, ReportRepository } from "./report.repository";
 import { AiProcessType } from "./report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
@@ -265,7 +277,17 @@ export class AiJobsStatusController {
     this.devAuthAdapter.parse(headers);
     const processLogId = this.parseId(processLogIdParam, "processLogId");
 
-    return ok(await this.repository.getProcess(processLogId));
+    try {
+      return ok(await this.repository.getProcess(processLogId));
+    } catch (error) {
+      if (error instanceof AiProcessNotFoundError) {
+        throw new NotFoundException({
+          code: "AI_PROCESS_NOT_FOUND",
+          message: error.message
+        });
+      }
+      throw error;
+    }
   }
 
   private parseId(value: string, name: string): number {

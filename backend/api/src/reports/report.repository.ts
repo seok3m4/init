@@ -16,6 +16,12 @@ import {
 
 export const REPORT_REPOSITORY = Symbol("REPORT_REPOSITORY");
 
+export class AiProcessNotFoundError extends Error {
+  constructor(readonly processLogId: number) {
+    super(`AI process log ${processLogId} was not found.`);
+  }
+}
+
 export interface ReportRepository {
   createQueuedProcess(
     processType: AiProcessType,

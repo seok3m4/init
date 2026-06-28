@@ -895,7 +895,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 평가/리포트 작업 결과는 output.context, output.scores, output.evidences, output.report 등 작업 유형별 산출물을 반환한다.
 - 오류/예외:
   - processLogId가 양의 정수가 아니면 400 COMMON_VALIDATION_FAILED를 반환한다.
-  - 존재하지 않는 processLogId는 조회 실패 응답으로 처리한다.
+  - 존재하지 않는 processLogId는 404 AI_PROCESS_NOT_FOUND를 반환한다.
 - 관련 ERD 테이블:
   - ai_process_logs, ai_guardrail_logs
 - 비고/미결:
