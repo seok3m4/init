@@ -1,6 +1,6 @@
 import { AiJobQueue } from "./queue";
 import { AiProcessLogRepository } from "./process-log.repository";
-import { toFailureReason } from "./worker-errors";
+import { NonRetryableAiWorkerFailure, toFailureReason } from "./worker-errors";
 import { AiQueueMessage, AiTaskHandler, AiWorkerJob, FailureReason } from "./worker.types";
 
 export interface AiWorkerRunnerOptions {
@@ -61,6 +61,9 @@ export class AiWorkerRunner {
       }
 
       if (result.finalSave) {
+        if (!result.guardrail) {
+          throw new NonRetryableAiWorkerFailure("guardrail result is required before final save");
+        }
         await result.finalSave();
       }
 

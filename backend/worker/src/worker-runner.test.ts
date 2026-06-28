@@ -91,6 +91,33 @@ test("does not run final save when guardrail blocks output", async () => {
   assert.deepEqual(queue.deletedMessageIds, ["message-2"]);
 });
 
+test("rejects final save when a handler does not provide a guardrail result", async () => {
+  const queue = new InMemoryAiJobQueue([message(6)]);
+  const repository = new InMemoryAiProcessLogRepository();
+  let saved = false;
+  const handler: AiTaskHandler = {
+    async handle() {
+      return {
+        outputRef: "s3://reports/6.json",
+        finalSave: async () => {
+          saved = true;
+        }
+      };
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.equal(repository.get(6).status, "FAILED");
+  assert.deepEqual(repository.get(6).failure, {
+    category: "NON_RETRYABLE",
+    reason: "guardrail result is required before final save",
+    retryable: false
+  });
+  assert.equal(saved, false);
+  assert.deepEqual(queue.deletedMessageIds, ["message-6"]);
+});
+
 test("keeps retryable failures on the queue for redelivery", async () => {
   const queue = new InMemoryAiJobQueue([message(3)]);
   const repository = new InMemoryAiProcessLogRepository();
