@@ -35,17 +35,24 @@ export class AiGuardrailsController {
       guardrail = this.guardrailService.markRegenerated(guardrail, body.regenerationReason);
     }
 
+    const policyName = body.policyName ?? "AI_GUARDRAIL_VALIDATE";
+    const createdProcess = body.processLogId
+      ? null
+      : await this.repository.createQueuedProcess("GUARDRAIL_VALIDATE", this.guardrailInputRef(body, policyName));
+    const processLogId = body.processLogId ?? createdProcess?.processLogId;
+    if (!processLogId) {
+      throw this.validation("processLogId could not be resolved.");
+    }
+
     const result: GuardrailValidationResult = {
       target: body.target,
-      guardrail
+      processLogId,
+      guardrail,
+      guardrailLogId: await this.repository.saveGuardrailLog(processLogId, policyName, guardrail)
     };
 
-    if (body.processLogId) {
-      result.guardrailLogId = await this.repository.saveGuardrailLog(
-        body.processLogId,
-        body.policyName ?? "AI_GUARDRAIL_VALIDATE",
-        guardrail
-      );
+    if (createdProcess) {
+      await this.repository.markQueuedProcessCompleted(processLogId, JSON.stringify(result));
     }
 
     return ok(result);
@@ -79,6 +86,15 @@ export class AiGuardrailsController {
     return new BadRequestException({
       code: "COMMON_VALIDATION_FAILED",
       message
+    });
+  }
+
+  private guardrailInputRef(body: GuardrailValidationRequest, policyName: string): string {
+    return JSON.stringify({
+      reportType: body.reportType,
+      target: body.target,
+      policyName,
+      regenerated: body.regenerated ?? false
     });
   }
 }

@@ -865,6 +865,7 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - 독립 화면 아님. 모든 AI 평가/생성 단계의 공통 정책 레이어
   - 구현 계약:
     - request: reportType, target, scores, summary?, processLogId?, policyName?, regenerated?, regenerationReason?
+    - processLogId가 없으면 GUARDRAIL_VALIDATE ai_process_logs를 생성하고 COMPLETED 상태로 검증 결과를 output에 남긴다.
     - result: PASS는 정책 통과, BLOCKED는 최종 저장 차단, REGENERATED는 재생성된 출력이 정책을 통과했음을 의미한다.
     - ai_guardrail_logs.failure_category에는 BLOCKED일 때 NON_RETRYABLE을 기록한다. PASS/REGENERATED는 실패가 아니므로 null이다.
     - regenerated=true는 기본 검증이 PASS인 경우에만 REGENERATED로 기록된다. 기본 검증이 실패하면 BLOCKED가 우선한다.

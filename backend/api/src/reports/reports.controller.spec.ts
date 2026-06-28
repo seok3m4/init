@@ -117,8 +117,15 @@ describe("ReportsController", () => {
       .expect(200);
 
     expect(response.body.data.target).toBe("SCORES");
+    expect(response.body.data.processLogId).toBeGreaterThan(0);
+    expect(response.body.data.guardrailLogId).toBeGreaterThan(0);
     expect(response.body.data.guardrail.result).toBe("BLOCKED");
     expect(response.body.data.guardrail.failureCategory).toBe("NON_RETRYABLE");
+
+    const statusResponse = await adminGet(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`).expect(200);
+    expect(statusResponse.body.data.processType).toBe("GUARDRAIL_VALIDATE");
+    expect(statusResponse.body.data.status).toBe("COMPLETED");
+    expect(statusResponse.body.data.output.guardrail.result).toBe("BLOCKED");
   });
 
   it("records regenerated guardrail results for passing regenerated output", async () => {
@@ -369,6 +376,13 @@ describe("ReportsController", () => {
   function adminRequest(path: string) {
     return request(app.getHttpServer())
       .post(path)
+      .set("X-Dev-User-Id", "9")
+      .set("X-Dev-User-Type", "ADMIN");
+  }
+
+  function adminGet(path: string) {
+    return request(app.getHttpServer())
+      .get(path)
       .set("X-Dev-User-Id", "9")
       .set("X-Dev-User-Type", "ADMIN");
   }

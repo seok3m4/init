@@ -162,6 +162,7 @@ export interface GuardrailValidationRequest {
 
 export interface GuardrailValidationResult {
   target: GuardrailValidationTarget;
+  processLogId: number;
   guardrail: GuardrailDecision;
   guardrailLogId?: number;
 }
