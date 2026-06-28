@@ -2,9 +2,11 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../app.module";
+import { InMemoryReportRepository } from "./in-memory-report.repository";
 
 describe("ReportsController", () => {
   let app: INestApplication;
+  let repository: InMemoryReportRepository;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -14,6 +16,7 @@ describe("ReportsController", () => {
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix("api/v1");
     await app.init();
+    repository = app.get(InMemoryReportRepository);
   });
 
   afterAll(async () => {
@@ -160,6 +163,54 @@ describe("ReportsController", () => {
     expect(response.body.data.queued).toBe(true);
   });
 
+  it("exposes parsed company generation output through AI job status", async () => {
+    const response = await companyRequest("/api/v1/company/interviews/questions/generate")
+      .send({
+        postingId: 2,
+        jobDescription: "Backend engineer with NestJS and PostgreSQL experience.",
+        questionCount: 2
+      })
+      .expect(202);
+
+    await repository.markQueuedProcessCompleted(
+      response.body.data.processLogId,
+      JSON.stringify({
+        kind: "RECRUITING_QUESTION_GENERATE",
+        items: ["Question 1", "Question 2"],
+        reviewRequired: true
+      })
+    );
+
+    const statusResponse = await companyGet(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`).expect(200);
+
+    expect(statusResponse.body.data.status).toBe("COMPLETED");
+    expect(statusResponse.body.data.output.items).toEqual(["Question 1", "Question 2"]);
+    expect(statusResponse.body.data.output.reviewRequired).toBe(true);
+  });
+
+  it("exposes parsed candidate mock-question output through AI job status", async () => {
+    const response = await candidateRequest("/api/v1/candidate/mock-interviews/questions/generate")
+      .send({
+        questionCount: 2
+      })
+      .expect(202);
+
+    await repository.markQueuedProcessCompleted(
+      response.body.data.processLogId,
+      JSON.stringify({
+        kind: "MOCK_QUESTION_GENERATE",
+        items: ["Mock question 1", "Mock question 2"],
+        reviewRequired: true
+      })
+    );
+
+    const statusResponse = await candidateGet(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`).expect(200);
+
+    expect(statusResponse.body.data.status).toBe("COMPLETED");
+    expect(statusResponse.body.data.output.items).toEqual(["Mock question 1", "Mock question 2"]);
+    expect(statusResponse.body.data.output.reviewRequired).toBe(true);
+  });
+
   it("returns unauthorized when dev auth headers are missing", async () => {
     await request(app.getHttpServer()).post("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(401);
   });
@@ -206,6 +257,14 @@ describe("ReportsController", () => {
       .set("X-Dev-User-Id", "2")
       .set("X-Dev-User-Type", "CANDIDATE")
       .set("X-Dev-Candidate-Id", "1");
+  }
+
+  function companyGet(path: string) {
+    return request(app.getHttpServer())
+      .get(path)
+      .set("X-Dev-User-Id", "1")
+      .set("X-Dev-User-Type", "COMPANY")
+      .set("X-Dev-Company-Id", "1");
   }
 
   function adminRequest(path: string) {

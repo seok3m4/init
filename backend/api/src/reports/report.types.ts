@@ -182,6 +182,7 @@ export interface QueuedAiProcessSnapshot {
   status: AiProcessStatus;
   inputRef: string;
   outputRef?: string;
+  output?: unknown;
   applicationId?: number;
   sessionId?: number;
   failure?: FailureReason;

@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { parseAiJobOutput } from "./ai-job-output";
 import { ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
@@ -62,7 +63,7 @@ export class InMemoryReportRepository implements ReportRepository {
   async getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot> {
     const queuedProcess = this.queuedProcesses.get(processLogId);
     if (queuedProcess) {
-      return { ...queuedProcess };
+      return this.withParsedOutput(queuedProcess);
     }
 
     const processLog = this.processLogs.get(processLogId);
@@ -75,8 +76,24 @@ export class InMemoryReportRepository implements ReportRepository {
       processType: processLog.processType,
       status: processLog.status,
       inputRef: JSON.stringify({ step: processLog.step }),
+      output: undefined,
       failure: processLog.failure
     };
+  }
+
+  async markQueuedProcessCompleted(processLogId: number, outputRef: string): Promise<QueuedAiProcessSnapshot> {
+    const queuedProcess = this.queuedProcesses.get(processLogId);
+    if (!queuedProcess) {
+      throw new Error(`Queued process ${processLogId} was not initialized.`);
+    }
+
+    const updated: QueuedAiProcessSnapshot = {
+      ...queuedProcess,
+      status: "COMPLETED",
+      outputRef
+    };
+    this.queuedProcesses.set(processLogId, updated);
+    return this.withParsedOutput(updated);
   }
 
   async startProcess(reportId: number, reportType: ReportType, step: ReportPipelineStep): Promise<ProcessLogSnapshot> {
@@ -225,5 +242,12 @@ export class InMemoryReportRepository implements ReportRepository {
     const updated = { ...processLog, ...patch };
     this.processLogs.set(processLogId, updated);
     return { ...updated };
+  }
+
+  private withParsedOutput(process: QueuedAiProcessSnapshot): QueuedAiProcessSnapshot {
+    return {
+      ...process,
+      output: parseAiJobOutput(process.outputRef)
+    };
   }
 }

@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { parseAiJobOutput } from "./ai-job-output";
 import { PrismaService } from "./prisma.service";
 import { ReportRepository } from "./report.repository";
 import {
@@ -306,6 +307,7 @@ export class PrismaReportRepository implements ReportRepository {
       status: processLog.status as QueuedAiProcessSnapshot["status"],
       inputRef: processLog.inputRef ?? "",
       outputRef: processLog.outputRef ?? undefined,
+      output: parseAiJobOutput(processLog.outputRef),
       applicationId: processLog.applicationId ? Number(processLog.applicationId) : undefined,
       sessionId: processLog.sessionId ? Number(processLog.sessionId) : undefined,
       failure:
