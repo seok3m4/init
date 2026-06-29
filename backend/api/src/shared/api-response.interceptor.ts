@@ -9,13 +9,22 @@ export class ApiResponseInterceptor implements NestInterceptor {
     const traceId = request.headers["x-request-id"] ?? randomUUID();
 
     return next.handle().pipe(
-      map((data) => ({
-        data,
-        meta: {
-          traceId,
-          timestamp: new Date().toISOString(),
-        },
-      })),
+      map((data) => {
+        if (isEnvelope(data)) {
+          return data;
+        }
+        return {
+          data,
+          meta: {
+            traceId,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }),
     );
   }
+}
+
+function isEnvelope(value: unknown): value is { data: unknown; meta: unknown } {
+  return typeof value === "object" && value !== null && "data" in value && "meta" in value;
 }

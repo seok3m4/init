@@ -486,3 +486,58 @@ p {
     width: 100%;
   }
 }
+
+.form-card .btn + .btn {
+  margin-top: 10px;
+}
+
+.app-shell .eyebrow {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--brand-strong);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.app-shell .grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.app-shell .btn {
+  width: auto;
+  min-height: 44px;
+  height: auto;
+  padding: 0 16px;
+  font-size: inherit;
+  font-weight: 700;
+  border-radius: var(--r-pill);
+}
+
+.app-shell .btn.primary {
+  color: #fff;
+  background: var(--brand-grad);
+  box-shadow: 0 10px 26px rgba(91, 110, 246, 0.24);
+}
+
+.app-shell .btn.secondary {
+  color: #2a2836;
+  background: #fff;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.app-shell .btn.compact {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .app-shell .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}

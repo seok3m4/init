@@ -11,6 +11,9 @@ export default function LandingPage() {
           <Link className="btn primary full lg" href="/login">
             로그인하기
           </Link>
+          <Link className="btn full lg" href="/company/applications/postings">
+            기업 채용 관리로 이동
+          </Link>
         </div>
       </section>
     </main>
