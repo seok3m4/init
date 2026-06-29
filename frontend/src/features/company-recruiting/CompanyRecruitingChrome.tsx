@@ -9,23 +9,17 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
   return (
     <header className="gnb">
       <div className="gnb-left">
-        <Link className="brand" href="/company/applications/postings">
+        <Link className="brand" href="/company/applications/dashboard">
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
         <nav className="gnb-menu" aria-label="기업 메뉴">
           <div className={`gnb-item ${statusActive ? "active" : ""}`}>
-            <Link className="gnb-link" href="/company/applications/postings" aria-current={statusActive ? "page" : undefined}>
+            <Link className="gnb-link" href="/company/applications/dashboard" aria-current={statusActive ? "page" : undefined}>
               지원현황
             </Link>
             <div className="gnb-panel">
-              <Link className={active === "postings" ? "active" : ""} href="/company/applications/postings">
+              <Link className={active === "postings" ? "active" : ""} href="/company/applications/dashboard">
                 공고관리
-              </Link>
-              <Link className={active === "applicants" ? "active" : ""} href="/company/applications/postings">
-                지원자 관리
-              </Link>
-              <Link className={active === "evaluation" ? "active" : ""} href="/company/applications/postings">
-                평가 리포트
               </Link>
             </div>
           </div>
@@ -45,7 +39,7 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
             </div>
           </div>
           <div className="gnb-item">
-            <Link className="gnb-link" href="/company/applications/postings">
+            <Link className="gnb-link" href="/company/applications/dashboard">
               마이페이지
             </Link>
           </div>
