@@ -1,7 +1,16 @@
-import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Inject, Param, Post } from "@nestjs/common";
-import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
-import { CurrentUser } from "../../common/dev-auth/current-user";
-import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
+import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { DevAuthAdapter } from "../../../common/dev-auth/dev-auth.adapter";
+import { CurrentUser } from "../../../common/dev-auth/current-user";
+import { ApiEnvelopeResponse, ApiErrorResponses, ApiOperationId, ApiParamId } from "../../../swagger/swagger.decorators";
+import {
+  AnswerEvaluationRequestDto,
+  CommunicationAnalysisRequestDto,
+  EvaluationContextRequestDto,
+  GenerateReportRequestDto,
+} from "../dto/report-request.dto";
+import { AiJobResponseDto, GenerateReportResponseDto } from "../dto/report-response.dto";
+import { AiJobDispatcherService } from "../service/ai-job-dispatcher.service";
 import {
   AnswerEvaluationRequest,
   CommunicationAnalysisRequest,
@@ -9,23 +18,30 @@ import {
   GenerateReportRequest,
   ReportPipelineStep,
   ReportType
-} from "./report.types";
+} from "../report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
 
 @Controller("reports")
+@ApiTags("Report Pipeline")
+@ApiBearerAuth("bearer")
+@ApiErrorResponses()
 export class ReportsController {
   constructor(
-    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
-    @Inject(AiJobDispatcherService) private readonly dispatcher: AiJobDispatcherService
+    private readonly devAuthAdapter: DevAuthAdapter,
+    private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post(":reportId/evaluation-context")
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperationId("API-028")
+  @ApiOperation({ summary: "평가 컨텍스트 구성 작업 생성" })
+  @ApiParamId("reportId", "평가 리포트 ID")
+  @ApiEnvelopeResponse(AiJobResponseDto, 202)
   async buildEvaluationContext(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
-    @Body() body: EvaluationContextRequest
+    @Body() body: EvaluationContextRequestDto
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
@@ -43,10 +59,14 @@ export class ReportsController {
 
   @Post(":reportId/answer-evaluation")
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperationId("API-029")
+  @ApiOperation({ summary: "답변 채점 및 근거 생성 작업 생성" })
+  @ApiParamId("reportId", "평가 리포트 ID")
+  @ApiEnvelopeResponse(AiJobResponseDto, 202)
   async evaluateAnswers(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
-    @Body() body: AnswerEvaluationRequest
+    @Body() body: AnswerEvaluationRequestDto
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
@@ -64,10 +84,14 @@ export class ReportsController {
 
   @Post(":reportId/communication-analysis")
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperationId("API-030")
+  @ApiOperation({ summary: "비언어/음성 지표 보조 분석 작업 생성" })
+  @ApiParamId("reportId", "평가 리포트 ID")
+  @ApiEnvelopeResponse(AiJobResponseDto, 202)
   async analyzeCommunication(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
-    @Body() body: CommunicationAnalysisRequest
+    @Body() body: CommunicationAnalysisRequestDto
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
@@ -85,10 +109,14 @@ export class ReportsController {
 
   @Post(":reportId/generate")
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperationId("API-031")
+  @ApiOperation({ summary: "채용 리포트 생성 작업 생성" })
+  @ApiParamId("reportId", "평가 리포트 ID")
+  @ApiEnvelopeResponse(GenerateReportResponseDto, 202)
   async generateRecruitingReport(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
-    @Body() body: GenerateReportRequest
+    @Body() body: GenerateReportRequestDto
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCompany(currentUser);
@@ -239,18 +267,25 @@ export class ReportsController {
 }
 
 @Controller("candidate/mock-interview/reports")
+@ApiTags("Candidate Mock Reports")
+@ApiBearerAuth("bearer")
+@ApiErrorResponses()
 export class CandidateMockReportsController {
   constructor(
-    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
-    @Inject(AiJobDispatcherService) private readonly dispatcher: AiJobDispatcherService
+    private readonly devAuthAdapter: DevAuthAdapter,
+    private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post(":reportId/generate")
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperationId("API-057")
+  @ApiOperation({ summary: "모의면접 피드백 리포트 생성 작업 생성" })
+  @ApiParamId("reportId", "모의면접 리포트 ID")
+  @ApiEnvelopeResponse(GenerateReportResponseDto, 202)
   async generateMockInterviewReport(
     @Param("reportId") reportIdParam: string,
     @Headers() headers: HeaderMap,
-    @Body() body: GenerateReportRequest
+    @Body() body: GenerateReportRequestDto
   ) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertCandidate(currentUser);

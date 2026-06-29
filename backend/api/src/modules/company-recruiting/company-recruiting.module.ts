@@ -2,16 +2,16 @@ import { Module } from "@nestjs/common";
 
 import { PrismaService } from "../../shared/prisma.service";
 import { AuthModule } from "../auth/auth.module";
-import { CompanyRecruitingController } from "./company-recruiting.controller";
+import { CompanyRecruitingController } from "./controller/company-recruiting.controller";
 import {
   InMemoryCompanyRecruitingInvitationAdapter,
   type CompanyRecruitingInvitationAdapterPort,
-} from "./company-recruiting-invitation.adapter";
+} from "./service/company-recruiting-invitation.adapter";
 import {
   PrismaCompanyRecruitingRepository,
   type CompanyRecruitingRepositoryPort,
-} from "./company-recruiting.repository";
-import { CompanyRecruitingService } from "./company-recruiting.service";
+} from "./repository/company-recruiting.repository";
+import { CompanyRecruitingService } from "./service/company-recruiting.service";
 
 @Module({
   imports: [AuthModule],

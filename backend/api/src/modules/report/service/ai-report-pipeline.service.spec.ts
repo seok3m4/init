@@ -1,14 +1,14 @@
 import { BadRequestException } from "@nestjs/common";
 import { AiReportPipelineService } from "./ai-report-pipeline.service";
 import { GuardrailService } from "./guardrail.service";
-import { InMemoryReportRepository } from "./in-memory-report.repository";
+import { InMemoryReportRepository } from "../repository/in-memory-report.repository";
 import { MockAiReportProvider } from "./mock-ai-report.provider";
 import {
   EvaluationContextRequest,
   GenerateReportRequest,
   GeneratedReport,
   ReportScore
-} from "./report.types";
+} from "../report.types";
 
 describe("AiReportPipelineService", () => {
   let service: AiReportPipelineService;

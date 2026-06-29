@@ -1,11 +1,18 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Inject, Post } from "@nestjs/common";
-import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
-import { GuardrailService } from "../report/guardrail.service";
-import { REPORT_REPOSITORY, ReportRepository } from "../report/report.repository";
-import { GuardrailValidationRequest, GuardrailValidationResult } from "../report/report.types";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { DevAuthAdapter } from "../../../common/dev-auth/dev-auth.adapter";
+import { ApiDevAuthHeaders, ApiEnvelopeResponse, ApiErrorResponses, ApiOperationId } from "../../../swagger/swagger.decorators";
+import { GuardrailValidationRequestDto, GuardrailValidationResultDto } from "../dto/ai-job.dto";
+import { GuardrailService } from "../../report/service/guardrail.service";
+import { REPORT_REPOSITORY, ReportRepository } from "../../report/repository/report.repository";
+import { GuardrailValidationRequest, GuardrailValidationResult } from "../../report/report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
 
+@ApiTags("AI Guardrails")
+@ApiBearerAuth("bearer")
+@ApiDevAuthHeaders()
+@ApiErrorResponses()
 @Controller("ai/guardrails")
 export class AiGuardrailsController {
   constructor(
@@ -16,7 +23,10 @@ export class AiGuardrailsController {
 
   @Post("validate")
   @HttpCode(HttpStatus.OK)
-  async validate(@Headers() headers: HeaderMap, @Body() body: GuardrailValidationRequest) {
+  @ApiOperationId("API-079")
+  @ApiOperation({ summary: "AI 출력 안전성 검증" })
+  @ApiEnvelopeResponse(GuardrailValidationResultDto)
+  async validate(@Headers() headers: HeaderMap, @Body() body: GuardrailValidationRequestDto) {
     const currentUser = this.devAuthAdapter.parse(headers);
     this.devAuthAdapter.assertAdmin(currentUser);
     this.validateBody(body);

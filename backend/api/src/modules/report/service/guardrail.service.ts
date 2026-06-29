@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { GeneratedReport, GuardrailDecision, ReportScore, ReportType } from "./report.types";
+import { GeneratedReport, GuardrailDecision, ReportScore, ReportType } from "../report.types";
 
 const MOCK_REPORT_BANNED_TERMS = ["합격", "탈락", "채용 적합", "채용 부적합", "선별"];
 

@@ -8,7 +8,7 @@ import {
   GenerateReportRequest,
   GeneratedReport,
   ReportScore
-} from "./report.types";
+} from "../report.types";
 
 @Injectable()
 export class MockAiReportProvider {

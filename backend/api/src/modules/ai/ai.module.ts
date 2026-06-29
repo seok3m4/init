@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ReportModule } from "../report/report.module";
-import { AiGuardrailsController } from "./ai-guardrails.controller";
-import { AiJobsStatusController, CandidateAiJobsController, CompanyAiJobsController } from "./ai-jobs.controller";
+import { AiGuardrailsController } from "./controller/ai-guardrails.controller";
+import { AiJobsStatusController, CandidateAiJobsController, CompanyAiJobsController } from "./controller/ai-jobs.controller";
 
 @Module({
   imports: [ReportModule],
