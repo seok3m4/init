@@ -1,5 +1,5 @@
-import { CompanyPostingsPage } from "../../../../features/company-recruiting/CompanyPostingsPage";
+import { redirect } from "next/navigation";
 
 export default function CompanyPostingsRoute() {
-  return <CompanyPostingsPage />;
+  redirect("/company/applications/dashboard");
 }
