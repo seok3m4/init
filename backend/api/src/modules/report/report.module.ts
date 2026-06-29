@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
 import { PrismaService } from "../../shared/prisma.service";
+import { AuthModule } from "../auth/auth.module";
 import { CandidateModule } from "../candidate";
 import { InterviewModule } from "../interview";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
@@ -33,7 +34,7 @@ const repositoryProviders = process.env.DATABASE_URL
     ];
 
 @Module({
-  imports: [CandidateModule, InterviewModule],
+  imports: [AuthModule, CandidateModule, InterviewModule],
   controllers: [ReportsController, CandidateMockReportsController, ReportController],
   providers: [
     DevAuthAdapter,

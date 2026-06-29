@@ -12,20 +12,14 @@ async function run() {
   const service = new CandidateService(new InMemoryCandidateRepository());
 
   const currentUser = DEV_CANDIDATE_USER;
-  assert.deepEqual(
-    resolveCurrentCandidate({
-      "x-dev-user-type": "CANDIDATE",
-      "x-dev-user-id": "2",
-      "x-dev-candidate-id": "1",
-    }),
-    currentUser,
-  );
+  assert.deepEqual(resolveCurrentCandidate(currentUser), currentUser);
   assert.throws(
     () =>
       resolveCurrentCandidate({
-        "x-dev-user-type": "COMPANY",
-        "x-dev-user-id": "1",
-        "x-dev-candidate-id": "1",
+        userId: 1,
+        userType: "COMPANY",
+        companyId: 1,
+        candidateId: null,
       }),
     (error) => error instanceof CandidateDomainError && error.code === "COMMON_FORBIDDEN",
   );

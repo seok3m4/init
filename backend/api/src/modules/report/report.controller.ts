@@ -1,60 +1,54 @@
-import { Controller, Get, Headers, HttpException, Inject, Param } from "@nestjs/common";
-import {
-  CandidateDomainError,
-  resolveCurrentCandidate,
-  type CandidateAuthHeaders,
-} from "../candidate";
+import { Controller, Get, HttpException, Inject, Param, Req, UseGuards } from "@nestjs/common";
+import type { CurrentUser } from "@init/common";
+import { type RequestLike } from "../../shared/response-envelope";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { CandidateDomainError, resolveCurrentCandidate } from "../candidate";
 import { reportApiRoutePrefix, reportApiRoutes } from "./report.routes";
 import { ReportService } from "./report.service";
 
+type CandidateRequest = RequestLike & { currentUser: CurrentUser };
+
+@UseGuards(JwtAuthGuard)
 @Controller(reportApiRoutePrefix)
 export class ReportController {
   constructor(@Inject(ReportService) private readonly reportService: ReportService) {}
 
   @Get(reportApiRoutes.mockReports)
-  listMockReports(@Headers() headers: CandidateAuthHeaders) {
+  listMockReports(@Req() request: CandidateRequest) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return Promise.resolve(this.reportService.listMockReports(currentUser));
     });
   }
 
-  @Get(reportApiRoutes.mockHistory)
-  listMockInterviewHistory(@Headers() headers: CandidateAuthHeaders) {
-    return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
-      return Promise.resolve(this.reportService.listMockInterviewHistory(currentUser));
-    });
-  }
-
   @Get(reportApiRoutes.mockFeedback)
-  getMockReportFeedback(@Headers() headers: CandidateAuthHeaders, @Param("reportId") reportId: string) {
+  getMockReportFeedback(@Req() request: CandidateRequest, @Param("reportId") reportId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return Promise.resolve(this.reportService.getMockReportFeedback(Number(reportId), currentUser));
     });
   }
 
   @Get(reportApiRoutes.mockMedia)
-  getMockReportMedia(@Headers() headers: CandidateAuthHeaders, @Param("reportId") reportId: string) {
+  getMockReportMedia(@Req() request: CandidateRequest, @Param("reportId") reportId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.reportService.getMockReportMedia(Number(reportId), currentUser);
     });
   }
 
   @Get(reportApiRoutes.applicationReport)
-  getApplicationReport(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
+  getApplicationReport(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.reportService.getApplicationReport(Number(applicationId), currentUser);
     });
   }
 
   @Get(reportApiRoutes.applicationStatus)
-  getApplicationStatus(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
+  getApplicationStatus(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.reportService.getApplicationStatus(Number(applicationId), currentUser);
     });
   }

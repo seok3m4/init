@@ -1,128 +1,146 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Patch, Post } from "@nestjs/common";
-import { CandidateDomainError, type CandidateAuthHeaders } from "../candidate";
+import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import type { CurrentUser } from "@init/common";
+import { type RequestLike } from "../../shared/response-envelope";
+import { resolveCurrentCandidate, CandidateDomainError } from "../candidate";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { DeviceCheckDto } from "./interview.device-check.dto";
 import { AiInterviewRequestDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "./interview.runtime.dto";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes";
 import { InterviewService } from "./interview.service";
 
+type CandidateRequest = RequestLike & { currentUser: CurrentUser };
+
+@UseGuards(JwtAuthGuard)
 @Controller(interviewApiRoutePrefix)
 export class InterviewController {
   constructor(@Inject(InterviewService) private readonly interviewService: InterviewService) {}
 
   @Post(interviewApiRoutes.mockInterviews)
-  startMockInterview(@Headers() headers: CandidateAuthHeaders, @Body() dto: StartMockInterviewDto) {
-    return this.handle(() => this.interviewService.startMockInterview(dto, headers));
+  startMockInterview(@Req() request: CandidateRequest, @Body() dto: StartMockInterviewDto) {
+    return this.handle(() => this.interviewService.startMockInterview(dto, resolveCurrentCandidate(request.currentUser)));
   }
 
   @Get(interviewApiRoutes.mockHistory)
-  listMockInterviewHistory(@Headers() headers: CandidateAuthHeaders) {
-    return this.handle(() => this.interviewService.listMockInterviewHistory(headers));
+  listMockInterviewHistory(@Req() request: CandidateRequest) {
+    return this.handle(() => this.interviewService.listMockInterviewHistory(resolveCurrentCandidate(request.currentUser)));
   }
 
   @Get(interviewApiRoutes.mockRuntime)
-  getMockRuntime(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.getMockRuntime(Number(sessionId), headers));
+  getMockRuntime(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() => this.interviewService.getMockRuntime(Number(sessionId), resolveCurrentCandidate(request.currentUser)));
   }
 
   @Get(interviewApiRoutes.mockQuestions)
-  listMockQuestions(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.listMockQuestions(Number(sessionId), headers));
+  listMockQuestions(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() => this.interviewService.listMockQuestions(Number(sessionId), resolveCurrentCandidate(request.currentUser)));
   }
 
   @Post(interviewApiRoutes.mockAnswers)
   @HttpCode(201)
   saveMockAnswer(
-    @Headers() headers: CandidateAuthHeaders,
+    @Req() request: CandidateRequest,
     @Param("sessionId") sessionId: string,
     @Body() dto: SaveInterviewAnswerDto,
   ) {
-    return this.handle(() => this.interviewService.saveMockAnswer(Number(sessionId), dto, headers));
+    return this.handle(() => this.interviewService.saveMockAnswer(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)));
   }
 
   @Post(interviewApiRoutes.mockNextQuestion)
-  moveMockNextQuestion(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.moveMockNextQuestion(Number(sessionId), headers));
+  moveMockNextQuestion(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() => this.interviewService.moveMockNextQuestion(Number(sessionId), resolveCurrentCandidate(request.currentUser)));
   }
 
   @Patch(interviewApiRoutes.mockComplete)
-  completeMockInterview(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.completeMockInterview(Number(sessionId), headers));
+  completeMockInterview(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() => this.interviewService.completeMockInterview(Number(sessionId), resolveCurrentCandidate(request.currentUser)));
   }
 
   requestMockStt(
-    @Headers() headers: CandidateAuthHeaders,
-    @Param("sessionId") sessionId: string,
-    @Body() dto: AiInterviewRequestDto,
+    request: CandidateRequest,
+    sessionId: string,
+    dto: AiInterviewRequestDto,
   ) {
-    return this.handle(() => this.interviewService.requestMockStt(Number(sessionId), dto, headers));
+    return this.handle(() => this.interviewService.requestMockStt(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)));
   }
 
   requestMockFollowUpQuestion(
-    @Headers() headers: CandidateAuthHeaders,
-    @Param("sessionId") sessionId: string,
-    @Body() dto: AiInterviewRequestDto,
+    request: CandidateRequest,
+    sessionId: string,
+    dto: AiInterviewRequestDto,
   ) {
-    return this.handle(() => this.interviewService.requestMockFollowUpQuestion(Number(sessionId), dto, headers));
+    return this.handle(() =>
+      this.interviewService.requestMockFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   @Post(interviewApiRoutes.deviceCheck)
   saveDeviceCheck(
-    @Headers() headers: CandidateAuthHeaders,
+    @Req() request: CandidateRequest,
     @Param("sessionId") sessionId: string,
     @Body() dto: DeviceCheckDto,
   ) {
-    return this.handle(() => this.interviewService.saveDeviceCheck(Number(sessionId), dto, headers));
+    return this.handle(() => this.interviewService.saveDeviceCheck(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)));
   }
 
   @Post(interviewApiRoutes.startInterview)
-  startInterview(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
-    return this.handle(() => this.interviewService.startInterview(Number(applicationId), headers));
+  startInterview(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
+    return this.handle(() => this.interviewService.startInterview(Number(applicationId), resolveCurrentCandidate(request.currentUser)));
   }
 
   @Get(interviewApiRoutes.interviewRuntime)
-  getInterviewRuntime(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
-    return this.handle(() => this.interviewService.getInterviewRuntime(Number(applicationId), headers));
+  getInterviewRuntime(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
+    return this.handle(() => this.interviewService.getInterviewRuntime(Number(applicationId), resolveCurrentCandidate(request.currentUser)));
   }
 
   @Get(interviewApiRoutes.recruitingQuestions)
-  listRecruitingQuestions(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.listRecruitingQuestions(Number(sessionId), headers));
+  listRecruitingQuestions(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() => this.interviewService.listRecruitingQuestions(Number(sessionId), resolveCurrentCandidate(request.currentUser)));
   }
 
   @Post(interviewApiRoutes.recruitingAnswers)
   @HttpCode(201)
   saveRecruitingAnswer(
-    @Headers() headers: CandidateAuthHeaders,
+    @Req() request: CandidateRequest,
     @Param("sessionId") sessionId: string,
     @Body() dto: SaveInterviewAnswerDto,
   ) {
-    return this.handle(() => this.interviewService.saveRecruitingAnswer(Number(sessionId), dto, headers));
+    return this.handle(() =>
+      this.interviewService.saveRecruitingAnswer(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   @Post(interviewApiRoutes.recruitingNextQuestion)
-  moveRecruitingNextQuestion(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.moveRecruitingNextQuestion(Number(sessionId), headers));
+  moveRecruitingNextQuestion(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() =>
+      this.interviewService.moveRecruitingNextQuestion(Number(sessionId), resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   @Patch(interviewApiRoutes.recruitingComplete)
-  completeRecruitingInterview(@Headers() headers: CandidateAuthHeaders, @Param("sessionId") sessionId: string) {
-    return this.handle(() => this.interviewService.completeRecruitingInterview(Number(sessionId), headers));
+  completeRecruitingInterview(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
+    return this.handle(() =>
+      this.interviewService.completeRecruitingInterview(Number(sessionId), resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   requestRecruitingStt(
-    @Headers() headers: CandidateAuthHeaders,
-    @Param("sessionId") sessionId: string,
-    @Body() dto: AiInterviewRequestDto,
+    request: CandidateRequest,
+    sessionId: string,
+    dto: AiInterviewRequestDto,
   ) {
-    return this.handle(() => this.interviewService.requestRecruitingStt(Number(sessionId), dto, headers));
+    return this.handle(() =>
+      this.interviewService.requestRecruitingStt(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   requestRecruitingFollowUpQuestion(
-    @Headers() headers: CandidateAuthHeaders,
-    @Param("sessionId") sessionId: string,
-    @Body() dto: AiInterviewRequestDto,
+    request: CandidateRequest,
+    sessionId: string,
+    dto: AiInterviewRequestDto,
   ) {
-    return this.handle(() => this.interviewService.requestRecruitingFollowUpQuestion(Number(sessionId), dto, headers));
+    return this.handle(() =>
+      this.interviewService.requestRecruitingFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   private async handle<T>(action: () => Promise<T>): Promise<T> {

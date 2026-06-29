@@ -2,8 +2,6 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   CandidateDomainError,
   CandidateService,
-  resolveCurrentCandidate,
-  type CandidateAuthHeaders,
   type CurrentCandidateUser,
   type FileAsset,
   type InterviewSession,
@@ -171,26 +169,22 @@ export class InterviewService {
     return { ...this.requiredQuestion(questionId) };
   }
 
-  saveDeviceCheck(sessionId: number, dto: DeviceCheckDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  saveDeviceCheck(sessionId: number, dto: DeviceCheckDto, currentUser: CurrentCandidateUser) {
     return this.candidateService.saveDeviceCheck(sessionId, dto, currentUser);
   }
 
-  startInterview(applicationId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  startInterview(applicationId: number, currentUser: CurrentCandidateUser) {
     return this.candidateService.startInterview(applicationId, currentUser);
   }
 
-  getInterviewRuntime(applicationId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  getInterviewRuntime(applicationId: number, currentUser: CurrentCandidateUser) {
     return this.candidateService.getInterviewRuntime(applicationId, currentUser);
   }
 
   async startMockInterview(
     dto: StartMockInterviewDto,
-    headers: CandidateAuthHeaders,
+    currentUser: CurrentCandidateUser,
   ): Promise<{ data: StartMockInterviewResult; meta: { traceId: string; timestamp: string } }> {
-    const currentUser = resolveCurrentCandidate(headers);
     const requestBody = this.toRequestBody(dto, "mockInterview");
     const showQuestionText = requestBody.showQuestionText === true;
     const questionIds = this.selectMockQuestionIds(dto);
@@ -214,8 +208,7 @@ export class InterviewService {
     });
   }
 
-  async listMockInterviewHistory(headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async listMockInterviewHistory(currentUser: CurrentCandidateUser) {
     const items = this.listOwnedMockInterviewSessions(currentUser).map((session) => ({
       sessionId: session.sessionId,
       reportId: session.sessionId,
@@ -245,85 +238,72 @@ export class InterviewService {
     };
   }
 
-  async getMockRuntime(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async getMockRuntime(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     this.assertInProgress(session);
     return this.envelope(this.toRuntimeView(session, "mock"));
   }
 
-  async listMockQuestions(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async listMockQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     this.assertInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
 
-  async saveMockAnswer(sessionId: number, dto: SaveInterviewAnswerDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async saveMockAnswer(sessionId: number, dto: SaveInterviewAnswerDto, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     return this.saveAnswer(session, dto, currentUser);
   }
 
-  async moveMockNextQuestion(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async moveMockNextQuestion(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     return this.moveNextQuestion(session);
   }
 
-  async completeMockInterview(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async completeMockInterview(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     return this.completeRuntimeSession(session);
   }
 
-  async requestMockStt(sessionId: number, dto: AiInterviewRequestDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async requestMockStt(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "STT");
   }
 
-  async requestMockFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async requestMockFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = this.getOwnedMockSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "FOLLOW_UP");
   }
 
-  async listRecruitingQuestions(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async listRecruitingQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
     this.assertInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
 
-  async saveRecruitingAnswer(sessionId: number, dto: SaveInterviewAnswerDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async saveRecruitingAnswer(sessionId: number, dto: SaveInterviewAnswerDto, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
     return this.saveAnswer(session, dto, currentUser);
   }
 
-  async moveRecruitingNextQuestion(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async moveRecruitingNextQuestion(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
     return this.moveNextQuestion(session);
   }
 
-  async completeRecruitingInterview(sessionId: number, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async completeRecruitingInterview(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
     const result = await this.completeRuntimeSession(session);
     await this.candidateService.completeRecruitingInterviewSession(sessionId, currentUser);
     return result;
   }
 
-  async requestRecruitingStt(sessionId: number, dto: AiInterviewRequestDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async requestRecruitingStt(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "STT");
   }
 
-  async requestRecruitingFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, headers: CandidateAuthHeaders) {
-    const currentUser = resolveCurrentCandidate(headers);
+  async requestRecruitingFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "FOLLOW_UP");
   }

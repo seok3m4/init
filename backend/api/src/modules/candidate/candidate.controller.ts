@@ -1,37 +1,43 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Post, Query } from "@nestjs/common";
-import { resolveCurrentCandidate, type CandidateAuthHeaders } from "./candidate.auth";
-import { CandidateService, CandidateDomainError } from "./candidate.service";
+import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import type { CurrentUser } from "@init/common";
+import { type RequestLike } from "../../shared/response-envelope";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { resolveCurrentCandidate } from "./candidate.auth";
+import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
+import { CandidateDomainError, CandidateService } from "./candidate.service";
 import { CandidateJobListQueryDto } from "./dto/candidate-job-list-query.dto";
 import { CreatePortfolioLinkDto } from "./dto/create-portfolio-link.dto";
 import { SaveInterviewConsentDto } from "./dto/save-interview-consent.dto";
 import { SubmitApplicationDto } from "./dto/submit-application.dto";
 import { UploadResumeDto } from "./dto/upload-resume.dto";
-import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
 
+type CandidateRequest = RequestLike & { currentUser: CurrentUser };
+
+@UseGuards(JwtAuthGuard)
 @Controller(candidateApiRoutePrefix)
 export class CandidateController {
   constructor(@Inject(CandidateService) private readonly candidateService: CandidateService) {}
 
   @Get(candidateApiRoutes.jobs)
-  listJobs(@Headers() headers: CandidateAuthHeaders, @Query() query: CandidateJobListQueryDto) {
+  listJobs(@Req() request: CandidateRequest, @Query() query: CandidateJobListQueryDto) {
     return this.handle(() => {
-      resolveCurrentCandidate(headers);
+      resolveCurrentCandidate(request.currentUser);
       return this.candidateService.listJobs(query);
     });
   }
 
   @Get(candidateApiRoutes.jobDetail)
-  getJobDetail(@Headers() headers: CandidateAuthHeaders, @Param("jobId") jobId: string) {
+  getJobDetail(@Req() request: CandidateRequest, @Param("jobId") jobId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.getJobDetail(Number(jobId), currentUser);
     });
   }
 
   @Get(candidateApiRoutes.applyView)
-  getApplyView(@Headers() headers: CandidateAuthHeaders, @Param("jobId") jobId: string) {
+  getApplyView(@Req() request: CandidateRequest, @Param("jobId") jobId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.getApplyView(Number(jobId), currentUser);
     });
   }
@@ -39,58 +45,58 @@ export class CandidateController {
   @Post(candidateApiRoutes.submitApplication)
   @HttpCode(201)
   submitApplication(
-    @Headers() headers: CandidateAuthHeaders,
+    @Req() request: CandidateRequest,
     @Param("jobId") jobId: string,
     @Body() dto: SubmitApplicationDto,
   ) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.submitApplication(Number(jobId), dto, currentUser);
     });
   }
 
   @Post(candidateApiRoutes.resume)
   @HttpCode(201)
-  uploadResume(@Headers() headers: CandidateAuthHeaders, @Body() dto: UploadResumeDto) {
+  uploadResume(@Req() request: CandidateRequest, @Body() dto: UploadResumeDto) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.uploadResume(dto, currentUser);
     });
   }
 
   @Post(candidateApiRoutes.portfolioLinks)
   @HttpCode(201)
-  createPortfolioLink(@Headers() headers: CandidateAuthHeaders, @Body() dto: CreatePortfolioLinkDto) {
+  createPortfolioLink(@Req() request: CandidateRequest, @Body() dto: CreatePortfolioLinkDto) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.createPortfolioLink(dto, currentUser);
     });
   }
 
   @Get(candidateApiRoutes.applications)
-  listApplications(@Headers() headers: CandidateAuthHeaders) {
+  listApplications(@Req() request: CandidateRequest) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.listApplications(currentUser);
     });
   }
 
   @Get(candidateApiRoutes.interviewGuide)
-  getInterviewGuide(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
+  getInterviewGuide(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.getInterviewGuide(Number(applicationId), currentUser);
     });
   }
 
   @Post(candidateApiRoutes.interviewConsent)
   saveInterviewConsent(
-    @Headers() headers: CandidateAuthHeaders,
+    @Req() request: CandidateRequest,
     @Param("applicationId") applicationId: string,
     @Body() dto: SaveInterviewConsentDto,
   ) {
     return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.candidateService.saveInterviewConsent(Number(applicationId), dto, currentUser);
     });
   }

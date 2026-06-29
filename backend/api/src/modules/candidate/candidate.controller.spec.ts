@@ -4,7 +4,7 @@ import { HttpException, RequestMethod } from "@nestjs/common";
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { CandidateController } from "./candidate.controller";
 import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
-import { CandidateService, InMemoryCandidateRepository } from "./candidate.service";
+import { CandidateService, DEV_CANDIDATE_USER, InMemoryCandidateRepository } from "./candidate.service";
 
 type CandidateControllerRoute =
   | "listJobs"
@@ -43,11 +43,15 @@ assertRoute("listApplications", candidateApiRoutes.applications, RequestMethod.G
 assertRoute("getInterviewGuide", candidateApiRoutes.interviewGuide, RequestMethod.GET);
 assertRoute("saveInterviewConsent", candidateApiRoutes.interviewConsent, RequestMethod.POST);
 
-const validCandidateHeaders = {
-  "x-dev-user-type": "CANDIDATE",
-  "x-dev-user-id": "2",
-  "x-dev-candidate-id": "1",
+const validCandidateRequest = {
+  headers: {},
+  currentUser: { ...DEV_CANDIDATE_USER, companyId: null },
 };
+
+const missingCandidateRequest = {
+  headers: {},
+  currentUser: undefined,
+} as never;
 
 async function assertCandidateHttpError(
   action: () => Promise<unknown>,
@@ -70,7 +74,7 @@ async function assertCandidateHttpError(
 async function runControllerRuntimeAssertions() {
   const controller = new CandidateController(new CandidateService(new InMemoryCandidateRepository()));
 
-  const listResponse = await controller.listJobs(validCandidateHeaders, {
+  const listResponse = await controller.listJobs(validCandidateRequest, {
     page: 1,
     limit: 20,
     sort: "createdAt",
@@ -80,20 +84,20 @@ async function runControllerRuntimeAssertions() {
   assert.equal(listResponse.data.items.some((job) => job.postingStatus === "CLOSED"), false);
 
   await assertCandidateHttpError(
-    () => controller.listJobs({}, { page: 1, limit: 20, sort: "createdAt", order: "desc" }),
+    () => controller.listJobs(missingCandidateRequest, { page: 1, limit: 20, sort: "createdAt", order: "desc" }),
     401,
     "COMMON_UNAUTHORIZED",
   );
 
   await assertCandidateHttpError(
-    () => controller.getJobDetail(validCandidateHeaders, "3"),
+    () => controller.getJobDetail(validCandidateRequest, "3"),
     404,
     "COMMON_NOT_FOUND",
   );
 
   await assertCandidateHttpError(
     () =>
-      controller.uploadResume(validCandidateHeaders, {
+      controller.uploadResume(validCandidateRequest, {
         storageKey: "candidate/1/resume.exe",
         originalName: "resume.exe",
         mimeType: "application/x-msdownload",
@@ -105,7 +109,7 @@ async function runControllerRuntimeAssertions() {
 
   await assertCandidateHttpError(
     () =>
-      controller.uploadResume(validCandidateHeaders, {
+      controller.uploadResume(validCandidateRequest, {
         storageKey: "candidate/1/resume.pdf",
         originalName: "resume.pdf",
         mimeType: "application/pdf",
@@ -115,7 +119,7 @@ async function runControllerRuntimeAssertions() {
     "FILE_SIZE_EXCEEDED",
   );
 
-  const resume = await controller.uploadResume(validCandidateHeaders, {
+  const resume = await controller.uploadResume(validCandidateRequest, {
     storageKey: "candidate/1/controller-resume.pdf",
     originalName: "controller-resume.pdf",
     mimeType: "application/pdf",
@@ -124,7 +128,7 @@ async function runControllerRuntimeAssertions() {
 
   await assertCandidateHttpError(
     () =>
-      controller.submitApplication(validCandidateHeaders, "1", {
+      controller.submitApplication(validCandidateRequest, "1", {
         candidateName: "Kim",
         email: "kim@example.com",
         phone: "010-0000-0000",
@@ -136,7 +140,7 @@ async function runControllerRuntimeAssertions() {
     "COMMON_VALIDATION_FAILED",
   );
 
-  const submitted = await controller.submitApplication(validCandidateHeaders, "1", {
+  const submitted = await controller.submitApplication(validCandidateRequest, "1", {
     candidateName: "Kim",
     email: "kim@example.com",
     phone: "010-0000-0000",
@@ -145,7 +149,7 @@ async function runControllerRuntimeAssertions() {
     consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
   });
 
-  const applications = await controller.listApplications(validCandidateHeaders);
+  const applications = await controller.listApplications(validCandidateRequest);
   assert.equal(applications.data.items.length, 1);
   assert.equal(applications.data.items[0]?.applicationId, submitted.data.application.applicationId);
   assert.equal(applications.data.items[0]?.interviewStatus, "NOT_READY");
@@ -153,7 +157,7 @@ async function runControllerRuntimeAssertions() {
   assert.equal(applications.data.items[0]?.canStartInterview, false);
 
   const guide = await controller.getInterviewGuide(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(submitted.data.application.applicationId),
   );
   assert.equal(guide.data.applicationId, submitted.data.application.applicationId);
@@ -161,7 +165,7 @@ async function runControllerRuntimeAssertions() {
   assert.equal(guide.data.canStart, false);
 
   const consent = await controller.saveInterviewConsent(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(submitted.data.application.applicationId),
     { consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"] },
   );
@@ -172,7 +176,7 @@ async function runControllerRuntimeAssertions() {
 
   await assertCandidateHttpError(
     () =>
-      controller.submitApplication(validCandidateHeaders, "1", {
+      controller.submitApplication(validCandidateRequest, "1", {
         candidateName: "Kim",
         email: "kim@example.com",
         phone: "010-0000-0000",

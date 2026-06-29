@@ -2,7 +2,6 @@ export const reportApiRoutePrefix = "candidate";
 
 export const reportApiRoutes = {
   mockReports: "mock-interview/reports",
-  mockHistory: "mock-interviews/history",
   mockFeedback: "mock-interview/reports/:reportId/feedback",
   mockMedia: "mock-interview/reports/:reportId/media",
   mockGenerate: "mock-interview/reports/:reportId/generate",

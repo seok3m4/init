@@ -32,11 +32,15 @@ type InterviewControllerRoute =
   | "requestRecruitingStt"
   | "requestRecruitingFollowUpQuestion";
 
-const validCandidateHeaders = {
-  "x-dev-user-type": "CANDIDATE",
-  "x-dev-user-id": "2",
-  "x-dev-candidate-id": "1",
+const validCandidateRequest = {
+  headers: {},
+  currentUser: { ...DEV_CANDIDATE_USER, companyId: null },
 };
+
+const missingCandidateRequest = {
+  headers: {},
+  currentUser: undefined,
+} as never;
 
 function assertRoute(
   methodName: InterviewControllerRoute,
@@ -92,7 +96,7 @@ async function runControllerRuntimeAssertions() {
   const candidateService = new CandidateService(repository);
   const controller = new InterviewController(new InterviewService(candidateService));
 
-  const mockStarted = await controller.startMockInterview(validCandidateHeaders, {
+  const mockStarted = await controller.startMockInterview(validCandidateRequest, {
     questionTypes: ["INTRO", "TECHNICAL"],
     showQuestionText: false,
   });
@@ -102,19 +106,19 @@ async function runControllerRuntimeAssertions() {
   assert.equal(mockStarted.data.currentQuestion?.content, undefined);
   assert.equal(mockStarted.data.totalQuestions, 2);
 
-  const mockQuestions = await controller.listMockQuestions(validCandidateHeaders, String(mockStarted.data.sessionId));
+  const mockQuestions = await controller.listMockQuestions(validCandidateRequest, String(mockStarted.data.sessionId));
   assert.equal(mockQuestions.data.questions.length, 2);
   assert.equal(mockQuestions.data.questions[0]?.current, true);
   assert.equal(mockQuestions.data.questions[0]?.content, undefined);
 
   await assertInterviewHttpError(
-    () => controller.moveMockNextQuestion(validCandidateHeaders, String(mockStarted.data.sessionId)),
+    () => controller.moveMockNextQuestion(validCandidateRequest, String(mockStarted.data.sessionId)),
     409,
     "COMMON_CONFLICT",
   );
 
   const firstMockQuestionId = mockQuestions.data.questions[0]?.questionId ?? 0;
-  const firstMockAnswer = await controller.saveMockAnswer(validCandidateHeaders, String(mockStarted.data.sessionId), {
+  const firstMockAnswer = await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
     questionId: firstMockQuestionId,
     videoFile: {
       storageKey: "candidate/1/mock-answer-1.webm",
@@ -128,7 +132,7 @@ async function runControllerRuntimeAssertions() {
   assert.equal(firstMockAnswer.data.videoFile?.mimeType, "video/webm");
   assert.equal(firstMockAnswer.data.nextQuestionAvailable, true);
 
-  const mockStt = await controller.requestMockStt(validCandidateHeaders, String(mockStarted.data.sessionId), {
+  const mockStt = await controller.requestMockStt(validCandidateRequest, String(mockStarted.data.sessionId), {
     answerId: firstMockAnswer.data.answer.answerId,
   });
   assert.equal(mockStt.data.accepted, true);
@@ -137,18 +141,18 @@ async function runControllerRuntimeAssertions() {
   assert.equal(mockStt.data.fileId, firstMockAnswer.data.answer.videoFileId);
 
   const mockFollowUp = await controller.requestMockFollowUpQuestion(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(mockStarted.data.sessionId),
     { answerId: firstMockAnswer.data.answer.answerId },
   );
   assert.equal(mockFollowUp.data.processType, "FOLLOW_UP");
 
-  const nextMock = await controller.moveMockNextQuestion(validCandidateHeaders, String(mockStarted.data.sessionId));
+  const nextMock = await controller.moveMockNextQuestion(validCandidateRequest, String(mockStarted.data.sessionId));
   assert.equal(nextMock.data.previousQuestionId, firstMockQuestionId);
   assert.equal(nextMock.data.currentQuestion?.current, true);
   assert.equal(nextMock.data.isLastQuestion, true);
 
-  await controller.saveMockAnswer(validCandidateHeaders, String(mockStarted.data.sessionId), {
+  await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
     questionId: nextMock.data.currentQuestion?.questionId ?? 0,
     audioFile: {
       storageKey: "candidate/1/mock-answer-2.webm",
@@ -159,16 +163,16 @@ async function runControllerRuntimeAssertions() {
     durationSeconds: 30,
   });
 
-  const completedMock = await controller.completeMockInterview(validCandidateHeaders, String(mockStarted.data.sessionId));
+  const completedMock = await controller.completeMockInterview(validCandidateRequest, String(mockStarted.data.sessionId));
   assert.equal(completedMock.data.status, "COMPLETED");
   assert.equal(completedMock.data.answeredCount, 2);
 
-  const mockHistory = await controller.listMockInterviewHistory(validCandidateHeaders);
+  const mockHistory = await controller.listMockInterviewHistory(validCandidateRequest);
   assert.equal(mockHistory.data.items[0]?.sessionId, mockStarted.data.sessionId);
   assert.equal(mockHistory.data.items[0]?.reportStatus, "COMPLETED");
 
   await assertInterviewHttpError(
-    () => controller.getMockRuntime(validCandidateHeaders, String(mockStarted.data.sessionId)),
+    () => controller.getMockRuntime(validCandidateRequest, String(mockStarted.data.sessionId)),
     409,
     "COMMON_CONFLICT",
   );
@@ -183,13 +187,13 @@ async function runControllerRuntimeAssertions() {
   assert.ok(session);
 
   await assertInterviewHttpError(
-    () => controller.startInterview(validCandidateHeaders, String(submitted.application.applicationId)),
+    () => controller.startInterview(validCandidateRequest, String(submitted.application.applicationId)),
     409,
     "COMMON_CONFLICT",
   );
 
   await assertInterviewHttpError(
-    () => controller.saveDeviceCheck({}, String(session.sessionId), {
+    () => controller.saveDeviceCheck(missingCandidateRequest, String(session.sessionId), {
       cameraGranted: true,
       microphoneGranted: true,
       networkStable: true,
@@ -214,21 +218,21 @@ async function runControllerRuntimeAssertions() {
     DEV_CANDIDATE_USER,
   );
 
-  const deviceCheck = await controller.saveDeviceCheck(validCandidateHeaders, String(session.sessionId), {
+  const deviceCheck = await controller.saveDeviceCheck(validCandidateRequest, String(session.sessionId), {
     cameraGranted: true,
     microphoneGranted: true,
     networkStable: true,
   });
   assert.equal(deviceCheck.data.canStart, true);
 
-  const started = await controller.startInterview(validCandidateHeaders, String(submitted.application.applicationId));
+  const started = await controller.startInterview(validCandidateRequest, String(submitted.application.applicationId));
   assert.equal(started.data.applicationId, submitted.application.applicationId);
   assert.equal(started.data.sessionId, session.sessionId);
   assert.equal(started.data.interviewStatus, "IN_PROGRESS");
   assert.equal(started.data.sessionStatus, "IN_PROGRESS");
 
   const runtime = await controller.getInterviewRuntime(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(submitted.application.applicationId),
   );
   assert.equal(runtime.data.applicationId, submitted.application.applicationId);
@@ -236,7 +240,7 @@ async function runControllerRuntimeAssertions() {
   assert.equal(runtime.data.status, "IN_PROGRESS");
   assert.equal(runtime.data.canRecord, true);
 
-  const recruitingQuestions = await controller.listRecruitingQuestions(validCandidateHeaders, String(session.sessionId));
+  const recruitingQuestions = await controller.listRecruitingQuestions(validCandidateRequest, String(session.sessionId));
   assert.equal(recruitingQuestions.data.interviewType, "RECRUITING");
   assert.equal(recruitingQuestions.data.questions.length, 4);
   assert.equal(recruitingQuestions.data.questions[0]?.content, undefined);
@@ -244,7 +248,7 @@ async function runControllerRuntimeAssertions() {
   for (let index = 0; index < recruitingQuestions.data.questions.length; index += 1) {
     const question = recruitingQuestions.data.questions[index];
     assert.ok(question);
-    const answer = await controller.saveRecruitingAnswer(validCandidateHeaders, String(session.sessionId), {
+    const answer = await controller.saveRecruitingAnswer(validCandidateRequest, String(session.sessionId), {
       questionId: question.questionId,
       videoFile: {
         storageKey: `candidate/1/recruiting-answer-${index + 1}.webm`,
@@ -257,7 +261,7 @@ async function runControllerRuntimeAssertions() {
     assert.equal(answer.data.answer.questionId, question.questionId);
 
     if (index === 0) {
-      const stt = await controller.requestRecruitingStt(validCandidateHeaders, String(session.sessionId), {
+      const stt = await controller.requestRecruitingStt(validCandidateRequest, String(session.sessionId), {
         answerId: answer.data.answer.answerId,
       });
       assert.equal(stt.data.sessionId, session.sessionId);
@@ -266,18 +270,18 @@ async function runControllerRuntimeAssertions() {
     }
 
     if (index < recruitingQuestions.data.questions.length - 1) {
-      await controller.moveRecruitingNextQuestion(validCandidateHeaders, String(session.sessionId));
+      await controller.moveRecruitingNextQuestion(validCandidateRequest, String(session.sessionId));
     }
   }
 
   await assertInterviewHttpError(
-    () => controller.moveRecruitingNextQuestion(validCandidateHeaders, String(session.sessionId)),
+    () => controller.moveRecruitingNextQuestion(validCandidateRequest, String(session.sessionId)),
     409,
     "COMMON_CONFLICT",
   );
 
   const completedRecruiting = await controller.completeRecruitingInterview(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(session.sessionId),
   );
   assert.equal(completedRecruiting.data.status, "COMPLETED");

@@ -14,22 +14,24 @@ import { ReportService } from "./report.service";
 
 type ReportControllerRoute =
   | "listMockReports"
-  | "listMockInterviewHistory"
   | "getMockReportFeedback"
   | "getMockReportMedia"
   | "getApplicationReport"
   | "getApplicationStatus";
 
-const validCandidateHeaders = {
-  "x-dev-user-type": "CANDIDATE",
-  "x-dev-user-id": "2",
-  "x-dev-candidate-id": "1",
+const validCandidateRequest = {
+  headers: {},
+  currentUser: { ...DEV_CANDIDATE_USER, companyId: null },
 };
 
-const otherCandidateHeaders = {
-  "x-dev-user-type": "CANDIDATE",
-  "x-dev-user-id": "99",
-  "x-dev-candidate-id": "99",
+const otherCandidateRequest = {
+  headers: {},
+  currentUser: {
+    userId: 99,
+    userType: "CANDIDATE" as const,
+    companyId: null,
+    candidateId: 99,
+  },
 };
 
 function assertRoute(
@@ -49,7 +51,6 @@ function assertRoute(
 
 assert.equal(Reflect.getMetadata(PATH_METADATA, ReportController), reportApiRoutePrefix);
 assertRoute("listMockReports", reportApiRoutes.mockReports, RequestMethod.GET);
-assertRoute("listMockInterviewHistory", reportApiRoutes.mockHistory, RequestMethod.GET);
 assertRoute("getMockReportFeedback", reportApiRoutes.mockFeedback, RequestMethod.GET);
 assertRoute("getMockReportMedia", reportApiRoutes.mockMedia, RequestMethod.GET);
 assertRoute("getApplicationReport", reportApiRoutes.applicationReport, RequestMethod.GET);
@@ -74,7 +75,7 @@ async function assertReportHttpError(
 }
 
 async function answerAllMockQuestions(interviewService: InterviewService, sessionId: number) {
-  const questions = await interviewService.listMockQuestions(sessionId, validCandidateHeaders);
+  const questions = await interviewService.listMockQuestions(sessionId, DEV_CANDIDATE_USER);
   for (let index = 0; index < questions.data.questions.length; index += 1) {
     const question = questions.data.questions[index];
     assert.ok(question);
@@ -87,16 +88,16 @@ async function answerAllMockQuestions(interviewService: InterviewService, sessio
         sizeBytes: 1024,
       },
       durationSeconds: 30 + index,
-    }, validCandidateHeaders);
+    }, DEV_CANDIDATE_USER);
 
     if (index < questions.data.questions.length - 1) {
-      await interviewService.moveMockNextQuestion(sessionId, validCandidateHeaders);
+      await interviewService.moveMockNextQuestion(sessionId, DEV_CANDIDATE_USER);
     }
   }
 }
 
 async function answerAllRecruitingQuestions(interviewService: InterviewService, sessionId: number) {
-  const questions = await interviewService.listRecruitingQuestions(sessionId, validCandidateHeaders);
+  const questions = await interviewService.listRecruitingQuestions(sessionId, DEV_CANDIDATE_USER);
   for (let index = 0; index < questions.data.questions.length; index += 1) {
     const question = questions.data.questions[index];
     assert.ok(question);
@@ -109,10 +110,10 @@ async function answerAllRecruitingQuestions(interviewService: InterviewService, 
         sizeBytes: 2048,
       },
       durationSeconds: 45 + index,
-    }, validCandidateHeaders);
+    }, DEV_CANDIDATE_USER);
 
     if (index < questions.data.questions.length - 1) {
-      await interviewService.moveRecruitingNextQuestion(sessionId, validCandidateHeaders);
+      await interviewService.moveRecruitingNextQuestion(sessionId, DEV_CANDIDATE_USER);
     }
   }
 }
@@ -136,29 +137,25 @@ async function runReportControllerAssertions() {
 
   const startedMock = await interviewService.startMockInterview(
     { questionTypes: ["INTRO", "TECHNICAL"], showQuestionText: true },
-    validCandidateHeaders,
+    DEV_CANDIDATE_USER,
   );
   const mockReportId = startedMock.data.sessionId;
 
   await assertReportHttpError(
-    () => controller.getMockReportFeedback(validCandidateHeaders, String(mockReportId)),
+    () => controller.getMockReportFeedback(validCandidateRequest, String(mockReportId)),
     409,
     "REPORT_NOT_READY",
   );
 
   await answerAllMockQuestions(interviewService, mockReportId);
-  await interviewService.completeMockInterview(mockReportId, validCandidateHeaders);
+  await interviewService.completeMockInterview(mockReportId, DEV_CANDIDATE_USER);
 
-  const reports = await controller.listMockReports(validCandidateHeaders);
+  const reports = await controller.listMockReports(validCandidateRequest);
   assert.equal(reports.data.items.length, 1);
   assert.equal(reports.data.items[0]?.reportId, mockReportId);
   assert.equal(reports.data.items[0]?.reportStatus, "COMPLETED");
 
-  const history = await controller.listMockInterviewHistory(validCandidateHeaders);
-  assert.equal(history.data.items[0]?.sessionId, mockReportId);
-  assert.equal(history.data.items[0]?.answeredCount, 2);
-
-  const feedback = await controller.getMockReportFeedback(validCandidateHeaders, String(mockReportId));
+  const feedback = await controller.getMockReportFeedback(validCandidateRequest, String(mockReportId));
   assert.equal(feedback.data.reportType, "MOCK_INTERVIEW_REPORT");
   assert.equal(feedback.data.status, "COMPLETED");
   assert.equal(feedback.data.visibilityPolicy.excludesHiringDecision, true);
@@ -169,14 +166,14 @@ async function runReportControllerAssertions() {
     ...feedback.data.nextPractice,
   ].join(" ")), false);
 
-  const media = await controller.getMockReportMedia(validCandidateHeaders, String(mockReportId));
+  const media = await controller.getMockReportMedia(validCandidateRequest, String(mockReportId));
   assert.equal(media.data.media.length, 2);
   assert.equal(media.data.media[0]?.videoFile?.status, "ACTIVE");
   assert.equal(media.data.media[0]?.transcriptStatus, "PENDING");
   assert.ok(media.data.media[0]?.questionContent);
 
   await assertReportHttpError(
-    () => controller.getMockReportFeedback(otherCandidateHeaders, String(mockReportId)),
+    () => controller.getMockReportFeedback(otherCandidateRequest, String(mockReportId)),
     403,
     "COMMON_FORBIDDEN",
   );
@@ -191,7 +188,7 @@ async function runReportControllerAssertions() {
   assert.ok(session);
 
   await assertReportHttpError(
-    () => controller.getApplicationReport(validCandidateHeaders, String(submitted.application.applicationId)),
+    () => controller.getApplicationReport(validCandidateRequest, String(submitted.application.applicationId)),
     409,
     "REPORT_NOT_READY",
   );
@@ -208,10 +205,10 @@ async function runReportControllerAssertions() {
   );
   await candidateService.startInterview(submitted.application.applicationId, DEV_CANDIDATE_USER);
   await answerAllRecruitingQuestions(interviewService, session.sessionId);
-  await interviewService.completeRecruitingInterview(session.sessionId, validCandidateHeaders);
+  await interviewService.completeRecruitingInterview(session.sessionId, DEV_CANDIDATE_USER);
 
   const applicationStatus = await controller.getApplicationStatus(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(submitted.application.applicationId),
   );
   assert.equal(applicationStatus.data.interviewStatus, "COMPLETED");
@@ -220,7 +217,7 @@ async function runReportControllerAssertions() {
   assert.equal(applicationStatus.data.reportAvailable, false);
 
   const applicationReport = await controller.getApplicationReport(
-    validCandidateHeaders,
+    validCandidateRequest,
     String(submitted.application.applicationId),
   );
   assert.equal(applicationReport.data.reportType, "RECRUITING_REPORT");
@@ -230,13 +227,13 @@ async function runReportControllerAssertions() {
   assertNoRecruitingInternalFields(applicationReport.data as unknown as Record<string, unknown>);
 
   await assertReportHttpError(
-    () => controller.getApplicationStatus(otherCandidateHeaders, String(submitted.application.applicationId)),
+    () => controller.getApplicationStatus(otherCandidateRequest, String(submitted.application.applicationId)),
     403,
     "COMMON_FORBIDDEN",
   );
 
   await assertReportHttpError(
-    () => controller.getApplicationReport(validCandidateHeaders, "99999"),
+    () => controller.getApplicationReport(validCandidateRequest, "99999"),
     404,
     "COMMON_NOT_FOUND",
   );
