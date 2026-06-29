@@ -7,10 +7,10 @@
     "npm": ">=10"
   },
   "scripts": {
-    "typecheck": "node -e \"console.log('backend api typecheck pending implementation')\"",
-    "lint": "node -e \"console.log('backend api lint pending implementation')\"",
-    "test": "node -e \"console.log('backend api tests pending implementation')\"",
-    "build": "node -e \"console.log('backend api build pending implementation')\"",
+    "typecheck": "tsc --noEmit --pretty false",
+    "lint": "tsc --noEmit --pretty false",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "build": "tsc -p tsconfig.build.json",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",

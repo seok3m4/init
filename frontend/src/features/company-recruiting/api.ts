@@ -1,0 +1,101 @@
+import type {
+  ApiEnvelope,
+  ApiErrorEnvelope,
+  Applicant,
+  ApplicantEvaluation,
+  CreateApplicantInput,
+  CreateRecruitmentInput,
+  InvitationResult,
+  InviteApplicantInput,
+  Recruitment,
+  UpdateScreeningStatusInput,
+} from "./types";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+
+type ListQuery = {
+  page?: number;
+  limit?: number;
+  q?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+};
+
+export async function listRecruitments(query: ListQuery = {}) {
+  return request<{ items: Recruitment[] }>("/company/recruitments", { query });
+}
+
+export async function createRecruitment(input: CreateRecruitmentInput) {
+  return request<Recruitment>("/company/recruitments", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function getRecruitment(recruitmentId: number) {
+  return request<Recruitment>(`/company/recruitments/${recruitmentId}`);
+}
+
+export async function listRecruitmentApplicants(recruitmentId: number, query: ListQuery = {}) {
+  return request<{ items: Applicant[] }>(`/company/recruitments/${recruitmentId}/applicants`, { query });
+}
+
+export async function createApplicant(input: CreateApplicantInput) {
+  return request<Applicant>("/company/applicants", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function inviteApplicant(input: InviteApplicantInput) {
+  return request<InvitationResult>("/company/applicants/invitations", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function getApplicantEvaluation(applicantId: number) {
+  return request<ApplicantEvaluation>(`/company/applicants/${applicantId}/evaluation`);
+}
+
+export async function updateScreeningStatus(applicantId: number, input: UpdateScreeningStatusInput) {
+  return request<Applicant>(`/company/applicants/${applicantId}/screening-status`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+async function request<T>(
+  path: string,
+  options: {
+    method?: "GET" | "POST" | "PATCH";
+    query?: Record<string, string | number | undefined>;
+    body?: unknown;
+  } = {},
+): Promise<ApiEnvelope<T>> {
+  const url = new URL(`/api/v1${path}`, API_BASE_URL);
+  Object.entries(options.query ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(url.toString(), {
+    method: options.method ?? "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Dev-User-Id": "1",
+      "X-Dev-User-Type": "COMPANY",
+      "X-Dev-Company-Id": "1",
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const payload = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
+  if (!response.ok || "error" in payload) {
+    const message = "error" in payload ? payload.error.message : "요청 처리 중 오류가 발생했습니다.";
+    throw new Error(message);
+  }
+
+  return payload;
+}

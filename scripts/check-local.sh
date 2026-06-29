@@ -187,7 +187,7 @@ verify_ownership() {
   local pattern
   case "$ROLE" in
     A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^frontend/(next-env\.d\.ts|next\.config\.ts|tsconfig\.json)$|^backend/api/(src|prisma)/|^backend/api/tsconfig(\.build)?\.json$|^docs/03_contracts/|^docs/02_architecture/)" ;;
     C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     E) pattern="($common|$baseline|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
@@ -227,6 +227,14 @@ verify_prisma() {
   if [[ ! -f "$api_dir/package.json" ]]; then
     echo "[fail] schema.prisma exists but backend/api/package.json is missing"
     return 1
+  fi
+
+  if [[ -z "${DATABASE_URL:-}" && -f "$ROOT/.env.example" ]]; then
+    local example_database_url
+    example_database_url="$(grep -E '^DATABASE_URL=' "$ROOT/.env.example" | head -n 1 | cut -d= -f2-)"
+    if [[ -n "$example_database_url" ]]; then
+      export DATABASE_URL="$example_database_url"
+    fi
   fi
 
   (
