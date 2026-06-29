@@ -43,49 +43,47 @@ textarea {
   min-height: 100vh;
 }
 
+/* floating rounded nav bar */
 .gnb {
   position: sticky;
   top: 0;
   z-index: 10;
+  padding: 14px 0 0;
+  background: transparent;
+}
+
+.gnb-inner {
   display: flex;
   align-items: center;
   gap: 24px;
-  height: 76px;
-  padding: 0 36px;
+  width: min(1200px, calc(100% - 32px));
+  height: 62px;
+  margin: 0 auto;
+  padding: 0 14px 0 24px;
   background: #fff;
-  border-bottom: 1px solid var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  box-shadow: 0 10px 34px rgba(20, 18, 45, 0.09);
 }
 
 .brand {
-  display: flex;
+  display: inline-flex;
   flex: 1 1 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: center;
   min-width: 0;
 }
 
 .brand img {
   display: block;
   width: auto;
-  height: 22px;
+  height: 24px;
 }
 
-.brand-sub {
-  color: var(--ink-300, #9a98ad);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-/* center pill nav */
+/* plain-text nav */
 .gnb-menu {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 5px;
-  background: rgba(20, 18, 45, 0.05);
-  border-radius: 999px;
+  gap: 4px;
 }
 
 .gnb-item {
@@ -95,24 +93,34 @@ textarea {
 .gnb-link {
   display: inline-flex;
   align-items: center;
-  padding: 9px 18px;
-  color: var(--ink-500);
-  font-size: 14px;
+  gap: 4px;
+  padding: 9px 14px;
+  color: var(--ink-700);
+  font-size: 14.5px;
   font-weight: 600;
-  border-radius: 999px;
+  border-radius: 12px;
   transition: background 0.15s ease, color 0.15s ease;
+}
+
+.caret {
+  opacity: 0.65;
+  transition: transform 0.15s ease;
+}
+
+.gnb-item:hover .caret {
+  transform: rotate(180deg);
 }
 
 .gnb-item.active > .gnb-link,
 .gnb-item:hover > a.gnb-link,
 a.gnb-link:hover {
-  color: #fff;
-  background: #16151c;
+  color: var(--brand-strong);
+  background: var(--surface-soft);
 }
 
 .gnb-panel {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
   display: none;
@@ -128,6 +136,18 @@ a.gnb-link:hover {
 .gnb-item:focus-within .gnb-panel {
   display: grid;
   gap: 2px;
+  animation: initdrop 0.16s ease;
+}
+
+@keyframes initdrop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .gnb-panel a {
@@ -146,13 +166,13 @@ a.gnb-link:hover {
 }
 
 .gnb-soon {
-  color: var(--ink-300, #9a98ad);
+  color: var(--ink-300);
   cursor: default;
 }
 
 .gnb-link.gnb-soon:hover {
   background: transparent;
-  color: var(--ink-300, #9a98ad);
+  color: var(--ink-300);
 }
 
 .gnb-panel .gnb-soon {
@@ -164,44 +184,40 @@ a.gnb-link:hover {
 
 .gnb-right {
   display: flex;
-  flex: 1 1 0;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
 }
 
-.gnb-right-label {
-  color: var(--ink-300, #9a98ad);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.gnb-chip {
-  padding: 7px 14px;
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
   color: var(--ink-500);
-  font-size: 13px;
-  font-weight: 600;
-  background: rgba(20, 18, 45, 0.05);
-  border: none;
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.gnb-chip:hover {
-  background: rgba(20, 18, 45, 0.1);
+.icon-btn:hover {
+  color: var(--brand-strong);
+  background: #fafafc;
+  border-color: #7e7eff;
 }
 
 .avatar {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   color: #fff;
   font-size: 13px;
   font-weight: 800;
-  background: var(--brand-strong);
+  background: var(--brand-grad);
   border-radius: 999px;
 }
 
@@ -556,7 +572,7 @@ tr:last-child td {
 }
 
 @media (max-width: 760px) {
-  .gnb {
+  .gnb-inner {
     flex-wrap: wrap;
     height: auto;
     min-height: 64px;
@@ -583,10 +599,6 @@ tr:last-child td {
 
   .gnb-right {
     flex: 1 1 auto;
-  }
-
-  .gnb-right-label {
-    display: none;
   }
 
   .app-page {
