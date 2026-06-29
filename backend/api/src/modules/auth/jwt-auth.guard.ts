@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import jwt from "jsonwebtoken";
-import { ERROR_CODES, isUserType } from "@init/common";
+import { ERROR_CODES, isUserType, type CurrentUser } from "@init/common";
 import { ApiException } from "../../shared/api-exception";
 import type { JwtPayload } from "./auth.types";
 
@@ -12,7 +12,7 @@ export class JwtAuthGuard implements CanActivate {
     const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
 
     if (bearerToken) {
-      request.currentUser = this.verifyToken(bearerToken, "access");
+      request.currentUser = this.toCurrentUser(this.verifyToken(bearerToken, "access"));
       return true;
     }
 
@@ -35,17 +35,25 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private readDevAuth(headers: Record<string, string | undefined>) {
+  private readDevAuth(headers: Record<string, string | undefined>): CurrentUser | null {
     if (!["local", "development", "test"].includes(process.env.NODE_ENV ?? "development")) return null;
     const userId = Number(headers["x-dev-user-id"]);
     const userType = headers["x-dev-user-type"];
     if (!userId || !isUserType(userType)) return null;
     return {
-      sub: userId,
+      userId,
       userType,
       companyId: headers["x-dev-company-id"] ? Number(headers["x-dev-company-id"]) : null,
       candidateId: headers["x-dev-candidate-id"] ? Number(headers["x-dev-candidate-id"]) : null,
-      tokenType: "access" as const,
+    };
+  }
+
+  private toCurrentUser(payload: JwtPayload): CurrentUser {
+    return {
+      userId: payload.sub,
+      userType: payload.userType,
+      companyId: payload.companyId,
+      candidateId: payload.candidateId,
     };
   }
 }

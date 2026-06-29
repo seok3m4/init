@@ -7,17 +7,148 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserType {
+  ADMIN
+  COMPANY
+  CANDIDATE
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum PostingStatus {
+  DRAFT
+  OPEN
+  CLOSING_SOON
+  CLOSED
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  INTERVIEW_WAITING
+  INTERVIEW_DONE
+  COMPLETED
+  CANCELED
+}
+
+enum DocumentStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  EXTRACTING
+  EXTRACTED
+  FAILED
+}
+
+enum InterviewStatus {
+  NOT_READY
+  READY
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum ScreeningDecision {
+  UNDECIDED
+  PASS
+  HOLD
+  FAIL
+}
+
+enum InterviewType {
+  MOCK
+  RECRUITING
+}
+
+enum ReportType {
+  MOCK_INTERVIEW_REPORT
+  RECRUITING_REPORT
+}
+
+enum DocumentType {
+  RESUME
+  PORTFOLIO
+}
+
+enum ConsentType {
+  PRIVACY_COLLECTION
+  AI_DOCUMENT_ANALYSIS
+  AI_INTERVIEW_RECORDING
+}
+
+enum QuestionType {
+  INTRO
+  TECHNICAL
+  EXPERIENCE
+  SITUATION
+  FOLLOW_UP
+  CLOSING
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+}
+
+enum AiProcessType {
+  DOCUMENT_EXTRACT
+  STT
+  FOLLOW_UP
+  REPORT_GENERATE
+  EMBEDDING
+}
+
+enum AiProcessStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum GuardrailResult {
+  PASS
+  BLOCKED
+  REGENERATED
+}
+
+enum EmbeddingSourceType {
+  POSTING_JD
+  CRITERION_TAG
+  QUESTION
+  APPLICATION_DOCUMENT
+  INTERVIEW_ANSWER
+  EVALUATION_REPORT
+}
+
 model User {
   userId         BigInt   @id @default(autoincrement()) @map("user_id")
   email          String   @unique @db.VarChar(255)
   passwordHash   String?  @map("password_hash") @db.VarChar(255)
-  userType       String   @map("user_type") @db.VarChar(30)
+  userType       UserType @map("user_type")
   name           String   @db.VarChar(100)
   phone          String?  @db.VarChar(50)
-  status         String   @db.VarChar(30)
+  status         UserStatus
   createdAt      DateTime @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime @map("updated_at") @db.Timestamp(6)
-  authProvider   String   @map("auth_provider") @db.VarChar(30)
+  authProvider   AuthProvider @map("auth_provider")
   providerUserId String?  @map("provider_user_id") @db.VarChar(255)
 
   @@unique([authProvider, providerUserId], map: "uk_users_provider_user")
@@ -75,7 +206,7 @@ model Posting {
   jobDescription String?   @map("job_description")
   startsOn       DateTime? @map("starts_on") @db.Date
   endsOn         DateTime? @map("ends_on") @db.Date
-  status         String    @db.VarChar(30)
+  status         PostingStatus
   createdAt      DateTime  @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime  @map("updated_at") @db.Timestamp(6)
 
@@ -96,7 +227,7 @@ model CriterionTag {
   @@map("criterion_tags")
 }
 
-model EvaluationCriteria {
+model EvaluationCriterion {
   criterionId BigInt @id @default(autoincrement()) @map("criterion_id")
   postingId   BigInt @map("posting_id")
   tagId       BigInt @map("tag_id")
@@ -109,12 +240,12 @@ model EvaluationCriteria {
   @@map("evaluation_criteria")
 }
 
-model QuestionBank {
+model Question {
   questionId   BigInt  @id @default(autoincrement()) @map("question_id")
   companyId    BigInt  @map("company_id")
   postingId    BigInt? @map("posting_id")
   criterionId  BigInt? @map("criterion_id")
-  questionType String  @map("question_type") @db.VarChar(50)
+  questionType QuestionType @map("question_type")
   content      String
   isActive     Boolean @default(true) @map("is_active")
 
@@ -126,11 +257,11 @@ model Application {
   applicationId      BigInt    @id @default(autoincrement()) @map("application_id")
   postingId          BigInt    @map("posting_id")
   candidateId        BigInt    @map("candidate_id")
-  applicationStatus  String    @map("application_status") @db.VarChar(40)
-  documentStatus     String    @map("document_status") @db.VarChar(40)
-  interviewStatus    String    @map("interview_status") @db.VarChar(40)
-  reportStatus       String    @map("report_status") @db.VarChar(40)
-  screeningDecision  String?   @map("screening_decision") @db.VarChar(40)
+  applicationStatus  ApplicationStatus @map("application_status")
+  documentStatus     DocumentStatus    @map("document_status")
+  interviewStatus    InterviewStatus   @map("interview_status")
+  reportStatus       ReportStatus      @map("report_status")
+  screeningDecision  ScreeningDecision? @map("screening_decision")
   screeningMemo      String?   @map("screening_memo")
   submittedAt        DateTime? @map("submitted_at") @db.Timestamp(6)
   updatedAt          DateTime  @map("updated_at") @db.Timestamp(6)
@@ -144,8 +275,8 @@ model ApplicationDocument {
   documentId    BigInt    @id @default(autoincrement()) @map("document_id")
   applicationId BigInt    @map("application_id")
   fileId        BigInt?   @map("file_id")
-  documentType  String    @map("document_type") @db.VarChar(50)
-  parseStatus   String    @map("parse_status") @db.VarChar(40)
+  documentType  DocumentType   @map("document_type")
+  parseStatus   DocumentStatus @map("parse_status")
   extractedText String?   @map("extracted_text")
   uploadedAt    DateTime  @map("uploaded_at") @db.Timestamp(6)
 
@@ -155,7 +286,7 @@ model ApplicationDocument {
 model ConsentRecord {
   consentId     BigInt    @id @default(autoincrement()) @map("consent_id")
   applicationId BigInt    @map("application_id")
-  consentType   String    @map("consent_type") @db.VarChar(80)
+  consentType   ConsentType @map("consent_type")
   agreed        Boolean
   agreedAt      DateTime? @map("agreed_at") @db.Timestamp(6)
 
@@ -166,8 +297,8 @@ model InterviewSession {
   sessionId        BigInt    @id @default(autoincrement()) @map("session_id")
   applicationId    BigInt?   @map("application_id")
   candidateId      BigInt    @map("candidate_id")
-  interviewType    String    @map("interview_type") @db.VarChar(40)
-  status           String    @db.VarChar(40)
+  interviewType    InterviewType   @map("interview_type")
+  status           InterviewStatus
   showQuestionText Boolean   @default(false) @map("show_question_text")
   startedAt        DateTime? @map("started_at") @db.Timestamp(6)
   completedAt      DateTime? @map("completed_at") @db.Timestamp(6)
@@ -203,8 +334,8 @@ model EvaluationReport {
   reportId      BigInt    @id @default(autoincrement()) @map("report_id")
   applicationId BigInt?   @map("application_id")
   sessionId     BigInt?   @map("session_id")
-  reportType    String    @map("report_type") @db.VarChar(50)
-  status        String    @db.VarChar(40)
+  reportType    ReportType   @map("report_type")
+  status        ReportStatus
   totalScore    Int?      @map("total_score")
   summary       String?
   generatedAt   DateTime? @map("generated_at") @db.Timestamp(6)
@@ -236,7 +367,7 @@ model ManualEvaluation {
   manualEvalId   BigInt    @id @default(autoincrement()) @map("manual_eval_id")
   reportId       BigInt    @map("report_id")
   reviewerUserId BigInt    @map("reviewer_user_id")
-  decision       String?   @db.VarChar(40)
+  decision       ScreeningDecision?
   memo           String?
   reviewedAt     DateTime? @map("reviewed_at") @db.Timestamp(6)
 
@@ -247,7 +378,7 @@ model Notification {
   notificationId   BigInt    @id @default(autoincrement()) @map("notification_id")
   userId           BigInt    @map("user_id")
   applicationId    BigInt?   @map("application_id")
-  channel          String    @db.VarChar(40)
+  channel          NotificationChannel
   notificationType String    @map("notification_type") @db.VarChar(80)
   status           String    @db.VarChar(40)
   sentAt           DateTime? @map("sent_at") @db.Timestamp(6)
@@ -259,8 +390,8 @@ model AiProcessLog {
   processLogId BigInt   @id @default(autoincrement()) @map("process_log_id")
   applicationId BigInt?  @map("application_id")
   sessionId     BigInt?  @map("session_id")
-  processType   String   @map("process_type") @db.VarChar(80)
-  status        String   @db.VarChar(40)
+  processType   AiProcessType   @map("process_type")
+  status        AiProcessStatus
   inputRef      String?  @map("input_ref")
   outputRef     String?  @map("output_ref")
   createdAt     DateTime @map("created_at") @db.Timestamp(6)
@@ -273,7 +404,7 @@ model AiGuardrailLog {
   guardrailLogId BigInt   @id @default(autoincrement()) @map("guardrail_log_id")
   processLogId   BigInt   @map("process_log_id")
   policyName     String   @map("policy_name") @db.VarChar(120)
-  result         String   @db.VarChar(40)
+  result         GuardrailResult
   reason         String?
   createdAt      DateTime @map("created_at") @db.Timestamp(6)
 
@@ -288,7 +419,7 @@ model Embedding {
   documentId         BigInt?  @map("document_id")
   answerId           BigInt?  @map("answer_id")
   reportId           BigInt?  @map("report_id")
-  sourceType         String   @map("source_type") @db.VarChar(80)
+  sourceType         EmbeddingSourceType @map("source_type")
   sourceTextHash     String   @map("source_text_hash") @db.VarChar(128)
   embeddingModel     String   @map("embedding_model") @db.VarChar(120)
   embeddingDimension Int      @map("embedding_dimension")

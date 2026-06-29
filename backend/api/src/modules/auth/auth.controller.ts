@@ -1,10 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { isUserType } from "@init/common";
+import { isUserType, type CurrentUser } from "@init/common";
 import { ApiException } from "../../shared/api-exception";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
-import type { JwtPayload } from "./auth.types";
 
 @Controller("auth")
 export class AuthController {
@@ -78,7 +77,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get("me")
-  me(@Req() request: Request & { currentUser: JwtPayload }) {
+  me(@Req() request: Request & { currentUser: CurrentUser }) {
     return this.auth.me(request.currentUser);
   }
 

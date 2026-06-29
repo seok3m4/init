@@ -1,16 +1,18 @@
 {
-  "name": "final-weapon-backend-common",
+  "name": "@init/common",
   "version": "0.1.0",
   "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "engines": {
     "node": "20.x",
     "npm": ">=10"
   },
   "scripts": {
-    "typecheck": "node -e \"console.log('backend common typecheck pending implementation')\"",
-    "lint": "node -e \"console.log('backend common lint pending implementation')\"",
-    "test": "node -e \"console.log('backend common tests pending implementation')\"",
-    "build": "node -e \"console.log('backend common build pending implementation')\""
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run typecheck",
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "class-transformer": "0.5.1",

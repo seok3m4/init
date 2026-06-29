@@ -2,7 +2,7 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions } from "jsonwebtoken";
 import { randomInt } from "crypto";
-import { ERROR_CODES, UserType } from "@init/common";
+import { ERROR_CODES, type CurrentUser, type UserType } from "@init/common";
 import { PrismaService } from "../../shared/prisma.service";
 import { ApiException } from "../../shared/api-exception";
 import { JwtAuthGuard } from "./jwt-auth.guard";
@@ -168,11 +168,10 @@ export class AuthService {
     return { reset: true };
   }
 
-  async me(payload: JwtPayload) {
-    const user = await this.prisma.user.findUnique({ where: { userId: BigInt(payload.sub) } });
+  async me(currentUser: CurrentUser) {
+    const user = await this.prisma.user.findUnique({ where: { userId: BigInt(currentUser.userId) } });
     if (!user) throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED);
-    const current = await this.currentUserFor(user);
-    return { ...current, email: user.email, name: user.name };
+    return { ...currentUser, email: user.email, name: user.name };
   }
 
   async refresh(refreshToken: string | undefined): Promise<TokenPair & { refreshToken: string }> {
@@ -318,7 +317,7 @@ export class AuthService {
     return { accessToken, refreshToken, user: { ...current, email: user.email, name: user.name } };
   }
 
-  private signToken(current: { userId: number; userType: UserType; companyId: number | null; candidateId: number | null }, tokenType: "access" | "refresh") {
+  private signToken(current: CurrentUser, tokenType: "access" | "refresh") {
     const expiresIn = tokenType === "access" ? process.env.JWT_ACCESS_TOKEN_TTL ?? "15m" : process.env.JWT_REFRESH_TOKEN_TTL ?? "14d";
     const payload: JwtPayload = {
       sub: current.userId,
@@ -330,7 +329,7 @@ export class AuthService {
     return jwt.sign(payload, process.env.JWT_SECRET ?? "local-dev-jwt-secret-change-me", { expiresIn } as SignOptions);
   }
 
-  private async currentUserFor(user: { userId: bigint; userType: string }) {
+  private async currentUserFor(user: { userId: bigint; userType: string }): Promise<CurrentUser> {
     const userId = Number(user.userId);
     const userType = user.userType as UserType;
     const company = userType === "COMPANY" ? await this.prisma.company.findFirst({ where: { ownerUserId: user.userId } }) : null;

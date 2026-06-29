@@ -1,14 +1,17 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from "@nestjs/common";
-import type { Response } from "express";
+import { randomUUID } from "crypto";
+import type { Request, Response } from "express";
 import { ERROR_CODES } from "@init/common";
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
-    const response = host.switchToHttp().getResponse<Response>();
+    const http = host.switchToHttp();
+    const request = http.getRequest<Request>();
+    const response = http.getResponse<Response>();
+    const traceId = Array.isArray(request.headers["x-request-id"]) ? request.headers["x-request-id"][0] : request.headers["x-request-id"] ?? randomUUID();
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const payload = exception instanceof HttpException ? exception.getResponse() : null;
-
     const body =
       typeof payload === "object" && payload !== null && "code" in payload
         ? (payload as { code: string; message?: string; details?: Array<Record<string, unknown>> })
@@ -23,6 +26,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
         code: body.code,
         message: body.message ?? "요청을 처리할 수 없습니다.",
         details: body.details ?? [],
+      },
+      meta: {
+        traceId,
+        timestamp: new Date().toISOString(),
       },
     });
   }
