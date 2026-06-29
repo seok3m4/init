@@ -16,7 +16,6 @@ import {
 export class InMemoryCompanyInterviewRepository
   implements CompanyInterviewRepository
 {
-  // Temporary C-owned adapter until Prisma schema/migrations are agreed.
   private readonly postings: PostingRecord[] = [
     {
       postingId: 1,
@@ -127,39 +126,41 @@ export class InMemoryCompanyInterviewRepository
   private nextCriterionId = 4;
   private nextProcessLogId = 1_000;
 
-  findPosting(postingId: number): PostingRecord | undefined {
+  async findPosting(postingId: number): Promise<PostingRecord | undefined> {
     return this.postings.find((posting) => posting.postingId === postingId);
   }
 
-  findDefaultPosting(companyId: number): PostingRecord | undefined {
+  async findDefaultPosting(companyId: number): Promise<PostingRecord | undefined> {
     return this.postings.find((posting) => posting.companyId === companyId);
   }
 
-  listCriteria(postingId: number): EvaluationCriterionRecord[] {
+  async listCriteria(postingId: number): Promise<EvaluationCriterionRecord[]> {
     return this.evaluationCriteria
       .filter((criterion) => criterion.postingId === postingId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
-  findCriterion(criterionId: number): EvaluationCriterionRecord | undefined {
+  async findCriterion(
+    criterionId: number,
+  ): Promise<EvaluationCriterionRecord | undefined> {
     return this.evaluationCriteria.find(
       (criterion) => criterion.criterionId === criterionId,
     );
   }
 
-  listQuestions(postingId: number): QuestionRecord[] {
+  async listQuestions(postingId: number): Promise<QuestionRecord[]> {
     return this.questions
       .filter((question) => question.postingId === postingId)
       .sort((a, b) => a.questionId - b.questionId);
   }
 
-  findTag(tagId: number): CriterionTagRecord | undefined {
+  async findTag(tagId: number): Promise<CriterionTagRecord | undefined> {
     return this.criterionTags.find(
       (tag) => tag.tagId === tagId && tag.isActive,
     );
   }
 
-  getTimePolicy(postingId: number): TimePolicyRecord {
+  async getTimePolicy(postingId: number): Promise<TimePolicyRecord> {
     return (
       this.timePolicies.find((policy) => policy.postingId === postingId) ?? {
         postingId,
@@ -170,10 +171,10 @@ export class InMemoryCompanyInterviewRepository
     );
   }
 
-  replaceCriteria(
+  async replaceCriteria(
     postingId: number,
     criteria: UpdateCriterionInput[],
-  ): EvaluationCriterionRecord[] {
+  ): Promise<EvaluationCriterionRecord[]> {
     const nextCriteria = criteria.map((criterion) => ({
       criterionId: criterion.criterionId ?? this.nextCriterionId++,
       postingId,
@@ -193,7 +194,7 @@ export class InMemoryCompanyInterviewRepository
     return this.listCriteria(postingId);
   }
 
-  createPendingProcessLog(): { processLogId: number; status: 'PENDING' } {
+  async createPendingProcessLog(): Promise<{ processLogId: number; status: 'PENDING' }> {
     return {
       processLogId: this.nextProcessLogId++,
       status: 'PENDING',

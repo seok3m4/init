@@ -24,16 +24,19 @@ export type PendingProcessLog = {
 };
 
 export interface CompanyInterviewRepository {
-  findPosting(postingId: number): PostingRecord | undefined;
-  findDefaultPosting(companyId: number): PostingRecord | undefined;
-  listCriteria(postingId: number): EvaluationCriterionRecord[];
-  findCriterion(criterionId: number): EvaluationCriterionRecord | undefined;
-  listQuestions(postingId: number): QuestionRecord[];
-  findTag(tagId: number): CriterionTagRecord | undefined;
-  getTimePolicy(postingId: number): TimePolicyRecord;
+  findPosting(postingId: number): Promise<PostingRecord | undefined>;
+  findDefaultPosting(companyId: number): Promise<PostingRecord | undefined>;
+  listCriteria(postingId: number): Promise<EvaluationCriterionRecord[]>;
+  findCriterion(criterionId: number): Promise<EvaluationCriterionRecord | undefined>;
+  listQuestions(postingId: number): Promise<QuestionRecord[]>;
+  findTag(tagId: number): Promise<CriterionTagRecord | undefined>;
+  getTimePolicy(postingId: number): Promise<TimePolicyRecord>;
   replaceCriteria(
     postingId: number,
     criteria: UpdateCriterionInput[],
-  ): EvaluationCriterionRecord[];
-  createPendingProcessLog(): PendingProcessLog;
+  ): Promise<EvaluationCriterionRecord[]>;
+  createPendingProcessLog(input?: {
+    postingId?: number;
+    inputRef?: string;
+  }): Promise<PendingProcessLog>;
 }

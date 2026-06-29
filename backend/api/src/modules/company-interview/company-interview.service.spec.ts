@@ -1,8 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
 import { strict as assert } from 'node:assert';
+import type { CurrentUser } from '@init/common';
+import { ApiException } from '../../shared/api-exception';
 import { CompanyInterviewService } from './company-interview.service';
 import { InMemoryCompanyInterviewRepository } from './repositories/in-memory-company-interview.repository';
-import { CurrentUser } from './company-interview.types';
 
 const companyUser: CurrentUser = {
   userId: 1,
@@ -15,21 +15,21 @@ function createService() {
   return new CompanyInterviewService(new InMemoryCompanyInterviewRepository());
 }
 
-function assertBadRequest(action: () => unknown) {
-  assert.throws(action, BadRequestException);
+async function assertBadRequest(action: () => Promise<unknown>) {
+  await assert.rejects(action, ApiException);
 }
 
 describe('CompanyInterviewService', () => {
-  it('returns interview settings for a company posting', () => {
-    const settings = createService().getSettings(companyUser, { postingId: 1 });
+  it('returns interview settings for a company posting', async () => {
+    const settings = await createService().getSettings(companyUser, { postingId: 1 });
 
     assert.equal(settings.posting.postingId, 1);
     assert.equal(settings.criteria.length, 3);
     assert.equal(settings.questions.length, 3);
   });
 
-  it('updates evaluation criteria and validates duplicate sort order', () => {
-    const criteriaResult = createService().updateEvaluationCriteria(companyUser, {
+  it('updates evaluation criteria and validates duplicate sort order', async () => {
+    const criteriaResult = await createService().updateEvaluationCriteria(companyUser, {
       postingId: 1,
       criteria: [
         { criterionId: 1, tagId: 1, weight: 50, passScore: 70, sortOrder: 1 },
@@ -40,7 +40,7 @@ describe('CompanyInterviewService', () => {
     assert.equal(criteriaResult.totalWeight, 100);
     assert.equal(criteriaResult.criteria.length, 2);
 
-    assertBadRequest(() =>
+    await assertBadRequest(() =>
       createService().updateEvaluationCriteria(companyUser, {
         postingId: 1,
         criteria: [
@@ -51,16 +51,16 @@ describe('CompanyInterviewService', () => {
     );
   });
 
-  it('returns pending process status for criteria suggestions', () => {
-    const suggest = createService().suggestEvaluationCriteria(companyUser, {
+  it('returns pending process status for criteria suggestions', async () => {
+    const suggest = await createService().suggestEvaluationCriteria(companyUser, {
       postingId: 1,
     });
 
     assert.equal(suggest.status, 'PENDING');
   });
 
-  it('returns the default time policy', () => {
-    const timePolicy = createService().getSettings(companyUser, {}).timePolicy;
+  it('returns the default time policy', async () => {
+    const timePolicy = (await createService().getSettings(companyUser, {})).timePolicy;
 
     assert.equal(timePolicy.preparationTimeSec, 60);
     assert.equal(timePolicy.answerTimeSec, 180);

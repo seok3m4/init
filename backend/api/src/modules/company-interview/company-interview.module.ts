@@ -1,18 +1,20 @@
 import { Module } from '@nestjs/common';
+import { PrismaService } from '../../shared/prisma.service';
+import { AuthModule } from '../auth/auth.module';
 import { CompanyInterviewController } from './company-interview.controller';
 import { CompanyInterviewService } from './company-interview.service';
-import { CompanyDevAuthGuard } from './guards/company-dev-auth.guard';
 import { COMPANY_INTERVIEW_REPOSITORY } from './repositories/company-interview.repository';
-import { InMemoryCompanyInterviewRepository } from './repositories/in-memory-company-interview.repository';
+import { PrismaCompanyInterviewRepository } from './repositories/prisma-company-interview.repository';
 
 @Module({
+  imports: [AuthModule],
   controllers: [CompanyInterviewController],
   providers: [
     CompanyInterviewService,
-    CompanyDevAuthGuard,
+    PrismaService,
     {
       provide: COMPANY_INTERVIEW_REPOSITORY,
-      useClass: InMemoryCompanyInterviewRepository,
+      useClass: PrismaCompanyInterviewRepository,
     },
   ],
 })

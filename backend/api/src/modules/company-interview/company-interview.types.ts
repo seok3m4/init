@@ -1,12 +1,3 @@
-export type CurrentUserType = 'ADMIN' | 'COMPANY' | 'CANDIDATE';
-
-export type CurrentUser = {
-  userId: number;
-  userType: CurrentUserType;
-  companyId: number | null;
-  candidateId: number | null;
-};
-
 export type PostingStatus =
   | 'DRAFT'
   | 'OPEN'
@@ -23,16 +14,6 @@ export type QuestionType =
   | 'CLOSING';
 
 export type AiProcessStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-
-export type ApiMeta = {
-  traceId: string;
-  timestamp: string;
-};
-
-export type ApiResponse<T> = {
-  data: T;
-  meta: ApiMeta;
-};
 
 export type PostingRecord = {
   postingId: number;

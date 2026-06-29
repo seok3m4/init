@@ -1,70 +1,41 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
-
-type ErrorCode =
-  | 'COMMON_VALIDATION_FAILED'
-  | 'COMMON_UNAUTHORIZED'
-  | 'COMMON_FORBIDDEN'
-  | 'COMMON_NOT_FOUND'
-  | 'COMMON_CONFLICT'
-  | 'AI_PROCESS_FAILED';
+import { HttpStatus } from '@nestjs/common';
+import { ERROR_CODES, type ErrorCode } from '@init/common';
+import { ApiException } from '../../shared/api-exception';
 
 type ErrorDetail = {
   field?: string;
   reason: string;
 };
 
-type ErrorBody = {
-  error: {
-    code: ErrorCode;
-    message: string;
-    details: ErrorDetail[];
-  };
-  meta: {
-    traceId: string;
-    timestamp: string;
-  };
-};
-
-function errorBody(
+function apiError(
   code: ErrorCode,
   message: string,
+  status: HttpStatus,
   details: ErrorDetail[] = [],
-): ErrorBody {
-  return {
-    error: {
-      code,
-      message,
-      details,
-    },
-    meta: {
-      traceId: 'company-interview-local',
-      timestamp: new Date().toISOString(),
-    },
-  };
+): never {
+  throw new ApiException(code, message, status, details);
 }
 
 export function unauthorized(message = '인증 정보가 필요합니다.'): never {
-  throw new UnauthorizedException(errorBody('COMMON_UNAUTHORIZED', message));
+  apiError(ERROR_CODES.COMMON_UNAUTHORIZED, message, HttpStatus.UNAUTHORIZED);
 }
 
 export function forbidden(message = '접근 권한이 없습니다.'): never {
-  throw new ForbiddenException(errorBody('COMMON_FORBIDDEN', message));
+  apiError(ERROR_CODES.COMMON_FORBIDDEN, message, HttpStatus.FORBIDDEN);
 }
 
 export function notFound(message = '리소스를 찾을 수 없습니다.'): never {
-  throw new NotFoundException(errorBody('COMMON_NOT_FOUND', message));
+  apiError(ERROR_CODES.COMMON_NOT_FOUND, message, HttpStatus.NOT_FOUND);
 }
 
 export function validationFailed(
   message = '입력값을 확인해주세요.',
   details: ErrorDetail[] = [],
 ): never {
-  throw new BadRequestException(
-    errorBody('COMMON_VALIDATION_FAILED', message, details),
+  apiError(
+    ERROR_CODES.COMMON_VALIDATION_FAILED,
+    message,
+    HttpStatus.BAD_REQUEST,
+    details,
   );
 }

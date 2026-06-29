@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { CurrentUser } from '@init/common';
 import {
   EvaluationCriterionResponseDto,
   SuggestEvaluationCriterionDto,
@@ -9,7 +10,7 @@ import {
   InterviewSettingsResponseDto,
 } from './dto/interview-settings.dto';
 import { forbidden, notFound, validationFailed } from './company-interview.errors';
-import { CurrentUser, EvaluationCriterionRecord } from './company-interview.types';
+import { EvaluationCriterionRecord } from './company-interview.types';
 import {
   COMPANY_INTERVIEW_REPOSITORY,
   CompanyInterviewRepository,
@@ -22,12 +23,13 @@ export class CompanyInterviewService {
     private readonly repository: CompanyInterviewRepository,
   ) {}
 
-  getSettings(
+  async getSettings(
     currentUser: CurrentUser,
     query: InterviewSettingsQueryDto,
-  ): InterviewSettingsResponseDto {
-    const posting = this.getOwnedPosting(currentUser, query.postingId);
-    const criteria = this.repository.listCriteria(posting.postingId);
+  ): Promise<InterviewSettingsResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, query.postingId);
+    const criteria = await this.repository.listCriteria(posting.postingId);
+    const questions = await this.repository.listQuestions(posting.postingId);
 
     return {
       posting: {
@@ -35,34 +37,42 @@ export class CompanyInterviewService {
         title: posting.title,
         status: posting.status,
       },
-      criteria: this.mapCriteria(criteria),
-      questions: this.repository.listQuestions(posting.postingId).map((question) => ({
+      criteria: await this.mapCriteria(criteria),
+      questions: questions.map((question) => ({
         questionId: question.questionId,
         criterionId: question.criterionId,
         questionType: question.questionType,
         content: question.content,
         isActive: question.isActive,
       })),
-      timePolicy: this.toTimePolicyDto(posting.postingId),
+      timePolicy: await this.toTimePolicyDto(posting.postingId),
     };
   }
 
-  suggestEvaluationCriteria(
+  async suggestEvaluationCriteria(
     currentUser: CurrentUser,
     dto: SuggestEvaluationCriterionDto,
   ) {
-    this.getOwnedPosting(currentUser, dto.postingId);
+    await this.getOwnedPosting(currentUser, dto.postingId);
 
-    // Temporary adapter boundary: this creates only an in-memory tracking id.
-    // AI execution, queue payload, and candidate persistence remain E/A owned.
-    return this.repository.createPendingProcessLog();
+    return this.repository.createPendingProcessLog({
+      postingId: dto.postingId,
+      inputRef: JSON.stringify({
+        postingId: dto.postingId,
+        jobRole: dto.jobRole,
+        jdText: dto.jdText,
+        companyFitText: dto.companyFitText,
+        requestedCount: dto.requestedCount,
+      }),
+    });
   }
 
-  updateEvaluationCriteria(
+  async updateEvaluationCriteria(
     currentUser: CurrentUser,
     dto: UpdateEvaluationCriterionDto,
-  ): EvaluationCriterionResponseDto {
-    const posting = this.getOwnedPosting(currentUser, dto.postingId);
+  ): Promise<EvaluationCriterionResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const existingCriteria = await this.repository.listCriteria(posting.postingId);
     const seenSortOrders = new Set<number>();
 
     for (const criterion of dto.criteria) {
@@ -73,14 +83,14 @@ export class CompanyInterviewService {
       }
       seenSortOrders.add(criterion.sortOrder);
 
-      if (!this.repository.findTag(criterion.tagId)) {
+      if (!(await this.repository.findTag(criterion.tagId))) {
         notFound('평가 태그를 찾을 수 없습니다.');
       }
 
       if (criterion.criterionId !== undefined) {
-        const exists = this.repository
-          .listCriteria(posting.postingId)
-          .some((item) => item.criterionId === criterion.criterionId);
+        const exists = existingCriteria.some(
+          (item) => item.criterionId === criterion.criterionId,
+        );
         if (!exists) {
           notFound('평가 기준을 찾을 수 없습니다.');
         }
@@ -100,21 +110,24 @@ export class CompanyInterviewService {
       ]);
     }
 
-    const saved = this.repository.replaceCriteria(posting.postingId, dto.criteria);
+    const saved = await this.repository.replaceCriteria(
+      posting.postingId,
+      dto.criteria,
+    );
     return {
       postingId: posting.postingId,
-      criteria: this.mapCriteria(saved),
+      criteria: await this.mapCriteria(saved),
       totalWeight,
     };
   }
 
-  private getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
+  private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
     this.assertCompanyUser(currentUser);
 
     const posting =
       postingId === undefined
-        ? this.repository.findDefaultPosting(currentUser.companyId)
-        : this.repository.findPosting(postingId);
+        ? await this.repository.findDefaultPosting(currentUser.companyId)
+        : await this.repository.findPosting(postingId);
 
     if (!posting) {
       notFound('공고를 찾을 수 없습니다.');
@@ -135,38 +148,30 @@ export class CompanyInterviewService {
     }
   }
 
-  private findCriterion(criterionId: number): EvaluationCriterionRecord {
-    const criterion = this.repository.findCriterion(criterionId);
+  private async mapCriteria(criteria: EvaluationCriterionRecord[]) {
+    return Promise.all(
+      criteria.map(async (criterion) => {
+        const tag = await this.repository.findTag(criterion.tagId);
+        if (!tag) {
+          notFound('평가 태그를 찾을 수 없습니다.');
+        }
 
-    if (!criterion) {
-      notFound('평가 기준을 찾을 수 없습니다.');
-    }
-
-    return criterion;
+        return {
+          criterionId: criterion.criterionId,
+          tagId: criterion.tagId,
+          tagName: tag.name,
+          category: tag.category,
+          description: tag.description,
+          weight: criterion.weight,
+          passScore: criterion.passScore,
+          sortOrder: criterion.sortOrder,
+        };
+      }),
+    );
   }
 
-  private mapCriteria(criteria: EvaluationCriterionRecord[]) {
-    return criteria.map((criterion) => {
-      const tag = this.repository.findTag(criterion.tagId);
-      if (!tag) {
-        notFound('평가 태그를 찾을 수 없습니다.');
-      }
-
-      return {
-        criterionId: criterion.criterionId,
-        tagId: criterion.tagId,
-        tagName: tag.name,
-        category: tag.category,
-        description: tag.description,
-        weight: criterion.weight,
-        passScore: criterion.passScore,
-        sortOrder: criterion.sortOrder,
-      };
-    });
-  }
-
-  private toTimePolicyDto(postingId: number) {
-    const timePolicy = this.repository.getTimePolicy(postingId);
+  private async toTimePolicyDto(postingId: number) {
+    const timePolicy = await this.repository.getTimePolicy(postingId);
     return {
       preparationTimeSec: timePolicy.preparationTimeSec,
       answerTimeSec: timePolicy.answerTimeSec,

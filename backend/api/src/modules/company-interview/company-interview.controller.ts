@@ -7,55 +7,57 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { CurrentUser } from '@init/common';
+import { ok, type RequestLike } from '../../shared/response-envelope';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CompanyInterviewService } from './company-interview.service';
-import { CurrentUserParam } from './decorators/current-user.decorator';
-import { CurrentUser, ApiResponse } from './company-interview.types';
 import { InterviewSettingsQueryDto } from './dto/interview-settings.dto';
 import {
   SuggestEvaluationCriterionDto,
   UpdateEvaluationCriterionDto,
 } from './dto/evaluation-criterion.dto';
-import { CompanyDevAuthGuard } from './guards/company-dev-auth.guard';
+
+type CompanyRequest = RequestLike & { currentUser: CurrentUser };
 
 @Controller('company/interviews')
-@UseGuards(CompanyDevAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class CompanyInterviewController {
   constructor(private readonly service: CompanyInterviewService) {}
 
   @Get('settings')
-  getSettings(
-    @CurrentUserParam() currentUser: CurrentUser,
+  async getSettings(
+    @Req() request: CompanyRequest,
     @Query() query: InterviewSettingsQueryDto,
   ) {
-    return this.ok(this.service.getSettings(currentUser, query));
+    const data = await this.service.getSettings(request.currentUser, query);
+    return ok(request, data);
   }
 
   @Post('evaluation-criteria/suggest')
   @HttpCode(HttpStatus.ACCEPTED)
-  suggestEvaluationCriteria(
-    @CurrentUserParam() currentUser: CurrentUser,
+  async suggestEvaluationCriteria(
+    @Req() request: CompanyRequest,
     @Body() body: SuggestEvaluationCriterionDto,
   ) {
-    return this.ok(this.service.suggestEvaluationCriteria(currentUser, body));
+    const data = await this.service.suggestEvaluationCriteria(
+      request.currentUser,
+      body,
+    );
+    return ok(request, data);
   }
 
   @Patch('evaluation-criteria')
-  updateEvaluationCriteria(
-    @CurrentUserParam() currentUser: CurrentUser,
+  async updateEvaluationCriteria(
+    @Req() request: CompanyRequest,
     @Body() body: UpdateEvaluationCriterionDto,
   ) {
-    return this.ok(this.service.updateEvaluationCriteria(currentUser, body));
-  }
-
-  private ok<T>(data: T): ApiResponse<T> {
-    return {
-      data,
-      meta: {
-        traceId: 'company-interview-local',
-        timestamp: new Date().toISOString(),
-      },
-    };
+    const data = await this.service.updateEvaluationCriteria(
+      request.currentUser,
+      body,
+    );
+    return ok(request, data);
   }
 }
