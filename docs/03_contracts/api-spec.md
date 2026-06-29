@@ -10,7 +10,84 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - Success: `{ "data": ..., "meta": { "traceId": "...", "timestamp": "ISO-8601" } }`
 - Error: `{ "error": { "code": "STRING", "message": "사용자 표시 메시지", "details": [] } }`
 - Auth: 공개 API를 제외하고 `Authorization: Bearer {accessToken}`
-- AI status failure: `{ "category": "RETRYABLE|NON_RETRYABLE", "reason": "...", "retryable": true|false }`
+- CurrentUser/Dev Auth: `docs/03_contracts/dev-auth-contract.md` 기준. JWT 구현 전에는 local/dev 환경에서 `X-Dev-*` 헤더로 동일한 `CurrentUser`를 만든다.
+
+### Response Envelope Baseline
+
+모든 JSON API는 아래 envelope를 따른다. controller별로 `{ result }`, `{ success }`, `{ items }`를 최상위에 직접 반환하지 않는다.
+
+```json
+{
+  "data": {},
+  "meta": {
+    "traceId": "request-id",
+    "timestamp": "2026-06-29T00:00:00.000Z"
+  }
+}
+```
+
+목록 API는 `data.items`와 `meta.page`를 사용한다.
+
+```json
+{
+  "data": {
+    "items": []
+  },
+  "meta": {
+    "traceId": "request-id",
+    "timestamp": "2026-06-29T00:00:00.000Z",
+    "page": {
+      "page": 1,
+      "limit": 20,
+      "totalItems": 0,
+      "totalPages": 0,
+      "hasNext": false
+    }
+  }
+}
+```
+
+오류 응답은 HTTP status와 `error.code`를 함께 사용한다. `details`는 validation field error 배열 또는 디버깅 가능한 구조화 데이터만 담고, stack trace는 반환하지 않는다.
+
+```json
+{
+  "error": {
+    "code": "COMMON_VALIDATION_FAILED",
+    "message": "입력값을 확인해주세요.",
+    "details": []
+  },
+  "meta": {
+    "traceId": "request-id",
+    "timestamp": "2026-06-29T00:00:00.000Z"
+  }
+}
+```
+
+### Pagination Filter Sort Baseline
+
+목록 API는 별도 사유가 없으면 아래 query parameter 이름을 사용한다.
+
+| Parameter | Type | Default | Rule |
+| --- | --- | --- | --- |
+| `page` | number | `1` | 1부터 시작한다. 1보다 작으면 validation error를 반환한다. |
+| `limit` | number | `20` | 최대 `100`까지 허용한다. |
+| `q` | string | 없음 | 자유 검색어. 빈 문자열은 전달하지 않는다. |
+| `sort` | string | API별 기본값 | 정렬 가능한 field만 허용한다. |
+| `order` | `asc` 또는 `desc` | `desc` | 대소문자를 섞지 않고 lowercase만 허용한다. |
+
+도메인 필터는 enum 이름을 그대로 query에 사용한다. 예: `postingStatus=OPEN`, `applicationStatus=SUBMITTED`, `reportStatus=COMPLETED`.
+
+## Implementation Baseline
+
+API 구현은 `docs/03_contracts/api-index.md`의 `API Module Baseline`을 따른다.
+
+- 인증 API는 `backend/api/src/modules/auth`에 둔다.
+- 기업 공고/지원자 운영 API는 `backend/api/src/modules/company-recruiting`에 둔다.
+- 기업 면접 설정/평가 기준/질문 API는 `backend/api/src/modules/company-interview`에 둔다.
+- 지원자 공고/지원/마이페이지 API는 `backend/api/src/modules/candidate`에 둔다.
+- 모의/채용 면접 런타임 API는 `backend/api/src/modules/interview`에 둔다.
+- 리포트 API는 `backend/api/src/modules/report`, AI 공통 API는 `backend/api/src/modules/ai`에 둔다.
+- 기존 구현에 임시 alias route가 있더라도 신규 service와 DTO는 baseline module 기준으로 정렬한다.
 
 ## 인증/계정
 
@@ -644,12 +721,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 202 Accepted
 - 비동기: Y
 - 요청 데이터:
-  - postingId, JD(jobDescription), 인재상(talentProfile), 평가 정책(evaluationPolicy)
+  - JD, 인재상, 평가 템플릿
 - 검증/전제조건:
-  - 채용 공고가 생성되어 있어야 하며 JD, 인재상, 평가 정책이 모두 존재해야 함
+  - 채용 공고가 생성되어 있어야 함
 - 성공 응답/처리:
   - 평가 역량 후보 표시
-  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["criterion_tags","evaluation_criteria"], output.reviewRequired=true로 검토 대상임을 표시한다.
 - 오류/예외:
   - AI 생성 실패 시 기본 역량 템플릿을 제공하고 재시도 버튼을 표시한다.
 - 관련 ERD 테이블:
@@ -705,12 +781,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 202 Accepted
 - 비동기: Y
 - 요청 데이터:
-  - postingId, JD(jobDescription), 질문 수(questionCount), 평가 역량
+  - JD, 직무명세서, 평가 역량
 - 검증/전제조건:
-  - 직무명세서 생성 완료 및 질문 수가 양수여야 함
+  - 직무명세서 생성 완료
 - 성공 응답/처리:
   - 직무 질문 후보 저장
-  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 뱅크 저장 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 품질 검증 실패 시 재생성 또는 수동 검토를 요청한다.
 - 관련 ERD 테이블:
@@ -726,12 +801,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 202 Accepted
 - 비동기: Y
 - 요청 데이터:
-  - postingId, 질문 유형(questionTypes), 질문 수(questionCount), 평가 역량(criteria)
+  - 질문 유형, 질문 수, 평가 역량
 - 검증/전제조건:
-  - 평가 기준과 질문 유형이 최소 1개 이상 존재하고 질문 수가 양수여야 함
+  - 평가 기준과 질문 뱅크 존재
 - 성공 응답/처리:
   - 면접 질문 목록 생성 및 세션 연결 가능 상태 전환
-  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 뱅크 저장 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 수 부족 시 AI 생성 또는 수동 추가를 안내한다.
 - 관련 ERD 테이블:
@@ -770,13 +844,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: reportId
 - 요청 데이터:
-  - reportType=RECRUITING_REPORT, JD, 평가 기준, 서류 요약, 답변 스크립트
+  - JD, 평가 기준, 서류 요약, 답변 스크립트
 - 검증/전제조건:
-  - 채용 리포트 파이프라인 전용 endpoint이므로 MOCK_INTERVIEW_REPORT는 허용하지 않는다.
   - 모든 필수 데이터가 존재
 - 성공 응답/처리:
-  - ai_process_logs에 REPORT_GENERATE/EVALUATION_CONTEXT 작업을 생성하고 processLogId를 반환한다.
-  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.context로 평가 컨텍스트를 조회한다.
+  - 평가 컨텍스트 저장
 - 오류/예외:
   - 필수 데이터 누락 시 해당 평가 항목을 보류 상태로 표시한다.
 - 관련 ERD 테이블:
@@ -793,13 +865,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: reportId
 - 요청 데이터:
-  - reportType=RECRUITING_REPORT, 답변 스크립트, 평가 기준, 모범 답안
+  - 답변 스크립트, 평가 기준, 모범 답안
 - 검증/전제조건:
-  - 채용 리포트 파이프라인 전용 endpoint이므로 MOCK_INTERVIEW_REPORT는 허용하지 않는다.
   - 답변 스크립트 존재
 - 성공 응답/처리:
-  - ai_process_logs에 REPORT_GENERATE/ANSWER_EVALUATION 작업을 생성하고 processLogId를 반환한다.
-  - worker 가드레일 통과 후 report_scores, report_evidences에 저장하고 status output.scores/output.evidences로 조회한다.
+  - 답변 평가 결과 저장
 - 오류/예외:
   - 근거 부족 또는 답변 불성실 판단 시 낮은 신뢰도와 수동 검토 상태를 표시한다.
 - 관련 ERD 테이블:
@@ -816,13 +886,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: reportId
 - 요청 데이터:
-  - reportType=RECRUITING_REPORT, 영상 파일, 음성 파일, 얼굴/시선/음성 피처
+  - 영상 파일, 음성 파일, 얼굴/시선/음성 피처
 - 검증/전제조건:
-  - 채용 리포트 파이프라인 전용 endpoint이므로 MOCK_INTERVIEW_REPORT는 허용하지 않는다.
   - 분석 동의 및 영상 품질 충족
 - 성공 응답/처리:
-  - ai_process_logs에 REPORT_GENERATE/COMMUNICATION_ANALYSIS 작업을 생성하고 processLogId를 반환한다.
-  - worker 완료 후 status output.communicationAnalysis로 보조 지표를 조회한다.
+  - 커뮤니케이션 지표 저장
 - 오류/예외:
   - 얼굴 미검출, 음성 품질 저하 시 해당 지표를 제외하고 사유를 표시한다.
 - 관련 ERD 테이블:
@@ -870,40 +938,6 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
   - evaluation_reports, report_scores, report_evidences, manual_evaluations, ai_process_logs, ai_guardrail_logs
 - 비고/미결:
   - 독립 화면 아님. 모든 AI 평가/생성 단계의 공통 정책 레이어
-  - 구현 계약:
-    - request: reportType, target, scores, summary?, processLogId?, policyName?, regenerated?, regenerationReason?
-    - processLogId가 없으면 GUARDRAIL_VALIDATE ai_process_logs를 생성하고 COMPLETED 상태로 검증 결과를 output에 남긴다.
-    - result: PASS는 정책 통과, BLOCKED는 최종 저장 차단, REGENERATED는 재생성된 출력이 정책을 통과했음을 의미한다.
-    - ai_guardrail_logs.failure_category에는 BLOCKED일 때 NON_RETRYABLE을 기록한다. PASS/REGENERATED는 실패가 아니므로 null이다.
-    - regenerated=true는 기본 검증이 PASS인 경우에만 REGENERATED로 기록된다. 기본 검증이 실패하면 BLOCKED가 우선한다.
-
-### API-080 GET /ai/jobs/{processLogId}/status
-- 도메인: AI/리포트 처리
-- 권한/인증: 로그인 사용자 / 개발 임시 인증
-- 관련 화면: C 담당 면접 관리 화면, D 담당 면접 런타임, B 담당 기업 기능 화면
-- UI Type: status polling
-- 상태 코드: 200 OK
-- 비동기: N
-- Path Params:
-  - processLogId: 조회할 ai_process_logs 식별자
-- 검증/전제조건:
-  - processLogId는 양의 정수여야 한다.
-  - 호출자는 공통 CurrentUser 또는 개발용 임시 인증 헤더로 식별되어야 한다.
-- 성공 응답/처리:
-  - ai_process_logs 기준 작업 상태를 반환한다.
-  - status는 PENDING, RUNNING, COMPLETED, FAILED 중 하나이다.
-  - COMPLETED 작업은 outputRef가 JSON이면 output으로 파싱해 반환한다.
-  - FAILED 작업은 failure.category, failure.reason, failure.retryable을 반환해 재시도 가능 여부를 구분한다.
-  - 생성형 작업 결과는 output.sourceProcessLogId, output.items, output.reviewRequired, output.reviewStatus, output.targetTables로 검토 대상과 저장 대상 테이블을 식별한다.
-  - 평가/리포트 작업 결과는 output.context, output.scores, output.evidences, output.report 등 작업 유형별 산출물을 반환한다.
-- 오류/예외:
-  - processLogId가 양의 정수가 아니면 400 COMMON_VALIDATION_FAILED를 반환한다.
-  - 존재하지 않는 processLogId는 404 AI_PROCESS_NOT_FOUND를 반환한다.
-- 관련 ERD 테이블:
-  - ai_process_logs, ai_guardrail_logs
-- 비고/미결:
-  - 장기 AI 작업을 요청한 API는 202 Accepted와 processLogId를 반환하고, 화면은 이 API로 상태와 결과를 조회한다.
-  - 질문/평가 기준/모의면접 질문 생성 결과는 reviewRequired=true 상태로 반환되며, 사용자 확정 전 targetTables에 최종 저장하지 않는다.
 
 ## 기업 - 설정
 
@@ -997,16 +1031,15 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 202 Accepted
 - 비동기: Y
 - 요청 데이터:
-  - questionCount, 선택 입력(practiceRole, difficulty, questionTypes)
+  - 직무, 난이도, 질문 유형
 - 검증/전제조건:
-  - questionCount는 양수여야 하며 JD, postingId, 기업 평가 기준은 필수 입력이 아니다.
+  - 선택값이 존재해야 함
 - 성공 응답/처리:
   - 모의면접 질문 목록 생성
-  - worker 완료 후 GET /ai/jobs/{processLogId}/status의 output.targetTables=["question_bank"], output.reviewRequired=true로 질문 목록 확정 전 검토 대상임을 표시한다.
 - 오류/예외:
   - 질문 생성 실패 시 기본 질문 세트를 제공한다.
 - 관련 ERD 테이블:
-  - candidate_profiles, question_bank, interview_sessions, ai_process_logs
+  - companies, candidate_profiles, postings, criterion_tags, evaluation_criteria, question_bank, applications, interview_sessions, ai_process_logs
 - 비고/미결:
   - 채용 질문과 달리 JD/기업 평가 기준을 사용하지 않음
 
@@ -1103,14 +1136,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: sessionId
 - 요청 데이터:
-  - answerId, audioFileId, audioS3Key, 언어 설정
+  - 음성 파일, 언어 설정
 - 검증/전제조건:
-  - audioFileId는 file_assets.file_id를 참조하고 audioS3Key는 file_assets.storage_key와 같은 S3 object key여야 한다.
-  - audioContent, audioBase64, fileContent, rawContent, base64, fileBytes 같은 원본 파일 payload는 허용하지 않는다.
   - 음성 품질이 분석 가능해야 함
 - 성공 응답/처리:
   - 답변 스크립트 저장
-  - 같은 answerId로 중복 STT 요청이 들어오면 기존 transcript를 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_TRANSCRIPT를 남긴다.
 - 오류/예외:
   - 음성 인식 실패 시 영상 원본 검토 상태로 표시한다.
 - 관련 ERD 테이블:
@@ -1127,12 +1157,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: sessionId
 - 요청 데이터:
-  - answerId, 이전 질문(previousQuestion), 답변 스크립트(transcript), 직무 선택 정보
+  - 이전 질문, 답변 스크립트, 직무 선택 정보
 - 검증/전제조건:
-  - 이전 질문과 답변 텍스트가 충분해야 함
+  - 답변 텍스트가 충분해야 함
 - 성공 응답/처리:
   - 꼬리질문 표시
-  - 같은 sessionId, answerId, 모의면접 정책으로 중복 요청이 들어오면 기존 꼬리질문을 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_FOLLOW_UP을 남긴다.
 - 오류/예외:
   - 답변이 너무 짧거나 부적절하면 기본 꼬리질문을 제시한다.
 - 관련 ERD 테이블:
@@ -1574,14 +1603,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: sessionId
 - 요청 데이터:
-  - answerId, audioFileId, audioS3Key, 언어 설정
+  - 음성 파일, 언어 설정
 - 검증/전제조건:
-  - audioFileId는 file_assets.file_id를 참조하고 audioS3Key는 file_assets.storage_key와 같은 S3 object key여야 한다.
-  - audioContent, audioBase64, fileContent, rawContent, base64, fileBytes 같은 원본 파일 payload는 허용하지 않는다.
   - 음성 품질이 분석 가능해야 함
 - 성공 응답/처리:
   - 답변 스크립트 저장
-  - 같은 answerId로 중복 STT 요청이 들어오면 기존 transcript를 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_TRANSCRIPT를 남긴다.
 - 오류/예외:
   - 음성 인식 실패 시 영상 원본 검토 상태로 표시한다.
 - 관련 ERD 테이블:
@@ -1598,12 +1624,11 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 비동기: Y
 - Path Params: sessionId
 - 요청 데이터:
-  - answerId, 이전 질문(previousQuestion), 답변 스크립트(transcript), JD(jobDescription) 또는 서류 요약(documentSummary)
+  - 이전 질문, 답변 스크립트, 서류 요약
 - 검증/전제조건:
-  - 이전 질문과 답변 텍스트가 충분해야 하며 JD 또는 서류 요약 중 하나가 존재해야 함
+  - 답변 텍스트가 충분해야 함
 - 성공 응답/처리:
   - 꼬리질문 표시
-  - 같은 sessionId, answerId, 채용면접 정책으로 중복 요청이 들어오면 기존 꼬리질문을 유지하고 ai_process_logs.outputRef에 duplicatePolicy=KEEP_EXISTING_FOLLOW_UP을 남긴다.
 - 오류/예외:
   - 답변이 너무 짧거나 부적절하면 기본 꼬리질문을 제시한다.
 - 관련 ERD 테이블:
@@ -1660,10 +1685,8 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - 상태 코드: 202 Accepted
 - 비동기: Y
 - 요청 데이터:
-  - applicationId, documentId, fileId, s3Key
+  - 이력서 파일, 포트폴리오 링크
 - 검증/전제조건:
-  - fileId는 file_assets.file_id를 참조하고 s3Key는 file_assets.storage_key와 같은 S3 object key여야 한다.
-  - fileContent, rawContent, base64, fileBytes 같은 원본 파일 payload는 허용하지 않는다.
   - 파일 파싱 가능, 링크 접근 권한 확보
 - 성공 응답/처리:
   - 추출 텍스트 저장 및 서류 분석 대기 상태 전환

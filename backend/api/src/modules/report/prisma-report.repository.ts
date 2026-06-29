@@ -252,7 +252,7 @@ export class PrismaReportRepository implements ReportRepository {
     });
     return {
       scoreCount: scores.length,
-      evidenceCount: scores.reduce((sum, score) => sum + score.evidences.length, 0),
+      evidenceCount: scores.reduce((sum: number, score: { evidences: unknown[] }) => sum + score.evidences.length, 0),
       guardrailLogCount
     };
   }

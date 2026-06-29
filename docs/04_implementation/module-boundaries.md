@@ -4,6 +4,85 @@
 
 구현 모듈별 책임과 접근 가능한 테이블/API 경계를 정의한다.
 
+## Baseline Boundary Rules
+
+팀별 구현 충돌을 줄이기 위해 module, shared code, 공유 테이블 field owner를 아래처럼 고정한다.
+
+### Backend Module Folders
+
+| Folder | Module | Owner | Notes |
+| --- | --- | --- | --- |
+| `backend/api/src/modules/auth` | Auth | A | 로그인, 회원가입, 이메일 인증, Dev/JWT Auth |
+| `backend/api/src/modules/company-recruiting` | Company Recruiting | B | 공고, 지원자 등록/초대, 전형 판정 |
+| `backend/api/src/modules/company-interview` | Company Interview | C | 평가 기준, 질문 뱅크, 면접 설정 |
+| `backend/api/src/modules/company-profile` | Company Profile | A/B | 회사 정보, 회사 로고, 기업 알림 설정 |
+| `backend/api/src/modules/candidate` | Candidate | D | 공고 조회, 지원서 제출, 지원현황, 마이페이지 |
+| `backend/api/src/modules/interview` | Interview Runtime | D/E | 모의/채용 면접 세션, 답변, 완료 처리 |
+| `backend/api/src/modules/report` | Report | E | 평가 리포트 조회/생성 요청, 근거/점수 |
+| `backend/api/src/modules/ai` | AI API | E | 가드레일, AI process status API |
+
+### Shared Code Locations
+
+| Path | Purpose | Owner |
+| --- | --- | --- |
+| `backend/common/src/enums` | enum 단일 정의 | A with all reviewers |
+| `backend/common/src/dto` | 공통 response/error/current-user DTO | A |
+| `backend/common/src/errors` | 공통 error code와 exception mapping | A |
+| `frontend/src/api` | frontend API client entrypoint | A/B/D/E reviewers |
+| `frontend/src/shared` | 여러 feature가 쓰는 UI/helper | touched owners |
+
+### DTO Naming and Location Baseline
+
+DTO와 API client 타입은 아래 naming을 따른다. 같은 요청/응답 타입을 각 module에 중복 생성하지 않는다.
+
+| Kind | Naming | Location |
+| --- | --- | --- |
+| Request DTO | `Create{Resource}Dto`, `Update{Resource}Dto`, `{Action}{Resource}Dto` | 담당 backend module 내부 `dto` 폴더 |
+| Query DTO | `{Resource}QueryDto` 또는 `{Resource}ListQueryDto` | 담당 backend module 내부 `dto` 폴더 |
+| Response DTO | `{Resource}ResponseDto`, `{Resource}ListResponseDto` | 담당 backend module 내부 `dto` 폴더 |
+| Shared DTO | `CurrentUserDto`, `ApiResponseDto`, `ApiErrorDto`, `PageMetaDto` | `backend/common/src/dto` |
+| Frontend API type | `{Resource}Response`, `{Resource}ListResponse`, `{Resource}Query` | `frontend/src/api` 또는 feature-local adapter |
+
+공통 response/error/current-user/page meta DTO는 A 소유 `backend/common/src/dto`에만 둔다. 도메인 DTO가 다른 담당 module의 DTO를 직접 import해야 한다면 먼저 공통 DTO로 승격할지 owner 리뷰를 받는다.
+
+### Shared Table Field Owners
+
+| Table | Field Group | Write Owner | Read Owner |
+| --- | --- | --- | --- |
+| `applications` | 생성, `submitted_at`, `document_status` | D | B/E |
+| `applications` | `application_status`, 초대/운영 상태 | B | D/E |
+| `applications` | `interview_status` | D | B/E |
+| `applications` | `report_status` | E | B/D |
+| `applications` | `screening_decision`, `screening_memo` | B | D/E 제한 조회 |
+| `interview_sessions` | 세션 생성/시작/완료, `status` | D | E |
+| `interview_answers` | 답변 파일, 제출 시각, 질문 이동 | D | E |
+| `interview_answers` | `transcript` | E | B/D |
+| `evaluation_reports` | 생성, 상태, 요약, 총점 | E | B/D 제한 조회 |
+| `question_bank` | CRUD, 공고/평가 기준 연결 | C | D/E |
+| `evaluation_criteria` | CRUD, weight/pass score | C | B/E |
+
+공유 테이블을 수정하는 PR은 위 field owner를 기준으로 리뷰어를 지정한다. owner가 아닌 모듈에서 직접 write가 필요하면 먼저 `docs/03_contracts`와 이 문서를 수정한다.
+
+## Permission Matrix Baseline
+
+모든 protected API는 `CurrentUser`와 role guard를 기준으로 접근을 판단한다. service 내부에서 `userType` 문자열 비교를 반복 구현하지 않고 guard/decorator/helper를 사용한다.
+
+| Actor | Resource | Allowed Actions | Required Scope |
+| --- | --- | --- | --- |
+| Public | auth signup/login/password/email verification | create/read token flow | 인증 전 API만 허용 |
+| `ADMIN` | 운영/검증 API | read/manage | MVP에서는 최소화하고 별도 관리자 API 추가 시 문서 갱신 |
+| `COMPANY` | own company profile | read/update | `CurrentUser.companyId`와 resource `companyId` 일치 |
+| `COMPANY` | own postings | create/read/update/archive | `postings.company_id = CurrentUser.companyId` |
+| `COMPANY` | own applicants/applications | read/update screening fields/invite | application이 자기 회사 공고에 속해야 함 |
+| `COMPANY` | reports for own postings | read company report | 지원자 제한용 field를 제외한 기업용 report |
+| `CANDIDATE` | own profile/documents | read/update/upload | `CurrentUser.candidateId`와 resource `candidateId` 일치 |
+| `CANDIDATE` | public/open postings | read/apply | 공고가 공개/지원 가능 상태 |
+| `CANDIDATE` | own applications/interviews | read/start/answer/complete | application이 본인 소유이고 응시 기간/동의/장치 점검 조건 충족 |
+| `CANDIDATE` | own reports | read limited candidate report | 기업 내부 메모, screening memo, 전체 평가 근거는 노출 금지 |
+| Worker/System | AI process/report generation | update AI-owned fields | queue message와 process log 기준. public controller에서 직접 호출 금지 |
+
+권한 실패는 인증 누락이면 `COMMON_UNAUTHORIZED`, role/resource scope 불일치면 `COMMON_FORBIDDEN`을 반환한다. 존재하지 않는 resource와 권한 없는 resource를 구분해 정보가 누출될 수 있으면 `COMMON_FORBIDDEN` 또는 generic not found 정책을 API별로 명시한다.
+
 | Module | Owns | Reads | Representative APIs | Notes |
 | --- |--- |--- |--- |--- |
 | auth-common | users, companies, candidate_profiles | Redis/TTL cache | /auth/* | 이메일 인증 코드는 DB 저장 금지 |

@@ -4,6 +4,21 @@
 
 와이어프레임의 화면 경로와 주요 전환을 포털별로 정리한다.
 
+## Frontend Feature Baseline
+
+Next.js route는 `frontend/src/app`에 두고, 화면별 구현 코드는 `frontend/src/features` 아래 도메인 폴더에 둔다. 같은 화면의 component, hook, client helper는 해당 feature 폴더 안에서 먼저 해결하고 공통화가 필요한 경우에만 `frontend/src/shared`로 이동한다.
+
+| Feature Folder | Owns Routes | Primary Owner |
+| --- | --- | --- |
+| `frontend/src/features/auth` | `/login`, `/signup`, `/signup/candidate`, `/signup/company`, `/password/reset` | A |
+| `frontend/src/features/company-recruiting` | `/company/applications/dashboard`, `/company/recruitments`, `/company/recruitments/{recruitmentId}`, `/company/recruitments/{recruitmentId}/applicants` | B |
+| `frontend/src/features/company-interview-criteria` | `/company/interviews/settings` | C |
+| `frontend/src/features/company-profile` | `/company/mypage` | A/B |
+| `frontend/src/features/candidate-application-interview` | `/candidate/jobs`, `/candidate/jobs/{jobId}`, `/candidate/jobs/{jobId}/apply`, `/candidate/applications`, `/candidate/applications/{applicationId}/interview`, `/candidate/applications/{applicationId}/report`, `/candidate/mypage` | D |
+| `frontend/src/features/ai-report` | 기업/지원자 리포트 상세, 리포트 상태 표시, AI 처리 상태 표시 component | E |
+
+금지 패턴: 새 화면을 `frontend/src/app` 아래에 모든 로직까지 직접 구현하지 않는다. `app`은 routing/layout 경계로 유지하고, 실제 기능 구현은 feature folder에 둔다.
+
 ## High-Level Flow
 
 ```mermaid

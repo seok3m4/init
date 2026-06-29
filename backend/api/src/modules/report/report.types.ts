@@ -1,4 +1,4 @@
-import { CurrentUser } from "../common/dev-auth/current-user";
+import { CurrentUser } from "../../common/dev-auth/current-user";
 
 export type ReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
 export type ReportStatus = "PENDING" | "GENERATING" | "COMPLETED" | "FAILED";

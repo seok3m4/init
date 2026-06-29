@@ -7,18 +7,205 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  userId         BigInt   @id @map("user_id")
+  email          String   @unique @db.VarChar(255)
+  passwordHash   String?  @map("password_hash") @db.VarChar(255)
+  userType       String   @map("user_type") @db.VarChar(30)
+  name           String   @db.VarChar(100)
+  phone          String?  @db.VarChar(50)
+  status         String   @db.VarChar(30)
+  authProvider   String   @map("auth_provider") @db.VarChar(30)
+  providerUserId String?  @map("provider_user_id") @db.VarChar(255)
+  createdAt      DateTime @map("created_at")
+  updatedAt      DateTime @map("updated_at")
+
+  @@map("users")
+}
+
+model Company {
+  companyId                  BigInt   @id @map("company_id")
+  ownerUserId                BigInt   @map("owner_user_id")
+  name                       String   @db.VarChar(150)
+  businessRegistrationNumber String   @unique @map("business_registration_number") @db.VarChar(10)
+  verificationStatus         String   @map("verification_status") @db.VarChar(30)
+  industry                   String?  @db.VarChar(100)
+  profile                    String?
+  talentProfile              String?  @map("talent_profile")
+  evaluationPolicy           String?  @map("evaluation_policy")
+  createdAt                  DateTime @map("created_at")
+  updatedAt                  DateTime @map("updated_at")
+
+  @@map("companies")
+}
+
+model CandidateProfile {
+  candidateId         BigInt   @id @map("candidate_id")
+  userId              BigInt   @unique @map("user_id")
+  defaultResumeFileId BigInt?  @map("default_resume_file_id")
+  portfolioUrl        String?  @map("portfolio_url") @db.VarChar(500)
+  githubUrl           String?  @map("github_url") @db.VarChar(500)
+  summary             String?
+  createdAt           DateTime @map("created_at")
+  updatedAt           DateTime @map("updated_at")
+
+  @@map("candidate_profiles")
+}
+
+model FileAsset {
+  fileId       BigInt   @id @map("file_id")
+  ownerUserId  BigInt   @map("owner_user_id")
+  storageKey   String   @map("storage_key") @db.VarChar(500)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  sizeBytes    BigInt   @map("size_bytes")
+  status       String   @db.VarChar(30)
+  createdAt    DateTime @map("created_at")
+
+  @@map("file_assets")
+}
+
+model Posting {
+  postingId      BigInt    @id @map("posting_id")
+  companyId      BigInt    @map("company_id")
+  title          String    @db.VarChar(200)
+  jobRole        String    @map("job_role") @db.VarChar(100)
+  jobDescription String?   @map("job_description")
+  startsOn       DateTime? @map("starts_on") @db.Date
+  endsOn         DateTime? @map("ends_on") @db.Date
+  status         String    @db.VarChar(30)
+  createdAt      DateTime  @map("created_at")
+  updatedAt      DateTime  @map("updated_at")
+
+  @@map("postings")
+}
+
+model CriterionTag {
+  tagId       BigInt  @id @map("tag_id")
+  jobRole     String  @map("job_role") @db.VarChar(100)
+  name        String  @db.VarChar(100)
+  description String?
+  category    String  @db.VarChar(80)
+  isActive    Boolean @default(true) @map("is_active")
+  sortOrder   Int     @map("sort_order")
+
+  @@map("criterion_tags")
+}
+
+model EvaluationCriterion {
+  criterionId BigInt @id @map("criterion_id")
+  postingId   BigInt @map("posting_id")
+  tagId       BigInt @map("tag_id")
+  weight      Int
+  passScore   Int?   @map("pass_score")
+  sortOrder   Int    @map("sort_order")
+
+  @@map("evaluation_criteria")
+}
+
+model Question {
+  questionId   BigInt  @id @map("question_id")
+  companyId    BigInt  @map("company_id")
+  postingId    BigInt? @map("posting_id")
+  criterionId  BigInt? @map("criterion_id")
+  questionType String  @map("question_type") @db.VarChar(50)
+  content      String
+  isActive     Boolean @default(true) @map("is_active")
+
+  @@map("question_bank")
+}
+
+model Application {
+  applicationId     BigInt    @id @map("application_id")
+  postingId         BigInt    @map("posting_id")
+  candidateId       BigInt    @map("candidate_id")
+  applicationStatus String    @map("application_status") @db.VarChar(40)
+  documentStatus    String    @map("document_status") @db.VarChar(40)
+  interviewStatus   String    @map("interview_status") @db.VarChar(40)
+  reportStatus      String    @map("report_status") @db.VarChar(40)
+  screeningDecision String?   @map("screening_decision") @db.VarChar(40)
+  screeningMemo     String?   @map("screening_memo")
+  submittedAt       DateTime? @map("submitted_at")
+  updatedAt         DateTime  @map("updated_at")
+
+  @@map("applications")
+}
+
+model ApplicationDocument {
+  documentId    BigInt   @id @map("document_id")
+  applicationId BigInt   @map("application_id")
+  fileId        BigInt?  @map("file_id")
+  documentType  String   @map("document_type") @db.VarChar(50)
+  parseStatus   String   @map("parse_status") @db.VarChar(40)
+  extractedText String?  @map("extracted_text")
+  uploadedAt    DateTime @map("uploaded_at")
+
+  @@index([applicationId])
+  @@map("application_documents")
+}
+
+model ConsentRecord {
+  consentId     BigInt    @id @map("consent_id")
+  applicationId BigInt    @map("application_id")
+  consentType   String    @map("consent_type") @db.VarChar(80)
+  agreed        Boolean
+  agreedAt      DateTime? @map("agreed_at")
+
+  @@map("consent_records")
+}
+
+model InterviewSession {
+  sessionId        BigInt    @id @map("session_id")
+  applicationId    BigInt?   @map("application_id")
+  candidateId      BigInt    @map("candidate_id")
+  interviewType    String    @map("interview_type") @db.VarChar(40)
+  status           String    @db.VarChar(40)
+  showQuestionText Boolean   @default(false) @map("show_question_text")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+
+  @@map("interview_sessions")
+}
+
+model InterviewAnswer {
+  answerId        BigInt    @id @map("answer_id")
+  sessionId       BigInt    @map("session_id")
+  questionId      BigInt?   @map("question_id")
+  videoFileId     BigInt?   @map("video_file_id")
+  audioFileId     BigInt?   @map("audio_file_id")
+  transcript      String?
+  durationSeconds Int?      @map("duration_seconds")
+  submittedAt     DateTime? @map("submitted_at")
+
+  @@index([sessionId])
+  @@map("interview_answers")
+}
+
+model FollowUpQuestion {
+  followUpId       BigInt   @id @map("follow_up_id")
+  answerId         BigInt   @map("answer_id")
+  content          String
+  generationStatus String   @map("generation_status") @db.VarChar(40)
+  policy           String   @db.VarChar(40)
+  createdAt        DateTime @map("created_at")
+
+  @@unique([answerId, policy], name: "answerIdPolicy", map: "uq_follow_up_questions_answer_policy")
+  @@map("follow_up_questions")
+}
+
 model EvaluationReport {
-  reportId    BigInt       @id @map("report_id")
-  applicationId BigInt?    @map("application_id")
-  sessionId   BigInt?      @map("session_id")
-  reportType  String       @map("report_type") @db.VarChar(50)
-  status      String       @db.VarChar(40)
-  totalScore  Int?         @map("total_score")
-  summary     String?
-  generatedAt DateTime?    @map("generated_at")
-  failureCategory String?  @map("failure_category") @db.VarChar(40)
-  failureReason   String?  @map("failure_reason")
-  scores      ReportScore[]
+  reportId        BigInt        @id @map("report_id")
+  applicationId   BigInt?       @map("application_id")
+  sessionId       BigInt?       @map("session_id")
+  reportType      String        @map("report_type") @db.VarChar(50)
+  status          String        @db.VarChar(40)
+  totalScore      Int?          @map("total_score")
+  summary         String?
+  generatedAt     DateTime?     @map("generated_at")
+  failureCategory String?       @map("failure_category") @db.VarChar(40)
+  failureReason   String?       @map("failure_reason")
+  scores          ReportScore[]
+  manualReviews   ManualEvaluation[]
 
   @@map("evaluation_reports")
 }
@@ -50,92 +237,212 @@ model ReportEvidence {
   @@map("report_evidences")
 }
 
-model ApplicationDocument {
-  documentId    BigInt    @id @map("document_id")
-  applicationId BigInt    @map("application_id")
-  fileId        BigInt?   @map("file_id")
-  documentType  String    @map("document_type") @db.VarChar(50)
-  parseStatus   String    @map("parse_status") @db.VarChar(40)
-  extractedText String?   @map("extracted_text")
-  uploadedAt    DateTime  @map("uploaded_at")
+model ManualEvaluation {
+  manualEvalId  BigInt           @id @map("manual_eval_id")
+  reportId      BigInt           @map("report_id")
+  reviewerUserId BigInt          @map("reviewer_user_id")
+  decision      String?          @db.VarChar(40)
+  memo          String?
+  reviewedAt    DateTime?        @map("reviewed_at")
+  report        EvaluationReport @relation(fields: [reportId], references: [reportId], onDelete: Cascade)
 
-  @@index([applicationId])
-  @@map("application_documents")
+  @@map("manual_evaluations")
 }
 
-model InterviewAnswer {
-  answerId        BigInt    @id @map("answer_id")
-  sessionId       BigInt    @map("session_id")
-  questionId      BigInt?   @map("question_id")
-  videoFileId     BigInt?   @map("video_file_id")
-  audioFileId     BigInt?   @map("audio_file_id")
-  transcript      String?
-  durationSeconds Int?      @map("duration_seconds")
-  submittedAt     DateTime? @map("submitted_at")
+model Notification {
+  notificationId   BigInt    @id @map("notification_id")
+  userId           BigInt    @map("user_id")
+  applicationId    BigInt?   @map("application_id")
+  channel          String    @db.VarChar(40)
+  notificationType String    @map("notification_type") @db.VarChar(80)
+  status           String    @db.VarChar(40)
+  sentAt           DateTime? @map("sent_at")
 
-  @@index([sessionId])
-  @@map("interview_answers")
-}
-
-model FollowUpQuestion {
-  followUpId       BigInt   @id @map("follow_up_id")
-  answerId         BigInt   @map("answer_id")
-  content          String
-  generationStatus String   @map("generation_status") @db.VarChar(40)
-  policy           String   @db.VarChar(40)
-  createdAt        DateTime @map("created_at")
-
-  @@unique([answerId, policy], name: "answerIdPolicy", map: "uq_follow_up_questions_answer_policy")
-  @@map("follow_up_questions")
+  @@map("notifications")
 }
 
 model AiProcessLog {
-  processLogId BigInt   @id @map("process_log_id")
-  applicationId BigInt? @map("application_id")
-  sessionId    BigInt?  @map("session_id")
-  processType  String   @map("process_type") @db.VarChar(80)
-  status       String   @db.VarChar(40)
-  inputRef     String?  @map("input_ref")
-  outputRef    String?  @map("output_ref")
-  failureCategory String? @map("failure_category") @db.VarChar(40)
-  failureReason   String? @map("failure_reason")
-  createdAt    DateTime @map("created_at")
-  guardrailLogs AiGuardrailLog[]
+  processLogId    BigInt            @id @map("process_log_id")
+  applicationId   BigInt?           @map("application_id")
+  sessionId       BigInt?           @map("session_id")
+  processType     String            @map("process_type") @db.VarChar(80)
+  status          String            @db.VarChar(40)
+  inputRef        String?           @map("input_ref")
+  outputRef       String?           @map("output_ref")
+  failureCategory String?           @map("failure_category") @db.VarChar(40)
+  failureReason   String?           @map("failure_reason")
+  createdAt       DateTime          @map("created_at")
+  guardrailLogs   AiGuardrailLog[]
 
   @@map("ai_process_logs")
 }
 
 model AiGuardrailLog {
-  guardrailLogId BigInt       @id @map("guardrail_log_id")
-  processLogId   BigInt       @map("process_log_id")
-  policyName     String       @map("policy_name") @db.VarChar(120)
-  result         String       @db.VarChar(40)
-  reason         String?
-  failureCategory String?     @map("failure_category") @db.VarChar(40)
-  createdAt      DateTime     @map("created_at")
-  processLog     AiProcessLog @relation(fields: [processLogId], references: [processLogId], onDelete: Cascade)
+  guardrailLogId  BigInt       @id @map("guardrail_log_id")
+  processLogId    BigInt       @map("process_log_id")
+  policyName      String       @map("policy_name") @db.VarChar(120)
+  result          String       @db.VarChar(40)
+  reason          String?
+  failureCategory String?      @map("failure_category") @db.VarChar(40)
+  createdAt       DateTime     @map("created_at")
+  processLog      AiProcessLog @relation(fields: [processLogId], references: [processLogId], onDelete: Cascade)
 
   @@index([processLogId])
   @@map("ai_guardrail_logs")
 }
 
 model Embedding {
-  embeddingId BigInt   @id @map("embedding_id")
-  postingId   BigInt?  @map("posting_id")
-  tagId       BigInt?  @map("tag_id")
-  questionId  BigInt?  @map("question_id")
-  documentId  BigInt?  @map("document_id")
-  answerId    BigInt?  @map("answer_id")
-  reportId    BigInt?  @map("report_id")
-  sourceType  String   @map("source_type") @db.VarChar(80)
-  sourceTextHash String @map("source_text_hash") @db.VarChar(128)
-  embeddingModel String @map("embedding_model") @db.VarChar(120)
-  embeddingDimension Int @map("embedding_dimension")
-  embeddingVector String @map("embedding_vector")
-  metadataJson String? @map("metadata_json")
-  createdAt DateTime @map("created_at")
-  updatedAt DateTime @map("updated_at")
+  embeddingId        BigInt   @id @map("embedding_id")
+  postingId          BigInt?  @map("posting_id")
+  tagId              BigInt?  @map("tag_id")
+  questionId         BigInt?  @map("question_id")
+  documentId         BigInt?  @map("document_id")
+  answerId           BigInt?  @map("answer_id")
+  reportId           BigInt?  @map("report_id")
+  sourceType         String   @map("source_type") @db.VarChar(80)
+  sourceTextHash     String   @map("source_text_hash") @db.VarChar(128)
+  embeddingModel     String   @map("embedding_model") @db.VarChar(120)
+  embeddingDimension Int      @map("embedding_dimension")
+  embeddingVector    String   @map("embedding_vector")
+  metadataJson       String?  @map("metadata_json")
+  createdAt          DateTime @map("created_at")
+  updatedAt          DateTime @map("updated_at")
 
-  @@unique([sourceType, sourceTextHash])
+  @@unique([sourceType, sourceTextHash], name: "sourceTypeSourceTextHash")
   @@map("embeddings")
+}
+
+enum UserType {
+  ADMIN
+  COMPANY
+  CANDIDATE
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum PostingStatus {
+  DRAFT
+  OPEN
+  CLOSING_SOON
+  CLOSED
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  INTERVIEW_WAITING
+  INTERVIEW_DONE
+  COMPLETED
+  CANCELED
+}
+
+enum DocumentStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  EXTRACTING
+  EXTRACTED
+  FAILED
+}
+
+enum InterviewStatus {
+  NOT_READY
+  READY
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum ScreeningDecision {
+  UNDECIDED
+  PASS
+  HOLD
+  FAIL
+}
+
+enum InterviewType {
+  MOCK
+  RECRUITING
+}
+
+enum ReportType {
+  MOCK_INTERVIEW_REPORT
+  RECRUITING_REPORT
+}
+
+enum DocumentType {
+  RESUME
+  PORTFOLIO
+}
+
+enum ConsentType {
+  PRIVACY_COLLECTION
+  AI_DOCUMENT_ANALYSIS
+  AI_INTERVIEW_RECORDING
+}
+
+enum QuestionType {
+  INTRO
+  TECHNICAL
+  EXPERIENCE
+  SITUATION
+  FOLLOW_UP
+  CLOSING
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+}
+
+enum AiProcessType {
+  DOCUMENT_EXTRACT
+  STT
+  FOLLOW_UP
+  REPORT_GENERATE
+  EMBEDDING
+  GUARDRAIL_VALIDATE
+  CRITERIA_SUGGEST
+  QUESTION_GENERATE
+  QUESTION_SET_GENERATE
+}
+
+enum AiProcessStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum GuardrailResult {
+  PASS
+  BLOCKED
+  REGENERATED
+}
+
+enum EmbeddingSourceType {
+  POSTING
+  CRITERION_TAG
+  QUESTION
+  APPLICATION_DOCUMENT
+  INTERVIEW_ANSWER
+  REPORT
 }

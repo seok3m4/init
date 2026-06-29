@@ -11,12 +11,12 @@ import {
   Param,
   Post
 } from "@nestjs/common";
-import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
-import { CurrentUser } from "../common/dev-auth/current-user";
-import { ok } from "../common/response/api-response";
-import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
-import { AiProcessNotFoundError, REPORT_REPOSITORY, ReportRepository } from "./report.repository";
-import { AiProcessType } from "./report.types";
+import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
+import { CurrentUser } from "../../common/dev-auth/current-user";
+import { ok } from "../../common/response/api-response";
+import { AiJobDispatcherService } from "../report/ai-job-dispatcher.service";
+import { AiProcessNotFoundError, REPORT_REPOSITORY, ReportRepository } from "../report/report.repository";
+import { AiProcessType } from "../report/report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
 type JobBody = Record<string, unknown>;

@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
-import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
-import { CurrentUser } from "../common/dev-auth/current-user";
-import { ok } from "../common/response/api-response";
+import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
+import { CurrentUser } from "../../common/dev-auth/current-user";
+import { ok } from "../../common/response/api-response";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
 import {
   AnswerEvaluationRequest,

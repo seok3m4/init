@@ -1,7 +1,7 @@
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
-import { AppModule } from "../app.module";
+import { AppModule } from "../../app.module";
 import { InMemoryReportRepository } from "./in-memory-report.repository";
 
 describe("ReportsController", () => {
@@ -446,9 +446,14 @@ describe("ReportsController", () => {
   });
 
   it("enforces auth and processLogId validation on AI job status lookup", async () => {
-    await request(app.getHttpServer()).get("/api/v1/ai/jobs/1/status").expect(401);
-    await companyGet("/api/v1/ai/jobs/not-a-number/status").expect(400);
-    await companyGet("/api/v1/ai/jobs/999999/status").expect(404);
+    const unauthorized = await request(app.getHttpServer()).get("/api/v1/ai/jobs/1/status").expect(401);
+    expect(unauthorized.body.error.code).toBe("COMMON_UNAUTHORIZED");
+
+    const invalid = await companyGet("/api/v1/ai/jobs/not-a-number/status").expect(400);
+    expect(invalid.body.error.code).toBe("COMMON_VALIDATION_FAILED");
+
+    const missing = await companyGet("/api/v1/ai/jobs/999999/status").expect(404);
+    expect(missing.body.error.code).toBe("AI_PROCESS_NOT_FOUND");
   });
 
   it("separates recruiting and mock report endpoint report types", async () => {
@@ -480,7 +485,16 @@ describe("ReportsController", () => {
   });
 
   it("returns unauthorized when dev auth headers are missing", async () => {
-    await request(app.getHttpServer()).post("/api/v1/reports/1/generate").send(validGeneratePayload()).expect(401);
+    const response = await request(app.getHttpServer())
+      .post("/api/v1/reports/1/generate")
+      .send(validGeneratePayload())
+      .expect(401);
+
+    expect(response.body.error).toEqual({
+      code: "COMMON_UNAUTHORIZED",
+      message: "Dev auth headers are required.",
+      details: []
+    });
   });
 
   it("returns forbidden for candidate users on recruiting report generation", async () => {

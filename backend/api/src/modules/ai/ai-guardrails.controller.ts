@@ -1,9 +1,9 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Inject, Post } from "@nestjs/common";
-import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
-import { ok } from "../common/response/api-response";
-import { GuardrailService } from "./guardrail.service";
-import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
-import { GuardrailValidationRequest, GuardrailValidationResult } from "./report.types";
+import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
+import { ok } from "../../common/response/api-response";
+import { GuardrailService } from "../report/guardrail.service";
+import { REPORT_REPOSITORY, ReportRepository } from "../report/report.repository";
+import { GuardrailValidationRequest, GuardrailValidationResult } from "../report/report.types";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
 

@@ -1,8 +1,23 @@
 .DS_Store
+
+.gitignore
+\nogitdocs
+
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
 dist/
+build/
 coverage/
-.env
-.env.*
-!.env.example
-nogitdocs/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local planning notes
+작업목록.txt

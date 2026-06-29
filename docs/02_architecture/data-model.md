@@ -4,6 +4,43 @@
 
 도메인별 데이터 소유권과 주요 필드를 정리한다.
 
+## Implementation Naming Baseline
+
+구현 시작 이후 팀별 이름 충돌을 줄이기 위해 DB, Prisma, TypeScript 코드에서 사용할 이름을 아래처럼 고정한다.
+
+- DB table은 ERDCloud와 기존 계약 문서 기준의 `snake_case` 복수형을 유지한다.
+- Prisma model은 `PascalCase` 단수형을 사용하고 DB table은 `@@map`으로 연결한다.
+- Prisma field는 TypeScript 친화적인 `camelCase`를 사용하고 DB column은 `@map`으로 연결한다.
+- Prisma enum은 `PascalCase`, enum value는 `UPPER_SNAKE_CASE`를 사용한다.
+- 기존 구현에 다른 이름이 있다면 물리 DB rename보다 Prisma `@@map`/`@map`으로 먼저 흡수한다.
+
+| DB Table | Prisma Model | Primary Owner |
+| --- | --- | --- |
+| `users` | `User` | A |
+| `companies` | `Company` | A |
+| `candidate_profiles` | `CandidateProfile` | A/D |
+| `file_assets` | `FileAsset` | A/D/E |
+| `postings` | `Posting` | B |
+| `criterion_tags` | `CriterionTag` | C |
+| `evaluation_criteria` | `EvaluationCriterion` | C |
+| `question_bank` | `Question` | C |
+| `applications` | `Application` | B/D |
+| `application_documents` | `ApplicationDocument` | D/E |
+| `consent_records` | `ConsentRecord` | D |
+| `interview_sessions` | `InterviewSession` | D/E |
+| `interview_answers` | `InterviewAnswer` | D/E |
+| `follow_up_questions` | `FollowUpQuestion` | E |
+| `evaluation_reports` | `EvaluationReport` | E |
+| `report_scores` | `ReportScore` | E |
+| `report_evidences` | `ReportEvidence` | E |
+| `manual_evaluations` | `ManualEvaluation` | B/E |
+| `notifications` | `Notification` | A/B |
+| `ai_process_logs` | `AiProcessLog` | E |
+| `ai_guardrail_logs` | `AiGuardrailLog` | E |
+| `embeddings` | `Embedding` | E |
+
+`question_bank`는 DB table 이름만 유지하고 Prisma model은 `Question`으로 둔다. row 하나가 질문 한 건이기 때문이다. `evaluation_criteria`의 Prisma model은 복수형 `EvaluationCriteria`가 아니라 단수형 `EvaluationCriterion`이다. `ai_*` 계열 class/model 이름은 TypeScript 관례에 맞춰 `AiProcessLog`, `AiGuardrailLog`처럼 쓴다.
+
 ## Aggregates
 
 | Aggregate | Owned Tables | Responsibility |

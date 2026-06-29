@@ -1,8 +1,7 @@
 import { Module } from "@nestjs/common";
-import { DevAuthAdapter } from "../common/dev-auth/dev-auth.adapter";
+import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
 import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "./ai-job-queue.publisher";
-import { AiJobsStatusController, CandidateAiJobsController, CompanyAiJobsController } from "./ai-jobs.controller";
 import { AiReportPipelineService } from "./ai-report-pipeline.service";
 import { GuardrailService } from "./guardrail.service";
 import { InMemoryReportRepository } from "./in-memory-report.repository";
@@ -10,7 +9,6 @@ import { MockAiReportProvider } from "./mock-ai-report.provider";
 import { PrismaReportRepository } from "./prisma-report.repository";
 import { PrismaService } from "./prisma.service";
 import { REPORT_REPOSITORY } from "./report.repository";
-import { AiGuardrailsController } from "./ai-guardrails.controller";
 import { CandidateMockReportsController, ReportsController } from "./reports.controller";
 
 const repositoryProviders = process.env.DATABASE_URL
@@ -31,14 +29,7 @@ const repositoryProviders = process.env.DATABASE_URL
     ];
 
 @Module({
-  controllers: [
-    ReportsController,
-    CandidateMockReportsController,
-    AiGuardrailsController,
-    CandidateAiJobsController,
-    CompanyAiJobsController,
-    AiJobsStatusController
-  ],
+  controllers: [ReportsController, CandidateMockReportsController],
   providers: [
     DevAuthAdapter,
     AiJobDispatcherService,
@@ -50,6 +41,12 @@ const repositoryProviders = process.env.DATABASE_URL
     GuardrailService,
     MockAiReportProvider,
     ...repositoryProviders
+  ],
+  exports: [
+    DevAuthAdapter,
+    AiJobDispatcherService,
+    GuardrailService,
+    REPORT_REPOSITORY
   ]
 })
-export class ReportsModule {}
+export class ReportModule {}

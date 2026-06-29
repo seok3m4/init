@@ -1,7 +1,6 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("A", "B", "C", "D", "E", "PM")]
-    [string]$Role
+  [ValidateSet("A", "B", "C", "D", "E", "PM")]
+  [string]$Role = "A"
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,18 +8,36 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$hooksDir = Join-Path $root ".git/hooks"
-$hookPath = Join-Path $hooksDir "pre-commit"
-
-if (-not (Test-Path -LiteralPath $hooksDir)) {
-    throw "Git hooks directory not found: $hooksDir"
+$gitHooks = Join-Path $root ".git/hooks"
+if (-not (Test-Path -LiteralPath $gitHooks)) {
+  throw ".git/hooks not found"
 }
 
-$hook = @"
-#!/bin/sh
-powershell -ExecutionPolicy Bypass -File scripts/check-local.ps1 -Role $Role
+$hookPath = Join-Path $gitHooks "pre-commit"
+$script = @"
+#!/usr/bin/env sh
+set -eu
+
+if command -v pwsh >/dev/null 2>&1; then
+  exec pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-local.ps1 -Role $Role
+fi
+
+if command -v powershell >/dev/null 2>&1; then
+  exec powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-local.ps1 -Role $Role
+fi
+
+echo "[fail] PowerShell is required for local harness"
+exit 1
 "@
 
-Set-Content -Encoding ASCII -LiteralPath $hookPath -Value $hook
-Write-Host "Installed pre-commit hook for role $Role at $hookPath" -ForegroundColor Green
+Set-Content -Encoding UTF8 -LiteralPath $hookPath -Value $script
 
+$isCoreNonWindows = ($PSVersionTable.PSEdition -eq "Core" -and -not $IsWindows)
+if ($isCoreNonWindows) {
+  $chmod = Get-Command chmod -ErrorAction SilentlyContinue
+  if ($chmod) {
+    & $chmod +x $hookPath
+  }
+}
+
+Write-Host "[ok] installed pre-commit hook for role $Role"

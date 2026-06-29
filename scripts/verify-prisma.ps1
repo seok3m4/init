@@ -1,63 +1,49 @@
-param(
-    [string]$ApiDir = "backend/api",
-    [switch]$Quiet
-)
+param()
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$apiPath = Join-Path $root $ApiDir
-$packagePath = Join-Path $apiPath "package.json"
-$schemaPath = Join-Path $apiPath "prisma/schema.prisma"
-$migrationsPath = Join-Path $apiPath "prisma/migrations"
+$schema = Join-Path $root "backend/api/prisma/schema.prisma"
+$apiDir = Join-Path $root "backend/api"
 
-if (-not (Test-Path -LiteralPath $schemaPath)) {
-    if (-not $Quiet) {
-        Write-Host "Prisma harness skipped: $ApiDir/prisma/schema.prisma not found." -ForegroundColor Yellow
-    }
-    exit 0
+if (-not (Test-Path -LiteralPath $schema)) {
+  Write-Host "[skip] backend/api/prisma/schema.prisma not found"
+  exit 0
 }
 
-if (-not (Test-Path -LiteralPath $packagePath)) {
-    Write-Host "Prisma harness failed: $ApiDir/package.json is required when schema.prisma exists." -ForegroundColor Red
-    exit 1
+if (-not (Test-Path -LiteralPath (Join-Path $apiDir "package.json"))) {
+  throw "schema.prisma exists but backend/api/package.json is missing"
 }
 
-Push-Location $apiPath
+Push-Location $apiDir
 try {
-    $packageJson = Get-Content -Encoding UTF8 -LiteralPath $packagePath -Raw
-    if ($packageJson -notmatch '"prisma"') {
-        Write-Host "Prisma harness failed: package.json should include Prisma dependency or script when schema.prisma exists." -ForegroundColor Red
-        exit 1
-    }
+  $hadDatabaseUrl = [bool][Environment]::GetEnvironmentVariable("DATABASE_URL")
+  if (-not $hadDatabaseUrl) {
+    $env:DATABASE_URL = "postgresql://init:init@localhost:5432/init?schema=public"
+  }
 
-    $hadDatabaseUrl = [bool][Environment]::GetEnvironmentVariable("DATABASE_URL")
-    if (-not $hadDatabaseUrl) {
-        $env:DATABASE_URL = "postgresql://user:pass@localhost:5432/init"
-    }
+  $localPrismaCmd = Join-Path $apiDir "node_modules/.bin/prisma.cmd"
+  $localPrisma = Join-Path $apiDir "node_modules/.bin/prisma"
+  if (Test-Path -LiteralPath $localPrismaCmd) {
+    & $localPrismaCmd validate
+  } elseif (Test-Path -LiteralPath $localPrisma) {
+    & $localPrisma validate
+  } elseif (Get-Command npx -ErrorAction SilentlyContinue) {
+    npx prisma validate
+  } else {
+    throw "Prisma CLI is not available. Run npm install in backend/api."
+  }
 
-    if (Test-Path -LiteralPath "node_modules/.bin/prisma.cmd") {
-        & .\node_modules\.bin\prisma.cmd validate
-    } elseif (Get-Command npx -ErrorAction SilentlyContinue) {
-        npx prisma validate
-    } else {
-        Write-Host "Prisma harness skipped runtime validation: npx/prisma is not available." -ForegroundColor Yellow
-    }
-
-    if (-not $hadDatabaseUrl) {
-        Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
-    }
-
-    if (-not (Test-Path -LiteralPath $migrationsPath)) {
-        Write-Host "Prisma harness warning: prisma/migrations not found yet." -ForegroundColor Yellow
-    }
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
 } finally {
-    Pop-Location
+  if (-not $hadDatabaseUrl) {
+    Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
+  }
+  Pop-Location
 }
 
-if (-not $Quiet) {
-    Write-Host "Prisma harness passed." -ForegroundColor Green
-}
-
+Write-Host "[ok] verify-prisma passed"
