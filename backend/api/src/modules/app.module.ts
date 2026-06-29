@@ -11,9 +11,9 @@ import { PrismaService } from "../shared/prisma.service";
   imports: [
     AuthModule,
     CompanyRecruitingModule,
-    CompanyInterviewModule,
     ReportModule,
     AiModule,
+    CompanyInterviewModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService],
