@@ -3,6 +3,9 @@ import type {
   CandidateApplicationSummary,
   CandidateJobListPostingStatus,
   CandidateJobQuery,
+  CandidateMockReportFeedback,
+  CandidateMockReportSummary,
+  CandidateRecruitingReportView,
   CreatePortfolioLinkRequest,
   InterviewDeviceCheckRequest,
   SaveInterviewAnswerRequest,
@@ -14,9 +17,13 @@ import type {
 import { candidateApiPaths } from "./api";
 import {
   getCandidateApplicationInterviewActionHref,
+  getCandidateApplicationReportHref,
   getCandidateJobDetailActionHref,
   getMockInterviewHref,
+  getMockReportHref,
+  isCandidateFacingMockFeedbackSafe,
   isCandidateInterviewStartEnabled,
+  isCandidateRecruitingReportLimited,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
   toSaveInterviewAnswerRequest,
@@ -118,9 +125,67 @@ const applicationSummary: CandidateApplicationSummary = {
   canStartInterview: true,
 };
 
+const mockReport: CandidateMockReportSummary = {
+  sessionId: 10001,
+  reportId: 10001,
+  interviewType: "MOCK",
+  status: "COMPLETED",
+  reportStatus: "COMPLETED",
+  startedAt: "2026-06-29T00:00:00.000Z",
+  completedAt: "2026-06-29T00:10:00.000Z",
+  updatedAt: "2026-06-29T00:10:00.000Z",
+  totalQuestions: 2,
+  answeredCount: 2,
+  reportType: "MOCK_INTERVIEW_REPORT",
+  feedbackEndpoint: "/api/v1/candidate/mock-interview/reports/10001/feedback",
+  mediaEndpoint: "/api/v1/candidate/mock-interview/reports/10001/media",
+  generateEndpoint: "/api/v1/candidate/mock-interview/reports/10001/generate",
+};
+
+const mockFeedback: CandidateMockReportFeedback = {
+  reportId: 10001,
+  sessionId: 10001,
+  reportType: "MOCK_INTERVIEW_REPORT",
+  status: "COMPLETED",
+  summary: "Practice feedback is ready.",
+  strengths: ["Answers were submitted in order."],
+  improvements: ["Keep examples concise."],
+  nextPractice: ["Replay recorded answers."],
+  visibilityPolicy: {
+    candidateFacingOnly: true,
+    excludesHiringDecision: true,
+    excludesInternalScores: true,
+    excludesCompanyMemo: true,
+  },
+};
+
+const recruitingReport: CandidateRecruitingReportView = {
+  applicationId: 1,
+  sessionId: 1,
+  reportType: "RECRUITING_REPORT",
+  status: "GENERATING",
+  applicationStatus: "SUBMITTED",
+  interviewStatus: "COMPLETED",
+  companyName: "Init Labs",
+  jobTitle: "Backend Developer",
+  candidateMessage: "Interview analysis is in progress.",
+  nextStepLabel: "Analysis in progress",
+  visibilityPolicy: {
+    candidateFacingOnly: true,
+    excludesDetailedScores: true,
+    excludesEvaluationEvidence: true,
+    excludesInternalMemo: true,
+    excludesManualEvaluation: true,
+  },
+};
+
 const applicationInterviewHref = getCandidateApplicationInterviewActionHref(applicationSummary);
+const applicationReportHref = getCandidateApplicationReportHref(applicationSummary);
 const applicationCanStart = isCandidateInterviewStartEnabled(applicationSummary);
 const mockInterviewHref = getMockInterviewHref({ sessionId: 10001 });
+const mockReportHref = getMockReportHref(mockReport);
+const mockFeedbackIsSafe = isCandidateFacingMockFeedbackSafe(mockFeedback);
+const recruitingReportIsLimited = isCandidateRecruitingReportLimited(recruitingReport);
 
 const mockInterviewsPath = candidateApiPaths.mockInterviews;
 const mockRuntimePath = candidateApiPaths.mockRuntime(10001);
@@ -130,8 +195,15 @@ const mockNextQuestionPath = candidateApiPaths.mockNextQuestion(10001);
 const mockCompletePath = candidateApiPaths.mockComplete(10001);
 const mockSttPath = candidateApiPaths.mockStt(10001);
 const mockFollowUpPath = candidateApiPaths.mockFollowUpQuestion(10001);
+const mockReportsPath = candidateApiPaths.mockReports;
+const mockHistoryPath = candidateApiPaths.mockHistory;
+const mockReportFeedbackPath = candidateApiPaths.mockReportFeedback(10001);
+const mockReportMediaPath = candidateApiPaths.mockReportMedia(10001);
+const mockReportGeneratePath = candidateApiPaths.mockReportGenerate(10001);
 const applicationsPath = candidateApiPaths.applications;
 const interviewGuidePath = candidateApiPaths.interviewGuide(1);
+const applicationReportPath = candidateApiPaths.applicationReport(1);
+const applicationStatusPath = candidateApiPaths.applicationStatus(1);
 const deviceCheckPath = candidateApiPaths.deviceCheck(1);
 const startInterviewPath = candidateApiPaths.startInterview(1);
 const runtimePath = candidateApiPaths.interviewRuntime(1);
@@ -182,9 +254,16 @@ void deviceCheckRequest;
 void startMockRequest;
 void answerRequest;
 void applicationSummary;
+void mockReport;
+void mockFeedback;
+void recruitingReport;
 void applicationInterviewHref;
+void applicationReportHref;
 void applicationCanStart;
 void mockInterviewHref;
+void mockReportHref;
+void mockFeedbackIsSafe;
+void recruitingReportIsLimited;
 void mockInterviewsPath;
 void mockRuntimePath;
 void mockQuestionsPath;
@@ -193,8 +272,15 @@ void mockNextQuestionPath;
 void mockCompletePath;
 void mockSttPath;
 void mockFollowUpPath;
+void mockReportsPath;
+void mockHistoryPath;
+void mockReportFeedbackPath;
+void mockReportMediaPath;
+void mockReportGeneratePath;
 void applicationsPath;
 void interviewGuidePath;
+void applicationReportPath;
+void applicationStatusPath;
 void deviceCheckPath;
 void startInterviewPath;
 void runtimePath;

@@ -393,7 +393,23 @@ export class CandidateService {
     const now = new Date().toISOString();
     const completedSession = await this.repository.updateInterviewSessionStatus(session.sessionId, "COMPLETED", now);
     await this.repository.updateApplicationInterviewStatus(application.applicationId, "COMPLETED");
+    await this.repository.updateApplicationReportStatus(application.applicationId, "GENERATING");
     return completedSession;
+  }
+
+  async getOwnedApplicationReportContext(
+    applicationId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<{ application: Application; session: InterviewSession; job: CandidateJob }> {
+    const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
+    const job = await this.repository.findJob(application.postingId);
+    if (!job) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Application posting was not found.", 404, [
+        { field: "postingId", reason: "posting not found" },
+      ]);
+    }
+
+    return { application, session, job };
   }
 
   async createInterviewFileAsset(
@@ -1355,6 +1371,13 @@ export class InMemoryCandidateRepository implements CandidateRepository {
   async updateApplicationInterviewStatus(applicationId: number, status: InterviewSession["status"]): Promise<Application> {
     const application = await this.requiredApplication(applicationId);
     application.interviewStatus = status;
+    application.updatedAt = new Date().toISOString();
+    return application;
+  }
+
+  async updateApplicationReportStatus(applicationId: number, status: Application["reportStatus"]): Promise<Application> {
+    const application = await this.requiredApplication(applicationId);
+    application.reportStatus = status;
     application.updatedAt = new Date().toISOString();
     return application;
   }

@@ -387,6 +387,129 @@ export interface AiInterviewHandoffResponse {
   callbackTopic: string;
 }
 
+export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
+export type TranscriptStatus = "PENDING" | "AVAILABLE";
+
+export interface CandidateMockInterviewHistoryItem {
+  sessionId: number;
+  reportId: number;
+  interviewType: "MOCK";
+  status: InterviewStatus;
+  reportStatus: ReportStatus;
+  startedAt?: string;
+  completedAt?: string;
+  updatedAt: string;
+  totalQuestions: number;
+  answeredCount: number;
+}
+
+export interface CandidateMockReportSummary extends CandidateMockInterviewHistoryItem {
+  reportType: "MOCK_INTERVIEW_REPORT";
+  feedbackEndpoint: string;
+  mediaEndpoint: string;
+  generateEndpoint: string;
+}
+
+export interface CandidateMockReportFeedback {
+  reportId: number;
+  sessionId: number;
+  reportType: "MOCK_INTERVIEW_REPORT";
+  status: ReportStatus;
+  generatedAt?: string;
+  summary?: string;
+  strengths: string[];
+  improvements: string[];
+  nextPractice: string[];
+  visibilityPolicy: {
+    candidateFacingOnly: true;
+    excludesHiringDecision: true;
+    excludesInternalScores: true;
+    excludesCompanyMemo: true;
+  };
+}
+
+export interface CandidateReportFileReference {
+  fileId: number;
+  storageKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: CandidateFileAsset["status"];
+  createdAt: string;
+}
+
+export interface CandidateMockReportMediaItem {
+  answerId: number;
+  questionId: number;
+  questionType: QuestionType;
+  sortOrder: number;
+  questionContent?: string;
+  videoFile?: CandidateReportFileReference;
+  audioFile?: CandidateReportFileReference;
+  durationSeconds: number;
+  submittedAt: string;
+  transcriptStatus: TranscriptStatus;
+  transcript?: string;
+}
+
+export interface CandidateMockReportMedia {
+  reportId: number;
+  sessionId: number;
+  reportType: "MOCK_INTERVIEW_REPORT";
+  status: ReportStatus;
+  media: CandidateMockReportMediaItem[];
+}
+
+export interface CandidateReportGenerationHandoff {
+  accepted: true;
+  processType: "REPORT_GENERATE";
+  status: "PENDING";
+  reportId: number;
+  sessionId: number;
+  reportType: "MOCK_INTERVIEW_REPORT";
+  answerIds: number[];
+  fileIds: number[];
+  callbackTopic: "ai.report.generate.requested";
+}
+
+export interface CandidateApplicationStatusView {
+  applicationId: number;
+  postingId: number;
+  companyName: string;
+  jobTitle: string;
+  jobRole: string;
+  applicationStatus: ApplicationStatus;
+  documentStatus: DocumentStatus;
+  interviewStatus: InterviewStatus;
+  reportStatus: ReportStatus;
+  sessionId: number;
+  interviewSessionStatus: InterviewStatus;
+  submittedAt: string;
+  updatedAt: string;
+  reportAvailable: boolean;
+}
+
+export interface CandidateRecruitingReportView {
+  applicationId: number;
+  sessionId: number;
+  reportType: "RECRUITING_REPORT";
+  status: ReportStatus;
+  applicationStatus: ApplicationStatus;
+  interviewStatus: InterviewStatus;
+  companyName: string;
+  jobTitle: string;
+  summary?: string;
+  candidateMessage: string;
+  nextStepLabel: string;
+  visibilityPolicy: {
+    candidateFacingOnly: true;
+    excludesDetailedScores: true;
+    excludesEvaluationEvidence: true;
+    excludesInternalMemo: true;
+    excludesManualEvaluation: true;
+  };
+}
+
 export interface CandidatePortfolioLink {
   portfolioLinkId: number;
   candidateId: number;
@@ -418,9 +541,16 @@ export const candidateApiPaths = {
   mockComplete: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/complete`,
   mockStt: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/stt`,
   mockFollowUpQuestion: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/follow-up-question`,
+  mockReports: "/api/v1/candidate/mock-interview/reports",
+  mockHistory: "/api/v1/candidate/mock-interviews/history",
+  mockReportFeedback: (reportId: number) => `/api/v1/candidate/mock-interview/reports/${reportId}/feedback`,
+  mockReportMedia: (reportId: number) => `/api/v1/candidate/mock-interview/reports/${reportId}/media`,
+  mockReportGenerate: (reportId: number) => `/api/v1/candidate/mock-interview/reports/${reportId}/generate`,
   applications: "/api/v1/candidate/applications",
   interviewGuide: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview-guide`,
   interviewConsent: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/consent`,
+  applicationReport: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/report`,
+  applicationStatus: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/status`,
   deviceCheck: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/device-check`,
   startInterview: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview/start`,
   interviewRuntime: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview`,
@@ -468,6 +598,11 @@ export interface CandidateApiClient {
     sessionId: number,
     body: AiInterviewRequest,
   ): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  listMockReports(): Promise<ApiListResponse<CandidateMockReportSummary>>;
+  listMockInterviewHistory(): Promise<ApiListResponse<CandidateMockInterviewHistoryItem>>;
+  getMockReportFeedback(reportId: number): Promise<ApiResponse<CandidateMockReportFeedback>>;
+  getMockReportMedia(reportId: number): Promise<ApiResponse<CandidateMockReportMedia>>;
+  requestMockReportGeneration(reportId: number): Promise<ApiResponse<CandidateReportGenerationHandoff>>;
   listApplications(): Promise<ApiListResponse<CandidateApplicationSummary>>;
   getInterviewGuide(applicationId: number): Promise<ApiResponse<CandidateInterviewGuide>>;
   saveInterviewConsent(
@@ -492,6 +627,8 @@ export interface CandidateApiClient {
     sessionId: number,
     body: AiInterviewRequest,
   ): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  getApplicationReport(applicationId: number): Promise<ApiResponse<CandidateRecruitingReportView>>;
+  getApplicationStatus(applicationId: number): Promise<ApiResponse<CandidateApplicationStatusView>>;
   uploadResume(body: UploadResumeRequest): Promise<ApiResponse<CandidateFileAsset>>;
   createPortfolioLink(
     body: CreatePortfolioLinkRequest,
@@ -563,6 +700,18 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+    listMockReports: () =>
+      request<ApiListResponse<CandidateMockReportSummary>>(candidateApiPaths.mockReports),
+    listMockInterviewHistory: () =>
+      request<ApiListResponse<CandidateMockInterviewHistoryItem>>(candidateApiPaths.mockHistory),
+    getMockReportFeedback: (reportId) =>
+      request<ApiResponse<CandidateMockReportFeedback>>(candidateApiPaths.mockReportFeedback(reportId)),
+    getMockReportMedia: (reportId) =>
+      request<ApiResponse<CandidateMockReportMedia>>(candidateApiPaths.mockReportMedia(reportId)),
+    requestMockReportGeneration: (reportId) =>
+      request<ApiResponse<CandidateReportGenerationHandoff>>(candidateApiPaths.mockReportGenerate(reportId), {
+        method: "POST",
+      }),
     listApplications: () =>
       request<ApiListResponse<CandidateApplicationSummary>>(candidateApiPaths.applications),
     getInterviewGuide: (applicationId) =>
@@ -608,6 +757,10 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+    getApplicationReport: (applicationId) =>
+      request<ApiResponse<CandidateRecruitingReportView>>(candidateApiPaths.applicationReport(applicationId)),
+    getApplicationStatus: (applicationId) =>
+      request<ApiResponse<CandidateApplicationStatusView>>(candidateApiPaths.applicationStatus(applicationId)),
     uploadResume: (body) =>
       request<ApiResponse<CandidateFileAsset>>(candidateApiPaths.resume, {
         method: "POST",

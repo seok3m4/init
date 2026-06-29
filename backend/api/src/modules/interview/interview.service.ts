@@ -141,6 +141,36 @@ export class InterviewService {
 
   constructor(private readonly candidateService: CandidateService) {}
 
+  listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): RuntimeInterviewSession[] {
+    return [...this.mockSessions.values()]
+      .filter((session) => session.candidateId === currentUser.candidateId)
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      .map((session) => ({ ...session, questionIds: [...session.questionIds] }));
+  }
+
+  getOwnedMockInterviewSessionForReport(
+    reportId: number,
+    currentUser: CurrentCandidateUser,
+  ): RuntimeInterviewSession {
+    const session = this.getOwnedMockSession(reportId, currentUser);
+    return { ...session, questionIds: [...session.questionIds] };
+  }
+
+  listAnswersForSession(sessionId: number): InterviewAnswer[] {
+    return this.answers
+      .filter((answer) => answer.sessionId === sessionId)
+      .sort((left, right) => {
+        const leftQuestion = this.requiredQuestion(left.questionId);
+        const rightQuestion = this.requiredQuestion(right.questionId);
+        return leftQuestion.sortOrder - rightQuestion.sortOrder;
+      })
+      .map((answer) => ({ ...answer }));
+  }
+
+  getQuestionSnapshot(questionId: number): InterviewQuestion {
+    return { ...this.requiredQuestion(questionId) };
+  }
+
   saveDeviceCheck(sessionId: number, dto: DeviceCheckDto, headers: CandidateAuthHeaders) {
     const currentUser = resolveCurrentCandidate(headers);
     return this.candidateService.saveDeviceCheck(sessionId, dto, currentUser);

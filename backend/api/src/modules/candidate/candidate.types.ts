@@ -276,6 +276,7 @@ export interface CandidateRepository {
   findInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined>;
   saveDeviceCheck(sessionId: number, deviceCheck: Omit<InterviewDeviceCheck, "status" | "checkedAt">): Promise<InterviewSession>;
   updateApplicationInterviewStatus(applicationId: number, status: InterviewStatus): Promise<Application>;
+  updateApplicationReportStatus(applicationId: number, status: ReportStatus): Promise<Application>;
   updateInterviewSessionStatus(sessionId: number, status: InterviewStatus, startedAt?: string): Promise<InterviewSession>;
   hasApplication(candidateId: number, postingId: number): Promise<boolean>;
   createApplication(input: {

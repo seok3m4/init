@@ -3,11 +3,15 @@ import type {
   CandidateJobDetail,
   CandidateJobQuery,
   CandidateJobSummary,
+  CandidateMockReportFeedback,
+  CandidateMockReportSummary,
+  CandidateRecruitingReportView,
   ConsentType,
   CreatePortfolioLinkRequest,
   InterviewRuntimeSessionView,
   InterviewDeviceCheckRequest,
   PortfolioLinkType,
+  ReportStatus,
   RuntimeFileAssetRequest,
   SaveInterviewConsentRequest,
   SaveInterviewAnswerRequest,
@@ -197,6 +201,55 @@ export function getCandidateApplicationInterviewActionHref(
 
 export function getMockInterviewHref(session: Pick<InterviewRuntimeSessionView, "sessionId">): string {
   return candidateApplicationInterviewRoutes.mockInterview(session.sessionId);
+}
+
+export function getMockReportHref(report: Pick<CandidateMockReportSummary, "reportId">): string {
+  return candidateApplicationInterviewRoutes.mockReportDetail(report.reportId);
+}
+
+export function getCandidateApplicationReportHref(
+  application: Pick<CandidateApplicationSummary, "applicationId">,
+): string {
+  return candidateApplicationInterviewRoutes.applicationReport(application.applicationId);
+}
+
+export function isReportReady(status: ReportStatus): boolean {
+  return status === "COMPLETED";
+}
+
+export function isReportGenerating(status: ReportStatus): boolean {
+  return status === "GENERATING";
+}
+
+export function canOpenCandidateRecruitingReport(
+  application: Pick<CandidateApplicationSummary, "interviewStatus" | "reportStatus">,
+): boolean {
+  return application.interviewStatus === "COMPLETED" && application.reportStatus !== "PENDING";
+}
+
+export function isCandidateFacingMockFeedbackSafe(feedback: CandidateMockReportFeedback): boolean {
+  const text = [
+    feedback.summary,
+    ...feedback.strengths,
+    ...feedback.improvements,
+    ...feedback.nextPractice,
+  ].join(" ");
+
+  return (
+    feedback.visibilityPolicy.candidateFacingOnly &&
+    feedback.visibilityPolicy.excludesHiringDecision &&
+    !/(합격|탈락|pass|fail|hire|reject)/i.test(text)
+  );
+}
+
+export function isCandidateRecruitingReportLimited(report: CandidateRecruitingReportView): boolean {
+  return (
+    report.visibilityPolicy.candidateFacingOnly &&
+    report.visibilityPolicy.excludesDetailedScores &&
+    report.visibilityPolicy.excludesEvaluationEvidence &&
+    report.visibilityPolicy.excludesInternalMemo &&
+    report.visibilityPolicy.excludesManualEvaluation
+  );
 }
 
 export function hasRequiredConsents(consentTypes: ConsentType[]): boolean {
