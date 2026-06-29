@@ -13,6 +13,15 @@ export type QuestionType =
   | 'FOLLOW_UP'
   | 'CLOSING';
 
+export const QUESTION_TYPES: QuestionType[] = [
+  'INTRO',
+  'TECHNICAL',
+  'EXPERIENCE',
+  'SITUATION',
+  'FOLLOW_UP',
+  'CLOSING',
+];
+
 export type AiProcessStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 export type PostingRecord = {

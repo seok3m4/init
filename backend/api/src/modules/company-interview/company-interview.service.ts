@@ -9,8 +9,24 @@ import {
   InterviewSettingsQueryDto,
   InterviewSettingsResponseDto,
 } from './dto/interview-settings.dto';
-import { forbidden, notFound, validationFailed } from './company-interview.errors';
-import { EvaluationCriterionRecord } from './company-interview.types';
+import {
+  CreateInterviewQuestionDto,
+  CreateInterviewQuestionResponseDto,
+} from './dto/question-management.dto';
+import {
+  UpdateInterviewTimePolicyDto,
+  UpdateInterviewTimePolicyResponseDto,
+} from './dto/time-policy.dto';
+import {
+  conflict,
+  forbidden,
+  notFound,
+  validationFailed,
+} from './company-interview.errors';
+import {
+  EvaluationCriterionRecord,
+  QuestionRecord,
+} from './company-interview.types';
 import {
   COMPANY_INTERVIEW_REPOSITORY,
   CompanyInterviewRepository,
@@ -121,6 +137,62 @@ export class CompanyInterviewService {
     };
   }
 
+  async createQuestion(
+    currentUser: CurrentUser,
+    dto: CreateInterviewQuestionDto,
+  ): Promise<CreateInterviewQuestionResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const criterion = await this.findPostingCriterion(
+      posting.postingId,
+      dto.criterionId,
+    );
+
+    if (await this.repository.findDuplicateQuestion(posting.postingId, dto.content)) {
+      conflict('이미 등록된 질문입니다.');
+    }
+
+    const question = await this.repository.createQuestion({
+      companyId: posting.companyId,
+      postingId: posting.postingId,
+      criterionId: criterion.criterionId,
+      questionType: dto.questionType,
+      content: dto.content,
+    });
+
+    return {
+      postingId: posting.postingId,
+      question: this.mapQuestion(question),
+    };
+  }
+
+  async updateTimePolicy(
+    currentUser: CurrentUser,
+    dto: UpdateInterviewTimePolicyDto,
+  ): Promise<UpdateInterviewTimePolicyResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+
+    if (dto.answerTimeSec <= dto.preparationTimeSec) {
+      validationFailed('답변 시간은 준비 시간보다 길어야 합니다.', [
+        { field: 'answerTimeSec', reason: 'MUST_BE_GREATER_THAN_PREPARATION' },
+      ]);
+    }
+
+    const timePolicy = await this.repository.updateTimePolicy(posting.postingId, {
+      preparationTimeSec: dto.preparationTimeSec,
+      answerTimeSec: dto.answerTimeSec,
+      retryAllowed: dto.retryAllowed,
+    });
+
+    return {
+      postingId: posting.postingId,
+      timePolicy: {
+        preparationTimeSec: timePolicy.preparationTimeSec,
+        answerTimeSec: timePolicy.answerTimeSec,
+        retryAllowed: timePolicy.retryAllowed,
+      },
+    };
+  }
+
   private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
     this.assertCompanyUser(currentUser);
 
@@ -146,6 +218,31 @@ export class CompanyInterviewService {
     if (currentUser.userType !== 'COMPANY' || currentUser.companyId === null) {
       forbidden('기업 사용자만 접근할 수 있습니다.');
     }
+  }
+
+  private async findCriterion(criterionId: number): Promise<EvaluationCriterionRecord> {
+    const criterion = await this.repository.findCriterion(criterionId);
+
+    if (!criterion) {
+      notFound('평가 기준을 찾을 수 없습니다.');
+    }
+
+    return criterion;
+  }
+
+  private async findPostingCriterion(
+    postingId: number,
+    criterionId: number,
+  ): Promise<EvaluationCriterionRecord> {
+    const criterion = await this.findCriterion(criterionId);
+
+    if (criterion.postingId !== postingId) {
+      validationFailed('공고에 연결된 평가 기준을 선택해주세요.', [
+        { field: 'criterionId', reason: 'POSTING_MISMATCH' },
+      ]);
+    }
+
+    return criterion;
   }
 
   private async mapCriteria(criteria: EvaluationCriterionRecord[]) {
@@ -176,6 +273,17 @@ export class CompanyInterviewService {
       preparationTimeSec: timePolicy.preparationTimeSec,
       answerTimeSec: timePolicy.answerTimeSec,
       retryAllowed: timePolicy.retryAllowed,
+    };
+  }
+
+  private mapQuestion(question: QuestionRecord) {
+    return {
+      questionId: question.questionId,
+      postingId: question.postingId,
+      criterionId: question.criterionId,
+      questionType: question.questionType,
+      content: question.content,
+      isActive: question.isActive,
     };
   }
 }

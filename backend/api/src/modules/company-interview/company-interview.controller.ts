@@ -19,6 +19,10 @@ import {
   SuggestEvaluationCriterionDto,
   UpdateEvaluationCriterionDto,
 } from './dto/evaluation-criterion.dto';
+import {
+  CreateInterviewQuestionDto,
+} from './dto/question-management.dto';
+import { UpdateInterviewTimePolicyDto } from './dto/time-policy.dto';
 
 type CompanyRequest = RequestLike & { currentUser: CurrentUser };
 
@@ -58,6 +62,24 @@ export class CompanyInterviewController {
       request.currentUser,
       body,
     );
+    return ok(request, data);
+  }
+
+  @Post('questions')
+  async createQuestion(
+    @Req() request: CompanyRequest,
+    @Body() body: CreateInterviewQuestionDto,
+  ) {
+    const data = await this.service.createQuestion(request.currentUser, body);
+    return ok(request, data);
+  }
+
+  @Patch('time-policy')
+  async updateTimePolicy(
+    @Req() request: CompanyRequest,
+    @Body() body: UpdateInterviewTimePolicyDto,
+  ) {
+    const data = await this.service.updateTimePolicy(request.currentUser, body);
     return ok(request, data);
   }
 }

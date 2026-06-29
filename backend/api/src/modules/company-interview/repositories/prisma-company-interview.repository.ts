@@ -10,6 +10,7 @@ import {
 } from '../company-interview.types';
 import {
   CompanyInterviewRepository,
+  UpdateTimePolicyInput,
   PendingProcessLog,
   UpdateCriterionInput,
 } from './company-interview.repository';
@@ -58,6 +59,27 @@ export class PrismaCompanyInterviewRepository
       orderBy: { questionId: 'asc' },
     });
     return questions.map(mapQuestion);
+  }
+
+  async findQuestion(questionId: number): Promise<QuestionRecord | undefined> {
+    const question = await this.prisma.question.findUnique({
+      where: { questionId: BigInt(questionId) },
+    });
+    return question ? mapQuestion(question) : undefined;
+  }
+
+  async findDuplicateQuestion(
+    postingId: number,
+    content: string,
+  ): Promise<QuestionRecord | undefined> {
+    const normalized = normalizeQuestionContent(content);
+    const questions = await this.prisma.question.findMany({
+      where: { postingId: BigInt(postingId), isActive: true },
+    });
+    const duplicate = questions.find(
+      (question) => normalizeQuestionContent(question.content) === normalized,
+    );
+    return duplicate ? mapQuestion(duplicate) : undefined;
   }
 
   async findTag(tagId: number): Promise<CriterionTagRecord | undefined> {
@@ -127,6 +149,38 @@ export class PrismaCompanyInterviewRepository
     return saved.map(mapCriterion);
   }
 
+  async createQuestion(input: {
+    companyId: number;
+    postingId: number;
+    criterionId: number;
+    questionType: QuestionType;
+    content: string;
+  }): Promise<QuestionRecord> {
+    const question = await this.prisma.question.create({
+      data: {
+        companyId: BigInt(input.companyId),
+        postingId: BigInt(input.postingId),
+        criterionId: BigInt(input.criterionId),
+        questionType: input.questionType,
+        content: input.content.trim(),
+        isActive: true,
+      },
+    });
+    return mapQuestion(question);
+  }
+
+  async updateTimePolicy(
+    postingId: number,
+    input: UpdateTimePolicyInput,
+  ): Promise<TimePolicyRecord> {
+    return {
+      postingId,
+      preparationTimeSec: input.preparationTimeSec,
+      answerTimeSec: input.answerTimeSec,
+      retryAllowed: input.retryAllowed,
+    };
+  }
+
   async createPendingProcessLog(input?: {
     postingId?: number;
     inputRef?: string;
@@ -143,6 +197,10 @@ export class PrismaCompanyInterviewRepository
       status: 'PENDING',
     };
   }
+}
+
+function normalizeQuestionContent(content: string): string {
+  return content.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 function mapPosting(posting: {
