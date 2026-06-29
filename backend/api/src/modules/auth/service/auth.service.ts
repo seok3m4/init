@@ -3,12 +3,12 @@ import bcrypt from "bcryptjs";
 import jwt, { SignOptions } from "jsonwebtoken";
 import { randomInt } from "crypto";
 import { ERROR_CODES, type CurrentUser, type UserType } from "@init/common";
-import { PrismaService } from "../../shared/prisma.service";
-import { ApiException } from "../../shared/api-exception";
-import { JwtAuthGuard } from "./jwt-auth.guard";
+import { ApiException } from "../../../shared/api-exception";
+import { JwtAuthGuard } from "../jwt-auth.guard";
+import { AuthRepository } from "../repository/auth.repository";
 import { MailService } from "./mail.service";
-import type { JwtPayload, TokenPair, VerificationPurpose } from "./auth.types";
-import { VerificationCodeStore } from "./verification-code.store";
+import type { JwtPayload, TokenPair, VerificationPurpose } from "../auth.types";
+import { VerificationCodeStore } from "../verification-code.store";
 
 type SignupCandidateInput = {
   email: string;
@@ -27,7 +27,7 @@ type SignupCompanyInput = SignupCandidateInput & {
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly authRepository: AuthRepository,
     private readonly codeStore: VerificationCodeStore,
     private readonly mailer: MailService,
     private readonly jwtGuard: JwtAuthGuard,
@@ -35,7 +35,7 @@ export class AuthService {
 
   async login(input: { email: string; password: string; userType: UserType }): Promise<TokenPair & { refreshToken: string }> {
     const email = this.normalizeEmail(input.email);
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.authRepository.findUserByEmail(email);
     if (!user || user.status !== "ACTIVE" || user.userType !== input.userType || !user.passwordHash) {
       throw new ApiException(ERROR_CODES.AUTH_INVALID_CREDENTIALS, "이메일 또는 비밀번호를 확인해 주세요.", HttpStatus.UNAUTHORIZED);
     }
@@ -64,33 +64,12 @@ export class AuthService {
     this.validateSignupInput(input);
     await this.ensureEmailAvailable(email);
     await this.ensureVerified(email, "SIGNUP", input.code);
-    const now = new Date();
     const passwordHash = await bcrypt.hash(input.password, 12);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        userType: "CANDIDATE",
-        name: input.name.trim(),
-        phone: null,
-        status: "ACTIVE",
-        authProvider: "LOCAL",
-        providerUserId: null,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    await this.prisma.candidateProfile.create({
-      data: {
-        userId: user.userId,
-        defaultResumeFileId: null,
-        portfolioUrl: null,
-        githubUrl: null,
-        summary: null,
-        createdAt: now,
-        updatedAt: now,
-      },
+    const user = await this.authRepository.createCandidateAccount({
+      email,
+      passwordHash,
+      name: input.name.trim(),
     });
     await this.codeStore.delete(email, "SIGNUP");
     return { userId: Number(user.userId), userType: "CANDIDATE" };
@@ -104,36 +83,14 @@ export class AuthService {
     }
     await this.ensureEmailAvailable(email);
     await this.ensureVerified(email, "SIGNUP", input.code);
-    const now = new Date();
     const passwordHash = await bcrypt.hash(input.password, 12);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        userType: "COMPANY",
-        name: input.name.trim(),
-        phone: null,
-        status: "ACTIVE",
-        authProvider: "LOCAL",
-        providerUserId: null,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    const company = await this.prisma.company.create({
-      data: {
-        ownerUserId: user.userId,
-        name: input.companyName.trim(),
-        businessRegistrationNumber: this.normalizeBusinessNumber(input.businessRegistrationNumber),
-        verificationStatus: "PENDING",
-        industry: null,
-        profile: null,
-        talentProfile: null,
-        evaluationPolicy: null,
-        createdAt: now,
-        updatedAt: now,
-      },
+    const { user, company } = await this.authRepository.createCompanyAccount({
+      email,
+      passwordHash,
+      name: input.name.trim(),
+      companyName: input.companyName.trim(),
+      businessRegistrationNumber: this.normalizeBusinessNumber(input.businessRegistrationNumber),
     });
     await this.codeStore.delete(email, "SIGNUP");
     return { userId: Number(user.userId), companyId: Number(company.companyId), userType: "COMPANY" };
@@ -141,7 +98,7 @@ export class AuthService {
 
   async sendPasswordCode(emailInput: string) {
     const email = this.normalizeEmail(emailInput);
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.authRepository.findUserByEmail(email);
     if (!user || user.authProvider !== "LOCAL") {
       throw new ApiException(ERROR_CODES.COMMON_NOT_FOUND, "가입된 이메일을 확인해 주세요.", HttpStatus.NOT_FOUND);
     }
@@ -160,16 +117,13 @@ export class AuthService {
     this.validatePasswordPair(input.password, input.passwordConfirm);
     await this.ensureVerified(email, "PASSWORD_RESET", input.code);
     const passwordHash = await bcrypt.hash(input.password, 12);
-    await this.prisma.user.update({
-      where: { email },
-      data: { passwordHash, updatedAt: new Date() },
-    });
+    await this.authRepository.updatePasswordHash(email, passwordHash);
     await this.codeStore.delete(email, "PASSWORD_RESET");
     return { reset: true };
   }
 
   async me(currentUser: CurrentUser) {
-    const user = await this.prisma.user.findUnique({ where: { userId: BigInt(currentUser.userId) } });
+    const user = await this.authRepository.findUserById(BigInt(currentUser.userId));
     if (!user) throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED);
     return { ...currentUser, email: user.email, name: user.name };
   }
@@ -179,7 +133,7 @@ export class AuthService {
       throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "refreshToken이 필요합니다.", HttpStatus.UNAUTHORIZED);
     }
     const payload = this.jwtGuard.verifyToken(refreshToken, "refresh");
-    const user = await this.prisma.user.findUnique({ where: { userId: BigInt(payload.sub) } });
+    const user = await this.authRepository.findUserById(BigInt(payload.sub));
     if (!user || user.status !== "ACTIVE") {
       throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "세션을 갱신할 수 없습니다.", HttpStatus.UNAUTHORIZED);
     }
@@ -212,36 +166,15 @@ export class AuthService {
     }
     if (!code) throw new ApiException(ERROR_CODES.COMMON_VALIDATION_FAILED, "Google 인증 코드가 필요합니다.", HttpStatus.BAD_REQUEST);
     const profile = await this.fetchGoogleProfile(code);
-    const now = new Date();
-    let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    let user = await this.authRepository.findUserByEmail(profile.email);
     if (user && user.userType !== "CANDIDATE") {
       throw new ApiException(ERROR_CODES.AUTH_USER_TYPE_MISMATCH, "기업 계정은 Google 로그인을 사용할 수 없습니다.", HttpStatus.FORBIDDEN);
     }
     if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          email: profile.email,
-          passwordHash: null,
-          userType: "CANDIDATE",
-          name: profile.name,
-          phone: null,
-          status: "ACTIVE",
-          authProvider: "GOOGLE",
-          providerUserId: profile.sub,
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-      await this.prisma.candidateProfile.create({
-        data: {
-          userId: user.userId,
-          defaultResumeFileId: null,
-          portfolioUrl: null,
-          githubUrl: null,
-          summary: null,
-          createdAt: now,
-          updatedAt: now,
-        },
+      user = await this.authRepository.createGoogleCandidate({
+        email: profile.email,
+        name: profile.name,
+        providerUserId: profile.sub,
       });
     }
     return this.issueLogin(user);
@@ -277,7 +210,7 @@ export class AuthService {
   }
 
   private async ensureEmailAvailable(email: string) {
-    const exists = await this.prisma.user.findUnique({ where: { email } });
+    const exists = await this.authRepository.findUserByEmail(email);
     if (exists) throw new ApiException(ERROR_CODES.AUTH_EMAIL_DUPLICATED, "이미 가입된 이메일입니다.", HttpStatus.CONFLICT);
   }
 
@@ -332,8 +265,8 @@ export class AuthService {
   private async currentUserFor(user: { userId: bigint; userType: string }): Promise<CurrentUser> {
     const userId = Number(user.userId);
     const userType = user.userType as UserType;
-    const company = userType === "COMPANY" ? await this.prisma.company.findFirst({ where: { ownerUserId: user.userId } }) : null;
-    const candidate = userType === "CANDIDATE" ? await this.prisma.candidateProfile.findUnique({ where: { userId: user.userId } }) : null;
+    const company = userType === "COMPANY" ? await this.authRepository.findCompanyByOwnerUserId(user.userId) : null;
+    const candidate = userType === "CANDIDATE" ? await this.authRepository.findCandidateProfileByUserId(user.userId) : null;
     return {
       userId,
       userType,
