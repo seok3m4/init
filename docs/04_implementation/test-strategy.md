@@ -25,12 +25,14 @@ powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A
 
 ```bash
 # macOS/Linux
-bash scripts/check-local.sh -Role A
+bash scripts/check-local.sh -Role B
 ```
 
 | Harness | Purpose | Skip Rule |
 | --- | --- | --- |
 | `verify-docs.ps1` | 필수 문서, API 계약, ERDCloud SQL, 목표 폴더 구조 확인 | 핵심 문서는 없으면 실패 |
+| `verify-baseline.ps1` | 구현 baseline 문서 반영, backend/frontend skeleton, 공통 위치, schema naming guard 확인 | 문서/필수 skeleton은 없으면 실패. `schema.prisma`가 있으면 model/enum 이름까지 실패 처리 |
+| `verify-package-baseline.ps1` | 패키지별 `package.json`/`package-lock.json` 존재와 정확한 dependency version 확인 | baseline 버전이 다르면 실패 |
 | `verify-ownership.ps1` | 역할별 허용 경로 외 변경 감지 | `-SkipOwnership` 지정 시 생략 |
 | `verify-prisma.ps1` | Prisma schema validate, migration 폴더 확인 | schema가 아직 없으면 skip |
 | `verify-docker.ps1` | Dockerfile 기본 구조와 선택적 build 확인 | Dockerfile이 아직 없으면 skip |
@@ -39,7 +41,7 @@ bash scripts/check-local.sh -Role A
 | `verify-ai-golden.ps1` | AI golden case JSON shape 확인 | golden case가 없으면 skip |
 | `smoke-local.ps1` | 실행 중인 API `/health` 확인 | base URL 없으면 skip |
 
-macOS/Linux의 `check-local.sh`는 PowerShell Core 설치를 요구하지 않고 bash, git, grep/find/sed/awk, curl 또는 Node.js만 사용한다. 실행 권한(`chmod +x`)에 의존하지 않도록 문서상 표준 명령은 `bash scripts/check-local.sh`로 둔다.
+macOS/Linux의 `check-local.sh`는 PowerShell Core 설치를 요구하지 않고 bash, git, grep/find/sed/awk, curl 또는 Node.js만 사용한다. 실행 권한(`chmod +x`)에 의존하지 않도록 문서상 표준 명령은 `bash scripts/check-local.sh`로 둔다. B 담당자는 macOS 사용자이므로 `bash scripts/check-local.sh -Role B`를 기본 검증 명령으로 사용한다.
 
 pre-commit hook은 선택 사항이다. 설치하면 commit 전에 같은 Harness를 실행한다.
 
@@ -50,7 +52,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-hooks.ps1 -Role A
 
 ```bash
 # macOS/Linux
-bash scripts/install-hooks.sh -Role A
+bash scripts/install-hooks.sh -Role B
 ```
 
 ## macOS Developer Requirements
@@ -59,13 +61,37 @@ Node.js가 설치되어 있다는 전제에서, macOS 개발자가 추가로 준
 
 | 작업 | 추가 준비 | 이유 |
 | --- | --- | --- |
-| 문서/계약/폴더 구조 harness 실행 | 없음 | `bash scripts/check-local.sh`가 macOS 기본 도구와 Node.js만 사용한다. |
+| B 담당 문서/계약/폴더 구조 harness 실행 | 없음 | `bash scripts/check-local.sh -Role B`가 macOS 기본 도구와 Node.js만 사용한다. PowerShell/pwsh는 필요하지 않다. |
 | Next.js/NestJS 앱 build/test | `npm ci` | 프로젝트 의존성은 저장소에 커밋하지 않으므로 각 package에서 설치해야 한다. |
 | Prisma schema validate/generate | `npm ci` 이후 로컬 Prisma CLI | Prisma CLI는 프로젝트 dependency로 관리한다. 전역 설치는 요구하지 않는다. |
 | Docker 기반 PostgreSQL/Redis/LocalStack 실행 | Docker Desktop 또는 호환 Docker Engine | DB, Redis, S3/SQS 로컬 대체 환경은 컨테이너 런타임이 필요하다. |
 | 실제 AWS/OpenAI 호출 | 로컬 env 값 또는 팀 secret 주입 | 외부 서비스 인증 정보는 Git에 저장하지 않는다. |
 
-macOS 호환성을 자동으로 강제하려면 `.github/workflows/ci.yml`에 `macos-latest` harness job을 추가한다. 문서는 실행 기준을 정하지만, 자동 보장은 CI runner가 담당한다.
+macOS 호환성은 `.github/workflows/ci.yml`의 `macos-latest` B harness job으로 강제한다. 이 job은 PowerShell/pwsh 없이 Node.js 20을 준비하고, `backend/api/package-lock.json`이 있을 때만 `npm ci --prefix backend/api`를 실행한 뒤 `bash scripts/check-local.sh -Role B`를 실행해야 한다.
+
+## CI Baseline Source
+
+CI는 특정 개발자 로컬 폴더를 스냅샷으로 저장해 비교하지 않는다. GitHub Actions는 `actions/checkout`으로 현재 push commit 또는 PR merge commit을 checkout한 뒤, 저장소 안의 문서, package 파일, 스크립트를 기준으로 검증한다.
+
+- `pull_request`는 `dev`를 target branch로 하는 PR에서 실행한다.
+- 팀 개발 기준 branch는 `dev`이며, 기능 PR은 `dev`를 base branch로 둔다.
+- PR 검증은 GitHub가 만든 PR head와 base branch의 merge 결과를 기준으로 실행되므로, 로컬에만 있고 commit되지 않은 파일은 CI 기준에 포함되지 않는다.
+- baseline 변경은 로컬 상태가 아니라 PR에 포함된 `docs/*`, `package.json`, `package-lock.json`, `scripts/*`, `.github/workflows/*` 파일로만 확정된다.
+
+## Verification Promotion Gates
+
+초기에는 일부 검증이 산출물 부재로 skip될 수 있다. 아래 조건이 충족되는 PR부터는 skip을 유지하지 말고 실제 검증으로 전환한다.
+
+| Gate | Current Risk | Required Promotion Trigger | Owner |
+| --- | --- | --- | --- |
+| npm scripts | placeholder `typecheck`/`lint`/`test`/`build`가 실제 오류를 잡지 못함 | 각 package에 첫 실제 TS/React/Nest/worker 코드가 추가되는 PR | 해당 package 수정자, PM 확인 |
+| Prisma | `schema.prisma`가 없으면 DB naming 검증 skip | A가 Prisma schema 또는 migration을 추가하는 PR | A |
+| Docker | Dockerfile이 없으면 Docker 검증 skip | A가 API/worker/frontend Dockerfile을 추가하는 PR | A |
+| Smoke | `SMOKE_BASE_URL`이 없으면 `/health` 검증 skip | API 서버에 `/health` 또는 equivalent health endpoint가 추가되는 PR | A, PM |
+| AI golden | golden case가 없으면 AI 결과 구조 검증 skip | E가 AI report/pipeline fixture 또는 sample output을 추가하는 PR | E |
+| npm audit | 보안 경고가 merge blocker인지 불명확 | MVP 보안 기준을 확정하는 PR | PM, A |
+
+skip이 남아 있는 PR은 PR 본문에 skip 사유와 실제 검증 전환 예정 PR을 적는다.
 
 ## Critical E2E Scenarios
 
@@ -88,6 +114,9 @@ powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A
 
 - 필수 `AGENTS.md`와 담당자별 agent 문서 존재
 - 기술스택 기준 폴더 구조 존재
+- baseline 기준 문서 반영 여부, backend module skeleton, frontend feature skeleton, backend common enum/DTO/error 위치
+- `schema.prisma`가 존재하는 경우 Prisma model/enum baseline과 금지 이름
+- 패키지별 version baseline과 `package-lock.json` 존재 여부
 - `api-index.md`와 `api-spec.md`의 API ID 정합성
 - ERDCloud SQL의 필수 테이블 존재
 - ERDCloud SQL이 `docs/02_architecture/erdcloud`에 위치하는지 여부

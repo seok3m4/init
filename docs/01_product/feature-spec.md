@@ -18,6 +18,20 @@ init v0.5의 화면/기능 정의를 구현 단위로 정리한다.
 - 지원자: 모의면접, 채용공고 조회, 기업별 지원서 제출, 채용 AI 면접, 마이페이지
 - 시스템: AI 서류 추출, 질문 생성, STT, 꼬리질문, 평가/리포트 생성, 가드레일
 
+## Implementation Baseline Impact
+
+기능정의서의 화면/기능은 구현 시 아래 feature/module 기준에 배치한다. 이미 구현된 화면이 다른 위치에 있으면 1회용 alignment 지시서 기준으로 이동하거나 wrapper를 남기고 내부 구현을 기준 위치로 정렬한다.
+
+| Product Area | Frontend Feature | Backend Module |
+| --- | --- | --- |
+| 로그인/회원가입/비밀번호 재설정 | `frontend/src/features/auth` | `backend/api/src/modules/auth` |
+| 기업 공고/지원자 운영 | `frontend/src/features/company-recruiting` | `backend/api/src/modules/company-recruiting` |
+| 기업 면접 설정/평가 기준/질문 | `frontend/src/features/company-interview-criteria` | `backend/api/src/modules/company-interview` |
+| 회사 정보 관리 | `frontend/src/features/company-profile` | `backend/api/src/modules/company-profile` |
+| 지원자 공고/지원/지원현황/마이페이지 | `frontend/src/features/candidate-application-interview` | `backend/api/src/modules/candidate` |
+| 모의/채용 면접 런타임 | `frontend/src/features/candidate-application-interview` | `backend/api/src/modules/interview` |
+| 리포트/AI 처리 상태 | `frontend/src/features/ai-report` | `backend/api/src/modules/report`, `backend/api/src/modules/ai` |
+
 ## -
 
 | Screen | Path | Type | Content | Description | Input | Success | API/Route | Release | Note |

@@ -4,6 +4,61 @@
 
 API와 DB에서 공유해야 하는 상태값을 정리한다.
 
+## Implementation Enum Baseline
+
+문서/DB enum 이름은 기존 `snake_case`를 유지하되 Prisma와 TypeScript에서는 아래 `PascalCase` 이름을 사용한다. 같은 enum을 frontend/backend/worker에서 중복 정의하지 않고 `backend/common/src/enums`를 기준으로 공유한다.
+
+| Contract Enum | Prisma/TypeScript Enum |
+| --- | --- |
+| `user_type` | `UserType` |
+| `current_user_type` | `CurrentUserType` |
+| `auth_provider` | `AuthProvider` |
+| `user_status` | `UserStatus` |
+| `posting_status` | `PostingStatus` |
+| `application_status` | `ApplicationStatus` |
+| `document_status` | `DocumentStatus` |
+| `interview_status` | `InterviewStatus` |
+| `report_status` | `ReportStatus` |
+| `screening_decision` | `ScreeningDecision` |
+| `interview_type` | `InterviewType` |
+| `report_type` | `ReportType` |
+| `document_type` | `DocumentType` |
+| `consent_type` | `ConsentType` |
+| `question_type` | `QuestionType` |
+| `notification_channel` | `NotificationChannel` |
+| `ai_process_type` | `AiProcessType` |
+| `ai_process_status` | `AiProcessStatus` |
+| `guardrail_result` | `GuardrailResult` |
+| `embedding_source_type` | `EmbeddingSourceType` |
+
+금지 이름: `EvaluationCriteria`, `QuestionBank`, `AIProcessLog`, `AIGuardrailLog`를 Prisma model/class 이름으로 새로 만들지 않는다.
+
+### Enum Source of Truth
+
+공통 enum의 원천은 이 문서와 `backend/common/src/enums`다. Prisma schema, backend DTO, frontend API client, worker payload에서 같은 enum을 새 이름으로 중복 정의하지 않는다.
+
+- 문서/DB enum 이름: `snake_case`
+- Prisma/TypeScript enum 이름: `PascalCase`
+- enum value: `UPPER_SNAKE_CASE`
+- frontend는 API 응답 string literal을 임의로 재정의하지 않고 `backend/common/src/enums`에서 공유 가능한 타입 또는 API client adapter 타입을 사용한다.
+- enum 추가/삭제/rename은 이 문서, Prisma schema, `backend/common/src/enums`, API 계약을 같은 PR에서 수정한다.
+
+## Status Transition Baseline
+
+상태 전이는 아래 표에 있는 방향만 허용한다. 예외 전이가 필요하면 `docs/03_contracts/enums.md`, `docs/02_architecture/data-model.md`, `docs/04_implementation/module-boundaries.md`를 먼저 수정한다.
+
+| Enum | Owner | Allowed Transitions |
+| --- | --- | --- |
+| `posting_status` | B | `DRAFT -> OPEN -> CLOSING_SOON -> CLOSED -> ARCHIVED`, `DRAFT -> ARCHIVED`, `OPEN -> CLOSED` |
+| `application_status` | B/D | `DRAFT -> SUBMITTED -> IN_REVIEW -> INTERVIEW_WAITING -> INTERVIEW_DONE -> COMPLETED`, `SUBMITTED -> CANCELED`, `IN_REVIEW -> CANCELED` |
+| `document_status` | D/E | `NOT_SUBMITTED -> SUBMITTED -> EXTRACTING -> EXTRACTED`, `SUBMITTED -> FAILED`, `EXTRACTING -> FAILED`, `FAILED -> SUBMITTED` |
+| `interview_status` | D | `NOT_READY -> READY -> IN_PROGRESS -> COMPLETED`, `READY -> FAILED`, `IN_PROGRESS -> FAILED` |
+| `report_status` | E | `PENDING -> GENERATING -> COMPLETED`, `PENDING -> FAILED`, `GENERATING -> FAILED`, `FAILED -> GENERATING` |
+| `ai_process_status` | E | `PENDING -> RUNNING -> COMPLETED`, `PENDING -> FAILED`, `RUNNING -> FAILED`, `FAILED -> PENDING` for explicit retry only |
+| `screening_decision` | B | `UNDECIDED -> PASS`, `UNDECIDED -> HOLD`, `UNDECIDED -> FAIL`, `HOLD -> PASS`, `HOLD -> FAIL` |
+
+상태를 되돌리는 rollback 전이는 기본 금지다. 운영자가 명시적으로 재처리하는 retry는 audit log 또는 `ai_process_logs`에 사유를 남긴다.
+
 | Enum | Values | Description |
 | --- |--- |--- |
 | user_type | ADMIN, COMPANY, CANDIDATE | 사용자 유형 |
