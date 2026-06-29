@@ -1,0 +1,163 @@
+import "reflect-metadata";
+import { strict as assert } from "node:assert";
+import { HttpException, RequestMethod } from "@nestjs/common";
+import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
+import { CandidateController } from "./candidate.controller";
+import type { CandidateErrorResponse } from "./candidate.errors";
+import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
+import { CandidateService, InMemoryCandidateRepository } from "./candidate.service";
+
+type CandidateControllerRoute =
+  | "listJobs"
+  | "getJobDetail"
+  | "getApplyView"
+  | "submitApplication"
+  | "uploadResume"
+  | "createPortfolioLink";
+
+function assertRoute(
+  methodName: CandidateControllerRoute,
+  expectedPath: string,
+  expectedMethod: RequestMethod,
+  expectedStatusCode?: number,
+) {
+  const handler = CandidateController.prototype[methodName];
+
+  assert.equal(Reflect.getMetadata(PATH_METADATA, handler), expectedPath);
+  assert.equal(Reflect.getMetadata(METHOD_METADATA, handler), expectedMethod);
+  if (expectedStatusCode) {
+    assert.equal(Reflect.getMetadata(HTTP_CODE_METADATA, handler), expectedStatusCode);
+  }
+}
+
+assert.equal(Reflect.getMetadata(PATH_METADATA, CandidateController), candidateApiRoutePrefix);
+assertRoute("listJobs", candidateApiRoutes.jobs, RequestMethod.GET);
+assertRoute("getJobDetail", candidateApiRoutes.jobDetail, RequestMethod.GET);
+assertRoute("getApplyView", candidateApiRoutes.applyView, RequestMethod.GET);
+assertRoute("submitApplication", candidateApiRoutes.submitApplication, RequestMethod.POST, 201);
+assertRoute("uploadResume", candidateApiRoutes.resume, RequestMethod.POST, 201);
+assertRoute("createPortfolioLink", candidateApiRoutes.portfolioLinks, RequestMethod.POST, 201);
+
+const validCandidateHeaders = {
+  "x-dev-user-type": "CANDIDATE",
+  "x-dev-user-id": "2",
+  "x-dev-candidate-id": "1",
+};
+
+async function assertCandidateHttpError(
+  action: () => Promise<unknown>,
+  expectedStatus: number,
+  expectedCode: string,
+) {
+  try {
+    await action();
+    assert.fail(`Expected ${expectedCode}`);
+  } catch (error) {
+    assert.ok(error instanceof HttpException);
+    assert.equal(error.getStatus(), expectedStatus);
+
+    const response = error.getResponse() as CandidateErrorResponse;
+    assert.equal(response.error.code, expectedCode);
+    assert.ok(Array.isArray(response.error.details));
+    assert.equal(response.meta.traceId, "local-candidate-module");
+    assert.match(response.meta.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+  }
+}
+
+async function runControllerRuntimeAssertions() {
+  const controller = new CandidateController(new CandidateService(new InMemoryCandidateRepository()));
+
+  const listResponse = await controller.listJobs(validCandidateHeaders, {
+    page: 1,
+    limit: 20,
+    sort: "createdAt",
+    order: "desc",
+  });
+  assert.equal(listResponse.data.items.length, 2);
+  assert.equal(listResponse.data.items.some((job) => job.postingStatus === "CLOSED"), false);
+
+  await assertCandidateHttpError(
+    () => controller.listJobs({}, { page: 1, limit: 20, sort: "createdAt", order: "desc" }),
+    401,
+    "COMMON_UNAUTHORIZED",
+  );
+
+  await assertCandidateHttpError(
+    () => controller.getJobDetail(validCandidateHeaders, "3"),
+    404,
+    "COMMON_NOT_FOUND",
+  );
+
+  await assertCandidateHttpError(
+    () =>
+      controller.uploadResume(validCandidateHeaders, {
+        storageKey: "candidate/1/resume.exe",
+        originalName: "resume.exe",
+        mimeType: "application/x-msdownload",
+        sizeBytes: 1000,
+      }),
+    400,
+    "FILE_INVALID_TYPE",
+  );
+
+  await assertCandidateHttpError(
+    () =>
+      controller.uploadResume(validCandidateHeaders, {
+        storageKey: "candidate/1/resume.pdf",
+        originalName: "resume.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 20 * 1024 * 1024 + 1,
+      }),
+    400,
+    "FILE_SIZE_EXCEEDED",
+  );
+
+  const resume = await controller.uploadResume(validCandidateHeaders, {
+    storageKey: "candidate/1/controller-resume.pdf",
+    originalName: "controller-resume.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 1000,
+  });
+
+  await assertCandidateHttpError(
+    () =>
+      controller.submitApplication(validCandidateHeaders, "1", {
+        candidateName: "Kim",
+        email: "kim@example.com",
+        phone: "010-0000-0000",
+        resumeFileId: resume.data.fileId,
+        portfolioUrl: "https://portfolio.example.com/kim",
+        consentTypes: ["PRIVACY_COLLECTION"],
+      }),
+    400,
+    "COMMON_VALIDATION_FAILED",
+  );
+
+  await controller.submitApplication(validCandidateHeaders, "1", {
+    candidateName: "Kim",
+    email: "kim@example.com",
+    phone: "010-0000-0000",
+    resumeFileId: resume.data.fileId,
+    portfolioUrl: "https://portfolio.example.com/kim",
+    consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+  });
+
+  await assertCandidateHttpError(
+    () =>
+      controller.submitApplication(validCandidateHeaders, "1", {
+        candidateName: "Kim",
+        email: "kim@example.com",
+        phone: "010-0000-0000",
+        resumeFileId: resume.data.fileId,
+        portfolioUrl: "https://portfolio.example.com/kim",
+        consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+      }),
+    409,
+    "APPLICATION_ALREADY_SUBMITTED",
+  );
+}
+
+runControllerRuntimeAssertions().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

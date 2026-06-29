@@ -7,10 +7,10 @@
     "npm": ">=10"
   },
   "scripts": {
-    "typecheck": "node -e \"console.log('backend api typecheck pending implementation')\"",
-    "lint": "node -e \"console.log('backend api lint pending implementation')\"",
-    "test": "node -e \"console.log('backend api tests pending implementation')\"",
-    "build": "node -e \"console.log('backend api build pending implementation')\"",
+    "typecheck": "tsc --noEmit -p src/modules/candidate/tsconfig.spec.json",
+    "lint": "tsc --noEmit -p src/modules/candidate/tsconfig.spec.json",
+    "test": "tsx --tsconfig src/modules/candidate/tsconfig.spec.json src/modules/candidate/candidate.service.spec.ts && tsx --tsconfig src/modules/candidate/tsconfig.spec.json src/modules/candidate/candidate.routes.spec.ts && tsx --tsconfig src/modules/candidate/tsconfig.spec.json src/modules/candidate/candidate.controller.spec.ts && tsx --tsconfig src/modules/candidate/tsconfig.spec.json src/modules/candidate/candidate.module.spec.ts && tsx --tsconfig src/modules/candidate/tsconfig.spec.json src/modules/candidate/candidate.errors.spec.ts",
+    "build": "tsc --noEmit -p src/modules/candidate/tsconfig.spec.json",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
