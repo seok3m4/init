@@ -31,6 +31,7 @@ import {
 } from "./candidate.types";
 
 const MAX_DOCUMENT_SIZE_BYTES = 20 * 1024 * 1024;
+const MAX_INTERVIEW_MEDIA_SIZE_BYTES = 500 * 1024 * 1024;
 const REQUIRED_APPLICATION_CONSENTS = ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"] as const;
 const REQUIRED_INTERVIEW_CONSENTS = [
   "PRIVACY_COLLECTION",
@@ -354,6 +355,75 @@ export class CandidateService {
       nextQuestionEndpoint: `/api/v1/candidate/interviews/${session.sessionId}/next-question`,
       answerUploadEndpoint: `/api/v1/candidate/interviews/${session.sessionId}/answers`,
     });
+  }
+
+  async getOwnedRecruitingInterviewSession(
+    sessionId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<{ application: Application; session: InterviewSession }> {
+    this.assertPositiveIntegerId(sessionId, "sessionId");
+    const session = await this.repository.findInterviewSession(sessionId);
+    if (!session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
+        { field: "sessionId", reason: "interview session not found" },
+      ]);
+    }
+    if (session.interviewType !== "RECRUITING") {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview type does not match recruiting runtime.", 409, [
+        { field: "interviewType", reason: `current type is ${session.interviewType}` },
+      ]);
+    }
+
+    const application = await this.getOwnedApplication(session.applicationId, currentUser);
+    this.assertSessionNotExpired(session);
+    return { application, session };
+  }
+
+  async completeRecruitingInterviewSession(
+    sessionId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<InterviewSession> {
+    const { application, session } = await this.getOwnedRecruitingInterviewSession(sessionId, currentUser);
+    if (session.status !== "IN_PROGRESS") {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview cannot be completed from the current state.", 409, [
+        { field: "interviewStatus", reason: `current status is ${session.status}` },
+      ]);
+    }
+
+    const now = new Date().toISOString();
+    const completedSession = await this.repository.updateInterviewSessionStatus(session.sessionId, "COMPLETED", now);
+    await this.repository.updateApplicationInterviewStatus(application.applicationId, "COMPLETED");
+    return completedSession;
+  }
+
+  async createInterviewFileAsset(
+    dto: { storageKey: string; originalName: string; mimeType: string; sizeBytes: number },
+    currentUser: CurrentCandidateUser,
+  ): Promise<FileAsset> {
+    this.assertRuntimeFileAssetRequest(dto);
+    this.assertRuntimeFileAssetMetadataOnly(dto);
+    this.assertInterviewMediaFile(dto.mimeType, dto.sizeBytes);
+    this.assertObjectStorageKey(dto.storageKey, currentUser.candidateId);
+
+    return this.repository.createFileAsset({
+      ownerUserId: currentUser.userId,
+      storageKey: dto.storageKey,
+      originalName: dto.originalName,
+      mimeType: dto.mimeType,
+      sizeBytes: dto.sizeBytes,
+    });
+  }
+
+  async getInterviewFileAsset(
+    fileId: number,
+    currentUser: CurrentCandidateUser,
+    field: string,
+  ): Promise<FileAsset> {
+    this.assertPositiveIntegerId(fileId, field);
+    const fileAsset = await this.assertFileAssetForCurrentUser(fileId, currentUser.userId, field);
+    this.assertInterviewMediaFile(fileAsset.mimeType, fileAsset.sizeBytes);
+    this.assertObjectStorageKey(fileAsset.storageKey, currentUser.candidateId);
+    return fileAsset;
   }
 
   private async getOwnedApplicationWithSession(
@@ -860,6 +930,47 @@ export class CandidateService {
     }
   }
 
+  private assertRuntimeFileAssetRequest(dto: {
+    storageKey: string;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+  }): void {
+    const requestBody = this.toRequestBody(dto, "fileAsset");
+
+    if (!this.isNonEmptyString(requestBody.storageKey)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Object storage key is invalid.", 400, [
+        { field: "storageKey", reason: "storageKey is required" },
+      ]);
+    }
+    if (!this.isNonEmptyString(requestBody.originalName)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Original file name is invalid.", 400, [
+        { field: "originalName", reason: "originalName is required" },
+      ]);
+    }
+    if (!this.isNonEmptyString(requestBody.mimeType)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "MIME type is invalid.", 400, [
+        { field: "mimeType", reason: "mimeType is required" },
+      ]);
+    }
+    if (!this.isPositiveInteger(requestBody.sizeBytes)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "File size is invalid.", 400, [
+        { field: "sizeBytes", reason: "sizeBytes must be a positive integer" },
+      ]);
+    }
+  }
+
+  private assertRuntimeFileAssetMetadataOnly(dto: unknown): void {
+    const requestBody = this.toRequestBody(dto, "fileAsset");
+    const forbiddenField = FORBIDDEN_FILE_PAYLOAD_FIELDS.find((field) => Object.hasOwn(requestBody, field));
+
+    if (forbiddenField) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "file_assets only stores metadata.", 400, [
+        { field: forbiddenField, reason: "raw file payload must be uploaded to object storage first" },
+      ]);
+    }
+  }
+
   private assertPortfolioLinkRequest(dto: CreatePortfolioLinkDto): void {
     const requestBody = this.toRequestBody(dto, "portfolioLink");
 
@@ -917,11 +1028,35 @@ export class CandidateService {
     }
   }
 
+  private assertInterviewMediaFile(mimeType: string, sizeBytes: number): void {
+    if (!this.allowedInterviewMediaMimeTypes().includes(mimeType)) {
+      throw new CandidateDomainError("FILE_INVALID_TYPE", "Unsupported interview media file type.", 400, [
+        { field: "mimeType", reason: "mimeType must be an allowed audio or video type" },
+      ]);
+    }
+
+    if (!Number.isInteger(sizeBytes) || sizeBytes < 1) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "File size is invalid.", 400, [
+        { field: "sizeBytes", reason: "sizeBytes must be a positive integer" },
+      ]);
+    }
+
+    if (sizeBytes > MAX_INTERVIEW_MEDIA_SIZE_BYTES) {
+      throw new CandidateDomainError("FILE_SIZE_EXCEEDED", "Interview media file is too large.", 400, [
+        { field: "sizeBytes", reason: "interview media file must be 500MB or smaller" },
+      ]);
+    }
+  }
+
   private allowedDocumentMimeTypes(): string[] {
     return [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
+  }
+
+  private allowedInterviewMediaMimeTypes(): string[] {
+    return ["video/webm", "video/mp4", "audio/webm", "audio/mpeg", "audio/wav"];
   }
 
   private assertFileAssetMetadataOnly(dto: UploadResumeDto): void {
@@ -1227,13 +1362,16 @@ export class InMemoryCandidateRepository implements CandidateRepository {
   async updateInterviewSessionStatus(
     sessionId: number,
     status: InterviewSession["status"],
-    startedAt?: string,
+    transitionedAt?: string,
   ): Promise<InterviewSession> {
     const session = await this.requiredInterviewSession(sessionId);
     session.status = status;
     session.updatedAt = new Date().toISOString();
-    if (startedAt) {
-      session.startedAt = startedAt;
+    if (transitionedAt && status === "IN_PROGRESS") {
+      session.startedAt = transitionedAt;
+    }
+    if (transitionedAt && status === "COMPLETED") {
+      session.completedAt = transitionedAt;
     }
     return session;
   }

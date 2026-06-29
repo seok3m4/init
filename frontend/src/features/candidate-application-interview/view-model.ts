@@ -5,9 +5,13 @@ import type {
   CandidateJobSummary,
   ConsentType,
   CreatePortfolioLinkRequest,
+  InterviewRuntimeSessionView,
   InterviewDeviceCheckRequest,
   PortfolioLinkType,
+  RuntimeFileAssetRequest,
   SaveInterviewConsentRequest,
+  SaveInterviewAnswerRequest,
+  StartMockInterviewRequest,
   SubmitApplicationRequest,
   UploadResumeRequest,
 } from "./api";
@@ -49,6 +53,22 @@ export interface CandidateDeviceCheckState {
   networkStable: boolean;
 }
 
+export interface StartMockInterviewState {
+  jobRole: string;
+  difficulty: StartMockInterviewRequest["difficulty"];
+  questionTypes: StartMockInterviewRequest["questionTypes"];
+  showQuestionText: boolean;
+}
+
+export interface InterviewAnswerFormState {
+  questionId?: number;
+  videoFileId?: number;
+  videoFile?: RuntimeFileAssetRequest;
+  audioFileId?: number;
+  audioFile?: RuntimeFileAssetRequest;
+  durationSeconds: number;
+}
+
 export const requiredApplicationConsents: ConsentType[] = ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"];
 export const requiredInterviewConsents: ConsentType[] = [
   "PRIVACY_COLLECTION",
@@ -56,9 +76,17 @@ export const requiredInterviewConsents: ConsentType[] = [
   "AI_INTERVIEW_RECORDING",
 ];
 export const maxCandidateDocumentSizeBytes = 20 * 1024 * 1024;
+export const maxInterviewMediaSizeBytes = 500 * 1024 * 1024;
 export const allowedCandidateDocumentMimeTypes: UploadResumeRequest["mimeType"][] = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+export const allowedInterviewMediaMimeTypes: RuntimeFileAssetRequest["mimeType"][] = [
+  "video/webm",
+  "video/mp4",
+  "audio/webm",
+  "audio/mpeg",
+  "audio/wav",
 ];
 
 export const defaultCandidateJobQuery: CandidateJobQuery = {
@@ -89,6 +117,17 @@ export const defaultDeviceCheckState: CandidateDeviceCheckState = {
   cameraGranted: false,
   microphoneGranted: false,
   networkStable: false,
+};
+
+export const defaultStartMockInterviewState: StartMockInterviewState = {
+  jobRole: "",
+  difficulty: "NORMAL",
+  questionTypes: ["INTRO", "TECHNICAL", "EXPERIENCE", "CLOSING"],
+  showQuestionText: false,
+};
+
+export const defaultInterviewAnswerFormState: InterviewAnswerFormState = {
+  durationSeconds: 0,
 };
 
 export function toSubmitApplicationRequest(state: CandidateApplicationFormState): SubmitApplicationRequest {
@@ -156,6 +195,10 @@ export function getCandidateApplicationInterviewActionHref(
     : candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
 }
 
+export function getMockInterviewHref(session: Pick<InterviewRuntimeSessionView, "sessionId">): string {
+  return candidateApplicationInterviewRoutes.mockInterview(session.sessionId);
+}
+
 export function hasRequiredConsents(consentTypes: ConsentType[]): boolean {
   return requiredApplicationConsents.every((consentType) => consentTypes.includes(consentType));
 }
@@ -195,6 +238,42 @@ export function toDeviceCheckRequest(state: CandidateDeviceCheckState): Intervie
     cameraGranted: state.cameraGranted,
     microphoneGranted: state.microphoneGranted,
     networkStable: state.networkStable,
+  };
+}
+
+export function toStartMockInterviewRequest(state: StartMockInterviewState): StartMockInterviewRequest {
+  return {
+    jobRole: state.jobRole.trim() || undefined,
+    difficulty: state.difficulty,
+    questionTypes: state.questionTypes?.length ? state.questionTypes : undefined,
+    showQuestionText: state.showQuestionText,
+  };
+}
+
+export function toSaveInterviewAnswerRequest(state: InterviewAnswerFormState): SaveInterviewAnswerRequest {
+  if (!state.questionId) {
+    throw new Error("questionId is required before saving an interview answer.");
+  }
+  if (!state.videoFileId && !state.videoFile && !state.audioFileId && !state.audioFile) {
+    throw new Error("video or audio file reference is required before saving an interview answer.");
+  }
+  if (state.durationSeconds < 1) {
+    throw new Error("durationSeconds must be greater than 0 before saving an interview answer.");
+  }
+  if (state.videoFile) {
+    assertInterviewMediaFile(state.videoFile);
+  }
+  if (state.audioFile) {
+    assertInterviewMediaFile(state.audioFile);
+  }
+
+  return {
+    questionId: state.questionId,
+    videoFileId: state.videoFileId,
+    videoFile: state.videoFile,
+    audioFileId: state.audioFileId,
+    audioFile: state.audioFile,
+    durationSeconds: state.durationSeconds,
   };
 }
 
@@ -260,6 +339,10 @@ export function isAllowedCandidateDocumentMimeType(mimeType: string): mimeType i
   return allowedCandidateDocumentMimeTypes.includes(mimeType as UploadResumeRequest["mimeType"]);
 }
 
+export function isAllowedInterviewMediaMimeType(mimeType: string): mimeType is RuntimeFileAssetRequest["mimeType"] {
+  return allowedInterviewMediaMimeTypes.includes(mimeType as RuntimeFileAssetRequest["mimeType"]);
+}
+
 export function inferPortfolioLinkType(url: string): PortfolioLinkType {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
@@ -282,5 +365,17 @@ function assertHttpUrl(url: string): string {
     return parsed.hostname.toLowerCase();
   } catch {
     throw new Error("portfolio url must be http or https.");
+  }
+}
+
+function assertInterviewMediaFile(file: RuntimeFileAssetRequest): void {
+  if (!isAllowedInterviewMediaMimeType(file.mimeType)) {
+    throw new Error("interview answer file must be an allowed audio or video type.");
+  }
+  if (file.sizeBytes < 1 || file.sizeBytes > maxInterviewMediaSizeBytes) {
+    throw new Error("interview answer file sizeBytes must be between 1 and 500MB.");
+  }
+  if (!file.storageKey || !file.originalName.trim()) {
+    throw new Error("interview answer file metadata is required.");
   }
 }

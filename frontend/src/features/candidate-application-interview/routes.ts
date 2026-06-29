@@ -2,6 +2,8 @@ export const candidateApplicationInterviewRoutes = {
   jobs: "/candidate/jobs",
   jobDetail: (jobId: number) => `/candidate/jobs/${jobId}`,
   apply: (jobId: number) => `/candidate/jobs/${jobId}/apply`,
+  mockInterviewStart: "/candidate/mock-interview/start",
+  mockInterview: (sessionId: number) => `/candidate/mock-interviews/${sessionId}`,
   applications: "/candidate/applications",
   interviewGuide: (applicationId: number) => `/candidate/applications/${applicationId}/interview-guide`,
   interview: (applicationId: number) => `/candidate/applications/${applicationId}/interview`,

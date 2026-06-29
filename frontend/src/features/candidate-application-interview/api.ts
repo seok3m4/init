@@ -13,6 +13,7 @@ export type DocumentStatus = "NOT_SUBMITTED" | "SUBMITTED" | "EXTRACTING" | "EXT
 export type DocumentType = "RESUME" | "PORTFOLIO";
 export type InterviewStatus = "NOT_READY" | "READY" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
 export type InterviewType = "MOCK" | "RECRUITING";
+export type QuestionType = "INTRO" | "TECHNICAL" | "EXPERIENCE" | "SITUATION" | "FOLLOW_UP" | "CLOSING";
 export type DeviceCheckStatus = "PENDING" | "PASSED" | "FAILED";
 export type ReportStatus = "PENDING" | "GENERATING" | "COMPLETED" | "FAILED";
 export type ConsentType = "PRIVACY_COLLECTION" | "AI_DOCUMENT_ANALYSIS" | "AI_INTERVIEW_RECORDING";
@@ -274,6 +275,118 @@ export interface CandidateInterviewRuntimeView {
   answerUploadEndpoint: string;
 }
 
+export interface RuntimeFileAssetRequest {
+  storageKey: string;
+  originalName: string;
+  mimeType: "video/webm" | "video/mp4" | "audio/webm" | "audio/mpeg" | "audio/wav";
+  sizeBytes: number;
+}
+
+export interface StartMockInterviewRequest {
+  jobRole?: string;
+  difficulty?: "EASY" | "NORMAL" | "HARD";
+  questionTypes?: QuestionType[];
+  showQuestionText?: boolean;
+}
+
+export interface RuntimeQuestionView {
+  questionId: number;
+  questionType: QuestionType;
+  sortOrder: number;
+  content?: string;
+  audioPrompt: string;
+  answered: boolean;
+  current: boolean;
+}
+
+export interface InterviewRuntimeSessionView {
+  sessionId: number;
+  applicationId?: number;
+  interviewType: InterviewType;
+  status: InterviewStatus;
+  showQuestionText: boolean;
+  currentQuestion?: RuntimeQuestionView;
+  totalQuestions: number;
+  answeredCount: number;
+  canRecord: boolean;
+  nextQuestionEndpoint: string;
+  answerUploadEndpoint: string;
+}
+
+export interface StartMockInterviewResponse extends InterviewRuntimeSessionView {
+  startedAt: string;
+}
+
+export interface RuntimeQuestionListResponse {
+  sessionId: number;
+  interviewType: InterviewType;
+  showQuestionText: boolean;
+  currentQuestionId?: number;
+  questions: RuntimeQuestionView[];
+}
+
+export interface SaveInterviewAnswerRequest {
+  questionId: number;
+  videoFileId?: number;
+  videoFile?: RuntimeFileAssetRequest;
+  audioFileId?: number;
+  audioFile?: RuntimeFileAssetRequest;
+  durationSeconds: number;
+}
+
+export interface InterviewAnswer {
+  answerId: number;
+  sessionId: number;
+  questionId: number;
+  videoFileId?: number;
+  audioFileId?: number;
+  durationSeconds: number;
+  submittedAt: string;
+}
+
+export interface SaveInterviewAnswerResponse {
+  sessionId: number;
+  answer: InterviewAnswer;
+  videoFile?: CandidateFileAsset;
+  audioFile?: CandidateFileAsset;
+  nextQuestionAvailable: boolean;
+}
+
+export interface NextInterviewQuestionResponse {
+  sessionId: number;
+  previousQuestionId: number;
+  currentQuestion?: RuntimeQuestionView;
+  isLastQuestion: boolean;
+}
+
+export interface CompleteInterviewResponse {
+  sessionId: number;
+  applicationId?: number;
+  interviewType: InterviewType;
+  status: "COMPLETED";
+  completedAt: string;
+  answeredCount: number;
+  totalQuestions: number;
+}
+
+export interface AiInterviewRequest {
+  answerId?: number;
+}
+
+export interface AiInterviewHandoffResponse {
+  accepted: true;
+  processType: "STT" | "FOLLOW_UP";
+  status: "PENDING";
+  sessionId: number;
+  applicationId?: number;
+  answerId: number;
+  questionId: number;
+  fileId?: number;
+  videoFileId?: number;
+  audioFileId?: number;
+  callbackTopic: string;
+}
+
 export interface CandidatePortfolioLink {
   portfolioLinkId: number;
   candidateId: number;
@@ -297,12 +410,26 @@ export const candidateApiPaths = {
   jobDetail: (jobId: number) => `/api/v1/candidate/jobs/${jobId}`,
   applyView: (jobId: number) => `/api/v1/candidate/jobs/${jobId}/apply`,
   submitApplication: (jobId: number) => `/api/v1/candidate/jobs/${jobId}/applications`,
+  mockInterviews: "/api/v1/candidate/mock-interviews",
+  mockRuntime: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}`,
+  mockQuestions: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/questions`,
+  mockAnswers: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/answers`,
+  mockNextQuestion: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/next-question`,
+  mockComplete: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/complete`,
+  mockStt: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/stt`,
+  mockFollowUpQuestion: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/follow-up-question`,
   applications: "/api/v1/candidate/applications",
   interviewGuide: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview-guide`,
   interviewConsent: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/consent`,
   deviceCheck: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/device-check`,
   startInterview: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview/start`,
   interviewRuntime: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview`,
+  recruitingQuestions: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/questions`,
+  recruitingAnswers: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/answers`,
+  recruitingNextQuestion: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/next-question`,
+  recruitingComplete: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/complete`,
+  recruitingStt: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/stt`,
+  recruitingFollowUpQuestion: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/follow-up-question`,
   resume: "/api/v1/candidate/resume",
   portfolioLinks: "/api/v1/candidate/portfolio-links",
 } as const;
@@ -330,6 +457,17 @@ export interface CandidateApiClient {
   getJobDetail(jobId: number): Promise<ApiResponse<CandidateJobDetail>>;
   getApplyView(jobId: number): Promise<ApiResponse<CandidateApplyView>>;
   submitApplication(jobId: number, body: SubmitApplicationRequest): Promise<ApiResponse<SubmitApplicationResponse>>;
+  startMockInterview(body: StartMockInterviewRequest): Promise<ApiResponse<StartMockInterviewResponse>>;
+  getMockRuntime(sessionId: number): Promise<ApiResponse<InterviewRuntimeSessionView>>;
+  listMockQuestions(sessionId: number): Promise<ApiResponse<RuntimeQuestionListResponse>>;
+  saveMockAnswer(sessionId: number, body: SaveInterviewAnswerRequest): Promise<ApiResponse<SaveInterviewAnswerResponse>>;
+  moveMockNextQuestion(sessionId: number): Promise<ApiResponse<NextInterviewQuestionResponse>>;
+  completeMockInterview(sessionId: number): Promise<ApiResponse<CompleteInterviewResponse>>;
+  requestMockStt(sessionId: number, body: AiInterviewRequest): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  requestMockFollowUpQuestion(
+    sessionId: number,
+    body: AiInterviewRequest,
+  ): Promise<ApiResponse<AiInterviewHandoffResponse>>;
   listApplications(): Promise<ApiListResponse<CandidateApplicationSummary>>;
   getInterviewGuide(applicationId: number): Promise<ApiResponse<CandidateInterviewGuide>>;
   saveInterviewConsent(
@@ -342,6 +480,18 @@ export interface CandidateApiClient {
   ): Promise<ApiResponse<InterviewDeviceCheckResponse>>;
   startInterview(applicationId: number): Promise<ApiResponse<StartInterviewResponse>>;
   getInterviewRuntime(applicationId: number): Promise<ApiResponse<CandidateInterviewRuntimeView>>;
+  listRecruitingQuestions(sessionId: number): Promise<ApiResponse<RuntimeQuestionListResponse>>;
+  saveRecruitingAnswer(
+    sessionId: number,
+    body: SaveInterviewAnswerRequest,
+  ): Promise<ApiResponse<SaveInterviewAnswerResponse>>;
+  moveRecruitingNextQuestion(sessionId: number): Promise<ApiResponse<NextInterviewQuestionResponse>>;
+  completeRecruitingInterview(sessionId: number): Promise<ApiResponse<CompleteInterviewResponse>>;
+  requestRecruitingStt(sessionId: number, body: AiInterviewRequest): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  requestRecruitingFollowUpQuestion(
+    sessionId: number,
+    body: AiInterviewRequest,
+  ): Promise<ApiResponse<AiInterviewHandoffResponse>>;
   uploadResume(body: UploadResumeRequest): Promise<ApiResponse<CandidateFileAsset>>;
   createPortfolioLink(
     body: CreatePortfolioLinkRequest,
@@ -381,6 +531,38 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+    startMockInterview: (body) =>
+      request<ApiResponse<StartMockInterviewResponse>>(candidateApiPaths.mockInterviews, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    getMockRuntime: (sessionId) =>
+      request<ApiResponse<InterviewRuntimeSessionView>>(candidateApiPaths.mockRuntime(sessionId)),
+    listMockQuestions: (sessionId) =>
+      request<ApiResponse<RuntimeQuestionListResponse>>(candidateApiPaths.mockQuestions(sessionId)),
+    saveMockAnswer: (sessionId, body) =>
+      request<ApiResponse<SaveInterviewAnswerResponse>>(candidateApiPaths.mockAnswers(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    moveMockNextQuestion: (sessionId) =>
+      request<ApiResponse<NextInterviewQuestionResponse>>(candidateApiPaths.mockNextQuestion(sessionId), {
+        method: "POST",
+      }),
+    completeMockInterview: (sessionId) =>
+      request<ApiResponse<CompleteInterviewResponse>>(candidateApiPaths.mockComplete(sessionId), {
+        method: "PATCH",
+      }),
+    requestMockStt: (sessionId, body) =>
+      request<ApiResponse<AiInterviewHandoffResponse>>(candidateApiPaths.mockStt(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    requestMockFollowUpQuestion: (sessionId, body) =>
+      request<ApiResponse<AiInterviewHandoffResponse>>(candidateApiPaths.mockFollowUpQuestion(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     listApplications: () =>
       request<ApiListResponse<CandidateApplicationSummary>>(candidateApiPaths.applications),
     getInterviewGuide: (applicationId) =>
@@ -401,6 +583,31 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
       }),
     getInterviewRuntime: (applicationId) =>
       request<ApiResponse<CandidateInterviewRuntimeView>>(candidateApiPaths.interviewRuntime(applicationId)),
+    listRecruitingQuestions: (sessionId) =>
+      request<ApiResponse<RuntimeQuestionListResponse>>(candidateApiPaths.recruitingQuestions(sessionId)),
+    saveRecruitingAnswer: (sessionId, body) =>
+      request<ApiResponse<SaveInterviewAnswerResponse>>(candidateApiPaths.recruitingAnswers(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    moveRecruitingNextQuestion: (sessionId) =>
+      request<ApiResponse<NextInterviewQuestionResponse>>(candidateApiPaths.recruitingNextQuestion(sessionId), {
+        method: "POST",
+      }),
+    completeRecruitingInterview: (sessionId) =>
+      request<ApiResponse<CompleteInterviewResponse>>(candidateApiPaths.recruitingComplete(sessionId), {
+        method: "PATCH",
+      }),
+    requestRecruitingStt: (sessionId, body) =>
+      request<ApiResponse<AiInterviewHandoffResponse>>(candidateApiPaths.recruitingStt(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    requestRecruitingFollowUpQuestion: (sessionId, body) =>
+      request<ApiResponse<AiInterviewHandoffResponse>>(candidateApiPaths.recruitingFollowUpQuestion(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     uploadResume: (body) =>
       request<ApiResponse<CandidateFileAsset>>(candidateApiPaths.resume, {
         method: "POST",
