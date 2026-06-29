@@ -1,0 +1,29 @@
+{
+  "name": "final-weapon-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "typecheck": "node -e \"console.log('frontend typecheck pending implementation')\"",
+    "lint": "node -e \"console.log('frontend lint pending implementation')\"",
+    "test": "node -e \"console.log('frontend tests pending implementation')\"",
+    "build": "node -e \"console.log('frontend build pending implementation')\""
+  },
+  "dependencies": {
+    "next": "16.2.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.9",
+    "typescript": "5.9.3"
+  }
+}

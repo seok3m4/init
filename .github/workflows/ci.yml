@@ -8,7 +8,6 @@ on:
       - "feature/**"
   pull_request:
     branches:
-      - main
       - dev
 
 jobs:
@@ -20,6 +19,32 @@ jobs:
       - name: Verify docs, contracts, and folder structure
         shell: pwsh
         run: ./scripts/verify-docs.ps1
+      - name: Verify implementation baseline
+        shell: pwsh
+        run: ./scripts/verify-baseline.ps1
+      - name: Verify package baseline
+        shell: pwsh
+        run: ./scripts/verify-package-baseline.ps1
+
+  macos-b-harness:
+    name: macOS B Harness
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Backend API dependencies when present
+        shell: bash
+        run: |
+          if [ -f backend/api/package-lock.json ]; then
+            npm ci --prefix backend/api
+          else
+            echo "backend/api/package-lock.json not found; skipping backend API dependency install"
+          fi
+      - name: Verify B workflow without PowerShell
+        shell: bash
+        run: bash scripts/check-local.sh -Role B
 
   extended-harness:
     name: Extended Local Harness

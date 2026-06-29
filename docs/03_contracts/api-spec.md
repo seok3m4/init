@@ -12,6 +12,83 @@ AI와 구현 에이전트가 바로 읽을 수 있는 상세 API 명세다.
 - Auth: 공개 API를 제외하고 `Authorization: Bearer {accessToken}`
 - CurrentUser/Dev Auth: `docs/03_contracts/dev-auth-contract.md` 기준. JWT 구현 전에는 local/dev 환경에서 `X-Dev-*` 헤더로 동일한 `CurrentUser`를 만든다.
 
+### Response Envelope Baseline
+
+모든 JSON API는 아래 envelope를 따른다. controller별로 `{ result }`, `{ success }`, `{ items }`를 최상위에 직접 반환하지 않는다.
+
+```json
+{
+  "data": {},
+  "meta": {
+    "traceId": "request-id",
+    "timestamp": "2026-06-29T00:00:00.000Z"
+  }
+}
+```
+
+목록 API는 `data.items`와 `meta.page`를 사용한다.
+
+```json
+{
+  "data": {
+    "items": []
+  },
+  "meta": {
+    "traceId": "request-id",
+    "timestamp": "2026-06-29T00:00:00.000Z",
+    "page": {
+      "page": 1,
+      "limit": 20,
+      "totalItems": 0,
+      "totalPages": 0,
+      "hasNext": false
+    }
+  }
+}
+```
+
+오류 응답은 HTTP status와 `error.code`를 함께 사용한다. `details`는 validation field error 배열 또는 디버깅 가능한 구조화 데이터만 담고, stack trace는 반환하지 않는다.
+
+```json
+{
+  "error": {
+    "code": "COMMON_VALIDATION_FAILED",
+    "message": "입력값을 확인해주세요.",
+    "details": []
+  },
+  "meta": {
+    "traceId": "request-id",
+    "timestamp": "2026-06-29T00:00:00.000Z"
+  }
+}
+```
+
+### Pagination Filter Sort Baseline
+
+목록 API는 별도 사유가 없으면 아래 query parameter 이름을 사용한다.
+
+| Parameter | Type | Default | Rule |
+| --- | --- | --- | --- |
+| `page` | number | `1` | 1부터 시작한다. 1보다 작으면 validation error를 반환한다. |
+| `limit` | number | `20` | 최대 `100`까지 허용한다. |
+| `q` | string | 없음 | 자유 검색어. 빈 문자열은 전달하지 않는다. |
+| `sort` | string | API별 기본값 | 정렬 가능한 field만 허용한다. |
+| `order` | `asc` 또는 `desc` | `desc` | 대소문자를 섞지 않고 lowercase만 허용한다. |
+
+도메인 필터는 enum 이름을 그대로 query에 사용한다. 예: `postingStatus=OPEN`, `applicationStatus=SUBMITTED`, `reportStatus=COMPLETED`.
+
+## Implementation Baseline
+
+API 구현은 `docs/03_contracts/api-index.md`의 `API Module Baseline`을 따른다.
+
+- 인증 API는 `backend/api/src/modules/auth`에 둔다.
+- 기업 공고/지원자 운영 API는 `backend/api/src/modules/company-recruiting`에 둔다.
+- 기업 면접 설정/평가 기준/질문 API는 `backend/api/src/modules/company-interview`에 둔다.
+- 지원자 공고/지원/마이페이지 API는 `backend/api/src/modules/candidate`에 둔다.
+- 모의/채용 면접 런타임 API는 `backend/api/src/modules/interview`에 둔다.
+- 리포트 API는 `backend/api/src/modules/report`, AI 공통 API는 `backend/api/src/modules/ai`에 둔다.
+- 기존 구현에 임시 alias route가 있더라도 신규 service와 DTO는 baseline module 기준으로 정렬한다.
+
 ## 인증/계정
 
 ### API-001 POST /auth/login

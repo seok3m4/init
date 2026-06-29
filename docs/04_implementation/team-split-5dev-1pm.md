@@ -13,6 +13,55 @@
 | E | AI Report/Pipeline | 서류 추출, STT, 꼬리질문, 리포트 생성, 가드레일, 임베딩, worker/SQS 연동 | `ai_process_logs`, `ai_guardrail_logs`, `evaluation_reports`, `report_scores`, `report_evidences`, `embeddings`, `/reports/*`, `/ai/*` |
 | PM | 발표/검증 PM | 요구사항 우선순위, API 계약 변경 관리, 테스트 시나리오, 발표 자료, 데모 플로우, QA 체크리스트, PR 검증 기준 | `docs/*`, 발표/검증 산출물 |
 
+## Local OS Baseline
+
+| Member | Local OS | Required Harness Command |
+| --- | --- | --- |
+| A | Windows 기준 | `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A` |
+| B | macOS | `bash scripts/check-local.sh -Role B` |
+| C | Windows 기준 | `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role C` |
+| D | Windows 기준 | `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role D` |
+| E | Windows 기준 | `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role E` |
+| PM | Windows 기준 | `powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role PM` |
+
+B 담당자의 macOS 환경은 PowerShell Core 설치를 요구하지 않는다. B가 Codex에 작업을 맡길 때도 검증 명령은 `bash scripts/check-local.sh -Role B`를 기준으로 한다.
+
+## Package Version Baseline
+
+팀원은 PR을 pull 받은 뒤 각 패키지에서 `npm install`로 버전을 재해석하지 않고 `npm ci`를 사용한다. dependency version은 `package.json`에 exact version으로 고정하고, `package-lock.json`을 함께 커밋한다.
+
+| Package | Key Versions |
+| --- | --- |
+| `frontend` | Next `16.2.9`, React `19.2.7`, TypeScript `5.9.3`, ESLint `9.39.4` |
+| `backend/api` | NestJS `11.1.27`, Prisma/Prisma Client `6.19.3`, TypeScript `5.9.3`, tsx `4.22.4` |
+| `backend/worker` | OpenAI `6.45.0`, AWS SDK S3/SQS `3.1075.0`, MediaPipe Tasks Vision `0.10.35` |
+| `backend/common` | class-validator `0.15.1`, class-transformer `0.5.1`, TypeScript `5.9.3` |
+
+Prisma는 MVP 기간 동안 `prisma`와 `@prisma/client`를 모두 `6.19.3`으로 고정한다. Prisma 7 전환은 별도 합의 PR로만 진행한다.
+
+### Dependency Change Rules
+
+- 의존성 추가/변경은 담당자가 단독으로 확정하지 않고 A 또는 PM 리뷰를 받는다.
+- 의존성 변경 PR은 변경 사유, 영향 package, lockfile 변경 여부를 PR 본문에 적는다.
+- `npm install`로 lockfile이 재해석된 diff는 그대로 병합하지 않는다. 합의된 exact version을 `package.json`에 먼저 반영하고 `npm ci` 기준으로 검증한다.
+- `package.json`을 바꾸는 PR은 같은 package의 `package-lock.json`을 함께 갱신한다.
+- package baseline 자체를 바꾸는 경우 `docs/04_implementation/team-split-5dev-1pm.md`, `docs/04_implementation/one-time-alignment/agent-*.md`, `scripts/verify-package-baseline.*`를 같은 PR에서 함께 수정한다.
+
+## One-Time Alignment Workflow
+
+현재 구현이 이미 시작되었을 수 있으므로 팀원은 본인 담당 영역을 수정하기 전에 `docs/04_implementation/one-time-alignment/agent-<role>.md`를 Codex에 한 번 전달해 실행한다.
+
+| Member | One-Time Instruction |
+| --- | --- |
+| A | `docs/04_implementation/one-time-alignment/agent-a.md` |
+| B | `docs/04_implementation/one-time-alignment/agent-b.md` |
+| C | `docs/04_implementation/one-time-alignment/agent-c.md` |
+| D | `docs/04_implementation/one-time-alignment/agent-d.md` |
+| E | `docs/04_implementation/one-time-alignment/agent-e.md` |
+| PM | `docs/04_implementation/one-time-alignment/agent-pm.md` |
+
+각 지시서는 1회용이다. 반영 후에는 코드와 기존 문서가 기준이 되며, CI의 baseline 검증이 기준 위반을 차단한다.
+
 ## Tech Stack
 
 아래 스택을 MVP 개발 기준으로 사용한다. 실제 팀 결정이 달라지면 이 표를 먼저 갱신한 뒤 구현한다.
