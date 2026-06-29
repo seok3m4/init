@@ -25,3 +25,7 @@ assert.ok(exportsMetadata.includes(CandidateService));
 const repositoryProvider = providers.find(isProviderDefinition);
 assert.equal(repositoryProvider?.provide, CANDIDATE_REPOSITORY);
 assert.equal(repositoryProvider?.useClass, InMemoryCandidateRepository);
+
+test("candidate module metadata", () => {
+  assert.ok(controllers.includes(CandidateController));
+});

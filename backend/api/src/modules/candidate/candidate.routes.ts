@@ -1,4 +1,4 @@
-export const candidateApiRoutePrefix = "api/v1/candidate";
+export const candidateApiRoutePrefix = "candidate";
 
 export const candidateApiRoutes = {
   jobs: "jobs",

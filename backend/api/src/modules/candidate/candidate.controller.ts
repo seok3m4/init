@@ -7,7 +7,6 @@ import { SaveInterviewConsentDto } from "./dto/save-interview-consent.dto";
 import { SubmitApplicationDto } from "./dto/submit-application.dto";
 import { UploadResumeDto } from "./dto/upload-resume.dto";
 import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
-import { createCandidateErrorResponse } from "./candidate.errors";
 
 @Controller(candidateApiRoutePrefix)
 export class CandidateController {
@@ -101,7 +100,10 @@ export class CandidateController {
       return await action();
     } catch (error) {
       if (error instanceof CandidateDomainError) {
-        throw new HttpException(createCandidateErrorResponse(error), error.statusCode);
+        throw new HttpException(
+          { code: error.code, message: error.message, details: error.details },
+          error.statusCode,
+        );
       }
       throw error;
     }

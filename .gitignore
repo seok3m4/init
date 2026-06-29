@@ -1,5 +1,6 @@
 .DS_Store
 
+.env
 .gitignore
 \nogitdocs
 
@@ -12,6 +13,8 @@ node_modules/
 dist/
 build/
 coverage/
+.understand-anything/
+*.tsbuildinfo
 
 # Logs
 npm-debug.log*

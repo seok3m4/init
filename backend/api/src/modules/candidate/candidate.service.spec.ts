@@ -743,7 +743,6 @@ async function run() {
   );
 }
 
-run().catch((error) => {
-  console.error(error);
-  process.exit(1);
+test("candidate service contract", async () => {
+  await run();
 });

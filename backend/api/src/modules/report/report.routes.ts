@@ -1,4 +1,4 @@
-export const reportApiRoutePrefix = "api/v1/candidate";
+export const reportApiRoutePrefix = "candidate";
 
 export const reportApiRoutes = {
   mockReports: "mock-interview/reports",

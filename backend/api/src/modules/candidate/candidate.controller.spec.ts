@@ -3,7 +3,6 @@ import { strict as assert } from "node:assert";
 import { HttpException, RequestMethod } from "@nestjs/common";
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { CandidateController } from "./candidate.controller";
-import type { CandidateErrorResponse } from "./candidate.errors";
 import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
 import { CandidateService, InMemoryCandidateRepository } from "./candidate.service";
 
@@ -62,11 +61,9 @@ async function assertCandidateHttpError(
     assert.ok(error instanceof HttpException);
     assert.equal(error.getStatus(), expectedStatus);
 
-    const response = error.getResponse() as CandidateErrorResponse;
-    assert.equal(response.error.code, expectedCode);
-    assert.ok(Array.isArray(response.error.details));
-    assert.equal(response.meta.traceId, "local-candidate-module");
-    assert.match(response.meta.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+    const response = error.getResponse() as { code?: string; details?: unknown[] };
+    assert.equal(response.code, expectedCode);
+    assert.ok(Array.isArray(response.details));
   }
 }
 
@@ -188,7 +185,6 @@ async function runControllerRuntimeAssertions() {
   );
 }
 
-runControllerRuntimeAssertions().catch((error) => {
-  console.error(error);
-  process.exit(1);
+test("candidate controller contract", async () => {
+  await runControllerRuntimeAssertions();
 });

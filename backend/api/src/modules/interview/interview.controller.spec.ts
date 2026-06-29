@@ -7,7 +7,6 @@ import {
   CandidateService,
   DEV_CANDIDATE_USER,
   InMemoryCandidateRepository,
-  type CandidateErrorResponse,
 } from "../candidate";
 import { InterviewController } from "./interview.controller";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes";
@@ -62,8 +61,6 @@ assertRoute("listMockQuestions", interviewApiRoutes.mockQuestions, RequestMethod
 assertRoute("saveMockAnswer", interviewApiRoutes.mockAnswers, RequestMethod.POST, 201);
 assertRoute("moveMockNextQuestion", interviewApiRoutes.mockNextQuestion, RequestMethod.POST);
 assertRoute("completeMockInterview", interviewApiRoutes.mockComplete, RequestMethod.PATCH);
-assertRoute("requestMockStt", interviewApiRoutes.mockStt, RequestMethod.POST, 202);
-assertRoute("requestMockFollowUpQuestion", interviewApiRoutes.mockFollowUpQuestion, RequestMethod.POST, 202);
 assertRoute("saveDeviceCheck", interviewApiRoutes.deviceCheck, RequestMethod.POST);
 assertRoute("startInterview", interviewApiRoutes.startInterview, RequestMethod.POST);
 assertRoute("getInterviewRuntime", interviewApiRoutes.interviewRuntime, RequestMethod.GET);
@@ -71,13 +68,6 @@ assertRoute("listRecruitingQuestions", interviewApiRoutes.recruitingQuestions, R
 assertRoute("saveRecruitingAnswer", interviewApiRoutes.recruitingAnswers, RequestMethod.POST, 201);
 assertRoute("moveRecruitingNextQuestion", interviewApiRoutes.recruitingNextQuestion, RequestMethod.POST);
 assertRoute("completeRecruitingInterview", interviewApiRoutes.recruitingComplete, RequestMethod.PATCH);
-assertRoute("requestRecruitingStt", interviewApiRoutes.recruitingStt, RequestMethod.POST, 202);
-assertRoute(
-  "requestRecruitingFollowUpQuestion",
-  interviewApiRoutes.recruitingFollowUpQuestion,
-  RequestMethod.POST,
-  202,
-);
 
 async function assertInterviewHttpError(
   action: () => Promise<unknown>,
@@ -91,10 +81,9 @@ async function assertInterviewHttpError(
     assert.ok(error instanceof HttpException);
     assert.equal(error.getStatus(), expectedStatus);
 
-    const response = error.getResponse() as CandidateErrorResponse;
-    assert.equal(response.error.code, expectedCode);
-    assert.ok(Array.isArray(response.error.details));
-    assert.equal(response.meta.traceId, "local-candidate-module");
+    const response = error.getResponse() as { code?: string; details?: unknown[] };
+    assert.equal(response.code, expectedCode);
+    assert.ok(Array.isArray(response.details));
   }
 }
 
@@ -299,7 +288,6 @@ async function runControllerRuntimeAssertions() {
   assert.equal(applications.data.items[0]?.interviewSessionStatus, "COMPLETED");
 }
 
-runControllerRuntimeAssertions().catch((error) => {
-  console.error(error);
-  process.exit(1);
+test("interview controller contract", async () => {
+  await runControllerRuntimeAssertions();
 });

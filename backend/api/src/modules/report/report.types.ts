@@ -1,131 +1,242 @@
-import type {
-  ApplicationStatus,
-  DocumentStatus,
-  FileAsset,
-  InterviewStatus,
-  ReportStatus,
-} from "../candidate";
-import type { QuestionType } from "../interview";
+import { CurrentUser } from "../../common/dev-auth/current-user";
 
-export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
-export type TranscriptStatus = "PENDING" | "AVAILABLE";
+export type ReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
+export type ReportStatus = "PENDING" | "GENERATING" | "COMPLETED" | "FAILED";
+export type AiProcessType =
+  | "DOCUMENT_EXTRACT"
+  | "STT"
+  | "FOLLOW_UP"
+  | "REPORT_GENERATE"
+  | "EMBEDDING"
+  | "GUARDRAIL_VALIDATE"
+  | "CRITERIA_SUGGEST"
+  | "QUESTION_GENERATE"
+  | "QUESTION_SET_GENERATE";
+export type AiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+export type GuardrailResult = "PASS" | "BLOCKED" | "REGENERATED";
+export type ReportPipelineStep =
+  | "EVALUATION_CONTEXT"
+  | "ANSWER_EVALUATION"
+  | "COMMUNICATION_ANALYSIS"
+  | "REPORT_GENERATE";
+export type FailureCategory = "RETRYABLE" | "NON_RETRYABLE";
 
-export interface CandidateMockInterviewHistoryItem {
-  sessionId: number;
-  reportId: number;
-  interviewType: "MOCK";
-  status: InterviewStatus;
-  reportStatus: ReportStatus;
-  startedAt?: string;
-  completedAt?: string;
-  updatedAt: string;
-  totalQuestions: number;
-  answeredCount: number;
+export interface EvaluationCriterionInput {
+  criterionId: number;
+  name: string;
+  description?: string;
+  weight: number;
 }
 
-export interface CandidateMockReportSummary extends CandidateMockInterviewHistoryItem {
-  reportType: "MOCK_INTERVIEW_REPORT";
-  feedbackEndpoint: string;
-  mediaEndpoint: string;
-  generateEndpoint: string;
-}
-
-export interface CandidateMockReportFeedback {
-  reportId: number;
-  sessionId: number;
-  reportType: "MOCK_INTERVIEW_REPORT";
-  status: ReportStatus;
-  generatedAt?: string;
-  summary?: string;
-  strengths: string[];
-  improvements: string[];
-  nextPractice: string[];
-  visibilityPolicy: {
-    candidateFacingOnly: true;
-    excludesHiringDecision: true;
-    excludesInternalScores: true;
-    excludesCompanyMemo: true;
-  };
-}
-
-export interface CandidateReportFileReference {
-  fileId: number;
-  storageKey: string;
-  originalName: string;
-  mimeType: string;
-  sizeBytes: number;
-  status: FileAsset["status"];
-  createdAt: string;
-}
-
-export interface CandidateMockReportMediaItem {
+export interface InterviewAnswerInput {
   answerId: number;
-  questionId: number;
-  questionType: QuestionType;
-  sortOrder: number;
-  questionContent?: string;
-  videoFile?: CandidateReportFileReference;
-  audioFile?: CandidateReportFileReference;
-  durationSeconds: number;
-  submittedAt: string;
-  transcriptStatus: TranscriptStatus;
-  transcript?: string;
+  question: string;
+  transcript: string;
 }
 
-export interface CandidateMockReportMedia {
-  reportId: number;
-  sessionId: number;
-  reportType: "MOCK_INTERVIEW_REPORT";
-  status: ReportStatus;
-  media: CandidateMockReportMediaItem[];
+export interface ManualEvaluationInput {
+  reviewerUserId: number;
+  decision?: "UNDECIDED" | "PASS" | "HOLD" | "FAIL";
+  memo?: string;
 }
 
-export interface CandidateReportGenerationHandoff {
-  accepted: true;
-  processType: "REPORT_GENERATE";
-  status: "PENDING";
-  reportId: number;
-  sessionId: number;
-  reportType: "MOCK_INTERVIEW_REPORT";
-  answerIds: number[];
-  fileIds: number[];
-  callbackTopic: "ai.report.generate.requested";
-}
-
-export interface CandidateApplicationStatusView {
-  applicationId: number;
-  postingId: number;
-  companyName: string;
-  jobTitle: string;
-  jobRole: string;
-  applicationStatus: ApplicationStatus;
-  documentStatus: DocumentStatus;
-  interviewStatus: InterviewStatus;
-  reportStatus: ReportStatus;
-  sessionId: number;
-  interviewSessionStatus: InterviewStatus;
-  submittedAt: string;
-  updatedAt: string;
-  reportAvailable: boolean;
-}
-
-export interface CandidateRecruitingReportView {
-  applicationId: number;
-  sessionId: number;
-  reportType: "RECRUITING_REPORT";
-  status: ReportStatus;
-  applicationStatus: ApplicationStatus;
-  interviewStatus: InterviewStatus;
-  companyName: string;
-  jobTitle: string;
-  summary?: string;
-  candidateMessage: string;
-  nextStepLabel: string;
-  visibilityPolicy: {
-    candidateFacingOnly: true;
-    excludesDetailedScores: true;
-    excludesEvaluationEvidence: true;
-    excludesInternalMemo: true;
-    excludesManualEvaluation: true;
+export interface EvaluationContextRequest {
+  reportType: ReportType;
+  company: {
+    companyId: number;
+    name: string;
+    talentProfile?: string;
   };
+  posting: {
+    postingId: number;
+    title: string;
+    jobDescription: string;
+  };
+  application: {
+    applicationId: number;
+    candidateId: number;
+    documentText?: string;
+  };
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+  manualEvaluations?: ManualEvaluationInput[];
+}
+
+export interface AnswerEvaluationRequest {
+  reportType: ReportType;
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+  documentText?: string;
+}
+
+export interface CommunicationAnalysisRequest {
+  reportType: ReportType;
+  consentConfirmed: boolean;
+  mediaQuality: "GOOD" | "LOW_AUDIO" | "LOW_VIDEO" | "FACE_NOT_DETECTED";
+  metrics?: {
+    speechPace?: "SLOW" | "NORMAL" | "FAST";
+    audioClarity?: number;
+    eyeContactRatio?: number;
+  };
+  notes?: string[];
+}
+
+export interface GenerateReportRequest {
+  reportType: ReportType;
+  jobDescription: string;
+  documentText?: string;
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+}
+
+export interface ReportCommand<TBody> {
+  currentUser: CurrentUser;
+  reportId: number;
+  body: TBody;
+}
+
+export type EvidenceSourceType = "INTERVIEW_ANSWER" | "APPLICATION_DOCUMENT";
+
+export interface ReportEvidence {
+  sourceType: EvidenceSourceType;
+  answerId?: number;
+  documentId?: number;
+  documentRef?: string;
+  text: string;
+}
+
+export interface ReportScore {
+  criterionId: number;
+  criterionName: string;
+  score: number;
+  rationale: string;
+  evidences: ReportEvidence[];
+}
+
+export interface GeneratedReport {
+  summary: string;
+  totalScore: number;
+  scores: ReportScore[];
+}
+
+export interface EvaluationContext {
+  reportType: ReportType;
+  companyId: number;
+  postingId: number;
+  applicationId: number;
+  candidateId: number;
+  jobDescription: string;
+  criteria: EvaluationCriterionInput[];
+  answers: InterviewAnswerInput[];
+  documentText?: string;
+  manualEvaluations: ManualEvaluationInput[];
+}
+
+export interface CommunicationAnalysis {
+  usage: "AUXILIARY_ONLY";
+  mediaQuality: CommunicationAnalysisRequest["mediaQuality"];
+  metrics: NonNullable<CommunicationAnalysisRequest["metrics"]>;
+  notes: string[];
+  decisionWeight: 0;
+}
+
+export interface GuardrailDecision {
+  result: GuardrailResult;
+  reason: string | null;
+  failureCategory?: FailureCategory | null;
+}
+
+export type GuardrailValidationTarget = "REPORT" | "SCORES";
+
+export interface GuardrailValidationRequest {
+  reportType: ReportType;
+  target: GuardrailValidationTarget;
+  policyName?: string;
+  processLogId?: number;
+  regenerated?: boolean;
+  regenerationReason?: string;
+  summary?: string;
+  totalScore?: number;
+  scores: ReportScore[];
+}
+
+export interface GuardrailValidationResult {
+  target: GuardrailValidationTarget;
+  processLogId: number;
+  guardrail: GuardrailDecision;
+  guardrailLogId?: number;
+}
+
+export interface FailureReason {
+  category: FailureCategory;
+  reason: string;
+  retryable: boolean;
+}
+
+export interface ProcessLogSnapshot {
+  processLogId: number;
+  processType: AiProcessType;
+  step: ReportPipelineStep;
+  status: AiProcessStatus;
+  failure?: FailureReason;
+}
+
+export interface QueuedAiProcessSnapshot {
+  processLogId: number;
+  processType: AiProcessType;
+  status: AiProcessStatus;
+  inputRef: string;
+  outputRef?: string;
+  output?: unknown;
+  applicationId?: number;
+  sessionId?: number;
+  failure?: FailureReason;
+}
+
+export interface EvaluationReportSnapshot {
+  reportId: number;
+  reportType: ReportType;
+  status: ReportStatus;
+  summary?: string;
+  totalScore?: number;
+  failure?: FailureReason;
+}
+
+export interface StoredCounts {
+  scoreCount: number;
+  evidenceCount: number;
+  guardrailLogCount: number;
+}
+
+export interface AiProcessRefs {
+  applicationId?: number;
+  sessionId?: number;
+}
+
+export interface PipelineResult {
+  processLogId: number;
+  processType: AiProcessType;
+  step: ReportPipelineStep;
+  status: AiProcessStatus;
+  report: EvaluationReportSnapshot;
+  failure?: FailureReason;
+}
+
+export interface EvaluationContextResult extends PipelineResult {
+  context: EvaluationContext;
+}
+
+export interface AnswerEvaluationResult extends PipelineResult {
+  scores: ReportScore[];
+  guardrail: GuardrailDecision;
+  stored: StoredCounts;
+}
+
+export interface CommunicationAnalysisResult extends PipelineResult {
+  communicationAnalysis: CommunicationAnalysis;
+}
+
+export interface GenerateReportResult extends PipelineResult, GeneratedReport {
+  guardrail: GuardrailDecision;
+  stored: StoredCounts;
 }

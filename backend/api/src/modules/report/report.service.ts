@@ -19,7 +19,7 @@ import {
   CandidateRecruitingReportView,
   CandidateReportFileReference,
   CandidateReportGenerationHandoff,
-} from "./report.types";
+} from "./candidate-report.types";
 
 @Injectable()
 export class ReportService {

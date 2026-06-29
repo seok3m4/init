@@ -1,0 +1,44 @@
+# AI Worker
+
+This package owns the long-running AI job boundary for E-part work.
+
+The first layer is intentionally adapter-based:
+
+- `AiJobQueue` abstracts SQS receive/delete behavior.
+- `AiProcessLogRepository` abstracts `ai_process_logs` and `ai_guardrail_logs`.
+- `AiWorkerRunner` guarantees `RUNNING -> COMPLETED/FAILED` state transitions.
+- `AiWorkerLoop` polls SQS in a long-running process and exits on SIGINT/SIGTERM.
+- task handlers do the actual document/STT/follow-up/report/embedding work.
+
+Runtime commands:
+
+- `npm run build`
+- `npm start`
+
+Required runtime environment variables:
+
+- `AI_SQS_QUEUE_URL`
+- `AWS_REGION`
+- `AI_PROVIDER_API_KEY`
+- `S3_BUCKET_NAME`
+
+The `.env.example` file also includes project-level aliases such as `SQS_QUEUE_URL`,
+`S3_BUCKET`, and `OPENAI_API_KEY` so the shared environment harness can validate
+the common deployment contract. The current worker runtime reads the `AI_*` and
+`S3_BUCKET_NAME` names above.
+
+Deployment boundary with A:
+
+- A owns AWS resource creation, IAM permissions, secret injection, and worker restart/deployment.
+- E owns the runtime contract above, queue message handling, `ai_process_logs` transitions, and final-save behavior after guardrails.
+- The worker must receive SQS/S3/AI provider values through runtime environment variables. Do not put real secret values in git.
+- Local `.env.example` files may contain placeholder values only; production values must come from the deployment secret store.
+
+Optional runtime environment variables:
+
+- `WORKER_BATCH_SIZE` defaults to `1`, max `10`.
+- `WORKER_POLL_INTERVAL_MS` defaults to `1000`.
+- `WORKER_REPOSITORY_MODE` is `memory` by default when unset, but integration runs must set it to `prisma` so worker updates are visible through API status polling.
+- `PRISMA_CLIENT_MODULE` overrides the Prisma client module path. The default resolves to the API package's `@prisma/client`.
+
+Secrets are read from environment variables only and must not be committed.

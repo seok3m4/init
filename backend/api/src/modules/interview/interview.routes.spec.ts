@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes";
 
-assert.equal(interviewApiRoutePrefix, "api/v1/candidate");
+assert.equal(interviewApiRoutePrefix, "candidate");
 assert.equal(interviewApiRoutes.mockInterviews, "mock-interviews");
 assert.equal(interviewApiRoutes.mockHistory, "mock-interviews/history");
 assert.equal(interviewApiRoutes.mockRuntime, "mock-interviews/:sessionId");
@@ -20,3 +20,7 @@ assert.equal(interviewApiRoutes.recruitingNextQuestion, "interviews/:sessionId/n
 assert.equal(interviewApiRoutes.recruitingComplete, "interviews/:sessionId/complete");
 assert.equal(interviewApiRoutes.recruitingStt, "interviews/:sessionId/stt");
 assert.equal(interviewApiRoutes.recruitingFollowUpQuestion, "interviews/:sessionId/follow-up-question");
+
+test("interview routes contract", () => {
+  assert.ok(interviewApiRoutes.mockInterviews);
+});

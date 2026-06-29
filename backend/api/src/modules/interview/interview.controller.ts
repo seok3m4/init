@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Patch, Post } from "@nestjs/common";
-import { CandidateDomainError, createCandidateErrorResponse, type CandidateAuthHeaders } from "../candidate";
+import { CandidateDomainError, type CandidateAuthHeaders } from "../candidate";
 import { DeviceCheckDto } from "./interview.device-check.dto";
 import { AiInterviewRequestDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "./interview.runtime.dto";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes";
@@ -49,8 +49,6 @@ export class InterviewController {
     return this.handle(() => this.interviewService.completeMockInterview(Number(sessionId), headers));
   }
 
-  @Post(interviewApiRoutes.mockStt)
-  @HttpCode(202)
   requestMockStt(
     @Headers() headers: CandidateAuthHeaders,
     @Param("sessionId") sessionId: string,
@@ -59,8 +57,6 @@ export class InterviewController {
     return this.handle(() => this.interviewService.requestMockStt(Number(sessionId), dto, headers));
   }
 
-  @Post(interviewApiRoutes.mockFollowUpQuestion)
-  @HttpCode(202)
   requestMockFollowUpQuestion(
     @Headers() headers: CandidateAuthHeaders,
     @Param("sessionId") sessionId: string,
@@ -113,8 +109,6 @@ export class InterviewController {
     return this.handle(() => this.interviewService.completeRecruitingInterview(Number(sessionId), headers));
   }
 
-  @Post(interviewApiRoutes.recruitingStt)
-  @HttpCode(202)
   requestRecruitingStt(
     @Headers() headers: CandidateAuthHeaders,
     @Param("sessionId") sessionId: string,
@@ -123,8 +117,6 @@ export class InterviewController {
     return this.handle(() => this.interviewService.requestRecruitingStt(Number(sessionId), dto, headers));
   }
 
-  @Post(interviewApiRoutes.recruitingFollowUpQuestion)
-  @HttpCode(202)
   requestRecruitingFollowUpQuestion(
     @Headers() headers: CandidateAuthHeaders,
     @Param("sessionId") sessionId: string,
@@ -138,7 +130,10 @@ export class InterviewController {
       return await action();
     } catch (error) {
       if (error instanceof CandidateDomainError) {
-        throw new HttpException(createCandidateErrorResponse(error), error.statusCode);
+        throw new HttpException(
+          { code: error.code, message: error.message, details: error.details },
+          error.statusCode,
+        );
       }
       throw error;
     }

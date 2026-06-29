@@ -1,4 +1,4 @@
-export const interviewApiRoutePrefix = "api/v1/candidate";
+export const interviewApiRoutePrefix = "candidate";
 
 export const interviewApiRoutes = {
   mockInterviews: "mock-interviews",

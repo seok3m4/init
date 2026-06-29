@@ -1,7 +1,6 @@
-import { Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Post } from "@nestjs/common";
+import { Controller, Get, Headers, HttpException, Inject, Param } from "@nestjs/common";
 import {
   CandidateDomainError,
-  createCandidateErrorResponse,
   resolveCurrentCandidate,
   type CandidateAuthHeaders,
 } from "../candidate";
@@ -44,15 +43,6 @@ export class ReportController {
     });
   }
 
-  @Post(reportApiRoutes.mockGenerate)
-  @HttpCode(202)
-  requestMockReportGeneration(@Headers() headers: CandidateAuthHeaders, @Param("reportId") reportId: string) {
-    return this.handle(() => {
-      const currentUser = resolveCurrentCandidate(headers);
-      return Promise.resolve(this.reportService.requestMockReportGeneration(Number(reportId), currentUser));
-    });
-  }
-
   @Get(reportApiRoutes.applicationReport)
   getApplicationReport(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
     return this.handle(() => {
@@ -74,7 +64,10 @@ export class ReportController {
       return await action();
     } catch (error) {
       if (error instanceof CandidateDomainError) {
-        throw new HttpException(createCandidateErrorResponse(error), error.statusCode);
+        throw new HttpException(
+          { code: error.code, message: error.message, details: error.details },
+          error.statusCode,
+        );
       }
       throw error;
     }

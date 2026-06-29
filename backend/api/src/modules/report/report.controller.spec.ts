@@ -6,7 +6,6 @@ import {
   CandidateService,
   DEV_CANDIDATE_USER,
   InMemoryCandidateRepository,
-  type CandidateErrorResponse,
 } from "../candidate";
 import { InterviewService } from "../interview";
 import { ReportController } from "./report.controller";
@@ -18,7 +17,6 @@ type ReportControllerRoute =
   | "listMockInterviewHistory"
   | "getMockReportFeedback"
   | "getMockReportMedia"
-  | "requestMockReportGeneration"
   | "getApplicationReport"
   | "getApplicationStatus";
 
@@ -54,7 +52,6 @@ assertRoute("listMockReports", reportApiRoutes.mockReports, RequestMethod.GET);
 assertRoute("listMockInterviewHistory", reportApiRoutes.mockHistory, RequestMethod.GET);
 assertRoute("getMockReportFeedback", reportApiRoutes.mockFeedback, RequestMethod.GET);
 assertRoute("getMockReportMedia", reportApiRoutes.mockMedia, RequestMethod.GET);
-assertRoute("requestMockReportGeneration", reportApiRoutes.mockGenerate, RequestMethod.POST, 202);
 assertRoute("getApplicationReport", reportApiRoutes.applicationReport, RequestMethod.GET);
 assertRoute("getApplicationStatus", reportApiRoutes.applicationStatus, RequestMethod.GET);
 
@@ -70,10 +67,9 @@ async function assertReportHttpError(
     assert.ok(error instanceof HttpException);
     assert.equal(error.getStatus(), expectedStatus);
 
-    const response = error.getResponse() as CandidateErrorResponse;
-    assert.equal(response.error.code, expectedCode);
-    assert.ok(Array.isArray(response.error.details));
-    assert.equal(response.meta.traceId, "local-candidate-module");
+    const response = error.getResponse() as { code?: string; details?: unknown[] };
+    assert.equal(response.code, expectedCode);
+    assert.ok(Array.isArray(response.details));
   }
 }
 
@@ -179,16 +175,6 @@ async function runReportControllerAssertions() {
   assert.equal(media.data.media[0]?.transcriptStatus, "PENDING");
   assert.ok(media.data.media[0]?.questionContent);
 
-  const generate = await controller.requestMockReportGeneration(validCandidateHeaders, String(mockReportId));
-  assert.equal(generate.data.accepted, true);
-  assert.equal(generate.data.processType, "REPORT_GENERATE");
-  assert.equal(generate.data.sessionId, mockReportId);
-  assert.equal(generate.data.answerIds.length, 2);
-  assert.equal(generate.data.fileIds.length, 2);
-
-  const generatingFeedback = await controller.getMockReportFeedback(validCandidateHeaders, String(mockReportId));
-  assert.equal(generatingFeedback.data.status, "GENERATING");
-
   await assertReportHttpError(
     () => controller.getMockReportFeedback(otherCandidateHeaders, String(mockReportId)),
     403,
@@ -256,7 +242,6 @@ async function runReportControllerAssertions() {
   );
 }
 
-runReportControllerAssertions().catch((error) => {
-  console.error(error);
-  process.exit(1);
+test("candidate report controller contract", async () => {
+  await runReportControllerAssertions();
 });

@@ -15,7 +15,14 @@ function Invoke-Step {
   param([string]$Name, [scriptblock]$Block)
   Write-Host ""
   Write-Host "== $Name =="
+  $global:LASTEXITCODE = 0
   & $Block
+  if (-not $?) {
+    exit 1
+  }
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
 }
 
 Invoke-Step "verify-docs" { & (Join-Path $PSScriptRoot "verify-docs.ps1") }

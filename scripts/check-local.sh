@@ -183,11 +183,11 @@ verify_ownership() {
   fi
 
   local common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/|\.gitignore$)'
-  local baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|backend/(api|common|worker)/package(-lock)?\.json)'
+  local baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|frontend/(eslint\.config\.mjs|next\.config\.js|tsconfig\.json)|backend/(api|common|worker)/package(-lock)?\.json|backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)|backend/common/tsconfig\.json|backend/worker/tsconfig\.json)'
   local pattern
   case "$ROLE" in
     A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     E) pattern="($common|$baseline|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
@@ -229,16 +229,32 @@ verify_prisma() {
     return 1
   fi
 
+  if [[ ! -f "$api_dir/package-lock.json" ]]; then
+    echo "[fail] schema.prisma exists but backend/api/package-lock.json is missing"
+    return 1
+  fi
+
+  if [[ -z "${DATABASE_URL:-}" && -f "$ROOT/.env.example" ]]; then
+    local database_url
+    database_url="$(grep -E '^DATABASE_URL=' "$ROOT/.env.example" | head -n 1 | sed 's/^DATABASE_URL=//')"
+    if [[ -n "$database_url" ]]; then
+      export DATABASE_URL="$database_url"
+    fi
+  fi
+
   (
     cd "$api_dir"
-    if [[ -x "node_modules/.bin/prisma" ]]; then
-      ./node_modules/.bin/prisma validate
-    elif command -v npx >/dev/null 2>&1; then
-      npx prisma validate
-    else
-      echo "[fail] Prisma CLI is not available. Run npm install in backend/api."
+    if [[ ! -x "node_modules/.bin/prisma" ]]; then
+      command -v npm >/dev/null 2>&1 || { echo "[fail] npm is not available. Node.js 20.x and npm >=10 are required."; exit 1; }
+      npm ci --ignore-scripts || exit 1
+    fi
+    if [[ ! -x "node_modules/.bin/prisma" ]]; then
+      echo "[fail] Local Prisma CLI is not available after npm ci."
       exit 1
     fi
+
+    ./node_modules/.bin/prisma validate || exit 1
+    ./node_modules/.bin/prisma generate || exit 1
   )
 
   echo "[ok] verify-prisma passed"

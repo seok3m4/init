@@ -14,3 +14,7 @@ assert.equal(response.error.message, "입력값을 확인해주세요.");
 assert.deepEqual(response.error.details, [{ field: "jobId", reason: "jobId must be a positive integer" }]);
 assert.equal(response.meta.traceId, "trace-test");
 assert.match(response.meta.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+
+test("candidate error envelope contract", () => {
+  assert.equal(response.error.code, "COMMON_VALIDATION_FAILED");
+});

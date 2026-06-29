@@ -8,10 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "typecheck": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json",
-    "lint": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json",
-    "test": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json",
-    "build": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "npm run typecheck",
+    "build": "next build"
   },
   "dependencies": {
     "next": "16.2.9",

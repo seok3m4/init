@@ -15,3 +15,7 @@ assert.ok(imports.includes(CandidateModule));
 assert.ok(controllers.includes(InterviewController));
 assert.ok(providers.includes(InterviewService));
 assert.ok(exportsMetadata.includes(InterviewService));
+
+test("interview module metadata", () => {
+  assert.ok(imports.includes(CandidateModule));
+});
