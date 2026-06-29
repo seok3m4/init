@@ -8,6 +8,7 @@ import type {
   InvitationResult,
   InviteApplicantInput,
   Recruitment,
+  RecruitmentStatus,
   UpdateScreeningStatusInput,
 } from "./types";
 
@@ -17,6 +18,8 @@ type ListQuery = {
   page?: number;
   limit?: number;
   q?: string;
+  keyword?: string;
+  status?: RecruitmentStatus;
   sort?: string;
   order?: "asc" | "desc";
 };
@@ -34,6 +37,12 @@ export async function createRecruitment(input: CreateRecruitmentInput) {
 
 export async function getRecruitment(recruitmentId: number) {
   return request<Recruitment>(`/company/recruitments/${recruitmentId}`);
+}
+
+export async function copyRecruitment(recruitmentId: number) {
+  return request<Recruitment>(`/company/recruitments/${recruitmentId}/copy`, {
+    method: "POST",
+  });
 }
 
 export async function listRecruitmentApplicants(recruitmentId: number, query: ListQuery = {}) {

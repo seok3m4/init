@@ -66,6 +66,30 @@ export class CompanyRecruitingService {
     return toRecruitmentResponse(posting);
   }
 
+  async copyRecruitment(user: CurrentUser, recruitmentId: number) {
+    const companyId = requireCompanyId(user);
+    const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
+    if (!posting) {
+      throw new ApiException(404, "COMMON_NOT_FOUND", "공고를 찾을 수 없습니다.");
+    }
+    if (posting.status !== PostingStatus.CLOSED) {
+      throw new ApiException(400, "COMMON_VALIDATION_FAILED", "마감된 공고만 복사할 수 있습니다.", [
+        { field: "status", reason: "NOT_CLOSED" },
+      ]);
+    }
+
+    const copied = await this.repository.createPosting({
+      companyId,
+      title: buildCopyTitle(posting.title),
+      jobRole: posting.jobRole,
+      jobDescription: posting.jobDescription,
+      startsOn: null,
+      endsOn: null,
+      status: PostingStatus.DRAFT,
+    });
+    return toRecruitmentResponse(copied);
+  }
+
   async registerApplicant(user: CurrentUser, dto: CreateApplicantDto) {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(dto.recruitmentId, companyId);
@@ -178,10 +202,13 @@ export class CompanyRecruitingService {
 export function normalizeListQuery(query: ListQueryDto, defaultSort: string): NormalizedListQuery {
   const page = query.page ?? 1;
   const limit = Math.min(query.limit ?? 20, 100);
+  const q = query.q?.trim() || query.keyword?.trim() || undefined;
+  const status = parseOptionalPostingStatus(query.status);
   return {
     page,
     limit,
-    q: query.q?.trim() || undefined,
+    ...(q ? { q } : {}),
+    ...(status ? { status } : {}),
     sort: query.sort?.trim() || defaultSort,
     order: query.order ?? "desc",
     skip: (page - 1) * limit,
@@ -226,6 +253,23 @@ function parseScreeningDecision(value: UpdateScreeningStatusDto["screeningDecisi
     ]);
   }
   return value as ScreeningDecision;
+}
+
+function parseOptionalPostingStatus(value: string | undefined): PostingStatus | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (!["DRAFT", "OPEN", "CLOSING_SOON", "CLOSED", "ARCHIVED"].includes(value)) {
+    throw new ApiException(400, "COMMON_VALIDATION_FAILED", "허용되지 않은 공고 상태입니다.", [
+      { field: "status", reason: "INVALID_POSTING_STATUS" },
+    ]);
+  }
+  return value as PostingStatus;
+}
+
+function buildCopyTitle(title: string) {
+  const suffix = " (복사본)";
+  return `${title.slice(0, 200 - suffix.length)}${suffix}`;
 }
 
 function normalizeEmail(email: string) {

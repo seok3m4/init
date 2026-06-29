@@ -57,7 +57,7 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
 
   return (
     <main className="app-shell">
-      <CompanyNav active="dashboard" />
+      <CompanyNav active="evaluation" />
       <section className="app-page">
         <div className="page-head">
           <div>

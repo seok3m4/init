@@ -25,7 +25,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
 
   return (
     <main className="app-shell">
-      <CompanyNav active="recruitments" />
+      <CompanyNav active="postings" />
       <section className="app-page">
         <div className="page-head">
           <div>

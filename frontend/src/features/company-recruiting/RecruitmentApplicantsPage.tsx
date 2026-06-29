@@ -126,7 +126,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
 
   return (
     <main className="app-shell">
-      <CompanyNav active="dashboard" />
+      <CompanyNav active="applicants" />
       <section className="app-page">
         <div className="page-head">
           <div>

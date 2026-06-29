@@ -57,6 +57,16 @@ export class CompanyRecruitingController {
     return ok(request, data);
   }
 
+  @Post("recruitments/:recruitmentId/copy")
+  async copyRecruitment(
+    @Req() request: RequestLike,
+    @CurrentUserParam() currentUser: CurrentUser,
+    @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
+  ) {
+    const data = await this.companyRecruitingService.copyRecruitment(currentUser, recruitmentId);
+    return ok(request, data);
+  }
+
   @Get("recruitments/:recruitmentId/applicants")
   async listRecruitmentApplicants(
     @Req() request: RequestLike,

@@ -206,6 +206,104 @@ describe("CompanyRecruitingService", () => {
     ]);
   });
 
+  it("lists recruitments with keyword alias and posting status filter", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    await service.listRecruitments(companyUser, {
+      page: 1,
+      limit: 20,
+      keyword: "frontend",
+      status: "CLOSED",
+      sort: "status",
+      order: "desc",
+    });
+
+    assert.deepEqual(repository.calls.listPostings, [
+      7,
+      {
+        page: 1,
+        limit: 20,
+        q: "frontend",
+        status: "CLOSED",
+        sort: "status",
+        order: "desc",
+        skip: 0,
+        take: 20,
+      },
+    ]);
+  });
+
+  it("copies only the current company's closed recruitment as a draft", async () => {
+    const copyCalls: Record<string, unknown[]> = {};
+    const repository = createRepository({
+      async findPostingForCompany(postingId: number, companyId: number) {
+        copyCalls.findPostingForCompany = [postingId, companyId];
+        return {
+          postingId,
+          companyId,
+          title: "Closed Backend Hiring",
+          jobRole: "Backend",
+          jobDescription: "Closed JD",
+          startsOn: new Date("2026-06-01T00:00:00.000Z"),
+          endsOn: new Date("2026-06-15T00:00:00.000Z"),
+          status: "CLOSED",
+          createdAt: new Date("2026-06-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-15T00:00:00.000Z"),
+          applicantCount: 3,
+        };
+      },
+      async createPosting(input: unknown) {
+        copyCalls.createPosting = [input];
+        return {
+          postingId: 202,
+          companyId: 7,
+          title: "Closed Backend Hiring (복사본)",
+          jobRole: "Backend",
+          jobDescription: "Closed JD",
+          startsOn: null,
+          endsOn: null,
+          status: "DRAFT",
+          createdAt: new Date("2026-06-30T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-30T00:00:00.000Z"),
+          applicantCount: 0,
+        };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    const result = await service.copyRecruitment(companyUser, 101);
+
+    assert.equal(result.recruitmentId, 202);
+    assert.equal(result.status, "DRAFT");
+    assert.deepEqual(copyCalls.createPosting, [
+      {
+        companyId: 7,
+        title: "Closed Backend Hiring (복사본)",
+        jobRole: "Backend",
+        jobDescription: "Closed JD",
+        startsOn: null,
+        endsOn: null,
+        status: "DRAFT",
+      },
+    ]);
+  });
+
+  it("rejects copying recruitments that are not closed", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      service.copyRecruitment(companyUser, 101),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "COMMON_VALIDATION_FAILED",
+    );
+    assert.equal(repository.calls.createPosting, undefined);
+  });
+
   it("rejects duplicate applicant email within the same recruitment", async () => {
     const repository = createRepository({
       async findApplicationByPostingAndEmail() {

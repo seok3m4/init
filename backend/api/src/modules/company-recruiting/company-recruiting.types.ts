@@ -18,6 +18,7 @@ export type NormalizedListQuery = {
   page: number;
   limit: number;
   q?: string;
+  status?: string;
   sort: string;
   order: "asc" | "desc";
   skip: number;

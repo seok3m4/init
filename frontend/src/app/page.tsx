@@ -9,8 +9,8 @@ export default function HomePage() {
           <h1>기업 채용 흐름</h1>
           <p>공고 생성부터 지원자 등록까지 B 역할 최소 happy path를 확인합니다.</p>
         </div>
-        <Link className="btn primary" href="/company/recruitments">
-          공고 관리
+        <Link className="btn primary" href="/company/applications/postings">
+          공고 목록
         </Link>
       </section>
     </main>

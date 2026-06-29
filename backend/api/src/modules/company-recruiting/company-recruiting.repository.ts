@@ -251,6 +251,7 @@ function buildPostingWhere(companyId: number, query: NormalizedListQuery): Prism
   const q = query.q?.trim();
   return {
     companyId,
+    ...(query.status ? { status: query.status as PostingStatus } : {}),
     ...(q
       ? {
           OR: [

@@ -21,6 +21,14 @@ export class ListQueryDto {
 
   @IsOptional()
   @IsString()
+  keyword?: string;
+
+  @IsOptional()
+  @IsIn(["DRAFT", "OPEN", "CLOSING_SOON", "CLOSED", "ARCHIVED"])
+  status?: string;
+
+  @IsOptional()
+  @IsString()
   sort?: string;
 
   @IsOptional()

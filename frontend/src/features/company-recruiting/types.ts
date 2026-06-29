@@ -42,6 +42,8 @@ export type Recruitment = {
   updatedAt: string;
 };
 
+export type RecruitmentStatus = Recruitment["status"];
+
 export type CreateRecruitmentInput = {
   title: string;
   jobRole: string;
