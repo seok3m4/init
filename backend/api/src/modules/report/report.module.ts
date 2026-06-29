@@ -7,7 +7,7 @@ import { GuardrailService } from "./guardrail.service";
 import { InMemoryReportRepository } from "./in-memory-report.repository";
 import { MockAiReportProvider } from "./mock-ai-report.provider";
 import { PrismaReportRepository } from "./prisma-report.repository";
-import { PrismaService } from "./prisma.service";
+import { PrismaService } from "../../shared/prisma.service";
 import { REPORT_REPOSITORY } from "./report.repository";
 import { CandidateMockReportsController, ReportsController } from "./reports.controller";
 

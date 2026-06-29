@@ -1,6 +1,5 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Inject, Post } from "@nestjs/common";
 import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
-import { ok } from "../../common/response/api-response";
 import { GuardrailService } from "../report/guardrail.service";
 import { REPORT_REPOSITORY, ReportRepository } from "../report/report.repository";
 import { GuardrailValidationRequest, GuardrailValidationResult } from "../report/report.types";
@@ -55,7 +54,7 @@ export class AiGuardrailsController {
       await this.repository.markQueuedProcessCompleted(processLogId, JSON.stringify(result));
     }
 
-    return ok(result);
+    return result;
   }
 
   private validateBody(body: GuardrailValidationRequest): void {

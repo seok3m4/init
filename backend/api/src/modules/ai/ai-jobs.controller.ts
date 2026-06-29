@@ -13,7 +13,6 @@ import {
 } from "@nestjs/common";
 import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../../common/dev-auth/current-user";
-import { ok } from "../../common/response/api-response";
 import { AiJobDispatcherService } from "../report/ai-job-dispatcher.service";
 import { AiProcessNotFoundError, REPORT_REPOSITORY, ReportRepository } from "../report/report.repository";
 import { AiProcessType } from "../report/report.types";
@@ -38,13 +37,11 @@ export class CandidateAiJobsController {
     this.requireText(body.s3Key, "s3Key");
     this.forbidRawPayload(body, ["fileContent", "rawContent", "base64", "fileBytes"]);
 
-    return ok(
-      await this.dispatcher.dispatch({
-        processType: "DOCUMENT_EXTRACT",
-        input: this.input("DOCUMENT_EXTRACT", body, currentUser),
-        refs: { applicationId: Number(body.applicationId) }
-      })
-    );
+    return this.dispatcher.dispatch({
+      processType: "DOCUMENT_EXTRACT",
+      input: this.input("DOCUMENT_EXTRACT", body, currentUser),
+      refs: { applicationId: Number(body.applicationId) }
+    });
   }
 
   @Post("mock-interviews/:sessionId/stt")
@@ -81,12 +78,10 @@ export class CandidateAiJobsController {
     const currentUser = this.candidate(headers);
     this.requirePositive(body.questionCount, "questionCount");
 
-    return ok(
-      await this.dispatcher.dispatch({
-        processType: "QUESTION_GENERATE",
-        input: this.input("MOCK_QUESTION_GENERATE", body, currentUser)
-      })
-    );
+    return this.dispatcher.dispatch({
+      processType: "QUESTION_GENERATE",
+      input: this.input("MOCK_QUESTION_GENERATE", body, currentUser)
+    });
   }
 
   private async transcribe(kind: string, sessionIdParam: string, headers: HeaderMap, body: JobBody) {
@@ -97,13 +92,11 @@ export class CandidateAiJobsController {
     this.requireText(body.audioS3Key, "audioS3Key");
     this.forbidRawPayload(body, ["audioContent", "audioBase64", "fileContent", "rawContent", "base64", "fileBytes"]);
 
-    return ok(
-      await this.dispatcher.dispatch({
-        processType: "STT",
-        input: this.input(kind, { ...body, sessionId }, currentUser),
-        refs: { sessionId }
-      })
-    );
+    return this.dispatcher.dispatch({
+      processType: "STT",
+      input: this.input(kind, { ...body, sessionId }, currentUser),
+      refs: { sessionId }
+    });
   }
 
   private async followUp(kind: string, sessionIdParam: string, headers: HeaderMap, body: JobBody) {
@@ -116,13 +109,11 @@ export class CandidateAiJobsController {
       this.requireAnyText(body, ["jobDescription", "documentSummary"]);
     }
 
-    return ok(
-      await this.dispatcher.dispatch({
-        processType: "FOLLOW_UP",
-        input: this.input(kind, { ...body, sessionId }, currentUser),
-        refs: { sessionId }
-      })
-    );
+    return this.dispatcher.dispatch({
+      processType: "FOLLOW_UP",
+      input: this.input(kind, { ...body, sessionId }, currentUser),
+      refs: { sessionId }
+    });
   }
 
   private candidate(headers: HeaderMap): CurrentUser {
@@ -226,20 +217,18 @@ export class CompanyAiJobsController {
   private async dispatchCompanyJob(processType: AiProcessType, kind: string, headers: HeaderMap, body: JobBody) {
     const currentUser = this.company(headers);
 
-    return ok(
-      await this.dispatcher.dispatch({
-        processType,
-        input: {
-          kind,
-          requestedBy: {
-            userId: currentUser.userId,
-            userType: currentUser.userType,
-            companyId: currentUser.companyId
-          },
-          payload: body
-        }
-      })
-    );
+    return this.dispatcher.dispatch({
+      processType,
+      input: {
+        kind,
+        requestedBy: {
+          userId: currentUser.userId,
+          userType: currentUser.userType,
+          companyId: currentUser.companyId
+        },
+        payload: body
+      }
+    });
   }
 
   private company(headers: HeaderMap): CurrentUser {
@@ -287,7 +276,7 @@ export class AiJobsStatusController {
     const processLogId = this.parseId(processLogIdParam, "processLogId");
 
     try {
-      return ok(await this.repository.getProcess(processLogId));
+      return await this.repository.getProcess(processLogId);
     } catch (error) {
       if (error instanceof AiProcessNotFoundError) {
         throw new NotFoundException({

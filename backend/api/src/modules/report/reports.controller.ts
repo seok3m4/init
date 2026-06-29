@@ -1,7 +1,6 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
 import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../../common/dev-auth/current-user";
-import { ok } from "../../common/response/api-response";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
 import {
   AnswerEvaluationRequest,
@@ -39,7 +38,7 @@ export class ReportsController {
       input: this.reportStepInput("EVALUATION_CONTEXT", reportId, body, currentUser)
     });
 
-    return ok(result);
+    return result;
   }
 
   @Post(":reportId/answer-evaluation")
@@ -60,7 +59,7 @@ export class ReportsController {
       input: this.reportStepInput("ANSWER_EVALUATION", reportId, body, currentUser)
     });
 
-    return ok(result);
+    return result;
   }
 
   @Post(":reportId/communication-analysis")
@@ -81,7 +80,7 @@ export class ReportsController {
       input: this.reportStepInput("COMMUNICATION_ANALYSIS", reportId, body, currentUser)
     });
 
-    return ok(result);
+    return result;
   }
 
   @Post(":reportId/generate")
@@ -110,7 +109,7 @@ export class ReportsController {
       input: this.reportInput("RECRUITING_REPORT_GENERATE", reportId, body, currentUser)
     });
 
-    return ok(result);
+    return result;
   }
 
   private reportInput(kind: string, reportId: number, body: GenerateReportRequest, currentUser: CurrentUser) {
@@ -272,7 +271,7 @@ export class CandidateMockReportsController {
       input: this.reportInput("MOCK_REPORT_GENERATE", reportId, body, currentUser)
     });
 
-    return ok(result);
+    return result;
   }
 
   private reportInput(kind: string, reportId: number, body: GenerateReportRequest, currentUser: CurrentUser) {

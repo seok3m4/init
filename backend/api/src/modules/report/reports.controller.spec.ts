@@ -2,6 +2,9 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../../app.module";
+import { ApiExceptionFilter } from "../../shared/api-exception.filter";
+import { ApiResponseInterceptor } from "../../shared/api-response.interceptor";
+import { PrismaService } from "../../shared/prisma.service";
 import { InMemoryReportRepository } from "./in-memory-report.repository";
 
 describe("ReportsController", () => {
@@ -11,10 +14,15 @@ describe("ReportsController", () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule]
-    }).compile();
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
 
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix("api/v1");
+    app.useGlobalFilters(new ApiExceptionFilter());
+    app.useGlobalInterceptors(new ApiResponseInterceptor());
     await app.init();
     repository = app.get(InMemoryReportRepository);
   });

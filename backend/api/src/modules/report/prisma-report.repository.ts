@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { parseAiJobOutput } from "./ai-job-output";
-import { PrismaService } from "./prisma.service";
+import { PrismaService } from "../../shared/prisma.service";
 import { AiProcessNotFoundError, ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
