@@ -8,6 +8,7 @@ on:
       - "feature/**"
   pull_request:
     branches:
+      - main
       - dev
 
 jobs:
