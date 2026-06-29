@@ -1,9 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { isUserType, type CurrentUser } from "@init/common";
-import { ApiException } from "../../shared/api-exception";
-import { AuthService } from "./auth.service";
-import { JwtAuthGuard } from "./jwt-auth.guard";
+import { ApiException } from "../../../shared/api-exception";
+import { AuthService } from "../service/auth.service";
+import { JwtAuthGuard } from "../jwt-auth.guard";
 
 @Controller("auth")
 export class AuthController {
