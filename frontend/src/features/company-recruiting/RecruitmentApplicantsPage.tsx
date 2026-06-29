@@ -40,13 +40,16 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   const [items, setItems] = useState<Applicant[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
   const [invitation, setInvitation] = useState<InvitationState>(initialInvitation);
+  const [invitedApplicants, setInvitedApplicants] = useState<Record<number, string>>({});
   const [q, setQ] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async (search: string) => {
+  const load = useCallback(async (search: string, options: { clearMessage?: boolean } = {}) => {
     setLoading(true);
-    setMessage("");
+    if (options.clearMessage !== false) {
+      setMessage("");
+    }
     try {
       const [detail, applicants] = await Promise.all([
         getRecruitment(recruitmentId),
@@ -84,7 +87,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
       });
       setForm({ ...initialForm, jobRole: recruitment?.jobRole ?? "" });
       setMessage("지원자가 등록되었습니다.");
-      await load("");
+      await load("", { clearMessage: false });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "지원자 등록에 실패했습니다.");
     } finally {
@@ -97,18 +100,23 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     setLoading(true);
     setMessage("");
     try {
+      const applicantId = Number(invitation.applicantId);
       const result = await inviteApplicant({
-        applicantId: Number(invitation.applicantId),
+        applicantId,
         availableFrom: invitation.availableFrom,
         availableUntil: invitation.availableUntil,
         message: invitation.message,
       });
+      setInvitedApplicants((current) => ({
+        ...current,
+        [applicantId]: result.data.temporary ? "REQUESTED (임시)" : result.data.deliveryStatus,
+      }));
       setMessage(
         result.data.temporary
-          ? "초대 요청이 임시 adapter에 기록되었고 면접 세션 연결 요청 상태로 표시됩니다."
+          ? "초대 요청이 임시 adapter에 기록되었습니다. 실제 이메일 발송과 면접 세션 생성은 연결 전입니다."
           : "초대 요청이 처리되었습니다.",
       );
-      await load(q);
+      await load(q, { clearMessage: false });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "초대 요청에 실패했습니다.");
     } finally {
@@ -256,6 +264,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
                     <th>직무</th>
                     <th>지원 상태</th>
                     <th>면접</th>
+                    <th>초대</th>
                     <th>리포트</th>
                     <th>전형</th>
                     <th>상세</th>
@@ -273,6 +282,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
                         <StatusBadge value={item.applicationStatus} />
                       </td>
                       <td>{item.interviewStatus}</td>
+                      <td>{invitedApplicants[item.applicationId] ?? "미요청"}</td>
                       <td>{item.report ? `${item.report.status} · ${item.report.totalScore ?? "점수 없음"}` : "없음/생성중"}</td>
                       <td>{item.screeningDecision}</td>
                       <td>

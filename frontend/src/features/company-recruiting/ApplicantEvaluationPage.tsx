@@ -16,9 +16,11 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options: { clearMessage?: boolean } = {}) => {
     setLoading(true);
-    setMessage("");
+    if (options.clearMessage !== false) {
+      setMessage("");
+    }
     try {
       const result = await getApplicantEvaluation(applicantId);
       setEvaluation(result.data);
@@ -45,7 +47,7 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
         screeningMemo: memo || undefined,
       });
       setMessage("전형 상태와 메모가 저장되었습니다.");
-      await load();
+      await load({ clearMessage: false });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "전형 상태 저장에 실패했습니다.");
     } finally {
