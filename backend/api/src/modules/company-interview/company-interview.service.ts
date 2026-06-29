@@ -12,10 +12,6 @@ import {
 import {
   CreateInterviewQuestionDto,
   CreateInterviewQuestionResponseDto,
-  CreateQuestionSetDto,
-  GenerateInterviewQuestionsDto,
-  QuestionGenerationProcessResponseDto,
-  QuestionSetResponseDto,
 } from './dto/question-management.dto';
 import {
   UpdateInterviewTimePolicyDto,
@@ -169,73 +165,6 @@ export class CompanyInterviewService {
     };
   }
 
-  async generateQuestions(
-    currentUser: CurrentUser,
-    dto: GenerateInterviewQuestionsDto,
-  ): Promise<QuestionGenerationProcessResponseDto> {
-    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
-    const criteria = await this.repository.listCriteria(posting.postingId);
-
-    if (criteria.length === 0) {
-      validationFailed('질문 생성을 위한 평가 기준이 필요합니다.', [
-        { field: 'criteria', reason: 'EMPTY' },
-      ]);
-    }
-
-    for (const criterionId of dto.criterionIds ?? []) {
-      await this.findPostingCriterion(posting.postingId, criterionId);
-    }
-
-    return this.repository.createPendingProcessLog({
-      postingId: posting.postingId,
-      inputRef: JSON.stringify({
-        postingId: dto.postingId,
-        criterionIds: dto.criterionIds,
-        questionTypes: dto.questionTypes,
-        requestedCount: dto.requestedCount,
-        jdText: dto.jdText,
-      }),
-    });
-  }
-
-  async createQuestionSet(
-    currentUser: CurrentUser,
-    dto: CreateQuestionSetDto,
-  ): Promise<QuestionSetResponseDto> {
-    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
-    const criteria = await this.repository.listCriteria(posting.postingId);
-
-    if (criteria.length === 0) {
-      validationFailed('질문 세트 구성을 위한 평가 기준이 필요합니다.', [
-        { field: 'criteria', reason: 'EMPTY' },
-      ]);
-    }
-
-    const availableQuestions = await this.resolveQuestionSetCandidates(
-      posting.postingId,
-      dto,
-    );
-
-    if (availableQuestions.length < dto.questionCount) {
-      validationFailed('요청한 질문 수보다 사용 가능한 질문이 부족합니다.', [
-        { field: 'questionCount', reason: 'NOT_ENOUGH_QUESTIONS' },
-      ]);
-    }
-
-    const selectedQuestionIds = availableQuestions
-      .slice(0, dto.questionCount)
-      .map((question) => question.questionId);
-
-    return {
-      postingId: posting.postingId,
-      questionSet: {
-        questionIds: selectedQuestionIds,
-        questionCount: selectedQuestionIds.length,
-        readyForSession: selectedQuestionIds.length === dto.questionCount,
-      },
-    };
-  }
-
   async updateTimePolicy(
     currentUser: CurrentUser,
     dto: UpdateInterviewTimePolicyDto,
@@ -314,37 +243,6 @@ export class CompanyInterviewService {
     }
 
     return criterion;
-  }
-
-  private async resolveQuestionSetCandidates(
-    postingId: number,
-    dto: CreateQuestionSetDto,
-  ): Promise<QuestionRecord[]> {
-    if (dto.questionIds !== undefined) {
-      const questions: QuestionRecord[] = [];
-      for (const questionId of dto.questionIds) {
-        const question = await this.repository.findQuestion(questionId);
-
-        if (
-          !question ||
-          question.postingId !== postingId ||
-          question.isActive !== true
-        ) {
-          notFound('질문을 찾을 수 없습니다.');
-        }
-
-        questions.push(question);
-      }
-      return questions;
-    }
-
-    return (await this.repository.listQuestions(postingId))
-      .filter((question) => question.isActive)
-      .filter(
-        (question) =>
-          dto.questionTypes === undefined ||
-          dto.questionTypes.includes(question.questionType),
-      );
   }
 
   private async mapCriteria(criteria: EvaluationCriterionRecord[]) {

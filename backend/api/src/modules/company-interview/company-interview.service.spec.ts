@@ -93,29 +93,6 @@ describe('CompanyInterviewService', () => {
     );
   });
 
-  it('returns pending process status for question generation', async () => {
-    const result = await createService().generateQuestions(companyUser, {
-      postingId: 1,
-      criterionIds: [1, 2],
-      questionTypes: ['TECHNICAL'],
-      requestedCount: 3,
-    });
-
-    assert.equal(result.status, 'PENDING');
-  });
-
-  it('creates a question set from active posting questions', async () => {
-    const questionSet = await createService().createQuestionSet(companyUser, {
-      postingId: 1,
-      questionTypes: ['TECHNICAL'],
-      questionCount: 2,
-    });
-
-    assert.equal(questionSet.postingId, 1);
-    assert.equal(questionSet.questionSet.questionCount, 2);
-    assert.equal(questionSet.questionSet.readyForSession, true);
-  });
-
   it('updates the interview time policy and validates runtime bounds', async () => {
     const service = createService();
     const result = await service.updateTimePolicy(companyUser, {

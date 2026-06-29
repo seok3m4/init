@@ -21,8 +21,6 @@ import {
 } from './dto/evaluation-criterion.dto';
 import {
   CreateInterviewQuestionDto,
-  CreateQuestionSetDto,
-  GenerateInterviewQuestionsDto,
 } from './dto/question-management.dto';
 import { UpdateInterviewTimePolicyDto } from './dto/time-policy.dto';
 
@@ -73,26 +71,6 @@ export class CompanyInterviewController {
     @Body() body: CreateInterviewQuestionDto,
   ) {
     const data = await this.service.createQuestion(request.currentUser, body);
-    return ok(request, data);
-  }
-
-  @Post('questions/generate')
-  @HttpCode(HttpStatus.ACCEPTED)
-  async generateQuestions(
-    @Req() request: CompanyRequest,
-    @Body() body: GenerateInterviewQuestionsDto,
-  ) {
-    const data = await this.service.generateQuestions(request.currentUser, body);
-    return ok(request, data);
-  }
-
-  @Post('question-sets')
-  @HttpCode(HttpStatus.ACCEPTED)
-  async createQuestionSet(
-    @Req() request: CompanyRequest,
-    @Body() body: CreateQuestionSetDto,
-  ) {
-    const data = await this.service.createQuestionSet(request.currentUser, body);
     return ok(request, data);
   }
 
