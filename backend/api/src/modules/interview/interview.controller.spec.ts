@@ -15,6 +15,7 @@ import { InterviewService } from "./interview.service";
 
 type InterviewControllerRoute =
   | "startMockInterview"
+  | "listMockInterviewHistory"
   | "getMockRuntime"
   | "listMockQuestions"
   | "saveMockAnswer"
@@ -55,6 +56,7 @@ function assertRoute(
 
 assert.equal(Reflect.getMetadata(PATH_METADATA, InterviewController), interviewApiRoutePrefix);
 assertRoute("startMockInterview", interviewApiRoutes.mockInterviews, RequestMethod.POST);
+assertRoute("listMockInterviewHistory", interviewApiRoutes.mockHistory, RequestMethod.GET);
 assertRoute("getMockRuntime", interviewApiRoutes.mockRuntime, RequestMethod.GET);
 assertRoute("listMockQuestions", interviewApiRoutes.mockQuestions, RequestMethod.GET);
 assertRoute("saveMockAnswer", interviewApiRoutes.mockAnswers, RequestMethod.POST, 201);
@@ -171,6 +173,10 @@ async function runControllerRuntimeAssertions() {
   const completedMock = await controller.completeMockInterview(validCandidateHeaders, String(mockStarted.data.sessionId));
   assert.equal(completedMock.data.status, "COMPLETED");
   assert.equal(completedMock.data.answeredCount, 2);
+
+  const mockHistory = await controller.listMockInterviewHistory(validCandidateHeaders);
+  assert.equal(mockHistory.data.items[0]?.sessionId, mockStarted.data.sessionId);
+  assert.equal(mockHistory.data.items[0]?.reportStatus, "COMPLETED");
 
   await assertInterviewHttpError(
     () => controller.getMockRuntime(validCandidateHeaders, String(mockStarted.data.sessionId)),

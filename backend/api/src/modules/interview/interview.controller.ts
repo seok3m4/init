@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Patch, Post } from "@nestjs/common";
 import { CandidateDomainError, createCandidateErrorResponse, type CandidateAuthHeaders } from "../candidate";
 import { DeviceCheckDto } from "./interview.device-check.dto";
 import { AiInterviewRequestDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "./interview.runtime.dto";
@@ -7,11 +7,16 @@ import { InterviewService } from "./interview.service";
 
 @Controller(interviewApiRoutePrefix)
 export class InterviewController {
-  constructor(private readonly interviewService: InterviewService) {}
+  constructor(@Inject(InterviewService) private readonly interviewService: InterviewService) {}
 
   @Post(interviewApiRoutes.mockInterviews)
   startMockInterview(@Headers() headers: CandidateAuthHeaders, @Body() dto: StartMockInterviewDto) {
     return this.handle(() => this.interviewService.startMockInterview(dto, headers));
+  }
+
+  @Get(interviewApiRoutes.mockHistory)
+  listMockInterviewHistory(@Headers() headers: CandidateAuthHeaders) {
+    return this.handle(() => this.interviewService.listMockInterviewHistory(headers));
   }
 
   @Get(interviewApiRoutes.mockRuntime)

@@ -3,6 +3,7 @@ import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes"
 
 assert.equal(interviewApiRoutePrefix, "api/v1/candidate");
 assert.equal(interviewApiRoutes.mockInterviews, "mock-interviews");
+assert.equal(interviewApiRoutes.mockHistory, "mock-interviews/history");
 assert.equal(interviewApiRoutes.mockRuntime, "mock-interviews/:sessionId");
 assert.equal(interviewApiRoutes.mockQuestions, "mock-interviews/:sessionId/questions");
 assert.equal(interviewApiRoutes.mockAnswers, "mock-interviews/:sessionId/answers");

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import {
   CandidateDomainError,
   CandidateService,
@@ -26,8 +26,8 @@ export class ReportService {
   private readonly mockReportStatuses = new Map<number, ReportStatus>();
 
   constructor(
-    private readonly candidateService: CandidateService,
-    private readonly interviewService: InterviewService,
+    @Inject(CandidateService) private readonly candidateService: CandidateService,
+    @Inject(InterviewService) private readonly interviewService: InterviewService,
   ) {}
 
   listMockReports(currentUser: CurrentCandidateUser): ApiListResponse<CandidateMockReportSummary> {

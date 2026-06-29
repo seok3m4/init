@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, HttpCode, HttpException, Param, Post } from "@nestjs/common";
+import { Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Post } from "@nestjs/common";
 import {
   CandidateDomainError,
   createCandidateErrorResponse,
@@ -10,7 +10,7 @@ import { ReportService } from "./report.service";
 
 @Controller(reportApiRoutePrefix)
 export class ReportController {
-  constructor(private readonly reportService: ReportService) {}
+  constructor(@Inject(ReportService) private readonly reportService: ReportService) {}
 
   @Get(reportApiRoutes.mockReports)
   listMockReports(@Headers() headers: CandidateAuthHeaders) {

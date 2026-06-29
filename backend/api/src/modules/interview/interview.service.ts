@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import {
   CandidateDomainError,
   CandidateService,
@@ -139,7 +139,7 @@ export class InterviewService {
   private readonly recruitingSessions = new Map<number, RuntimeInterviewSession>();
   private readonly answers: InterviewAnswer[] = [];
 
-  constructor(private readonly candidateService: CandidateService) {}
+  constructor(@Inject(CandidateService) private readonly candidateService: CandidateService) {}
 
   listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): RuntimeInterviewSession[] {
     return [...this.mockSessions.values()]
@@ -212,6 +212,37 @@ export class InterviewService {
       ...this.toRuntimeView(session, "mock"),
       startedAt: now,
     });
+  }
+
+  async listMockInterviewHistory(headers: CandidateAuthHeaders) {
+    const currentUser = resolveCurrentCandidate(headers);
+    const items = this.listOwnedMockInterviewSessions(currentUser).map((session) => ({
+      sessionId: session.sessionId,
+      reportId: session.sessionId,
+      interviewType: "MOCK" as const,
+      status: session.status,
+      reportStatus: session.status === "COMPLETED" ? ("COMPLETED" as const) : ("PENDING" as const),
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+      updatedAt: session.updatedAt,
+      totalQuestions: session.questionIds.length,
+      answeredCount: this.countAnswers(session.sessionId),
+    }));
+
+    return {
+      data: { items },
+      meta: {
+        traceId: "local-candidate-module",
+        timestamp: new Date().toISOString(),
+        page: {
+          page: 1,
+          limit: Math.max(items.length, 1),
+          totalItems: items.length,
+          totalPages: items.length > 0 ? 1 : 0,
+          hasNext: false,
+        },
+      },
+    };
   }
 
   async getMockRuntime(sessionId: number, headers: CandidateAuthHeaders) {

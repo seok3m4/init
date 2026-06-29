@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, HttpException, Inject, Param, Post, Query } from "@nestjs/common";
 import { resolveCurrentCandidate, type CandidateAuthHeaders } from "./candidate.auth";
 import { CandidateService, CandidateDomainError } from "./candidate.service";
 import { CandidateJobListQueryDto } from "./dto/candidate-job-list-query.dto";
@@ -11,7 +11,7 @@ import { createCandidateErrorResponse } from "./candidate.errors";
 
 @Controller(candidateApiRoutePrefix)
 export class CandidateController {
-  constructor(private readonly candidateService: CandidateService) {}
+  constructor(@Inject(CandidateService) private readonly candidateService: CandidateService) {}
 
   @Get(candidateApiRoutes.jobs)
   listJobs(@Headers() headers: CandidateAuthHeaders, @Query() query: CandidateJobListQueryDto) {
