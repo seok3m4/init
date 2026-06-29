@@ -10,6 +10,7 @@ import {
   CompanyInterviewRepository,
   CreateQuestionInput,
   UpdateCriterionInput,
+  UpdateTimePolicyInput,
 } from './company-interview.repository';
 
 @Injectable()
@@ -114,7 +115,7 @@ export class InMemoryCompanyInterviewRepository
     },
   ];
 
-  private readonly timePolicies: TimePolicyRecord[] = [
+  private timePolicies: TimePolicyRecord[] = [
     {
       postingId: 1,
       preparationTimeSec: 60,
@@ -226,6 +227,25 @@ export class InMemoryCompanyInterviewRepository
 
     this.questions = [...this.questions, question];
     return question;
+  }
+
+  async updateTimePolicy(
+    postingId: number,
+    input: UpdateTimePolicyInput,
+  ): Promise<TimePolicyRecord> {
+    const timePolicy: TimePolicyRecord = {
+      postingId,
+      preparationTimeSec: input.preparationTimeSec,
+      answerTimeSec: input.answerTimeSec,
+      retryAllowed: input.retryAllowed,
+    };
+
+    this.timePolicies = [
+      ...this.timePolicies.filter((policy) => policy.postingId !== postingId),
+      timePolicy,
+    ];
+
+    return timePolicy;
   }
 
   async createPendingProcessLog(): Promise<{ processLogId: number; status: 'PENDING' }> {

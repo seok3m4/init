@@ -32,6 +32,12 @@ export type CreateQuestionInput = {
   content: string;
 };
 
+export type UpdateTimePolicyInput = {
+  preparationTimeSec: number;
+  answerTimeSec: number;
+  retryAllowed: boolean;
+};
+
 export interface CompanyInterviewRepository {
   findPosting(postingId: number): Promise<PostingRecord | undefined>;
   findDefaultPosting(companyId: number): Promise<PostingRecord | undefined>;
@@ -50,6 +56,10 @@ export interface CompanyInterviewRepository {
     criteria: UpdateCriterionInput[],
   ): Promise<EvaluationCriterionRecord[]>;
   createQuestion(input: CreateQuestionInput): Promise<QuestionRecord>;
+  updateTimePolicy(
+    postingId: number,
+    input: UpdateTimePolicyInput,
+  ): Promise<TimePolicyRecord>;
   createPendingProcessLog(input?: {
     postingId?: number;
     inputRef?: string;

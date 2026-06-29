@@ -10,6 +10,7 @@ import {
 } from '../company-interview.types';
 import {
   CompanyInterviewRepository,
+  UpdateTimePolicyInput,
   PendingProcessLog,
   UpdateCriterionInput,
 } from './company-interview.repository';
@@ -166,6 +167,18 @@ export class PrismaCompanyInterviewRepository
       },
     });
     return mapQuestion(question);
+  }
+
+  async updateTimePolicy(
+    postingId: number,
+    input: UpdateTimePolicyInput,
+  ): Promise<TimePolicyRecord> {
+    return {
+      postingId,
+      preparationTimeSec: input.preparationTimeSec,
+      answerTimeSec: input.answerTimeSec,
+      retryAllowed: input.retryAllowed,
+    };
   }
 
   async createPendingProcessLog(input?: {

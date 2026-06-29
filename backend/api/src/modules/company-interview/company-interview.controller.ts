@@ -24,6 +24,7 @@ import {
   CreateQuestionSetDto,
   GenerateInterviewQuestionsDto,
 } from './dto/question-management.dto';
+import { UpdateInterviewTimePolicyDto } from './dto/time-policy.dto';
 
 type CompanyRequest = RequestLike & { currentUser: CurrentUser };
 
@@ -92,6 +93,15 @@ export class CompanyInterviewController {
     @Body() body: CreateQuestionSetDto,
   ) {
     const data = await this.service.createQuestionSet(request.currentUser, body);
+    return ok(request, data);
+  }
+
+  @Patch('time-policy')
+  async updateTimePolicy(
+    @Req() request: CompanyRequest,
+    @Body() body: UpdateInterviewTimePolicyDto,
+  ) {
+    const data = await this.service.updateTimePolicy(request.currentUser, body);
     return ok(request, data);
   }
 }

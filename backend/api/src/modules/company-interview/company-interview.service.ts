@@ -18,6 +18,10 @@ import {
   QuestionSetResponseDto,
 } from './dto/question-management.dto';
 import {
+  UpdateInterviewTimePolicyDto,
+  UpdateInterviewTimePolicyResponseDto,
+} from './dto/time-policy.dto';
+import {
   conflict,
   forbidden,
   notFound,
@@ -228,6 +232,34 @@ export class CompanyInterviewService {
         questionIds: selectedQuestionIds,
         questionCount: selectedQuestionIds.length,
         readyForSession: selectedQuestionIds.length === dto.questionCount,
+      },
+    };
+  }
+
+  async updateTimePolicy(
+    currentUser: CurrentUser,
+    dto: UpdateInterviewTimePolicyDto,
+  ): Promise<UpdateInterviewTimePolicyResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+
+    if (dto.answerTimeSec <= dto.preparationTimeSec) {
+      validationFailed('답변 시간은 준비 시간보다 길어야 합니다.', [
+        { field: 'answerTimeSec', reason: 'MUST_BE_GREATER_THAN_PREPARATION' },
+      ]);
+    }
+
+    const timePolicy = await this.repository.updateTimePolicy(posting.postingId, {
+      preparationTimeSec: dto.preparationTimeSec,
+      answerTimeSec: dto.answerTimeSec,
+      retryAllowed: dto.retryAllowed,
+    });
+
+    return {
+      postingId: posting.postingId,
+      timePolicy: {
+        preparationTimeSec: timePolicy.preparationTimeSec,
+        answerTimeSec: timePolicy.answerTimeSec,
+        retryAllowed: timePolicy.retryAllowed,
       },
     };
   }
