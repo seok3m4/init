@@ -28,6 +28,10 @@ export function notFound(message = '리소스를 찾을 수 없습니다.'): nev
   apiError(ERROR_CODES.COMMON_NOT_FOUND, message, HttpStatus.NOT_FOUND);
 }
 
+export function conflict(message = '이미 존재하는 리소스입니다.'): never {
+  apiError(ERROR_CODES.COMMON_CONFLICT, message, HttpStatus.CONFLICT);
+}
+
 export function validationFailed(
   message = '입력값을 확인해주세요.',
   details: ErrorDetail[] = [],

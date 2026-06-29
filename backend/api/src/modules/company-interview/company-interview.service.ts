@@ -9,8 +9,24 @@ import {
   InterviewSettingsQueryDto,
   InterviewSettingsResponseDto,
 } from './dto/interview-settings.dto';
-import { forbidden, notFound, validationFailed } from './company-interview.errors';
-import { EvaluationCriterionRecord } from './company-interview.types';
+import {
+  CreateInterviewQuestionDto,
+  CreateInterviewQuestionResponseDto,
+  CreateQuestionSetDto,
+  GenerateInterviewQuestionsDto,
+  QuestionGenerationProcessResponseDto,
+  QuestionSetResponseDto,
+} from './dto/question-management.dto';
+import {
+  conflict,
+  forbidden,
+  notFound,
+  validationFailed,
+} from './company-interview.errors';
+import {
+  EvaluationCriterionRecord,
+  QuestionRecord,
+} from './company-interview.types';
 import {
   COMPANY_INTERVIEW_REPOSITORY,
   CompanyInterviewRepository,
@@ -121,6 +137,101 @@ export class CompanyInterviewService {
     };
   }
 
+  async createQuestion(
+    currentUser: CurrentUser,
+    dto: CreateInterviewQuestionDto,
+  ): Promise<CreateInterviewQuestionResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const criterion = await this.findPostingCriterion(
+      posting.postingId,
+      dto.criterionId,
+    );
+
+    if (await this.repository.findDuplicateQuestion(posting.postingId, dto.content)) {
+      conflict('이미 등록된 질문입니다.');
+    }
+
+    const question = await this.repository.createQuestion({
+      companyId: posting.companyId,
+      postingId: posting.postingId,
+      criterionId: criterion.criterionId,
+      questionType: dto.questionType,
+      content: dto.content,
+    });
+
+    return {
+      postingId: posting.postingId,
+      question: this.mapQuestion(question),
+    };
+  }
+
+  async generateQuestions(
+    currentUser: CurrentUser,
+    dto: GenerateInterviewQuestionsDto,
+  ): Promise<QuestionGenerationProcessResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const criteria = await this.repository.listCriteria(posting.postingId);
+
+    if (criteria.length === 0) {
+      validationFailed('질문 생성을 위한 평가 기준이 필요합니다.', [
+        { field: 'criteria', reason: 'EMPTY' },
+      ]);
+    }
+
+    for (const criterionId of dto.criterionIds ?? []) {
+      await this.findPostingCriterion(posting.postingId, criterionId);
+    }
+
+    return this.repository.createPendingProcessLog({
+      postingId: posting.postingId,
+      inputRef: JSON.stringify({
+        postingId: dto.postingId,
+        criterionIds: dto.criterionIds,
+        questionTypes: dto.questionTypes,
+        requestedCount: dto.requestedCount,
+        jdText: dto.jdText,
+      }),
+    });
+  }
+
+  async createQuestionSet(
+    currentUser: CurrentUser,
+    dto: CreateQuestionSetDto,
+  ): Promise<QuestionSetResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const criteria = await this.repository.listCriteria(posting.postingId);
+
+    if (criteria.length === 0) {
+      validationFailed('질문 세트 구성을 위한 평가 기준이 필요합니다.', [
+        { field: 'criteria', reason: 'EMPTY' },
+      ]);
+    }
+
+    const availableQuestions = await this.resolveQuestionSetCandidates(
+      posting.postingId,
+      dto,
+    );
+
+    if (availableQuestions.length < dto.questionCount) {
+      validationFailed('요청한 질문 수보다 사용 가능한 질문이 부족합니다.', [
+        { field: 'questionCount', reason: 'NOT_ENOUGH_QUESTIONS' },
+      ]);
+    }
+
+    const selectedQuestionIds = availableQuestions
+      .slice(0, dto.questionCount)
+      .map((question) => question.questionId);
+
+    return {
+      postingId: posting.postingId,
+      questionSet: {
+        questionIds: selectedQuestionIds,
+        questionCount: selectedQuestionIds.length,
+        readyForSession: selectedQuestionIds.length === dto.questionCount,
+      },
+    };
+  }
+
   private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
     this.assertCompanyUser(currentUser);
 
@@ -146,6 +257,62 @@ export class CompanyInterviewService {
     if (currentUser.userType !== 'COMPANY' || currentUser.companyId === null) {
       forbidden('기업 사용자만 접근할 수 있습니다.');
     }
+  }
+
+  private async findCriterion(criterionId: number): Promise<EvaluationCriterionRecord> {
+    const criterion = await this.repository.findCriterion(criterionId);
+
+    if (!criterion) {
+      notFound('평가 기준을 찾을 수 없습니다.');
+    }
+
+    return criterion;
+  }
+
+  private async findPostingCriterion(
+    postingId: number,
+    criterionId: number,
+  ): Promise<EvaluationCriterionRecord> {
+    const criterion = await this.findCriterion(criterionId);
+
+    if (criterion.postingId !== postingId) {
+      validationFailed('공고에 연결된 평가 기준을 선택해주세요.', [
+        { field: 'criterionId', reason: 'POSTING_MISMATCH' },
+      ]);
+    }
+
+    return criterion;
+  }
+
+  private async resolveQuestionSetCandidates(
+    postingId: number,
+    dto: CreateQuestionSetDto,
+  ): Promise<QuestionRecord[]> {
+    if (dto.questionIds !== undefined) {
+      const questions: QuestionRecord[] = [];
+      for (const questionId of dto.questionIds) {
+        const question = await this.repository.findQuestion(questionId);
+
+        if (
+          !question ||
+          question.postingId !== postingId ||
+          question.isActive !== true
+        ) {
+          notFound('질문을 찾을 수 없습니다.');
+        }
+
+        questions.push(question);
+      }
+      return questions;
+    }
+
+    return (await this.repository.listQuestions(postingId))
+      .filter((question) => question.isActive)
+      .filter(
+        (question) =>
+          dto.questionTypes === undefined ||
+          dto.questionTypes.includes(question.questionType),
+      );
   }
 
   private async mapCriteria(criteria: EvaluationCriterionRecord[]) {
@@ -176,6 +343,17 @@ export class CompanyInterviewService {
       preparationTimeSec: timePolicy.preparationTimeSec,
       answerTimeSec: timePolicy.answerTimeSec,
       retryAllowed: timePolicy.retryAllowed,
+    };
+  }
+
+  private mapQuestion(question: QuestionRecord) {
+    return {
+      questionId: question.questionId,
+      postingId: question.postingId,
+      criterionId: question.criterionId,
+      questionType: question.questionType,
+      content: question.content,
+      isActive: question.isActive,
     };
   }
 }

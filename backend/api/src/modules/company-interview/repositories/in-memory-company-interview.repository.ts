@@ -4,11 +4,11 @@ import {
   EvaluationCriterionRecord,
   PostingRecord,
   QuestionRecord,
-  QuestionType,
   TimePolicyRecord,
 } from '../company-interview.types';
 import {
   CompanyInterviewRepository,
+  CreateQuestionInput,
   UpdateCriterionInput,
 } from './company-interview.repository';
 
@@ -124,6 +124,7 @@ export class InMemoryCompanyInterviewRepository
   ];
 
   private nextCriterionId = 4;
+  private nextQuestionId = 4;
   private nextProcessLogId = 1_000;
 
   async findPosting(postingId: number): Promise<PostingRecord | undefined> {
@@ -152,6 +153,24 @@ export class InMemoryCompanyInterviewRepository
     return this.questions
       .filter((question) => question.postingId === postingId)
       .sort((a, b) => a.questionId - b.questionId);
+  }
+
+  async findQuestion(questionId: number): Promise<QuestionRecord | undefined> {
+    return this.questions.find((question) => question.questionId === questionId);
+  }
+
+  async findDuplicateQuestion(
+    postingId: number,
+    content: string,
+  ): Promise<QuestionRecord | undefined> {
+    const normalized = content.trim().replace(/\s+/g, ' ').toLowerCase();
+    return this.questions.find(
+      (question) =>
+        question.postingId === postingId &&
+        question.isActive &&
+        question.content.trim().replace(/\s+/g, ' ').toLowerCase() ===
+          normalized,
+    );
   }
 
   async findTag(tagId: number): Promise<CriterionTagRecord | undefined> {
@@ -192,6 +211,21 @@ export class InMemoryCompanyInterviewRepository
     ];
 
     return this.listCriteria(postingId);
+  }
+
+  async createQuestion(input: CreateQuestionInput): Promise<QuestionRecord> {
+    const question: QuestionRecord = {
+      questionId: this.nextQuestionId++,
+      companyId: input.companyId,
+      postingId: input.postingId,
+      criterionId: input.criterionId,
+      questionType: input.questionType,
+      content: input.content.trim(),
+      isActive: true,
+    };
+
+    this.questions = [...this.questions, question];
+    return question;
   }
 
   async createPendingProcessLog(): Promise<{ processLogId: number; status: 'PENDING' }> {
