@@ -16,7 +16,14 @@ async function bootstrap() {
   app.enableCors({
     origin: frontendOrigin,
     credentials: true,
-    allowedHeaders: ["Authorization", "Content-Type", "X-Dev-User-Id", "X-Dev-User-Type", "X-Dev-Company-Id", "X-Dev-Candidate-Id"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "X-Dev-User-Id",
+      "X-Dev-User-Type",
+      "X-Dev-Company-Id",
+      "X-Dev-Candidate-Id",
+    ],
   });
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalInterceptors(new ApiResponseInterceptor());

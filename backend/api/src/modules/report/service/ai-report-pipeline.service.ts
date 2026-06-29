@@ -20,8 +20,8 @@ import {
 @Injectable()
 export class AiReportPipelineService {
   constructor(
-    private readonly mockProvider: MockAiReportProvider,
-    private readonly guardrailService: GuardrailService,
+    @Inject(MockAiReportProvider) private readonly mockProvider: MockAiReportProvider,
+    @Inject(GuardrailService) private readonly guardrailService: GuardrailService,
     @Inject(REPORT_REPOSITORY) private readonly repository: ReportRepository
   ) {}
 

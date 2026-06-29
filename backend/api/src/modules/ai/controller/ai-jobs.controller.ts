@@ -38,8 +38,8 @@ type HeaderMap = Record<string, string | string[] | undefined>;
 @Controller("candidate")
 export class CandidateAiJobsController {
   constructor(
-    private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly dispatcher: AiJobDispatcherService
+    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(AiJobDispatcherService) private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post("documents/extract")
@@ -217,8 +217,8 @@ export class CandidateAiJobsController {
 @Controller("company/interviews")
 export class CompanyAiJobsController {
   constructor(
-    private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly dispatcher: AiJobDispatcherService
+    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(AiJobDispatcherService) private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post("evaluation-criteria/suggest")
@@ -318,7 +318,7 @@ export class CompanyAiJobsController {
 @Controller("ai/jobs")
 export class AiJobsStatusController {
   constructor(
-    private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
     @Inject(REPORT_REPOSITORY) private readonly repository: ReportRepository
   ) {}
 

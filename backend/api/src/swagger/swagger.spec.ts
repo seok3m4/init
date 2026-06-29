@@ -39,9 +39,10 @@ describe("Swagger setup", () => {
     expect(paths).toContain("/api/v1/health");
     expect(paths).toContain("/api/v1/auth/login");
     expect(paths).toContain("/api/v1/company/recruitments");
+    expect(paths).toContain("/api/v1/candidate/jobs");
+    expect(paths).toContain("/api/v1/candidate/mock-interview/reports");
     expect(paths).toContain("/api/v1/reports/{reportId}/generate");
     expect(paths).toContain("/api/v1/ai/guardrails/validate");
-    expect(paths).not.toContain("/api/v1/candidate/jobs");
   });
 
   it("documents bearer auth and local dev auth headers", async () => {
