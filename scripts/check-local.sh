@@ -171,7 +171,10 @@ verify_ownership() {
       git diff --name-only
       git diff --cached --name-only
       git ls-files --others --exclude-standard
-    } | sed 's#\\#/#g' | awk 'NF' | sort -u
+    } | sed 's#\\#/#g' \
+      | awk 'NF' \
+      | awk '$0 !~ /(^|\/)node_modules\// && $0 !~ /(^|\/)(\.next|dist|build|coverage)\//' \
+      | sort -u
   )"
 
   if [[ -z "$changed" ]]; then
@@ -179,7 +182,7 @@ verify_ownership() {
     return 0
   fi
 
-  local common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/)'
+  local common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/|\.gitignore$)'
   local baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|backend/(api|common|worker)/package(-lock)?\.json)'
   local pattern
   case "$ROLE" in

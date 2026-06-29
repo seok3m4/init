@@ -14,7 +14,14 @@ try {
   $changed += git diff --name-only
   $changed += git diff --cached --name-only
   $changed += git ls-files --others --exclude-standard
-  $changed = $changed | Where-Object { $_ -and $_.Trim() -ne "" } | Sort-Object -Unique
+  $changed = $changed |
+    Where-Object { $_ -and $_.Trim() -ne "" } |
+    Where-Object {
+      $normalized = $_ -replace "\\", "/"
+      $normalized -notmatch "(^|/)node_modules/" -and
+      $normalized -notmatch "(^|/)(\.next|dist|build|coverage)/"
+    } |
+    Sort-Object -Unique
 } finally {
   Pop-Location
 }
@@ -31,7 +38,8 @@ $common = @(
   "^docs/04_implementation/one-time-alignment/agent-[a-e]\.md$",
   "^docs/04_implementation/one-time-alignment/agent-pm\.md$",
   "^scripts/",
-  "^\.github/"
+  "^\.github/",
+  "^\.gitignore$"
 )
 
 $baselineSkeleton = @(
