@@ -8,10 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "typecheck": "node -e \"console.log('frontend typecheck pending implementation')\"",
-    "lint": "node -e \"console.log('frontend lint pending implementation')\"",
-    "test": "node -e \"console.log('frontend tests pending implementation')\"",
-    "build": "node -e \"console.log('frontend build pending implementation')\""
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "npm run typecheck",
+    "build": "next build"
   },
   "dependencies": {
     "next": "16.2.9",

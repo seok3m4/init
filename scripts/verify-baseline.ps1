@@ -182,7 +182,7 @@ if (Test-Path -LiteralPath $schemaPath) {
   }
 
   foreach ($forbidden in @("QuestionBank", "EvaluationCriteria", "AIProcessLog", "AIGuardrailLog")) {
-    if ($schema -match "(?m)^(model|enum)\s+$forbidden\s*\{") {
+    if ($schema -cmatch "(?m)^(model|enum)\s+$forbidden\s*\{") {
       Write-Host "[fail] schema.prisma contains forbidden baseline name $forbidden"
       $failed = $true
     }

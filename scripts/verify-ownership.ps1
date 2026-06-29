@@ -47,7 +47,11 @@ $baselineSkeleton = @(
   "^backend/common/src/(enums|dto|errors)/\.gitkeep$",
   "^frontend/src/features/company-profile/\.gitkeep$",
   "^frontend/package(-lock)?\.json$",
-  "^backend/(api|common|worker)/package(-lock)?\.json$"
+  "^frontend/(eslint\.config\.mjs|next\.config\.js|tsconfig\.json)$",
+  "^backend/(api|common|worker)/package(-lock)?\.json$",
+  "^backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)$",
+  "^backend/common/tsconfig\.json$",
+  "^backend/worker/tsconfig\.json$"
 )
 
 $allowed = @{
