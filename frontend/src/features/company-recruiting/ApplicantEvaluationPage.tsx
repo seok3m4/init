@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { getApplicantEvaluation, updateScreeningStatus } from "./api";
 import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
@@ -16,7 +16,7 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setMessage("");
     try {
@@ -29,11 +29,11 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
     } finally {
       setLoading(false);
     }
-  }
+  }, [applicantId]);
 
   useEffect(() => {
     void load();
-  }, [applicantId]);
+  }, [load]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

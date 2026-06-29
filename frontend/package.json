@@ -8,9 +8,9 @@
   },
   "scripts": {
     "dev": "next dev",
-    "typecheck": "next typegen && tsc --noEmit --pretty false",
-    "lint": "next typegen && tsc --noEmit --pretty false",
-    "test": "next typegen && tsc --noEmit --pretty false",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "npm run typecheck",
     "build": "next build"
   },
   "dependencies": {

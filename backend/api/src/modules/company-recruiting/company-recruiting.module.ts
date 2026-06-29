@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 
-import { DevAuthGuard } from "../../common/dev-auth.guard";
-import { PrismaService } from "../../prisma/prisma.service";
+import { PrismaService } from "../../shared/prisma.service";
+import { AuthModule } from "../auth/auth.module";
 import { CompanyRecruitingController } from "./company-recruiting.controller";
 import {
   InMemoryCompanyRecruitingInvitationAdapter,
@@ -14,10 +14,10 @@ import {
 import { CompanyRecruitingService } from "./company-recruiting.service";
 
 @Module({
+  imports: [AuthModule],
   controllers: [CompanyRecruitingController],
   providers: [
     PrismaService,
-    DevAuthGuard,
     PrismaCompanyRecruitingRepository,
     InMemoryCompanyRecruitingInvitationAdapter,
     {

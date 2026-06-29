@@ -1,17 +1,20 @@
 import Link from "next/link";
 
-export default function HomePage() {
+export default function LandingPage() {
   return (
-    <main className="app-page">
-      <section className="page-head">
-        <div>
-          <p className="eyebrow">COMPANY RECRUITING</p>
-          <h1>기업 채용 흐름</h1>
-          <p>공고 생성부터 지원자 등록까지 B 역할 최소 happy path를 확인합니다.</p>
+    <main className="app auth">
+      <section className="auth-wrap">
+        <div className="form-card">
+          <span className="eyebrow">INIT</span>
+          <h2>init</h2>
+          <p className="lead">T1/M1 인증 플로우를 시작합니다.</p>
+          <Link className="btn primary full lg" href="/login">
+            로그인하기
+          </Link>
+          <Link className="btn full lg" href="/company/applications/postings">
+            기업 채용 관리로 이동
+          </Link>
         </div>
-        <Link className="btn primary" href="/company/applications/postings">
-          공고 목록
-        </Link>
       </section>
     </main>
   );

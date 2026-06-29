@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 
 export type RequestLike = {
   headers: Record<string, string | string[] | undefined>;

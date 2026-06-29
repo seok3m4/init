@@ -11,15 +11,11 @@ enum UserType {
   ADMIN
   COMPANY
   CANDIDATE
-
-  @@map("user_type")
 }
 
 enum AuthProvider {
   LOCAL
   GOOGLE
-
-  @@map("auth_provider")
 }
 
 enum UserStatus {
@@ -27,8 +23,6 @@ enum UserStatus {
   PENDING
   SUSPENDED
   DEACTIVATED
-
-  @@map("user_status")
 }
 
 enum PostingStatus {
@@ -37,8 +31,6 @@ enum PostingStatus {
   CLOSING_SOON
   CLOSED
   ARCHIVED
-
-  @@map("posting_status")
 }
 
 enum ApplicationStatus {
@@ -49,8 +41,6 @@ enum ApplicationStatus {
   INTERVIEW_DONE
   COMPLETED
   CANCELED
-
-  @@map("application_status")
 }
 
 enum DocumentStatus {
@@ -59,8 +49,6 @@ enum DocumentStatus {
   EXTRACTING
   EXTRACTED
   FAILED
-
-  @@map("document_status")
 }
 
 enum InterviewStatus {
@@ -69,8 +57,6 @@ enum InterviewStatus {
   IN_PROGRESS
   COMPLETED
   FAILED
-
-  @@map("interview_status")
 }
 
 enum ReportStatus {
@@ -78,8 +64,6 @@ enum ReportStatus {
   GENERATING
   COMPLETED
   FAILED
-
-  @@map("report_status")
 }
 
 enum ScreeningDecision {
@@ -87,37 +71,27 @@ enum ScreeningDecision {
   PASS
   HOLD
   FAIL
-
-  @@map("screening_decision")
 }
 
 enum InterviewType {
   MOCK
   RECRUITING
-
-  @@map("interview_type")
 }
 
 enum ReportType {
   MOCK_INTERVIEW_REPORT
   RECRUITING_REPORT
-
-  @@map("report_type")
 }
 
 enum DocumentType {
   RESUME
   PORTFOLIO
-
-  @@map("document_type")
 }
 
 enum ConsentType {
   PRIVACY_COLLECTION
   AI_DOCUMENT_ANALYSIS
   AI_INTERVIEW_RECORDING
-
-  @@map("consent_type")
 }
 
 enum QuestionType {
@@ -127,15 +101,11 @@ enum QuestionType {
   SITUATION
   FOLLOW_UP
   CLOSING
-
-  @@map("question_type")
 }
 
 enum NotificationChannel {
   EMAIL
   IN_APP
-
-  @@map("notification_channel")
 }
 
 enum AiProcessType {
@@ -144,8 +114,6 @@ enum AiProcessType {
   FOLLOW_UP
   REPORT_GENERATE
   EMBEDDING
-
-  @@map("ai_process_type")
 }
 
 enum AiProcessStatus {
@@ -153,16 +121,12 @@ enum AiProcessStatus {
   RUNNING
   COMPLETED
   FAILED
-
-  @@map("ai_process_status")
 }
 
 enum GuardrailResult {
   PASS
   BLOCKED
   REGENERATED
-
-  @@map("guardrail_result")
 }
 
 enum EmbeddingSourceType {
@@ -172,34 +136,33 @@ enum EmbeddingSourceType {
   APPLICATION_DOCUMENT
   INTERVIEW_ANSWER
   EVALUATION_REPORT
-
-  @@map("embedding_source_type")
 }
 
 model User {
-  userId         Int             @id @default(autoincrement()) @map("user_id")
-  email          String          @unique @db.VarChar(255)
-  passwordHash   String?         @map("password_hash") @db.VarChar(255)
-  userType       UserType        @map("user_type")
-  name           String          @db.VarChar(100)
-  phone          String?         @db.VarChar(50)
-  status         UserStatus      @default(PENDING)
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  authProvider   AuthProvider    @default(LOCAL) @map("auth_provider")
-  providerUserId String?         @map("provider_user_id") @db.VarChar(255)
-  ownedCompany   Company?        @relation("CompanyOwner")
-  candidateProfile CandidateProfile?
-  fileAssets     FileAsset[]
+  userId            BigInt             @id @default(autoincrement()) @map("user_id")
+  email             String             @unique @db.VarChar(255)
+  passwordHash      String?            @map("password_hash") @db.VarChar(255)
+  userType          UserType           @map("user_type")
+  name              String             @db.VarChar(100)
+  phone             String?            @db.VarChar(50)
+  status            UserStatus         @default(PENDING)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  authProvider      AuthProvider       @default(LOCAL) @map("auth_provider")
+  providerUserId    String?            @map("provider_user_id") @db.VarChar(255)
+  ownedCompany      Company?           @relation("CompanyOwner")
+  candidateProfile  CandidateProfile?
+  fileAssets        FileAsset[]
   manualEvaluations ManualEvaluation[]
-  notifications  Notification[]
+  notifications     Notification[]
 
+  @@unique([authProvider, providerUserId], map: "uk_users_provider_user")
   @@map("users")
 }
 
 model Company {
-  companyId                  Int        @id @default(autoincrement()) @map("company_id")
-  ownerUserId                Int        @unique @map("owner_user_id")
+  companyId                  BigInt     @id @default(autoincrement()) @map("company_id")
+  ownerUserId                BigInt     @unique @map("owner_user_id")
   name                       String     @db.VarChar(150)
   businessRegistrationNumber String     @unique @map("business_registration_number") @db.VarChar(10)
   verificationStatus         String     @map("verification_status") @db.VarChar(30)
@@ -217,34 +180,34 @@ model Company {
 }
 
 model FileAsset {
-  fileId        Int       @id @default(autoincrement()) @map("file_id")
-  ownerUserId   Int       @map("owner_user_id")
-  storageKey    String    @map("storage_key") @db.VarChar(500)
-  originalName  String    @map("original_name") @db.VarChar(255)
-  mimeType      String    @map("mime_type") @db.VarChar(100)
-  sizeBytes     Int       @map("size_bytes")
-  status        String    @db.VarChar(30)
-  createdAt     DateTime  @default(now()) @map("created_at")
-  owner         User      @relation(fields: [ownerUserId], references: [userId])
+  fileId            BigInt                @id @default(autoincrement()) @map("file_id")
+  ownerUserId       BigInt                @map("owner_user_id")
+  storageKey        String                @map("storage_key") @db.VarChar(500)
+  originalName      String                @map("original_name") @db.VarChar(255)
+  mimeType          String                @map("mime_type") @db.VarChar(100)
+  sizeBytes         BigInt                @map("size_bytes")
+  status            String                @db.VarChar(30)
+  createdAt         DateTime              @default(now()) @map("created_at")
+  owner             User                  @relation(fields: [ownerUserId], references: [userId])
   candidateProfiles CandidateProfile[]
-  documents     ApplicationDocument[]
-  videoAnswers   InterviewAnswer[] @relation("VideoFile")
-  audioAnswers   InterviewAnswer[] @relation("AudioFile")
+  documents         ApplicationDocument[]
+  videoAnswers      InterviewAnswer[]     @relation("VideoFile")
+  audioAnswers      InterviewAnswer[]     @relation("AudioFile")
 
   @@map("file_assets")
 }
 
 model CandidateProfile {
-  candidateId         Int            @id @default(autoincrement()) @map("candidate_id")
-  userId              Int            @unique @map("user_id")
-  defaultResumeFileId Int?           @map("default_resume_file_id")
-  portfolioUrl        String?        @map("portfolio_url") @db.VarChar(500)
-  githubUrl           String?        @map("github_url") @db.VarChar(500)
+  candidateId         BigInt             @id @default(autoincrement()) @map("candidate_id")
+  userId              BigInt             @unique @map("user_id")
+  defaultResumeFileId BigInt?            @map("default_resume_file_id")
+  portfolioUrl        String?            @map("portfolio_url") @db.VarChar(500)
+  githubUrl           String?            @map("github_url") @db.VarChar(500)
   summary             String?
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @updatedAt @map("updated_at")
-  user                User           @relation(fields: [userId], references: [userId])
-  defaultResumeFile   FileAsset?     @relation(fields: [defaultResumeFileId], references: [fileId])
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  user                User               @relation(fields: [userId], references: [userId])
+  defaultResumeFile   FileAsset?         @relation(fields: [defaultResumeFileId], references: [fileId])
   applications        Application[]
   interviewSessions   InterviewSession[]
 
@@ -252,8 +215,8 @@ model CandidateProfile {
 }
 
 model Posting {
-  postingId      Int                   @id @default(autoincrement()) @map("posting_id")
-  companyId      Int                   @map("company_id")
+  postingId      BigInt                @id @default(autoincrement()) @map("posting_id")
+  companyId      BigInt                @map("company_id")
   title          String                @db.VarChar(200)
   jobRole        String                @map("job_role") @db.VarChar(100)
   jobDescription String?               @map("job_description")
@@ -272,7 +235,7 @@ model Posting {
 }
 
 model CriterionTag {
-  tagId       Int                   @id @default(autoincrement()) @map("tag_id")
+  tagId       BigInt                @id @default(autoincrement()) @map("tag_id")
   jobRole     String                @map("job_role") @db.VarChar(100)
   name        String                @db.VarChar(100)
   description String?
@@ -285,25 +248,25 @@ model CriterionTag {
 }
 
 model EvaluationCriterion {
-  criterionId Int           @id @default(autoincrement()) @map("criterion_id")
-  postingId   Int           @map("posting_id")
-  tagId       Int           @map("tag_id")
-  weight      Int
-  passScore   Int?          @map("pass_score")
-  sortOrder   Int           @map("sort_order")
-  posting     Posting       @relation(fields: [postingId], references: [postingId])
-  tag         CriterionTag  @relation(fields: [tagId], references: [tagId])
-  questions   Question[]
+  criterionId  BigInt        @id @default(autoincrement()) @map("criterion_id")
+  postingId    BigInt        @map("posting_id")
+  tagId        BigInt        @map("tag_id")
+  weight       Int
+  passScore    Int?          @map("pass_score")
+  sortOrder    Int           @map("sort_order")
+  posting      Posting       @relation(fields: [postingId], references: [postingId])
+  tag          CriterionTag  @relation(fields: [tagId], references: [tagId])
+  questions    Question[]
   reportScores ReportScore[]
 
   @@map("evaluation_criteria")
 }
 
 model Question {
-  questionId   Int                  @id @default(autoincrement()) @map("question_id")
-  companyId    Int                  @map("company_id")
-  postingId    Int?                 @map("posting_id")
-  criterionId  Int?                 @map("criterion_id")
+  questionId   BigInt               @id @default(autoincrement()) @map("question_id")
+  companyId    BigInt               @map("company_id")
+  postingId    BigInt?              @map("posting_id")
+  criterionId  BigInt?              @map("criterion_id")
   questionType QuestionType         @map("question_type")
   content      String
   isActive     Boolean              @default(true) @map("is_active")
@@ -316,25 +279,25 @@ model Question {
 }
 
 model Application {
-  applicationId      Int                @id @default(autoincrement()) @map("application_id")
-  postingId          Int                @map("posting_id")
-  candidateId        Int                @map("candidate_id")
-  applicationStatus  ApplicationStatus  @default(SUBMITTED) @map("application_status")
-  documentStatus     DocumentStatus     @default(NOT_SUBMITTED) @map("document_status")
-  interviewStatus    InterviewStatus    @default(NOT_READY) @map("interview_status")
-  reportStatus       ReportStatus       @default(PENDING) @map("report_status")
-  screeningDecision  ScreeningDecision? @default(UNDECIDED) @map("screening_decision")
-  screeningMemo      String?            @map("screening_memo")
-  submittedAt        DateTime?          @map("submitted_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
-  posting            Posting            @relation(fields: [postingId], references: [postingId])
-  candidate          CandidateProfile   @relation(fields: [candidateId], references: [candidateId])
-  documents          ApplicationDocument[]
-  consentRecords     ConsentRecord[]
-  interviewSessions  InterviewSession[]
-  evaluationReports  EvaluationReport[]
-  notifications      Notification[]
-  aiProcessLogs      AiProcessLog[]
+  applicationId     BigInt                @id @default(autoincrement()) @map("application_id")
+  postingId         BigInt                @map("posting_id")
+  candidateId       BigInt                @map("candidate_id")
+  applicationStatus ApplicationStatus     @default(SUBMITTED) @map("application_status")
+  documentStatus    DocumentStatus        @default(NOT_SUBMITTED) @map("document_status")
+  interviewStatus   InterviewStatus       @default(NOT_READY) @map("interview_status")
+  reportStatus      ReportStatus          @default(PENDING) @map("report_status")
+  screeningDecision ScreeningDecision?    @default(UNDECIDED) @map("screening_decision")
+  screeningMemo     String?               @map("screening_memo")
+  submittedAt       DateTime?             @map("submitted_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  posting           Posting               @relation(fields: [postingId], references: [postingId])
+  candidate         CandidateProfile      @relation(fields: [candidateId], references: [candidateId])
+  documents         ApplicationDocument[]
+  consentRecords    ConsentRecord[]
+  interviewSessions InterviewSession[]
+  evaluationReports EvaluationReport[]
+  notifications     Notification[]
+  aiProcessLogs     AiProcessLog[]
 
   @@unique([postingId, candidateId])
   @@index([postingId, applicationStatus])
@@ -342,9 +305,9 @@ model Application {
 }
 
 model ApplicationDocument {
-  documentId    Int            @id @default(autoincrement()) @map("document_id")
-  applicationId Int            @map("application_id")
-  fileId        Int?           @map("file_id")
+  documentId    BigInt         @id @default(autoincrement()) @map("document_id")
+  applicationId BigInt         @map("application_id")
+  fileId        BigInt?        @map("file_id")
   documentType  DocumentType   @map("document_type")
   parseStatus   DocumentStatus @map("parse_status")
   extractedText String?        @map("extracted_text")
@@ -356,8 +319,8 @@ model ApplicationDocument {
 }
 
 model ConsentRecord {
-  consentId     Int         @id @default(autoincrement()) @map("consent_id")
-  applicationId Int         @map("application_id")
+  consentId     BigInt      @id @default(autoincrement()) @map("consent_id")
+  applicationId BigInt      @map("application_id")
   consentType   ConsentType @map("consent_type")
   agreed        Boolean
   agreedAt      DateTime?   @map("agreed_at")
@@ -367,45 +330,45 @@ model ConsentRecord {
 }
 
 model InterviewSession {
-  sessionId        Int              @id @default(autoincrement()) @map("session_id")
-  applicationId    Int?             @map("application_id")
-  candidateId      Int              @map("candidate_id")
-  interviewType    InterviewType    @map("interview_type")
-  status           InterviewStatus  @default(NOT_READY)
-  showQuestionText Boolean          @default(false) @map("show_question_text")
-  startedAt        DateTime?        @map("started_at")
-  completedAt      DateTime?        @map("completed_at")
-  application      Application?     @relation(fields: [applicationId], references: [applicationId])
-  candidate        CandidateProfile @relation(fields: [candidateId], references: [candidateId])
-  answers          InterviewAnswer[]
+  sessionId         BigInt             @id @default(autoincrement()) @map("session_id")
+  applicationId     BigInt?            @map("application_id")
+  candidateId       BigInt             @map("candidate_id")
+  interviewType     InterviewType      @map("interview_type")
+  status            InterviewStatus    @default(NOT_READY)
+  showQuestionText  Boolean            @default(false) @map("show_question_text")
+  startedAt         DateTime?          @map("started_at")
+  completedAt       DateTime?          @map("completed_at")
+  application       Application?       @relation(fields: [applicationId], references: [applicationId])
+  candidate         CandidateProfile   @relation(fields: [candidateId], references: [candidateId])
+  answers           InterviewAnswer[]
   evaluationReports EvaluationReport[]
-  aiProcessLogs    AiProcessLog[]
+  aiProcessLogs     AiProcessLog[]
 
   @@map("interview_sessions")
 }
 
 model InterviewAnswer {
-  answerId        Int              @id @default(autoincrement()) @map("answer_id")
-  sessionId       Int              @map("session_id")
-  questionId      Int?             @map("question_id")
-  videoFileId     Int?             @map("video_file_id")
-  audioFileId     Int?             @map("audio_file_id")
-  transcript      String?
-  durationSeconds Int?             @map("duration_seconds")
-  submittedAt     DateTime?        @map("submitted_at")
-  session         InterviewSession @relation(fields: [sessionId], references: [sessionId])
-  question        Question?        @relation(fields: [questionId], references: [questionId])
-  videoFile       FileAsset?       @relation("VideoFile", fields: [videoFileId], references: [fileId])
-  audioFile       FileAsset?       @relation("AudioFile", fields: [audioFileId], references: [fileId])
+  answerId          BigInt             @id @default(autoincrement()) @map("answer_id")
+  sessionId         BigInt             @map("session_id")
+  questionId        BigInt?            @map("question_id")
+  videoFileId       BigInt?            @map("video_file_id")
+  audioFileId       BigInt?            @map("audio_file_id")
+  transcript        String?
+  durationSeconds   Int?               @map("duration_seconds")
+  submittedAt       DateTime?          @map("submitted_at")
+  session           InterviewSession   @relation(fields: [sessionId], references: [sessionId])
+  question          Question?          @relation(fields: [questionId], references: [questionId])
+  videoFile         FileAsset?         @relation("VideoFile", fields: [videoFileId], references: [fileId])
+  audioFile         FileAsset?         @relation("AudioFile", fields: [audioFileId], references: [fileId])
   followUpQuestions FollowUpQuestion[]
-  reportEvidences ReportEvidence[]
+  reportEvidences   ReportEvidence[]
 
   @@map("interview_answers")
 }
 
 model FollowUpQuestion {
-  followUpId       Int             @id @default(autoincrement()) @map("follow_up_id")
-  answerId         Int             @map("answer_id")
+  followUpId       BigInt          @id @default(autoincrement()) @map("follow_up_id")
+  answerId         BigInt          @map("answer_id")
   content          String
   generationStatus String          @map("generation_status") @db.VarChar(40)
   createdAt        DateTime        @default(now()) @map("created_at")
@@ -415,26 +378,26 @@ model FollowUpQuestion {
 }
 
 model EvaluationReport {
-  reportId      Int           @id @default(autoincrement()) @map("report_id")
-  applicationId Int?          @map("application_id")
-  sessionId     Int?          @map("session_id")
-  reportType    ReportType    @map("report_type")
-  status        ReportStatus  @default(PENDING)
-  totalScore    Int?          @map("total_score")
-  summary       String?
-  generatedAt   DateTime?     @map("generated_at")
-  application   Application?  @relation(fields: [applicationId], references: [applicationId])
-  session       InterviewSession? @relation(fields: [sessionId], references: [sessionId])
-  scores        ReportScore[]
+  reportId          BigInt             @id @default(autoincrement()) @map("report_id")
+  applicationId     BigInt?            @map("application_id")
+  sessionId         BigInt?            @map("session_id")
+  reportType        ReportType         @map("report_type")
+  status            ReportStatus       @default(PENDING)
+  totalScore        Int?               @map("total_score")
+  summary           String?
+  generatedAt       DateTime?          @map("generated_at")
+  application       Application?       @relation(fields: [applicationId], references: [applicationId])
+  session           InterviewSession?  @relation(fields: [sessionId], references: [sessionId])
+  scores            ReportScore[]
   manualEvaluations ManualEvaluation[]
 
   @@map("evaluation_reports")
 }
 
 model ReportScore {
-  scoreId     Int                  @id @default(autoincrement()) @map("score_id")
-  reportId    Int                  @map("report_id")
-  criterionId Int?                 @map("criterion_id")
+  scoreId     BigInt               @id @default(autoincrement()) @map("score_id")
+  reportId    BigInt               @map("report_id")
+  criterionId BigInt?              @map("criterion_id")
   score       Int
   rationale   String?
   report      EvaluationReport     @relation(fields: [reportId], references: [reportId])
@@ -445,9 +408,9 @@ model ReportScore {
 }
 
 model ReportEvidence {
-  evidenceId   Int              @id @default(autoincrement()) @map("evidence_id")
-  scoreId      Int              @map("score_id")
-  answerId     Int?             @map("answer_id")
+  evidenceId   BigInt           @id @default(autoincrement()) @map("evidence_id")
+  scoreId      BigInt           @map("score_id")
+  answerId     BigInt?          @map("answer_id")
   evidenceText String           @map("evidence_text")
   score        ReportScore      @relation(fields: [scoreId], references: [scoreId])
   answer       InterviewAnswer? @relation(fields: [answerId], references: [answerId])
@@ -456,9 +419,9 @@ model ReportEvidence {
 }
 
 model ManualEvaluation {
-  manualEvalId   Int                @id @default(autoincrement()) @map("manual_eval_id")
-  reportId       Int                @map("report_id")
-  reviewerUserId Int                @map("reviewer_user_id")
+  manualEvalId   BigInt             @id @default(autoincrement()) @map("manual_eval_id")
+  reportId       BigInt             @map("report_id")
+  reviewerUserId BigInt             @map("reviewer_user_id")
   decision       ScreeningDecision?
   memo           String?
   reviewedAt     DateTime?          @map("reviewed_at")
@@ -469,9 +432,9 @@ model ManualEvaluation {
 }
 
 model Notification {
-  notificationId   Int                 @id @default(autoincrement()) @map("notification_id")
-  userId           Int                 @map("user_id")
-  applicationId    Int?                @map("application_id")
+  notificationId   BigInt              @id @default(autoincrement()) @map("notification_id")
+  userId           BigInt              @map("user_id")
+  applicationId    BigInt?             @map("application_id")
   channel          NotificationChannel
   notificationType String              @map("notification_type") @db.VarChar(80)
   status           String              @db.VarChar(40)
@@ -483,15 +446,15 @@ model Notification {
 }
 
 model AiProcessLog {
-  processLogId Int             @id @default(autoincrement()) @map("process_log_id")
-  applicationId Int?           @map("application_id")
-  sessionId     Int?           @map("session_id")
-  processType   AiProcessType  @map("process_type")
-  status        AiProcessStatus @default(PENDING)
-  inputRef      String?        @map("input_ref")
-  outputRef     String?        @map("output_ref")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  application   Application?   @relation(fields: [applicationId], references: [applicationId])
+  processLogId  BigInt            @id @default(autoincrement()) @map("process_log_id")
+  applicationId BigInt?           @map("application_id")
+  sessionId     BigInt?           @map("session_id")
+  processType   AiProcessType     @map("process_type")
+  status        AiProcessStatus   @default(PENDING)
+  inputRef      String?           @map("input_ref")
+  outputRef     String?           @map("output_ref")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  application   Application?      @relation(fields: [applicationId], references: [applicationId])
   session       InterviewSession? @relation(fields: [sessionId], references: [sessionId])
   guardrailLogs AiGuardrailLog[]
 
@@ -499,8 +462,8 @@ model AiProcessLog {
 }
 
 model AiGuardrailLog {
-  guardrailLogId Int             @id @default(autoincrement()) @map("guardrail_log_id")
-  processLogId   Int             @map("process_log_id")
+  guardrailLogId BigInt          @id @default(autoincrement()) @map("guardrail_log_id")
+  processLogId   BigInt          @map("process_log_id")
   policyName     String          @map("policy_name") @db.VarChar(120)
   result         GuardrailResult
   reason         String?
@@ -511,13 +474,13 @@ model AiGuardrailLog {
 }
 
 model Embedding {
-  embeddingId        Int                 @id @default(autoincrement()) @map("embedding_id")
-  postingId          Int?                @map("posting_id")
-  tagId              Int?                @map("tag_id")
-  questionId         Int?                @map("question_id")
-  documentId         Int?                @map("document_id")
-  answerId           Int?                @map("answer_id")
-  reportId           Int?                @map("report_id")
+  embeddingId        BigInt              @id @default(autoincrement()) @map("embedding_id")
+  postingId          BigInt?             @map("posting_id")
+  tagId              BigInt?             @map("tag_id")
+  questionId         BigInt?             @map("question_id")
+  documentId         BigInt?             @map("document_id")
+  answerId           BigInt?             @map("answer_id")
+  reportId           BigInt?             @map("report_id")
   sourceType         EmbeddingSourceType @map("source_type")
   sourceTextHash     String              @map("source_text_hash") @db.VarChar(128)
   embeddingModel     String              @map("embedding_model") @db.VarChar(120)

@@ -1,13 +1,24 @@
+import "reflect-metadata";
+import cookieParser from "cookie-parser";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-
-import { ApiExceptionFilter } from "./common/api-exception.filter";
-import { AppModule } from "./app.module";
+import { AppModule } from "./modules/app.module";
+import { ApiExceptionFilter } from "./shared/api-exception.filter";
+import { ApiResponseInterceptor } from "./shared/api-response.interceptor";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors();
+  const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:3000";
+
+  app.setGlobalPrefix("api/v1");
+  app.use(cookieParser());
+  app.enableCors({
+    origin: frontendOrigin,
+    credentials: true,
+    allowedHeaders: ["Authorization", "Content-Type", "X-Dev-User-Id", "X-Dev-User-Type", "X-Dev-Company-Id", "X-Dev-Candidate-Id"],
+  });
   app.useGlobalFilters(new ApiExceptionFilter());
+  app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -15,7 +26,8 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  const port = Number.parseInt(process.env.PORT ?? "3001", 10);
+
+  const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
 }
 

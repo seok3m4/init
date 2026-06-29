@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import { ERROR_CODES, type CurrentUser, type ErrorCode } from "@init/common";
 import { PostingStatus, ScreeningDecision } from "@prisma/client";
 
-import { ApiException } from "../../common/api.exception";
-import type { CurrentUser } from "../../common/current-user.type";
+import { ApiException as SharedApiException } from "../../shared/api-exception";
 import {
   InMemoryCompanyRecruitingInvitationAdapter,
   type CompanyRecruitingInvitationAdapterPort,
@@ -14,6 +14,12 @@ import type { ListQueryDto } from "./dto/list-query.dto";
 import type { UpdateScreeningStatusDto } from "./dto/update-screening-status.dto";
 import type { CompanyRecruitingRepositoryPort } from "./company-recruiting.repository";
 import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "./company-recruiting.types";
+
+class CompanyRecruitingException extends SharedApiException {
+  constructor(status: number, code: ErrorCode, message: string, details: Array<Record<string, unknown>> = []) {
+    super(code, message, status, details);
+  }
+}
 
 @Injectable()
 export class CompanyRecruitingService {
@@ -27,7 +33,7 @@ export class CompanyRecruitingService {
     const startsOn = parseOptionalDate(dto.startsOn, "startsOn");
     const endsOn = parseOptionalDate(dto.endsOn, "endsOn");
     if (startsOn && endsOn && startsOn > endsOn) {
-      throw new ApiException(400, "COMMON_VALIDATION_FAILED", "채용 시작일은 마감일보다 늦을 수 없습니다.", [
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "채용 시작일은 마감일보다 늦을 수 없습니다.", [
         { field: "startsOn", reason: "AFTER_ENDS_ON" },
       ]);
     }
@@ -61,7 +67,7 @@ export class CompanyRecruitingService {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
     if (!posting) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "공고를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
     }
     return toRecruitmentResponse(posting);
   }
@@ -70,10 +76,10 @@ export class CompanyRecruitingService {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
     if (!posting) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "공고를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
     }
     if (posting.status !== PostingStatus.CLOSED) {
-      throw new ApiException(400, "COMMON_VALIDATION_FAILED", "마감된 공고만 복사할 수 있습니다.", [
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "마감된 공고만 복사할 수 있습니다.", [
         { field: "status", reason: "NOT_CLOSED" },
       ]);
     }
@@ -94,13 +100,13 @@ export class CompanyRecruitingService {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(dto.recruitmentId, companyId);
     if (!posting) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "공고를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
     }
 
     const email = normalizeEmail(dto.email);
     const duplicate = await this.repository.findApplicationByPostingAndEmail(dto.recruitmentId, email);
     if (duplicate) {
-      throw new ApiException(409, "COMMON_CONFLICT", "같은 공고에 이미 등록된 이메일입니다.", [
+      throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "같은 공고에 이미 등록된 이메일입니다.", [
         { field: "email", reason: "DUPLICATED_IN_RECRUITMENT" },
       ]);
     }
@@ -121,7 +127,7 @@ export class CompanyRecruitingService {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
     if (!posting) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "공고를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
     }
     const normalized = normalizeListQuery(query, "updatedAt");
     const [items, totalItems] = await Promise.all([
@@ -138,13 +144,13 @@ export class CompanyRecruitingService {
     const companyId = requireCompanyId(user);
     const application = await this.repository.findApplicationForCompany(dto.applicantId, companyId);
     if (!application) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "지원자를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원자를 찾을 수 없습니다.");
     }
 
     const availableFrom = parseDateTime(dto.availableFrom, "availableFrom");
     const availableUntil = parseDateTime(dto.availableUntil, "availableUntil");
     if (availableFrom > availableUntil) {
-      throw new ApiException(400, "COMMON_VALIDATION_FAILED", "응시 시작일시는 종료일시보다 늦을 수 없습니다.", [
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "응시 시작일시는 종료일시보다 늦을 수 없습니다.", [
         { field: "availableFrom", reason: "AFTER_AVAILABLE_UNTIL" },
       ]);
     }
@@ -177,7 +183,7 @@ export class CompanyRecruitingService {
     const companyId = requireCompanyId(user);
     const application = await this.repository.findApplicationForCompany(applicantId, companyId);
     if (!application) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "지원자를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원자를 찾을 수 없습니다.");
     }
 
     return toApplicantEvaluationResponse(application);
@@ -192,7 +198,7 @@ export class CompanyRecruitingService {
     });
 
     if (!application) {
-      throw new ApiException(404, "COMMON_NOT_FOUND", "지원자를 찾을 수 없습니다.");
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원자를 찾을 수 없습니다.");
     }
 
     return toApplicantResponse(application);
@@ -218,7 +224,7 @@ export function normalizeListQuery(query: ListQueryDto, defaultSort: string): No
 
 function requireCompanyId(user: CurrentUser): number {
   if (user.userType !== "COMPANY" || !user.companyId) {
-    throw new ApiException(403, "COMMON_FORBIDDEN", "기업 사용자만 접근할 수 있습니다.");
+    throw new CompanyRecruitingException(403, ERROR_CODES.COMMON_FORBIDDEN, "기업 사용자만 접근할 수 있습니다.");
   }
   return user.companyId;
 }
@@ -229,7 +235,7 @@ function parseOptionalDate(value: string | undefined, field: string) {
   }
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime())) {
-    throw new ApiException(400, "COMMON_VALIDATION_FAILED", "날짜 형식을 확인해주세요.", [
+    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "날짜 형식을 확인해주세요.", [
       { field, reason: "INVALID_DATE" },
     ]);
   }
@@ -239,7 +245,7 @@ function parseOptionalDate(value: string | undefined, field: string) {
 function parseDateTime(value: string, field: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    throw new ApiException(400, "COMMON_VALIDATION_FAILED", "날짜 형식을 확인해주세요.", [
+    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "날짜 형식을 확인해주세요.", [
       { field, reason: "INVALID_DATE_TIME" },
     ]);
   }
@@ -248,7 +254,7 @@ function parseDateTime(value: string, field: string) {
 
 function parseScreeningDecision(value: UpdateScreeningStatusDto["screeningDecision"]): ScreeningDecision {
   if (!["UNDECIDED", "PASS", "HOLD", "FAIL"].includes(value)) {
-    throw new ApiException(400, "COMMON_VALIDATION_FAILED", "허용되지 않은 전형 상태입니다.", [
+    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "허용되지 않은 전형 상태입니다.", [
       { field: "screeningDecision", reason: "INVALID_SCREENING_DECISION" },
     ]);
   }
@@ -260,7 +266,7 @@ function parseOptionalPostingStatus(value: string | undefined): PostingStatus | 
     return undefined;
   }
   if (!["DRAFT", "OPEN", "CLOSING_SOON", "CLOSED", "ARCHIVED"].includes(value)) {
-    throw new ApiException(400, "COMMON_VALIDATION_FAILED", "허용되지 않은 공고 상태입니다.", [
+    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "허용되지 않은 공고 상태입니다.", [
       { field: "status", reason: "INVALID_POSTING_STATUS" },
     ]);
   }

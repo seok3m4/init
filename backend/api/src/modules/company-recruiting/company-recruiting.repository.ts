@@ -9,7 +9,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 
-import { PrismaService } from "../../prisma/prisma.service";
+import { PrismaService } from "../../shared/prisma.service";
 import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "./company-recruiting.types";
 
 export type CreatePostingInput = {
@@ -66,7 +66,10 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
 
   async createPosting(input: CreatePostingInput): Promise<RecruitmentRecord> {
     const posting = await this.prisma.posting.create({
-      data: input,
+      data: {
+        ...input,
+        companyId: BigInt(input.companyId),
+      },
       include: { _count: { select: { applications: true } } },
     });
     return mapPosting(posting);
@@ -89,16 +92,16 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
 
   async findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null> {
     const posting = await this.prisma.posting.findFirst({
-      where: { postingId, companyId },
+      where: { postingId: BigInt(postingId), companyId: BigInt(companyId) },
       include: { _count: { select: { applications: true } } },
     });
     return posting ? mapPosting(posting) : null;
   }
 
   async findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null> {
-    return this.prisma.application.findFirst({
+    const application = await this.prisma.application.findFirst({
       where: {
-        postingId,
+        postingId: BigInt(postingId),
         candidate: {
           user: {
             email,
@@ -107,6 +110,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       },
       select: { applicationId: true },
     });
+    return application ? { applicationId: Number(application.applicationId) } : null;
   }
 
   async findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }> {
@@ -117,7 +121,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       });
 
       if (existingUser?.candidateProfile) {
-        return { candidateId: existingUser.candidateProfile.candidateId };
+        return { candidateId: Number(existingUser.candidateProfile.candidateId) };
       }
 
       if (existingUser) {
@@ -127,7 +131,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
             summary: "Registered by company recruiter.",
           },
         });
-        return { candidateId: profile.candidateId };
+        return { candidateId: Number(profile.candidateId) };
       }
 
       const user = await tx.user.create({
@@ -147,15 +151,15 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
           summary: "Registered by company recruiter.",
         },
       });
-      return { candidateId: profile.candidateId };
+      return { candidateId: Number(profile.candidateId) };
     });
   }
 
   async createApplication(input: CreateApplicationInput): Promise<ApplicantRecord> {
     const application = await this.prisma.application.create({
       data: {
-        postingId: input.postingId,
-        candidateId: input.candidateId,
+        postingId: BigInt(input.postingId),
+        candidateId: BigInt(input.candidateId),
         applicationStatus: ApplicationStatus.SUBMITTED,
         screeningDecision: ScreeningDecision.UNDECIDED,
       },
@@ -187,7 +191,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
 
   async findApplicationForCompany(applicationId: number, companyId: number): Promise<ApplicantRecord | null> {
     const application = await this.prisma.application.findFirst({
-      where: { applicationId, posting: { companyId } },
+      where: { applicationId: BigInt(applicationId), posting: { companyId: BigInt(companyId) } },
       include: applicantInclude,
     });
     return application ? mapApplicant(application) : null;
@@ -199,7 +203,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     input: UpdateApplicationScreeningInput,
   ): Promise<ApplicantRecord | null> {
     const ownedApplication = await this.prisma.application.findFirst({
-      where: { applicationId, posting: { companyId } },
+      where: { applicationId: BigInt(applicationId), posting: { companyId: BigInt(companyId) } },
       select: { applicationId: true },
     });
     if (!ownedApplication) {
@@ -207,7 +211,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     }
 
     const application = await this.prisma.application.update({
-      where: { applicationId },
+      where: { applicationId: BigInt(applicationId) },
       data: {
         screeningDecision: input.screeningDecision,
         screeningMemo: input.screeningMemo,
@@ -250,7 +254,7 @@ const applicantInclude = {
 function buildPostingWhere(companyId: number, query: NormalizedListQuery): Prisma.PostingWhereInput {
   const q = query.q?.trim();
   return {
-    companyId,
+    companyId: BigInt(companyId),
     ...(query.status ? { status: query.status as PostingStatus } : {}),
     ...(q
       ? {
@@ -270,8 +274,8 @@ function buildApplicationWhere(
 ): Prisma.ApplicationWhereInput {
   const q = query.q?.trim();
   return {
-    postingId,
-    posting: { companyId },
+    postingId: BigInt(postingId),
+    posting: { companyId: BigInt(companyId) },
     ...(q
       ? {
           OR: [
@@ -295,8 +299,8 @@ function buildApplicationOrderBy(query: NormalizedListQuery): Prisma.Application
 
 function mapPosting(posting: Prisma.PostingGetPayload<{ include: { _count: { select: { applications: true } } } }>): RecruitmentRecord {
   return {
-    postingId: posting.postingId,
-    companyId: posting.companyId,
+    postingId: Number(posting.postingId),
+    companyId: Number(posting.companyId),
     title: posting.title,
     jobRole: posting.jobRole,
     jobDescription: posting.jobDescription,
@@ -313,9 +317,9 @@ type ApplicationWithIncludes = Prisma.ApplicationGetPayload<{ include: typeof ap
 
 function mapApplicant(application: ApplicationWithIncludes): ApplicantRecord {
   return {
-    applicationId: application.applicationId,
-    postingId: application.postingId,
-    candidateId: application.candidateId,
+    applicationId: Number(application.applicationId),
+    postingId: Number(application.postingId),
+    candidateId: Number(application.candidateId),
     applicationStatus: application.applicationStatus,
     documentStatus: application.documentStatus,
     interviewStatus: application.interviewStatus,
@@ -325,43 +329,43 @@ function mapApplicant(application: ApplicationWithIncludes): ApplicantRecord {
     submittedAt: application.submittedAt,
     updatedAt: application.updatedAt,
     candidate: {
-      candidateId: application.candidate.candidateId,
+      candidateId: Number(application.candidate.candidateId),
       user: {
-        userId: application.candidate.user.userId,
+        userId: Number(application.candidate.user.userId),
         email: application.candidate.user.email,
         name: application.candidate.user.name,
         phone: application.candidate.user.phone,
       },
     },
     posting: {
-      postingId: application.posting.postingId,
+      postingId: Number(application.posting.postingId),
       title: application.posting.title,
       jobRole: application.posting.jobRole,
     },
     evaluationReports: application.evaluationReports.map((report) => ({
-      reportId: report.reportId,
+      reportId: Number(report.reportId),
       status: report.status,
       totalScore: report.totalScore,
       summary: report.summary,
       generatedAt: report.generatedAt,
       scores: report.scores.map((score) => ({
-        scoreId: score.scoreId,
+        scoreId: Number(score.scoreId),
         score: score.score,
         rationale: score.rationale,
         criterion: score.criterion
           ? {
-              criterionId: score.criterion.criterionId,
+              criterionId: Number(score.criterion.criterionId),
               tagName: score.criterion.tag.name,
             }
           : null,
         evidences: score.evidences.map((evidence) => ({
-          evidenceId: evidence.evidenceId,
+          evidenceId: Number(evidence.evidenceId),
           evidenceText: evidence.evidenceText,
         })),
       })),
     })),
     interviewSessions: application.interviewSessions.map((session) => ({
-      sessionId: session.sessionId,
+      sessionId: Number(session.sessionId),
       status: session.status,
       interviewType: session.interviewType,
       startedAt: session.startedAt,

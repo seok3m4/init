@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
 import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
@@ -44,7 +44,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function load(search = q) {
+  const load = useCallback(async (search: string) => {
     setLoading(true);
     setMessage("");
     try {
@@ -64,11 +64,11 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     } finally {
       setLoading(false);
     }
-  }
+  }, [recruitmentId]);
 
   useEffect(() => {
     void load("");
-  }, [recruitmentId]);
+  }, [load]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

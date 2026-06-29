@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 
 import { PrismaCompanyRecruitingRepository } from "./company-recruiting.repository";
 
@@ -47,8 +46,8 @@ describe("PrismaCompanyRecruitingRepository", () => {
     await repository.createApplication({ postingId: 101, candidateId: 44 });
 
     assert.deepEqual(capturedData, {
-      postingId: 101,
-      candidateId: 44,
+      postingId: 101n,
+      candidateId: 44n,
       applicationStatus: "SUBMITTED",
       screeningDecision: "UNDECIDED",
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { copyRecruitment, listRecruitments } from "./api";
 import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
@@ -16,7 +16,7 @@ export function CompanyPostingsPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function loadRecruitments(search = q, status = statusFilter) {
+  const loadRecruitments = useCallback(async (search: string, status: StatusFilter) => {
     setLoading(true);
     setMessage("");
     try {
@@ -34,11 +34,11 @@ export function CompanyPostingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadRecruitments("");
-  }, []);
+    void loadRecruitments("", "ALL");
+  }, [loadRecruitments]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
