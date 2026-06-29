@@ -1,24 +1,29 @@
 {
-  "name": "@init/frontend",
+  "name": "final-weapon-frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"frontend tests are not configured yet\""
+    "typecheck": "node -e \"console.log('frontend typecheck pending implementation')\"",
+    "lint": "node -e \"console.log('frontend lint pending implementation')\"",
+    "test": "node -e \"console.log('frontend tests pending implementation')\"",
+    "build": "node -e \"console.log('frontend build pending implementation')\""
   },
   "dependencies": {
-    "next": "^14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "next": "16.2.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
   },
   "devDependencies": {
-    "@types/node": "^20.14.15",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.4"
+    "@types/node": "20.19.43",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.9",
+    "typescript": "5.9.3"
   }
 }

@@ -171,7 +171,10 @@ verify_ownership() {
       git diff --name-only
       git diff --cached --name-only
       git ls-files --others --exclude-standard
-    } | sed 's#\\#/#g' | awk 'NF' | sort -u
+    } | sed 's#\\#/#g' \
+      | awk 'NF' \
+      | awk '$0 !~ /(^|\/)node_modules\// && $0 !~ /(^|\/)(\.next|dist|build|coverage)\//' \
+      | sort -u
   )"
 
   if [[ -z "$changed" ]]; then
@@ -179,15 +182,16 @@ verify_ownership() {
     return 0
   fi
 
-  local common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|scripts/|\.github/)'
+  local common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/|\.gitignore$)'
+  local baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|backend/(api|common|worker)/package(-lock)?\.json)'
   local pattern
   case "$ROLE" in
-    A) pattern="($common|^backend/common/|^backend/api/(src|prisma)/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    B) pattern="($common|^frontend/src/features/company-recruiting/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    C) pattern="($common|^frontend/src/features/company-interview-criteria/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    D) pattern="($common|^frontend/src/features/candidate-application-interview/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    E) pattern="($common|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    PM) pattern='^(docs/|assets/|\.github/|AGENTS\.md$)' ;;
+    A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    E) pattern="($common|$baseline|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    PM) pattern="($common|$baseline|^docs/|^assets/)" ;;
   esac
 
   local blocked=0
@@ -391,6 +395,10 @@ NODE
 verify_docs
 verify_ownership
 verify_prisma
+step "verify-baseline"
+bash "$SCRIPT_DIR/verify-baseline.sh"
+step "verify-package-baseline"
+bash "$SCRIPT_DIR/verify-package-baseline.sh"
 verify_dev_auth_seed
 verify_docker
 verify_env

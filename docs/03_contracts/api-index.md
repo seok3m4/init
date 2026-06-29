@@ -4,6 +4,23 @@
 
 API 전체 목록을 도메인별로 빠르게 탐색한다.
 
+## API Module Baseline
+
+NestJS 구현은 API path를 그대로 controller 파일명으로 흩뜨리지 않고 아래 module/controller 기준으로 묶는다.
+
+| Module Folder | Controller Baseline | Route Prefix | Primary Owner | API Range |
+| --- | --- | --- | --- | --- |
+| `backend/api/src/modules/auth` | `AuthController` | `/api/v1/auth` | A | API-001..009 |
+| `backend/api/src/modules/company-recruiting` | `CompanyRecruitingController` | `/api/v1/company/recruitments`, `/api/v1/company/applicants` | B | API-010..033 중 공고/지원자 운영 |
+| `backend/api/src/modules/company-interview` | `CompanyInterviewController` | `/api/v1/company/interviews` | C | API-034..040 |
+| `backend/api/src/modules/company-profile` | `CompanyProfileController` | `/api/v1/company/profile`, `/api/v1/company/notifications` | A/B | API-041..043 |
+| `backend/api/src/modules/candidate` | `CandidateController` | `/api/v1/candidate/jobs`, `/api/v1/candidate/applications`, `/api/v1/candidate/resume`, `/api/v1/candidate/portfolio-links` | D | API-058..078 중 지원/마이페이지 |
+| `backend/api/src/modules/interview` | `InterviewController` | `/api/v1/candidate/mock-interviews`, `/api/v1/candidate/interviews` | D/E | API-044..057, API-064..072 |
+| `backend/api/src/modules/report` | `ReportController` | `/api/v1/company/reports`, `/api/v1/reports`, `/api/v1/candidate/*/reports` | E | API-019, API-022..031, API-053..057, API-073 |
+| `backend/api/src/modules/ai` | `AiController` | `/api/v1/ai` | E | API-079 |
+
+기존 구현에 다른 route alias가 있으면 임시 controller alias는 둘 수 있지만 service는 위 module 기준으로만 하나를 유지한다. 새 API는 이 표에 먼저 배치한 뒤 api-index/api-spec에 추가한다.
+
 | API ID | Domain | Method | Path | Summary | Auth | Async | Status |
 | --- |--- |--- |--- |--- |--- |--- |--- |
 | API-001 | 인증/계정 | POST | /auth/login | 이메일/비밀번호 입력 / 로그인 요청 | 비로그인 허용 | N | 200 OK |

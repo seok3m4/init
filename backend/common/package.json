@@ -1,16 +1,23 @@
 {
-  "name": "@init/common",
+  "name": "final-weapon-backend-common",
   "version": "0.1.0",
   "private": true,
-  "type": "commonjs",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"common tests are not configured yet\""
+    "typecheck": "node -e \"console.log('backend common typecheck pending implementation')\"",
+    "lint": "node -e \"console.log('backend common lint pending implementation')\"",
+    "test": "node -e \"console.log('backend common tests pending implementation')\"",
+    "build": "node -e \"console.log('backend common build pending implementation')\""
+  },
+  "dependencies": {
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1"
   },
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
   }
 }

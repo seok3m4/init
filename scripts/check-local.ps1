@@ -29,6 +29,8 @@ if ($SkipOwnership) {
 }
 
 Invoke-Step "verify-prisma" { & (Join-Path $PSScriptRoot "verify-prisma.ps1") }
+Invoke-Step "verify-baseline" { & (Join-Path $PSScriptRoot "verify-baseline.ps1") }
+Invoke-Step "verify-package-baseline" { & (Join-Path $PSScriptRoot "verify-package-baseline.ps1") }
 Invoke-Step "verify-dev-auth-seed" { & (Join-Path $PSScriptRoot "verify-dev-auth-seed.ps1") }
 Invoke-Step "verify-docker" { & (Join-Path $PSScriptRoot "verify-docker.ps1") -Build:$BuildDocker }
 Invoke-Step "verify-env" { & (Join-Path $PSScriptRoot "verify-env.ps1") -RequireValues:$RequireEnvValues }

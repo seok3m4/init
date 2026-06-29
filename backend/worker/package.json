@@ -1,0 +1,26 @@
+{
+  "name": "final-weapon-backend-worker",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "typecheck": "node -e \"console.log('backend worker typecheck pending implementation')\"",
+    "lint": "node -e \"console.log('backend worker lint pending implementation')\"",
+    "test": "node -e \"console.log('backend worker tests pending implementation')\"",
+    "build": "node -e \"console.log('backend worker build pending implementation')\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1075.0",
+    "@aws-sdk/client-sqs": "3.1075.0",
+    "@mediapipe/tasks-vision": "0.10.35",
+    "openai": "6.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  }
+}
