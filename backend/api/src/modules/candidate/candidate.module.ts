@@ -8,6 +8,6 @@ import { CANDIDATE_REPOSITORY, CandidateService, InMemoryCandidateRepository } f
     { provide: CANDIDATE_REPOSITORY, useClass: InMemoryCandidateRepository },
     CandidateService,
   ],
-  exports: [CandidateService],
+  exports: [CANDIDATE_REPOSITORY, CandidateService],
 })
 export class CandidateModule {}

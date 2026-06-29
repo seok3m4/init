@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["*.ts", "dto/*.ts", "../../app.module.ts", "../../main.ts"]
+  "include": ["*.ts", "dto/*.ts", "../interview/*.ts", "../../app.module.ts", "../../main.ts"]
 }

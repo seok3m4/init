@@ -3,6 +3,7 @@ import { resolveCurrentCandidate, type CandidateAuthHeaders } from "./candidate.
 import { CandidateService, CandidateDomainError } from "./candidate.service";
 import { CandidateJobListQueryDto } from "./dto/candidate-job-list-query.dto";
 import { CreatePortfolioLinkDto } from "./dto/create-portfolio-link.dto";
+import { SaveInterviewConsentDto } from "./dto/save-interview-consent.dto";
 import { SubmitApplicationDto } from "./dto/submit-application.dto";
 import { UploadResumeDto } from "./dto/upload-resume.dto";
 import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
@@ -64,6 +65,34 @@ export class CandidateController {
     return this.handle(() => {
       const currentUser = resolveCurrentCandidate(headers);
       return this.candidateService.createPortfolioLink(dto, currentUser);
+    });
+  }
+
+  @Get(candidateApiRoutes.applications)
+  listApplications(@Headers() headers: CandidateAuthHeaders) {
+    return this.handle(() => {
+      const currentUser = resolveCurrentCandidate(headers);
+      return this.candidateService.listApplications(currentUser);
+    });
+  }
+
+  @Get(candidateApiRoutes.interviewGuide)
+  getInterviewGuide(@Headers() headers: CandidateAuthHeaders, @Param("applicationId") applicationId: string) {
+    return this.handle(() => {
+      const currentUser = resolveCurrentCandidate(headers);
+      return this.candidateService.getInterviewGuide(Number(applicationId), currentUser);
+    });
+  }
+
+  @Post(candidateApiRoutes.interviewConsent)
+  saveInterviewConsent(
+    @Headers() headers: CandidateAuthHeaders,
+    @Param("applicationId") applicationId: string,
+    @Body() dto: SaveInterviewConsentDto,
+  ) {
+    return this.handle(() => {
+      const currentUser = resolveCurrentCandidate(headers);
+      return this.candidateService.saveInterviewConsent(Number(applicationId), dto, currentUser);
     });
   }
 

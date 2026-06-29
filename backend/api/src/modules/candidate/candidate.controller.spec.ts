@@ -13,7 +13,10 @@ type CandidateControllerRoute =
   | "getApplyView"
   | "submitApplication"
   | "uploadResume"
-  | "createPortfolioLink";
+  | "createPortfolioLink"
+  | "listApplications"
+  | "getInterviewGuide"
+  | "saveInterviewConsent";
 
 function assertRoute(
   methodName: CandidateControllerRoute,
@@ -37,6 +40,9 @@ assertRoute("getApplyView", candidateApiRoutes.applyView, RequestMethod.GET);
 assertRoute("submitApplication", candidateApiRoutes.submitApplication, RequestMethod.POST, 201);
 assertRoute("uploadResume", candidateApiRoutes.resume, RequestMethod.POST, 201);
 assertRoute("createPortfolioLink", candidateApiRoutes.portfolioLinks, RequestMethod.POST, 201);
+assertRoute("listApplications", candidateApiRoutes.applications, RequestMethod.GET);
+assertRoute("getInterviewGuide", candidateApiRoutes.interviewGuide, RequestMethod.GET);
+assertRoute("saveInterviewConsent", candidateApiRoutes.interviewConsent, RequestMethod.POST);
 
 const validCandidateHeaders = {
   "x-dev-user-type": "CANDIDATE",
@@ -133,7 +139,7 @@ async function runControllerRuntimeAssertions() {
     "COMMON_VALIDATION_FAILED",
   );
 
-  await controller.submitApplication(validCandidateHeaders, "1", {
+  const submitted = await controller.submitApplication(validCandidateHeaders, "1", {
     candidateName: "Kim",
     email: "kim@example.com",
     phone: "010-0000-0000",
@@ -141,6 +147,31 @@ async function runControllerRuntimeAssertions() {
     portfolioUrl: "https://portfolio.example.com/kim",
     consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
   });
+
+  const applications = await controller.listApplications(validCandidateHeaders);
+  assert.equal(applications.data.items.length, 1);
+  assert.equal(applications.data.items[0]?.applicationId, submitted.data.application.applicationId);
+  assert.equal(applications.data.items[0]?.interviewStatus, "NOT_READY");
+  assert.equal(applications.data.items[0]?.reportStatus, "PENDING");
+  assert.equal(applications.data.items[0]?.canStartInterview, false);
+
+  const guide = await controller.getInterviewGuide(
+    validCandidateHeaders,
+    String(submitted.data.application.applicationId),
+  );
+  assert.equal(guide.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(guide.data.sessionId, applications.data.items[0]?.sessionId);
+  assert.equal(guide.data.canStart, false);
+
+  const consent = await controller.saveInterviewConsent(
+    validCandidateHeaders,
+    String(submitted.data.application.applicationId),
+    { consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"] },
+  );
+  assert.equal(consent.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(consent.data.sessionId, applications.data.items[0]?.sessionId);
+  assert.equal(consent.data.consentCompleted, true);
+  assert.equal(consent.data.deviceCheckCompleted, false);
 
   await assertCandidateHttpError(
     () =>

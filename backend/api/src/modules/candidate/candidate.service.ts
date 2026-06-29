@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CandidateJobListQueryDto } from "./dto/candidate-job-list-query.dto";
 import { CreatePortfolioLinkDto } from "./dto/create-portfolio-link.dto";
+import { SaveInterviewConsentDto } from "./dto/save-interview-consent.dto";
 import { SubmitApplicationDto } from "./dto/submit-application.dto";
 import { UploadResumeDto } from "./dto/upload-resume.dto";
 import {
@@ -9,7 +10,10 @@ import {
   Application,
   ApplicationDocument,
   ApplicationSubmissionResult,
+  CandidateApplicationSummary,
   CandidateApplyView,
+  CandidateInterviewGuide,
+  CandidateInterviewRuntimeView,
   CandidateJob,
   CandidateJobDetail,
   CandidateJobSummary,
@@ -17,13 +21,22 @@ import {
   ConsentRecord,
   CurrentCandidateUser,
   FileAsset,
+  InterviewDeviceCheckResult,
+  InterviewSession,
   PageMeta,
   PortfolioLink,
   PortfolioLinkType,
+  SaveInterviewConsentResult,
+  StartInterviewResult,
 } from "./candidate.types";
 
 const MAX_DOCUMENT_SIZE_BYTES = 20 * 1024 * 1024;
 const REQUIRED_APPLICATION_CONSENTS = ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"] as const;
+const REQUIRED_INTERVIEW_CONSENTS = [
+  "PRIVACY_COLLECTION",
+  "AI_DOCUMENT_ANALYSIS",
+  "AI_INTERVIEW_RECORDING",
+] as const;
 const APPLICATION_CONSENT_TYPES = ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"] as const;
 const FORBIDDEN_FILE_PAYLOAD_FIELDS = ["file", "buffer", "content", "base64", "binary", "stream"] as const;
 const CANDIDATE_LIST_POSTING_STATUSES = ["OPEN", "CLOSING_SOON"] as const;
@@ -205,6 +218,336 @@ export class CandidateService {
     });
 
     return this.envelope(portfolioLink);
+  }
+
+  async listApplications(currentUser: CurrentCandidateUser): Promise<ApiListResponse<CandidateApplicationSummary>> {
+    const applications = await this.repository.listApplications(currentUser.candidateId);
+    const items = await Promise.all(applications.map((application) => this.toApplicationSummary(application)));
+    return this.listEnvelope(items, this.createPageMeta(1, Math.max(items.length, 1), items.length));
+  }
+
+  async getInterviewGuide(
+    applicationId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<ApiResponse<CandidateInterviewGuide>> {
+    const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
+    this.assertSessionNotExpired(session);
+    return this.envelope(await this.toInterviewGuide(application, session));
+  }
+
+  async saveInterviewConsent(
+    applicationId: number,
+    dto: SaveInterviewConsentDto,
+    currentUser: CurrentCandidateUser,
+  ): Promise<ApiResponse<SaveInterviewConsentResult>> {
+    const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
+    this.assertSessionNotExpired(session);
+    const consentTypes = this.assertInterviewConsentRequest(dto);
+    const consents = await this.repository.saveConsentRecords(application.applicationId, consentTypes);
+    const refreshedSession = await this.refreshReadyState(application.applicationId, session.sessionId);
+    const consentCompleted = this.hasRequiredInterviewConsents(consents);
+    const deviceCheckCompleted = this.isDeviceCheckPassed(refreshedSession);
+
+    return this.envelope({
+      applicationId: application.applicationId,
+      sessionId: refreshedSession.sessionId,
+      consentCompleted,
+      deviceCheckCompleted,
+      canStart: consentCompleted && deviceCheckCompleted && refreshedSession.status === "READY",
+      consents,
+    });
+  }
+
+  async saveDeviceCheck(
+    sessionId: number,
+    dto: { cameraGranted: boolean; microphoneGranted: boolean; networkStable: boolean },
+    currentUser: CurrentCandidateUser,
+  ): Promise<ApiResponse<InterviewDeviceCheckResult>> {
+    this.assertPositiveIntegerId(sessionId, "sessionId");
+    const session = await this.repository.findInterviewSession(sessionId);
+    if (!session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
+        { field: "sessionId", reason: "interview session not found" },
+      ]);
+    }
+
+    const application = await this.getOwnedApplication(session.applicationId, currentUser);
+    this.assertSessionNotExpired(session);
+    this.assertInterviewNotCompleted(application, session);
+    this.assertDeviceCheckRequest(dto);
+
+    const checkedSession = await this.repository.saveDeviceCheck(session.sessionId, dto);
+    const refreshedSession = await this.refreshReadyState(application.applicationId, checkedSession.sessionId);
+    const consents = await this.repository.listConsentRecords(application.applicationId);
+    const consentCompleted = this.hasRequiredInterviewConsents(consents);
+    const deviceCheckCompleted = this.isDeviceCheckPassed(refreshedSession);
+
+    return this.envelope({
+      applicationId: application.applicationId,
+      sessionId: refreshedSession.sessionId,
+      consentCompleted,
+      deviceCheckCompleted,
+      canStart: consentCompleted && deviceCheckCompleted && refreshedSession.status === "READY",
+      deviceCheck: refreshedSession.deviceCheck,
+    });
+  }
+
+  async startInterview(
+    applicationId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<ApiResponse<StartInterviewResult>> {
+    const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
+    this.assertSessionNotExpired(session);
+    this.assertInterviewNotCompleted(application, session);
+
+    const refreshedSession = await this.refreshReadyState(application.applicationId, session.sessionId);
+    const consents = await this.repository.listConsentRecords(application.applicationId);
+    if (!this.hasRequiredInterviewConsents(consents)) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Required interview consent is missing.", 409, [
+        { field: "consentTypes", reason: "required interview consent is missing" },
+      ]);
+    }
+    if (!this.isDeviceCheckPassed(refreshedSession)) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Device check must be completed before interview start.", 409, [
+        { field: "deviceCheck", reason: "camera, microphone, and network checks are required" },
+      ]);
+    }
+    if (refreshedSession.status !== "READY") {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview cannot be started from the current state.", 409, [
+        { field: "interviewStatus", reason: `current status is ${refreshedSession.status}` },
+      ]);
+    }
+
+    const now = new Date().toISOString();
+    const startedSession = await this.repository.updateInterviewSessionStatus(refreshedSession.sessionId, "IN_PROGRESS", now);
+    await this.repository.updateApplicationInterviewStatus(application.applicationId, "IN_PROGRESS");
+
+    return this.envelope({
+      applicationId: application.applicationId,
+      sessionId: startedSession.sessionId,
+      interviewStatus: "IN_PROGRESS",
+      sessionStatus: "IN_PROGRESS",
+      interviewUrl: `/candidate/applications/${application.applicationId}/interview`,
+      startedAt: now,
+    });
+  }
+
+  async getInterviewRuntime(
+    applicationId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<ApiResponse<CandidateInterviewRuntimeView>> {
+    const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
+    this.assertSessionNotExpired(session);
+    if (session.status !== "IN_PROGRESS") {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview has not been started.", 409, [
+        { field: "interviewStatus", reason: "interview status must be IN_PROGRESS" },
+      ]);
+    }
+
+    return this.envelope({
+      applicationId: application.applicationId,
+      sessionId: session.sessionId,
+      interviewType: "RECRUITING",
+      status: session.status,
+      showQuestionText: session.showQuestionText,
+      canRecord: true,
+      nextQuestionEndpoint: `/api/v1/candidate/interviews/${session.sessionId}/next-question`,
+      answerUploadEndpoint: `/api/v1/candidate/interviews/${session.sessionId}/answers`,
+    });
+  }
+
+  private async getOwnedApplicationWithSession(
+    applicationId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<{ application: Application; session: InterviewSession }> {
+    const application = await this.getOwnedApplication(applicationId, currentUser);
+    const session = await this.repository.findInterviewSessionByApplication(application.applicationId);
+    if (!session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
+        { field: "applicationId", reason: "interview session not found" },
+      ]);
+    }
+
+    return { application, session };
+  }
+
+  private async getOwnedApplication(
+    applicationId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<Application> {
+    this.assertPositiveIntegerId(applicationId, "applicationId");
+    const application = await this.repository.findApplication(applicationId);
+    if (!application) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Application was not found.", 404, [
+        { field: "applicationId", reason: "application not found" },
+      ]);
+    }
+
+    if (application.candidateId !== currentUser.candidateId) {
+      throw new CandidateDomainError("COMMON_FORBIDDEN", "Application does not belong to current candidate.", 403, [
+        { field: "applicationId", reason: "candidate owner mismatch" },
+      ]);
+    }
+
+    return application;
+  }
+
+  private assertSessionNotExpired(session: InterviewSession): void {
+    if (Date.parse(session.windowEndsAt) <= Date.now()) {
+      throw new CandidateDomainError("INTERVIEW_SESSION_EXPIRED", "Interview session has expired.", 409, [
+        { field: "sessionId", reason: "interview session expired" },
+      ]);
+    }
+  }
+
+  private assertInterviewNotCompleted(application: Application, session: InterviewSession): void {
+    if (application.interviewStatus === "COMPLETED" || session.status === "COMPLETED") {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview has already been completed.", 409, [
+        { field: "interviewStatus", reason: "interview already completed" },
+      ]);
+    }
+  }
+
+  private assertInterviewConsentRequest(dto: SaveInterviewConsentDto): ConsentRecord["consentType"][] {
+    const requestBody = this.toRequestBody(dto, "consent");
+    if (!Array.isArray(requestBody.consentTypes)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Consent request is invalid.", 400, [
+        { field: "consentTypes", reason: "consentTypes must be an array" },
+      ]);
+    }
+    if (!requestBody.consentTypes.every((consentType) => this.isApplicationConsentType(consentType))) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Consent request is invalid.", 400, [
+        { field: "consentTypes", reason: "unsupported consent type" },
+      ]);
+    }
+    for (const consentType of REQUIRED_INTERVIEW_CONSENTS) {
+      if (!requestBody.consentTypes.includes(consentType)) {
+        throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Required interview consent is missing.", 400, [
+          { field: "consentTypes", reason: `${consentType} is required` },
+        ]);
+      }
+    }
+
+    return requestBody.consentTypes as ConsentRecord["consentType"][];
+  }
+
+  private assertDeviceCheckRequest(dto: {
+    cameraGranted: boolean;
+    microphoneGranted: boolean;
+    networkStable: boolean;
+  }): void {
+    const requestBody = this.toRequestBody(dto, "deviceCheck");
+    for (const field of ["cameraGranted", "microphoneGranted", "networkStable"] as const) {
+      if (typeof requestBody[field] !== "boolean") {
+        throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Device check request is invalid.", 400, [
+          { field, reason: `${field} must be a boolean` },
+        ]);
+      }
+      if (requestBody[field] !== true) {
+        throw new CandidateDomainError("DEVICE_PERMISSION_DENIED", "Camera, microphone, and network checks are required.", 400, [
+          { field, reason: `${field} must pass before interview start` },
+        ]);
+      }
+    }
+  }
+
+  private async refreshReadyState(applicationId: number, sessionId: number): Promise<InterviewSession> {
+    const application = await this.repository.findApplication(applicationId);
+    const session = await this.repository.findInterviewSession(sessionId);
+    if (!application || !session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Application or interview session was not found.", 404);
+    }
+    if (application.interviewStatus !== "NOT_READY" || session.status !== "NOT_READY") {
+      return session;
+    }
+
+    const consents = await this.repository.listConsentRecords(applicationId);
+    if (!this.hasRequiredInterviewConsents(consents) || !this.isDeviceCheckPassed(session)) {
+      return session;
+    }
+
+    await this.repository.updateApplicationInterviewStatus(applicationId, "READY");
+    return this.repository.updateInterviewSessionStatus(sessionId, "READY");
+  }
+
+  private async toApplicationSummary(application: Application): Promise<CandidateApplicationSummary> {
+    const job = await this.repository.findJob(application.postingId);
+    const session = await this.repository.findInterviewSessionByApplication(application.applicationId);
+    const consents = await this.repository.listConsentRecords(application.applicationId);
+    if (!job || !session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Application summary dependency was not found.", 404);
+    }
+
+    const consentCompleted = this.hasRequiredInterviewConsents(consents);
+    const deviceCheckCompleted = this.isDeviceCheckPassed(session);
+    return {
+      applicationId: application.applicationId,
+      postingId: application.postingId,
+      candidateId: application.candidateId,
+      companyName: job.companyName,
+      jobTitle: job.title,
+      jobRole: job.jobRole,
+      location: job.location,
+      applicationStatus: application.applicationStatus,
+      documentStatus: application.documentStatus,
+      interviewStatus: application.interviewStatus,
+      reportStatus: application.reportStatus,
+      submittedAt: application.submittedAt,
+      updatedAt: application.updatedAt,
+      sessionId: session.sessionId,
+      interviewType: session.interviewType,
+      interviewSessionStatus: session.status,
+      interviewWindowStartsAt: session.windowStartsAt,
+      interviewWindowEndsAt: session.windowEndsAt,
+      consentCompleted,
+      deviceCheckCompleted,
+      canStartInterview: consentCompleted && deviceCheckCompleted && session.status === "READY",
+    };
+  }
+
+  private async toInterviewGuide(
+    application: Application,
+    session: InterviewSession,
+  ): Promise<CandidateInterviewGuide> {
+    const consents = await this.repository.listConsentRecords(application.applicationId);
+    const consentCompleted = this.hasRequiredInterviewConsents(consents);
+    const deviceCheckCompleted = this.isDeviceCheckPassed(session);
+    return {
+      applicationId: application.applicationId,
+      sessionId: session.sessionId,
+      interviewType: "RECRUITING",
+      interviewWindowStartsAt: session.windowStartsAt,
+      interviewWindowEndsAt: session.windowEndsAt,
+      method: [
+        "Use camera and microphone in a quiet environment.",
+        "Answer each recruiting interview question in order.",
+        "Submitted video and audio files are connected to the interview session.",
+      ],
+      requiredPreparations: [
+        "Complete privacy, AI document analysis, and interview recording consent.",
+        "Pass camera, microphone, and network device checks.",
+        "Keep the browser open until the interview is submitted.",
+      ],
+      requiredConsentTypes: [...REQUIRED_INTERVIEW_CONSENTS],
+      consentCompleted,
+      deviceCheckCompleted,
+      canStart: consentCompleted && deviceCheckCompleted && session.status === "READY",
+    };
+  }
+
+  private hasRequiredInterviewConsents(consents: ConsentRecord[]): boolean {
+    return REQUIRED_INTERVIEW_CONSENTS.every((consentType) =>
+      consents.some((consent) => consent.consentType === consentType && consent.agreed),
+    );
+  }
+
+  private isDeviceCheckPassed(session: InterviewSession): boolean {
+    return (
+      session.deviceCheck.status === "PASSED" &&
+      session.deviceCheck.cameraGranted &&
+      session.deviceCheck.microphoneGranted &&
+      session.deviceCheck.networkStable
+    );
   }
 
   private async getApplyAvailableJob(jobId: number): Promise<CandidateJob> {
@@ -796,6 +1139,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
   private readonly applications: Application[] = [];
   private readonly documents: ApplicationDocument[] = [];
   private readonly consentRecords: ConsentRecord[] = [];
+  private readonly interviewSessions: InterviewSession[] = [];
   private readonly fileAssets: FileAsset[] = [];
   private readonly portfolioLinks: PortfolioLink[] = [];
 
@@ -809,6 +1153,89 @@ export class InMemoryCandidateRepository implements CandidateRepository {
 
   async findFileAsset(fileId: number): Promise<FileAsset | undefined> {
     return this.fileAssets.find((fileAsset) => fileAsset.fileId === fileId);
+  }
+
+  async listApplications(candidateId: number): Promise<Application[]> {
+    return this.applications.filter((application) => application.candidateId === candidateId);
+  }
+
+  async findApplication(applicationId: number): Promise<Application | undefined> {
+    return this.applications.find((application) => application.applicationId === applicationId);
+  }
+
+  async listDocuments(applicationId: number): Promise<ApplicationDocument[]> {
+    return this.documents.filter((document) => document.applicationId === applicationId);
+  }
+
+  async listConsentRecords(applicationId: number): Promise<ConsentRecord[]> {
+    return this.consentRecords.filter((consent) => consent.applicationId === applicationId);
+  }
+
+  async saveConsentRecords(applicationId: number, consentTypes: ConsentRecord["consentType"][]): Promise<ConsentRecord[]> {
+    const now = new Date().toISOString();
+    for (const consentType of consentTypes) {
+      const existing = this.consentRecords.find(
+        (consent) => consent.applicationId === applicationId && consent.consentType === consentType,
+      );
+      if (existing) {
+        existing.agreedAt = now;
+        continue;
+      }
+
+      this.consentRecords.push({
+        consentId: this.consentRecords.length + 1,
+        applicationId,
+        consentType,
+        agreed: true,
+        agreedAt: now,
+      });
+    }
+
+    return this.listConsentRecords(applicationId);
+  }
+
+  async findInterviewSession(sessionId: number): Promise<InterviewSession | undefined> {
+    return this.interviewSessions.find((session) => session.sessionId === sessionId);
+  }
+
+  async findInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
+    return this.interviewSessions.find((session) => session.applicationId === applicationId);
+  }
+
+  async saveDeviceCheck(
+    sessionId: number,
+    deviceCheck: { cameraGranted: boolean; microphoneGranted: boolean; networkStable: boolean },
+  ): Promise<InterviewSession> {
+    const session = await this.requiredInterviewSession(sessionId);
+    const checkedAt = new Date().toISOString();
+    session.deviceCheck = {
+      ...deviceCheck,
+      status: "PASSED",
+      checkedAt,
+    };
+    session.updatedAt = checkedAt;
+    return session;
+  }
+
+  async updateApplicationInterviewStatus(applicationId: number, status: InterviewSession["status"]): Promise<Application> {
+    const application = await this.requiredApplication(applicationId);
+    application.interviewStatus = status;
+    application.updatedAt = new Date().toISOString();
+    return application;
+  }
+
+  async updateInterviewSessionStatus(
+    sessionId: number,
+    status: InterviewSession["status"],
+    startedAt?: string,
+  ): Promise<InterviewSession> {
+    const session = await this.requiredInterviewSession(sessionId);
+    session.status = status;
+    session.updatedAt = new Date().toISOString();
+    if (startedAt) {
+      session.startedAt = startedAt;
+    }
+    return session;
   }
 
   async hasApplication(candidateId: number, postingId: number): Promise<boolean> {
@@ -842,6 +1269,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       updatedAt: now,
     };
     this.applications.push(application);
+    this.interviewSessions.push(this.createRecruitingInterviewSession(application, now));
 
     const documents = [this.createApplicationDocument(1, application.applicationId, input.resumeFileId, "RESUME", now)];
     if (input.portfolioFileId) {
@@ -904,6 +1332,43 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     };
     this.portfolioLinks.push(portfolioLink);
     return portfolioLink;
+  }
+
+  private createRecruitingInterviewSession(application: Application, createdAt: string): InterviewSession {
+    const windowEndsAt = new Date(Date.parse(createdAt) + 7 * 24 * 60 * 60 * 1000).toISOString();
+    return {
+      sessionId: this.interviewSessions.length + 1,
+      applicationId: application.applicationId,
+      candidateId: application.candidateId,
+      interviewType: "RECRUITING",
+      status: "NOT_READY",
+      showQuestionText: false,
+      windowStartsAt: createdAt,
+      windowEndsAt,
+      deviceCheck: {
+        cameraGranted: false,
+        microphoneGranted: false,
+        networkStable: false,
+        status: "PENDING",
+      },
+      updatedAt: createdAt,
+    };
+  }
+
+  private async requiredApplication(applicationId: number): Promise<Application> {
+    const application = await this.findApplication(applicationId);
+    if (!application) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Application was not found.", 404);
+    }
+    return application;
+  }
+
+  private async requiredInterviewSession(sessionId: number): Promise<InterviewSession> {
+    const session = await this.findInterviewSession(sessionId);
+    if (!session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404);
+    }
+    return session;
   }
 
   private createApplicationDocument(

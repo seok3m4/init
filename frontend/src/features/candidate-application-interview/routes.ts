@@ -3,6 +3,8 @@ export const candidateApplicationInterviewRoutes = {
   jobDetail: (jobId: number) => `/candidate/jobs/${jobId}`,
   apply: (jobId: number) => `/candidate/jobs/${jobId}/apply`,
   applications: "/candidate/applications",
+  interviewGuide: (applicationId: number) => `/candidate/applications/${applicationId}/interview-guide`,
+  interview: (applicationId: number) => `/candidate/applications/${applicationId}/interview`,
   mypage: "/candidate/mypage",
 } as const;
 

@@ -401,6 +401,144 @@ async function run() {
   assert.equal(submittedApplyView.data.job.alreadyApplied, true);
   assert.equal(submittedApplyView.data.job.canApply, false);
 
+  const applicationList = await service.listApplications(currentUser);
+  assert.equal(applicationList.data.items.length, 1);
+  assert.equal(applicationList.data.items[0]?.applicationId, submitted.data.application.applicationId);
+  assert.equal(applicationList.data.items[0]?.applicationStatus, "SUBMITTED");
+  assert.equal(applicationList.data.items[0]?.documentStatus, "SUBMITTED");
+  assert.equal(applicationList.data.items[0]?.interviewStatus, "NOT_READY");
+  assert.equal(applicationList.data.items[0]?.reportStatus, "PENDING");
+  assert.equal(applicationList.data.items[0]?.consentCompleted, false);
+  assert.equal(applicationList.data.items[0]?.deviceCheckCompleted, false);
+  assert.equal(applicationList.data.items[0]?.canStartInterview, false);
+  assert.equal(applicationList.data.items[0]?.sessionId, 1);
+
+  const guide = await service.getInterviewGuide(submitted.data.application.applicationId, currentUser);
+  assert.equal(guide.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(guide.data.sessionId, applicationList.data.items[0]?.sessionId);
+  assert.equal(guide.data.interviewType, "RECRUITING");
+  assert.equal(guide.data.consentCompleted, false);
+  assert.equal(guide.data.deviceCheckCompleted, false);
+  assert.equal(guide.data.canStart, false);
+  assert.ok(guide.data.method.length > 0);
+  assert.ok(guide.data.requiredPreparations.length > 0);
+
+  await assert.rejects(
+    () => service.startInterview(submitted.data.application.applicationId, currentUser),
+    (error) => error instanceof CandidateDomainError && error.code === "COMMON_CONFLICT",
+  );
+
+  const consentSaved = await service.saveInterviewConsent(
+    submitted.data.application.applicationId,
+    { consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"] },
+    currentUser,
+  );
+  assert.equal(consentSaved.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(consentSaved.data.consentCompleted, true);
+  assert.equal(consentSaved.data.deviceCheckCompleted, false);
+  assert.equal(consentSaved.data.canStart, false);
+  assert.equal(consentSaved.data.consents.some((consent) => consent.consentType === "AI_INTERVIEW_RECORDING"), true);
+
+  await assert.rejects(
+    () => service.startInterview(submitted.data.application.applicationId, currentUser),
+    (error) => error instanceof CandidateDomainError && error.code === "COMMON_CONFLICT",
+  );
+
+  await assert.rejects(
+    () =>
+      service.saveDeviceCheck(
+        consentSaved.data.sessionId,
+        { cameraGranted: false, microphoneGranted: true, networkStable: true },
+        currentUser,
+      ),
+    (error) => error instanceof CandidateDomainError && error.code === "DEVICE_PERMISSION_DENIED",
+  );
+
+  const deviceChecked = await service.saveDeviceCheck(
+    consentSaved.data.sessionId,
+    { cameraGranted: true, microphoneGranted: true, networkStable: true },
+    currentUser,
+  );
+  assert.equal(deviceChecked.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(deviceChecked.data.deviceCheckCompleted, true);
+  assert.equal(deviceChecked.data.consentCompleted, true);
+  assert.equal(deviceChecked.data.canStart, true);
+
+  const readyApplications = await service.listApplications(currentUser);
+  assert.equal(readyApplications.data.items[0]?.interviewStatus, "READY");
+  assert.equal(readyApplications.data.items[0]?.interviewSessionStatus, "READY");
+
+  await assert.rejects(
+    () =>
+      service.getInterviewGuide(submitted.data.application.applicationId, {
+        userId: 3,
+        candidateId: 999,
+        userType: "CANDIDATE",
+      }),
+    (error) => error instanceof CandidateDomainError && error.code === "COMMON_FORBIDDEN",
+  );
+
+  const startedInterview = await service.startInterview(submitted.data.application.applicationId, currentUser);
+  assert.equal(startedInterview.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(startedInterview.data.sessionId, consentSaved.data.sessionId);
+  assert.equal(startedInterview.data.interviewStatus, "IN_PROGRESS");
+  assert.equal(startedInterview.data.sessionStatus, "IN_PROGRESS");
+  assert.equal(startedInterview.data.interviewUrl, `/candidate/applications/${submitted.data.application.applicationId}/interview`);
+
+  const runtime = await service.getInterviewRuntime(submitted.data.application.applicationId, currentUser);
+  assert.equal(runtime.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(runtime.data.sessionId, consentSaved.data.sessionId);
+  assert.equal(runtime.data.status, "IN_PROGRESS");
+  assert.equal(runtime.data.canRecord, true);
+
+  const expiredRepository = new InMemoryCandidateRepository();
+  const expiredService = new CandidateService(expiredRepository);
+  const expiredSubmission = await expiredRepository.createApplication({
+    postingId: 1,
+    candidateId: currentUser.candidateId,
+    resumeFileId: 1,
+    consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+  });
+  const expiredSession = await expiredRepository.findInterviewSessionByApplication(
+    expiredSubmission.application.applicationId,
+  );
+  assert.ok(expiredSession);
+  expiredSession.windowEndsAt = "2000-01-01T00:00:00.000Z";
+  await assert.rejects(
+    () => expiredService.getInterviewGuide(expiredSubmission.application.applicationId, currentUser),
+    (error) => error instanceof CandidateDomainError && error.code === "INTERVIEW_SESSION_EXPIRED",
+  );
+
+  const completedRepository = new InMemoryCandidateRepository();
+  const completedService = new CandidateService(completedRepository);
+  const completedSubmission = await completedRepository.createApplication({
+    postingId: 1,
+    candidateId: currentUser.candidateId,
+    resumeFileId: 1,
+    consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+  });
+  const completedSession = await completedRepository.findInterviewSessionByApplication(
+    completedSubmission.application.applicationId,
+  );
+  assert.ok(completedSession);
+  await completedService.saveInterviewConsent(
+    completedSubmission.application.applicationId,
+    { consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"] },
+    currentUser,
+  );
+  await completedService.saveDeviceCheck(
+    completedSession.sessionId,
+    { cameraGranted: true, microphoneGranted: true, networkStable: true },
+    currentUser,
+  );
+  await completedService.startInterview(completedSubmission.application.applicationId, currentUser);
+  await completedRepository.updateApplicationInterviewStatus(completedSubmission.application.applicationId, "COMPLETED");
+  await completedRepository.updateInterviewSessionStatus(completedSession.sessionId, "COMPLETED");
+  await assert.rejects(
+    () => completedService.startInterview(completedSubmission.application.applicationId, currentUser),
+    (error) => error instanceof CandidateDomainError && error.code === "COMMON_CONFLICT",
+  );
+
   await assert.rejects(
     () =>
       service.submitApplication(

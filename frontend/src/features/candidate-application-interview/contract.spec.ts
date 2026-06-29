@@ -1,14 +1,22 @@
 import type {
   ApiErrorBody,
+  CandidateApplicationSummary,
   CandidateJobListPostingStatus,
   CandidateJobQuery,
   CreatePortfolioLinkRequest,
+  InterviewDeviceCheckRequest,
+  SaveInterviewConsentRequest,
   SubmitApplicationRequest,
   UploadResumeRequest,
 } from "./api";
+import { candidateApiPaths } from "./api";
 import {
+  getCandidateApplicationInterviewActionHref,
   getCandidateJobDetailActionHref,
+  isCandidateInterviewStartEnabled,
+  toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
+  toSaveInterviewConsentRequest,
   toSubmitApplicationRequest,
   toUploadResumeRequest,
 } from "./view-model";
@@ -53,6 +61,49 @@ const portfolioRequest: CreatePortfolioLinkRequest = toCreatePortfolioLinkReques
   description: " GitHub ",
 });
 
+const interviewConsentRequest: SaveInterviewConsentRequest = toSaveInterviewConsentRequest({
+  consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"],
+});
+
+const deviceCheckRequest: InterviewDeviceCheckRequest = toDeviceCheckRequest({
+  cameraGranted: true,
+  microphoneGranted: true,
+  networkStable: true,
+});
+
+const applicationSummary: CandidateApplicationSummary = {
+  applicationId: 1,
+  postingId: 1,
+  candidateId: 1,
+  companyName: "Init Labs",
+  jobTitle: "Backend Developer",
+  jobRole: "Backend",
+  location: "Seoul",
+  applicationStatus: "SUBMITTED",
+  documentStatus: "SUBMITTED",
+  interviewStatus: "READY",
+  reportStatus: "PENDING",
+  submittedAt: "2026-06-29T00:00:00.000Z",
+  updatedAt: "2026-06-29T00:00:00.000Z",
+  sessionId: 1,
+  interviewType: "RECRUITING",
+  interviewSessionStatus: "READY",
+  interviewWindowStartsAt: "2026-06-29T00:00:00.000Z",
+  interviewWindowEndsAt: "2026-07-06T00:00:00.000Z",
+  consentCompleted: true,
+  deviceCheckCompleted: true,
+  canStartInterview: true,
+};
+
+const applicationInterviewHref = getCandidateApplicationInterviewActionHref(applicationSummary);
+const applicationCanStart = isCandidateInterviewStartEnabled(applicationSummary);
+
+const applicationsPath = candidateApiPaths.applications;
+const interviewGuidePath = candidateApiPaths.interviewGuide(1);
+const deviceCheckPath = candidateApiPaths.deviceCheck(1);
+const startInterviewPath = candidateApiPaths.startInterview(1);
+const runtimePath = candidateApiPaths.interviewRuntime(1);
+
 const applyActionHref = getCandidateJobDetailActionHref({
   jobId: 1,
   canApply: true,
@@ -88,6 +139,16 @@ void closedFilterQuery;
 void submitRequest;
 void resumeRequest;
 void portfolioRequest;
+void interviewConsentRequest;
+void deviceCheckRequest;
+void applicationSummary;
+void applicationInterviewHref;
+void applicationCanStart;
+void applicationsPath;
+void interviewGuidePath;
+void deviceCheckPath;
+void startInterviewPath;
+void runtimePath;
 void applyActionHref;
 void appliedActionHref;
 void disabledActionHref;

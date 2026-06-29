@@ -1,10 +1,13 @@
 import type {
+  CandidateApplicationSummary,
   CandidateJobDetail,
   CandidateJobQuery,
   CandidateJobSummary,
   ConsentType,
   CreatePortfolioLinkRequest,
+  InterviewDeviceCheckRequest,
   PortfolioLinkType,
+  SaveInterviewConsentRequest,
   SubmitApplicationRequest,
   UploadResumeRequest,
 } from "./api";
@@ -36,7 +39,22 @@ export interface CandidatePortfolioLinkFormState {
   fileId?: number;
 }
 
+export interface CandidateInterviewConsentState {
+  consentTypes: ConsentType[];
+}
+
+export interface CandidateDeviceCheckState {
+  cameraGranted: boolean;
+  microphoneGranted: boolean;
+  networkStable: boolean;
+}
+
 export const requiredApplicationConsents: ConsentType[] = ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"];
+export const requiredInterviewConsents: ConsentType[] = [
+  "PRIVACY_COLLECTION",
+  "AI_DOCUMENT_ANALYSIS",
+  "AI_INTERVIEW_RECORDING",
+];
 export const maxCandidateDocumentSizeBytes = 20 * 1024 * 1024;
 export const allowedCandidateDocumentMimeTypes: UploadResumeRequest["mimeType"][] = [
   "application/pdf",
@@ -61,6 +79,16 @@ export const defaultPortfolioLinkFormState: CandidatePortfolioLinkFormState = {
   linkType: "PORTFOLIO",
   url: "",
   description: "",
+};
+
+export const defaultInterviewConsentState: CandidateInterviewConsentState = {
+  consentTypes: [],
+};
+
+export const defaultDeviceCheckState: CandidateDeviceCheckState = {
+  cameraGranted: false,
+  microphoneGranted: false,
+  networkStable: false,
 };
 
 export function toSubmitApplicationRequest(state: CandidateApplicationFormState): SubmitApplicationRequest {
@@ -120,12 +148,54 @@ export function getCandidateJobDetailActionHref(
   return job.canApply ? candidateApplicationInterviewRoutes.apply(job.jobId) : undefined;
 }
 
+export function getCandidateApplicationInterviewActionHref(
+  application: Pick<CandidateApplicationSummary, "applicationId" | "interviewStatus">,
+): string {
+  return application.interviewStatus === "IN_PROGRESS"
+    ? candidateApplicationInterviewRoutes.interview(application.applicationId)
+    : candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
+}
+
 export function hasRequiredConsents(consentTypes: ConsentType[]): boolean {
   return requiredApplicationConsents.every((consentType) => consentTypes.includes(consentType));
 }
 
+export function hasRequiredInterviewConsents(consentTypes: ConsentType[]): boolean {
+  return requiredInterviewConsents.every((consentType) => consentTypes.includes(consentType));
+}
+
+export function isCandidateInterviewStartEnabled(
+  state: Pick<CandidateApplicationSummary, "consentCompleted" | "deviceCheckCompleted" | "interviewStatus">,
+): boolean {
+  return state.consentCompleted && state.deviceCheckCompleted && state.interviewStatus === "READY";
+}
+
 export function hasPortfolioArtifact(state: Pick<CandidateApplicationFormState, "portfolioFileId" | "portfolioUrl">) {
   return Boolean(state.portfolioFileId) || Boolean(state.portfolioUrl?.trim());
+}
+
+export function toSaveInterviewConsentRequest(
+  state: CandidateInterviewConsentState,
+): SaveInterviewConsentRequest {
+  if (!hasRequiredInterviewConsents(state.consentTypes)) {
+    throw new Error("required interview consentTypes are missing before starting an interview.");
+  }
+
+  return {
+    consentTypes: state.consentTypes,
+  };
+}
+
+export function toDeviceCheckRequest(state: CandidateDeviceCheckState): InterviewDeviceCheckRequest {
+  if (!state.cameraGranted || !state.microphoneGranted || !state.networkStable) {
+    throw new Error("camera, microphone, and network checks must pass before starting an interview.");
+  }
+
+  return {
+    cameraGranted: state.cameraGranted,
+    microphoneGranted: state.microphoneGranted,
+    networkStable: state.networkStable,
+  };
 }
 
 export function toUploadResumeRequest(state: CandidateResumeUploadState): UploadResumeRequest {

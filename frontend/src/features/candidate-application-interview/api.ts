@@ -1,6 +1,20 @@
 export type PostingStatus = "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
 export type CandidateJobListPostingStatus = Extract<PostingStatus, "OPEN" | "CLOSING_SOON">;
 export type SortOrder = "asc" | "desc";
+export type ApplicationStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "IN_REVIEW"
+  | "INTERVIEW_WAITING"
+  | "INTERVIEW_DONE"
+  | "COMPLETED"
+  | "CANCELED";
+export type DocumentStatus = "NOT_SUBMITTED" | "SUBMITTED" | "EXTRACTING" | "EXTRACTED" | "FAILED";
+export type DocumentType = "RESUME" | "PORTFOLIO";
+export type InterviewStatus = "NOT_READY" | "READY" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+export type InterviewType = "MOCK" | "RECRUITING";
+export type DeviceCheckStatus = "PENDING" | "PASSED" | "FAILED";
+export type ReportStatus = "PENDING" | "GENERATING" | "COMPLETED" | "FAILED";
 export type ConsentType = "PRIVACY_COLLECTION" | "AI_DOCUMENT_ANALYSIS" | "AI_INTERVIEW_RECORDING";
 export type PortfolioLinkType = "PORTFOLIO" | "GITHUB";
 
@@ -141,10 +155,10 @@ export interface CandidateApplication {
   applicationId: number;
   postingId: number;
   candidateId: number;
-  applicationStatus: "SUBMITTED";
-  documentStatus: "SUBMITTED";
-  interviewStatus: "NOT_READY";
-  reportStatus: "PENDING";
+  applicationStatus: ApplicationStatus;
+  documentStatus: DocumentStatus;
+  interviewStatus: InterviewStatus;
+  reportStatus: ReportStatus;
   submittedAt: string;
   updatedAt: string;
 }
@@ -153,8 +167,8 @@ export interface CandidateApplicationDocument {
   documentId: number;
   applicationId: number;
   fileId: number;
-  documentType: "RESUME" | "PORTFOLIO";
-  parseStatus: "SUBMITTED";
+  documentType: DocumentType;
+  parseStatus: DocumentStatus;
   uploadedAt: string;
 }
 
@@ -164,6 +178,100 @@ export interface CandidateConsentRecord {
   consentType: ConsentType;
   agreed: true;
   agreedAt: string;
+}
+
+export interface CandidateInterviewDeviceCheck {
+  cameraGranted: boolean;
+  microphoneGranted: boolean;
+  networkStable: boolean;
+  status: DeviceCheckStatus;
+  checkedAt?: string;
+}
+
+export interface CandidateApplicationSummary {
+  applicationId: number;
+  postingId: number;
+  candidateId: number;
+  companyName: string;
+  jobTitle: string;
+  jobRole: string;
+  location: string;
+  applicationStatus: ApplicationStatus;
+  documentStatus: DocumentStatus;
+  interviewStatus: InterviewStatus;
+  reportStatus: ReportStatus;
+  submittedAt: string;
+  updatedAt: string;
+  sessionId: number;
+  interviewType: InterviewType;
+  interviewSessionStatus: InterviewStatus;
+  interviewWindowStartsAt: string;
+  interviewWindowEndsAt: string;
+  consentCompleted: boolean;
+  deviceCheckCompleted: boolean;
+  canStartInterview: boolean;
+}
+
+export interface CandidateInterviewGuide {
+  applicationId: number;
+  sessionId: number;
+  interviewType: "RECRUITING";
+  interviewWindowStartsAt: string;
+  interviewWindowEndsAt: string;
+  method: string[];
+  requiredPreparations: string[];
+  requiredConsentTypes: ConsentType[];
+  consentCompleted: boolean;
+  deviceCheckCompleted: boolean;
+  canStart: boolean;
+}
+
+export interface SaveInterviewConsentRequest {
+  consentTypes: ConsentType[];
+}
+
+export interface SaveInterviewConsentResponse {
+  applicationId: number;
+  sessionId: number;
+  consentCompleted: boolean;
+  deviceCheckCompleted: boolean;
+  canStart: boolean;
+  consents: CandidateConsentRecord[];
+}
+
+export interface InterviewDeviceCheckRequest {
+  cameraGranted: boolean;
+  microphoneGranted: boolean;
+  networkStable: boolean;
+}
+
+export interface InterviewDeviceCheckResponse {
+  applicationId: number;
+  sessionId: number;
+  consentCompleted: boolean;
+  deviceCheckCompleted: boolean;
+  canStart: boolean;
+  deviceCheck: CandidateInterviewDeviceCheck;
+}
+
+export interface StartInterviewResponse {
+  applicationId: number;
+  sessionId: number;
+  interviewStatus: "IN_PROGRESS";
+  sessionStatus: "IN_PROGRESS";
+  interviewUrl: string;
+  startedAt: string;
+}
+
+export interface CandidateInterviewRuntimeView {
+  applicationId: number;
+  sessionId: number;
+  interviewType: "RECRUITING";
+  status: InterviewStatus;
+  showQuestionText: boolean;
+  canRecord: boolean;
+  nextQuestionEndpoint: string;
+  answerUploadEndpoint: string;
 }
 
 export interface CandidatePortfolioLink {
@@ -189,6 +297,12 @@ export const candidateApiPaths = {
   jobDetail: (jobId: number) => `/api/v1/candidate/jobs/${jobId}`,
   applyView: (jobId: number) => `/api/v1/candidate/jobs/${jobId}/apply`,
   submitApplication: (jobId: number) => `/api/v1/candidate/jobs/${jobId}/applications`,
+  applications: "/api/v1/candidate/applications",
+  interviewGuide: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview-guide`,
+  interviewConsent: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/consent`,
+  deviceCheck: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/device-check`,
+  startInterview: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview/start`,
+  interviewRuntime: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview`,
   resume: "/api/v1/candidate/resume",
   portfolioLinks: "/api/v1/candidate/portfolio-links",
 } as const;
@@ -216,6 +330,18 @@ export interface CandidateApiClient {
   getJobDetail(jobId: number): Promise<ApiResponse<CandidateJobDetail>>;
   getApplyView(jobId: number): Promise<ApiResponse<CandidateApplyView>>;
   submitApplication(jobId: number, body: SubmitApplicationRequest): Promise<ApiResponse<SubmitApplicationResponse>>;
+  listApplications(): Promise<ApiListResponse<CandidateApplicationSummary>>;
+  getInterviewGuide(applicationId: number): Promise<ApiResponse<CandidateInterviewGuide>>;
+  saveInterviewConsent(
+    applicationId: number,
+    body: SaveInterviewConsentRequest,
+  ): Promise<ApiResponse<SaveInterviewConsentResponse>>;
+  saveDeviceCheck(
+    sessionId: number,
+    body: InterviewDeviceCheckRequest,
+  ): Promise<ApiResponse<InterviewDeviceCheckResponse>>;
+  startInterview(applicationId: number): Promise<ApiResponse<StartInterviewResponse>>;
+  getInterviewRuntime(applicationId: number): Promise<ApiResponse<CandidateInterviewRuntimeView>>;
   uploadResume(body: UploadResumeRequest): Promise<ApiResponse<CandidateFileAsset>>;
   createPortfolioLink(
     body: CreatePortfolioLinkRequest,
@@ -255,6 +381,26 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+    listApplications: () =>
+      request<ApiListResponse<CandidateApplicationSummary>>(candidateApiPaths.applications),
+    getInterviewGuide: (applicationId) =>
+      request<ApiResponse<CandidateInterviewGuide>>(candidateApiPaths.interviewGuide(applicationId)),
+    saveInterviewConsent: (applicationId, body) =>
+      request<ApiResponse<SaveInterviewConsentResponse>>(candidateApiPaths.interviewConsent(applicationId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    saveDeviceCheck: (sessionId, body) =>
+      request<ApiResponse<InterviewDeviceCheckResponse>>(candidateApiPaths.deviceCheck(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    startInterview: (applicationId) =>
+      request<ApiResponse<StartInterviewResponse>>(candidateApiPaths.startInterview(applicationId), {
+        method: "POST",
+      }),
+    getInterviewRuntime: (applicationId) =>
+      request<ApiResponse<CandidateInterviewRuntimeView>>(candidateApiPaths.interviewRuntime(applicationId)),
     uploadResume: (body) =>
       request<ApiResponse<CandidateFileAsset>>(candidateApiPaths.resume, {
         method: "POST",
