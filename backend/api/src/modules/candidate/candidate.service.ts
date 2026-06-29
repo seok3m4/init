@@ -659,8 +659,8 @@ export class CandidateService {
 
   private normalizeListQuery(query: CandidateJobListQueryDto): NormalizedCandidateJobListQuery {
     const requestBody = this.toRequestBody(query, "query");
-    const page = requestBody.page ?? 1;
-    const limit = requestBody.limit ?? 20;
+    const page = this.toIntegerQueryValue(requestBody.page, 1);
+    const limit = this.toIntegerQueryValue(requestBody.limit, 20);
     const sort = requestBody.sort ?? "createdAt";
     const order = requestBody.order ?? "desc";
 
@@ -883,6 +883,19 @@ export class CandidateService {
 
   private isPositiveInteger(value: unknown): value is number {
     return Number.isInteger(value) && typeof value === "number" && value > 0;
+  }
+
+  private toIntegerQueryValue(value: unknown, defaultValue: number): unknown {
+    if (value === undefined || value === null || value === "") {
+      return defaultValue;
+    }
+    if (typeof value === "number") {
+      return value;
+    }
+    if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+      return Number(value);
+    }
+    return value;
   }
 
   private isOptionalString(value: unknown): value is string | undefined | null {

@@ -150,6 +150,16 @@ async function run() {
   assert.equal(allJobs.data.items.some((job) => job.postingStatus === "CLOSED"), false);
   assert.equal(allJobs.data.items.some((job) => job.jobId === 4), false);
 
+  const httpQueryJobs = await service.listJobs({
+    page: "1",
+    limit: "20",
+    sort: "createdAt",
+    order: "desc",
+  } as never);
+  assert.equal(httpQueryJobs.meta.page.page, 1);
+  assert.equal(httpQueryJobs.meta.page.limit, 20);
+  assert.equal(httpQueryJobs.data.items.length, 2);
+
   const jobs = await service.listJobs({ page: 1, limit: 20, jobRole: "Android", sort: "createdAt", order: "desc" });
   assert.equal(jobs.data.items.length, 1);
   assert.equal(jobs.data.items[0]?.jobRole, "Android");
