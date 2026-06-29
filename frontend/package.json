@@ -8,10 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "typecheck": "node -e \"console.log('frontend typecheck pending implementation')\"",
-    "lint": "node -e \"console.log('frontend lint pending implementation')\"",
-    "test": "node -e \"console.log('frontend tests pending implementation')\"",
-    "build": "node -e \"console.log('frontend build pending implementation')\""
+    "typecheck": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json",
+    "lint": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json",
+    "test": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json",
+    "build": "tsc -p src/features/candidate-application-interview/tsconfig.spec.json"
   },
   "dependencies": {
     "next": "16.2.9",
