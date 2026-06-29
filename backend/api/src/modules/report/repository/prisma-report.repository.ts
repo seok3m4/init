@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { parseAiJobOutput } from "./ai-job-output";
-import { PrismaService } from "../../shared/prisma.service";
+import { parseAiJobOutput } from "../service/ai-job-output";
+import { PrismaService } from "../../../shared/prisma.service";
 import { AiProcessNotFoundError, ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
@@ -16,7 +16,7 @@ import {
   ReportScore,
   ReportType,
   StoredCounts
-} from "./report.types";
+} from "../report.types";
 
 @Injectable()
 export class PrismaReportRepository implements ReportRepository {

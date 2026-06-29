@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { parseAiJobOutput } from "./ai-job-output";
+import { parseAiJobOutput } from "../service/ai-job-output";
 import { AiProcessNotFoundError, ReportRepository } from "./report.repository";
 import {
   CommunicationAnalysis,
@@ -15,7 +15,7 @@ import {
   ReportScore,
   ReportType,
   StoredCounts
-} from "./report.types";
+} from "../report.types";
 
 interface GuardrailLogRecord {
   guardrailLogId: number;

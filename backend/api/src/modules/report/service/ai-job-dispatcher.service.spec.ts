@@ -1,6 +1,6 @@
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
 import { AiJobQueuePublisher } from "./ai-job-queue.publisher";
-import { InMemoryReportRepository } from "./in-memory-report.repository";
+import { InMemoryReportRepository } from "../repository/in-memory-report.repository";
 
 describe("AiJobDispatcherService", () => {
   it("marks queued process failed when SQS publish fails", async () => {

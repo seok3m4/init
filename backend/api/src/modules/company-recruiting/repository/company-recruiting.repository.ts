@@ -9,8 +9,8 @@ import {
   type Prisma,
 } from "@prisma/client";
 
-import { PrismaService } from "../../shared/prisma.service";
-import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "./company-recruiting.types";
+import { PrismaService } from "../../../shared/prisma.service";
+import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
 
 export type CreatePostingInput = {
   companyId: number;

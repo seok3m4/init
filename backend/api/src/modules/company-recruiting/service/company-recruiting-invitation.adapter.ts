@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import type { ApplicantRecord } from "./company-recruiting.types";
+import type { ApplicantRecord } from "../company-recruiting.types";
 
 export type InvitationAdapterInput = {
   application: ApplicantRecord;

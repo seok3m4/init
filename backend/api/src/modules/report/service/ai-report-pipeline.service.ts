@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { GuardrailService } from "./guardrail.service";
 import { MockAiReportProvider } from "./mock-ai-report.provider";
-import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
+import { REPORT_REPOSITORY, ReportRepository } from "../repository/report.repository";
 import {
   AnswerEvaluationRequest,
   AnswerEvaluationResult,
@@ -15,7 +15,7 @@ import {
   ReportCommand,
   ReportPipelineStep,
   ReportType
-} from "./report.types";
+} from "../report.types";
 
 @Injectable()
 export class AiReportPipelineService {

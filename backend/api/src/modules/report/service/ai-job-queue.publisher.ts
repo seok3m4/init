@@ -1,5 +1,5 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import { AiProcessType } from "./report.types";
+import { AiProcessType } from "../report.types";
 
 export const AI_JOB_QUEUE_PUBLISHER = Symbol("AI_JOB_QUEUE_PUBLISHER");
 
