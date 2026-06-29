@@ -95,6 +95,57 @@ foreach ($relative in $expected.Keys) {
   Write-Host "[ok] package baseline: $relative"
 }
 
+$versionNeedles = @(
+  "20.x",
+  ">=10",
+  "16.2.9",
+  "19.2.7",
+  "20.19.43",
+  "19.2.17",
+  "19.2.3",
+  "9.39.4",
+  "5.9.3",
+  "11.1.27",
+  "4.0.4",
+  "11.0.2",
+  "6.19.3",
+  "0.5.1",
+  "0.15.1",
+  "0.2.2",
+  "7.8.2",
+  "4.22.4",
+  "3.1075.0",
+  "0.10.35",
+  "6.45.0"
+) | Sort-Object -Unique
+
+$baselineDocs = @(
+  "docs/04_implementation/team-split-5dev-1pm.md",
+  "docs/04_implementation/one-time-alignment/agent-a.md",
+  "docs/04_implementation/one-time-alignment/agent-b.md",
+  "docs/04_implementation/one-time-alignment/agent-c.md",
+  "docs/04_implementation/one-time-alignment/agent-d.md",
+  "docs/04_implementation/one-time-alignment/agent-e.md",
+  "docs/04_implementation/one-time-alignment/agent-pm.md"
+)
+
+foreach ($relative in $baselineDocs) {
+  $path = Join-Path $root $relative
+  if (-not (Test-Path -LiteralPath $path)) {
+    Write-Host "[fail] missing package baseline doc $relative"
+    $failed = $true
+    continue
+  }
+  $text = Get-Content -Encoding UTF8 -LiteralPath $path -Raw
+  foreach ($needle in $versionNeedles) {
+    if ($text -notmatch [regex]::Escape($needle)) {
+      Write-Host "[fail] $relative does not mention package baseline version $needle"
+      $failed = $true
+    }
+  }
+  Write-Host "[ok] package baseline doc: $relative"
+}
+
 if ($failed) {
   throw "verify-package-baseline failed"
 }

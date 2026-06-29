@@ -129,6 +129,7 @@ Test-FileContains "docs/04_implementation/module-boundaries.md" @(
 
 Test-FileContains "docs/04_implementation/team-split-5dev-1pm.md" @(
   "One-Time Alignment Workflow",
+  "Baseline Change Protocol",
   "one-time-alignment/agent-a.md",
   "one-time-alignment/agent-pm.md"
 )
@@ -138,6 +139,18 @@ Test-FileContains "docs/04_implementation/test-strategy.md" @(
   "schema.prisma",
   "Prisma model/enum baseline"
 )
+
+foreach ($agent in @("agent-a", "agent-b", "agent-c", "agent-d", "agent-e", "agent-pm")) {
+  Test-FileContains "docs/04_implementation/one-time-alignment/$agent.md" @(
+    "Package Version Baseline",
+    "Response Envelope Baseline",
+    "Pagination Filter Sort Baseline",
+    "Status Transition Baseline",
+    "DTO Naming and Location Baseline",
+    "Permission Matrix Baseline",
+    "Verification Promotion Gates"
+  )
+}
 
 $schemaPath = Join-Path $root "backend/api/prisma/schema.prisma"
 if (Test-Path -LiteralPath $schemaPath) {

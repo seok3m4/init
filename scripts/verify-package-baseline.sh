@@ -101,6 +101,57 @@ for (const [relative, sections] of Object.entries(expected)) {
   console.log(`[ok] package baseline: ${relative}`);
 }
 
+const versionNeedles = Array.from(new Set([
+  "20.x",
+  ">=10",
+  "16.2.9",
+  "19.2.7",
+  "20.19.43",
+  "19.2.17",
+  "19.2.3",
+  "9.39.4",
+  "5.9.3",
+  "11.1.27",
+  "4.0.4",
+  "11.0.2",
+  "6.19.3",
+  "0.5.1",
+  "0.15.1",
+  "0.2.2",
+  "7.8.2",
+  "4.22.4",
+  "3.1075.0",
+  "0.10.35",
+  "6.45.0",
+]));
+
+const baselineDocs = [
+  "docs/04_implementation/team-split-5dev-1pm.md",
+  "docs/04_implementation/one-time-alignment/agent-a.md",
+  "docs/04_implementation/one-time-alignment/agent-b.md",
+  "docs/04_implementation/one-time-alignment/agent-c.md",
+  "docs/04_implementation/one-time-alignment/agent-d.md",
+  "docs/04_implementation/one-time-alignment/agent-e.md",
+  "docs/04_implementation/one-time-alignment/agent-pm.md",
+];
+
+for (const relative of baselineDocs) {
+  const docPath = path.join(root, relative);
+  if (!fs.existsSync(docPath)) {
+    console.log(`[fail] missing package baseline doc ${relative}`);
+    failed = true;
+    continue;
+  }
+  const text = fs.readFileSync(docPath, "utf8");
+  for (const needle of versionNeedles) {
+    if (!text.includes(needle)) {
+      console.log(`[fail] ${relative} does not mention package baseline version ${needle}`);
+      failed = true;
+    }
+  }
+  console.log(`[ok] package baseline doc: ${relative}`);
+}
+
 if (failed) {
   console.log("[fail] verify-package-baseline failed");
   process.exit(1);
