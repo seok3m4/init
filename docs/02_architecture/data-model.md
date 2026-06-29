@@ -249,6 +249,8 @@
 | total_score | INTEGER | 총점 |
 | summary | TEXT | 리포트 요약 |
 | generated_at | TIMESTAMP | 리포트 생성 시각 |
+| failure_category | VARCHAR(40) | 실패 구분: RETRYABLE, NON_RETRYABLE |
+| failure_reason | TEXT | 실패 사유. 재시도 가능 여부와 함께 화면/운영 로그에 사용 |
 
 ### report_scores
 
@@ -266,7 +268,10 @@
 | --- |--- |--- |
 | evidence_id | BIGINT PRIMARY KEY | 평가 근거 PK |
 | score_id | BIGINT NOT NULL | 연결된 점수 FK |
+| source_type | VARCHAR(80) NOT NULL | 근거 출처 유형: INTERVIEW_ANSWER, APPLICATION_DOCUMENT |
 | answer_id | BIGINT | 근거가 된 답변 FK |
+| document_id | BIGINT | 근거가 된 지원서 첨부 서류 FK |
+| document_ref | VARCHAR(255) | 서류 원문이 아직 별도 document_id로 연결되지 않았을 때의 참조값 |
 | evidence_text | TEXT NOT NULL | 근거 텍스트 |
 
 ### manual_evaluations
@@ -299,10 +304,12 @@
 | process_log_id | BIGINT PRIMARY KEY | AI 비동기 처리 로그 PK |
 | application_id | BIGINT | 관련 지원서 FK |
 | session_id | BIGINT | 관련 면접 세션 FK |
-| process_type | VARCHAR(80) NOT NULL | 처리 유형: DOCUMENT_EXTRACT, STT, FOLLOW_UP, REPORT_GENERATE, EMBEDDING |
+| process_type | VARCHAR(80) NOT NULL | 처리 유형: DOCUMENT_EXTRACT, STT, FOLLOW_UP, REPORT_GENERATE, EMBEDDING, GUARDRAIL_VALIDATE, CRITERIA_SUGGEST, QUESTION_GENERATE, QUESTION_SET_GENERATE |
 | status | VARCHAR(40) NOT NULL | 처리 상태: PENDING, RUNNING, COMPLETED, FAILED |
 | input_ref | TEXT | 입력 참조값 |
 | output_ref | TEXT | 출력 참조값 |
+| failure_category | VARCHAR(40) | 실패 구분: RETRYABLE, NON_RETRYABLE |
+| failure_reason | TEXT | 실패 사유. 재시도 가능 여부와 함께 기록 |
 | created_at | TIMESTAMP NOT NULL | 생성 시각 |
 
 ### ai_guardrail_logs
@@ -314,6 +321,7 @@
 | policy_name | VARCHAR(120) NOT NULL | 정책명 |
 | result | VARCHAR(40) NOT NULL | 검증 결과: PASS, BLOCKED, REGENERATED |
 | reason | TEXT | 사유 |
+| failure_category | VARCHAR(40) | BLOCKED 결과의 실패 구분. PASS/REGENERATED는 null |
 | created_at | TIMESTAMP NOT NULL | 생성 시각 |
 
 ### embeddings

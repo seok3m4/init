@@ -7,10 +7,12 @@
     "npm": ">=10"
   },
   "scripts": {
-    "typecheck": "node -e \"console.log('backend worker typecheck pending implementation')\"",
-    "lint": "node -e \"console.log('backend worker lint pending implementation')\"",
-    "test": "node -e \"console.log('backend worker tests pending implementation')\"",
-    "build": "node -e \"console.log('backend worker build pending implementation')\""
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "npm run typecheck",
+    "test": "npm run build && node scripts/run-tests.cjs",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "start:dev": "tsx src/main.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1075.0",

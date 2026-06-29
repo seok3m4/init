@@ -31,6 +31,11 @@ if (-not $env:DATABASE_URL -and (Test-Path -LiteralPath $rootEnvExample)) {
 
 Push-Location $apiDir
 try {
+  $hadDatabaseUrl = [bool][Environment]::GetEnvironmentVariable("DATABASE_URL")
+  if (-not $hadDatabaseUrl) {
+    $env:DATABASE_URL = "postgresql://init:init@localhost:5432/init?schema=public"
+  }
+
   $localPrismaCmd = Join-Path $apiDir "node_modules/.bin/prisma.cmd"
   $localPrisma = Join-Path $apiDir "node_modules/.bin/prisma"
 
@@ -61,7 +66,14 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "prisma generate failed"
   }
+
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
 } finally {
+  if (-not $hadDatabaseUrl) {
+    Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
+  }
   Pop-Location
 }
 

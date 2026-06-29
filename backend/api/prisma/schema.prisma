@@ -114,6 +114,10 @@ enum AiProcessType {
   FOLLOW_UP
   REPORT_GENERATE
   EMBEDDING
+  GUARDRAIL_VALIDATE
+  CRITERIA_SUGGEST
+  QUESTION_GENERATE
+  QUESTION_SET_GENERATE
 }
 
 enum AiProcessStatus {
@@ -371,9 +375,11 @@ model FollowUpQuestion {
   answerId         BigInt          @map("answer_id")
   content          String
   generationStatus String          @map("generation_status") @db.VarChar(40)
+  policy           String          @default("RECRUITING") @db.VarChar(40)
   createdAt        DateTime        @default(now()) @map("created_at")
   answer           InterviewAnswer @relation(fields: [answerId], references: [answerId])
 
+  @@unique([answerId, policy], name: "answerIdPolicy", map: "uq_follow_up_questions_answer_policy")
   @@map("follow_up_questions")
 }
 
@@ -386,6 +392,8 @@ model EvaluationReport {
   totalScore        Int?               @map("total_score")
   summary           String?
   generatedAt       DateTime?          @map("generated_at")
+  failureCategory   String?            @map("failure_category") @db.VarChar(40)
+  failureReason     String?            @map("failure_reason")
   application       Application?       @relation(fields: [applicationId], references: [applicationId])
   session           InterviewSession?  @relation(fields: [sessionId], references: [sessionId])
   scores            ReportScore[]
@@ -410,7 +418,10 @@ model ReportScore {
 model ReportEvidence {
   evidenceId   BigInt           @id @default(autoincrement()) @map("evidence_id")
   scoreId      BigInt           @map("score_id")
+  sourceType   String           @default("INTERVIEW_ANSWER") @map("source_type") @db.VarChar(80)
   answerId     BigInt?          @map("answer_id")
+  documentId   BigInt?          @map("document_id")
+  documentRef  String?          @map("document_ref") @db.VarChar(255)
   evidenceText String           @map("evidence_text")
   score        ReportScore      @relation(fields: [scoreId], references: [scoreId])
   answer       InterviewAnswer? @relation(fields: [answerId], references: [answerId])
@@ -453,6 +464,8 @@ model AiProcessLog {
   status        AiProcessStatus   @default(PENDING)
   inputRef      String?           @map("input_ref")
   outputRef     String?           @map("output_ref")
+  failureCategory String?         @map("failure_category") @db.VarChar(40)
+  failureReason   String?         @map("failure_reason")
   createdAt     DateTime          @default(now()) @map("created_at")
   application   Application?      @relation(fields: [applicationId], references: [applicationId])
   session       InterviewSession? @relation(fields: [sessionId], references: [sessionId])
@@ -467,6 +480,7 @@ model AiGuardrailLog {
   policyName     String          @map("policy_name") @db.VarChar(120)
   result         GuardrailResult
   reason         String?
+  failureCategory String?        @map("failure_category") @db.VarChar(40)
   createdAt      DateTime        @default(now()) @map("created_at")
   processLog     AiProcessLog    @relation(fields: [processLogId], references: [processLogId])
 
@@ -490,5 +504,8 @@ model Embedding {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
+  @@index([sourceType], map: "idx_embeddings_source_type")
+  @@index([sourceTextHash], map: "idx_embeddings_source_hash")
+  @@unique([sourceType, sourceTextHash], name: "sourceTypeSourceTextHash")
   @@map("embeddings")
 }
