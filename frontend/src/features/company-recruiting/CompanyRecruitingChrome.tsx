@@ -19,7 +19,7 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
             </Link>
             <div className="gnb-panel">
               <Link className={active === "postings" ? "active" : ""} href="/company/applications/dashboard">
-                공고관리
+                공고 관리
               </Link>
             </div>
           </div>
@@ -35,13 +35,17 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
               <Link className={active === "recruitments" ? "active" : ""} href="/company/recruitments">
                 채용 공고 관리
               </Link>
-              <Link href="/company/recruitments">면접 관리</Link>
+              {/* 면접 관리: C 담당 범위. 전용 route 미구현 상태이므로 안전한 placeholder 유지 */}
+              <span className="gnb-soon" aria-disabled="true" title="준비 중">
+                면접 관리
+              </span>
             </div>
           </div>
           <div className="gnb-item">
-            <Link className="gnb-link" href="/company/applications/dashboard">
+            {/* 마이페이지: 기능 정의서상 기업 상세 경로 미확정. placeholder 유지 */}
+            <span className="gnb-link gnb-soon" aria-disabled="true" title="준비 중">
               마이페이지
-            </Link>
+            </span>
           </div>
         </nav>
       </div>

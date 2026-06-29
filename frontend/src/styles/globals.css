@@ -131,6 +131,18 @@ textarea {
   background: var(--brand-soft);
 }
 
+.gnb-soon {
+  color: var(--ink-300, #9a98ad);
+  cursor: default;
+}
+
+.gnb-panel .gnb-soon {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .gnb-right {
   display: flex;
   align-items: center;
