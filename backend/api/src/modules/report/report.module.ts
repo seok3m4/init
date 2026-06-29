@@ -1,17 +1,19 @@
 import { Module } from "@nestjs/common";
 import { DevAuthAdapter } from "../../common/dev-auth/dev-auth.adapter";
-import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
-import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "./ai-job-queue.publisher";
-import { AiReportPipelineService } from "./ai-report-pipeline.service";
-import { GuardrailService } from "./guardrail.service";
-import { InMemoryReportRepository } from "./in-memory-report.repository";
-import { MockAiReportProvider } from "./mock-ai-report.provider";
-import { PrismaReportRepository } from "./prisma-report.repository";
+import { AiJobDispatcherService } from "./service/ai-job-dispatcher.service";
+import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "./service/ai-job-queue.publisher";
+import { AiReportPipelineService } from "./service/ai-report-pipeline.service";
+import { GuardrailService } from "./service/guardrail.service";
+import { InMemoryReportRepository } from "./repository/in-memory-report.repository";
+import { MockAiReportProvider } from "./service/mock-ai-report.provider";
+import { PrismaReportRepository } from "./repository/prisma-report.repository";
 import { PrismaService } from "../../shared/prisma.service";
-import { REPORT_REPOSITORY } from "./report.repository";
-import { CandidateMockReportsController, ReportsController } from "./reports.controller";
+import { REPORT_REPOSITORY } from "./repository/report.repository";
+import { CandidateMockReportsController, ReportsController } from "./controller/reports.controller";
 
-const repositoryProviders = process.env.DATABASE_URL
+const usePrismaRepository = process.env.NODE_ENV !== "test" && Boolean(process.env.DATABASE_URL);
+
+const repositoryProviders = usePrismaRepository
   ? [
       PrismaService,
       PrismaReportRepository,

@@ -2,18 +2,18 @@ import { Injectable } from "@nestjs/common";
 import { ERROR_CODES, type CurrentUser, type ErrorCode } from "@init/common";
 import { PostingStatus, ScreeningDecision } from "@prisma/client";
 
-import { ApiException as SharedApiException } from "../../shared/api-exception";
+import { ApiException as SharedApiException } from "../../../shared/api-exception";
 import {
   InMemoryCompanyRecruitingInvitationAdapter,
   type CompanyRecruitingInvitationAdapterPort,
 } from "./company-recruiting-invitation.adapter";
-import type { CreateApplicantDto } from "./dto/create-applicant.dto";
-import type { CreateRecruitmentDto } from "./dto/create-recruitment.dto";
-import type { InviteApplicantDto } from "./dto/invite-applicant.dto";
-import type { ListQueryDto } from "./dto/list-query.dto";
-import type { UpdateScreeningStatusDto } from "./dto/update-screening-status.dto";
-import type { CompanyRecruitingRepositoryPort } from "./company-recruiting.repository";
-import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "./company-recruiting.types";
+import type { CreateApplicantDto } from "../dto/create-applicant.dto";
+import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
+import type { InviteApplicantDto } from "../dto/invite-applicant.dto";
+import type { ListQueryDto } from "../dto/list-query.dto";
+import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
+import type { CompanyRecruitingRepositoryPort } from "../repository/company-recruiting.repository";
+import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
 
 class CompanyRecruitingException extends SharedApiException {
   constructor(status: number, code: ErrorCode, message: string, details: Array<Record<string, unknown>> = []) {

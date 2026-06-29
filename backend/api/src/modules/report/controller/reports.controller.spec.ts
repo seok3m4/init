@@ -2,10 +2,10 @@ import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../../app.module";
-import { ApiExceptionFilter } from "../../shared/api-exception.filter";
-import { ApiResponseInterceptor } from "../../shared/api-response.interceptor";
-import { PrismaService } from "../../shared/prisma.service";
-import { InMemoryReportRepository } from "./in-memory-report.repository";
+import { ApiExceptionFilter } from "../../../shared/api-exception.filter";
+import { ApiResponseInterceptor } from "../../../shared/api-response.interceptor";
+import { PrismaService } from "../../../shared/prisma.service";
+import { InMemoryReportRepository } from "../repository/in-memory-report.repository";
 
 describe("ReportsController", () => {
   let app: INestApplication;

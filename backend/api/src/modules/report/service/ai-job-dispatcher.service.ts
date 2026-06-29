@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AI_JOB_QUEUE_PUBLISHER, AiJobQueuePublisher } from "./ai-job-queue.publisher";
-import { REPORT_REPOSITORY, ReportRepository } from "./report.repository";
+import { REPORT_REPOSITORY, ReportRepository } from "../repository/report.repository";
 import {
   AiProcessRefs,
   AiProcessType,
@@ -8,7 +8,7 @@ import {
   FailureReason,
   QueuedAiProcessSnapshot,
   ReportType
-} from "./report.types";
+} from "../report.types";
 
 export interface DispatchAiJobCommand {
   processType: AiProcessType;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { CompanyRecruitingService } from "./company-recruiting.service";
-import type { ApplicantRecord } from "./company-recruiting.types";
+import type { ApplicantRecord } from "../company-recruiting.types";
 
 const companyUser = {
   userId: 1,
