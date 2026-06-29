@@ -12,8 +12,9 @@
 4. `docs/03_contracts/api-spec.md` AI/리포트 처리
 5. `docs/03_contracts/enums.md`
 6. `docs/02_architecture/data-model.md` Report, AI Infra
-7. `backend/worker/AGENTS.md`
-8. `backend/api/AGENTS.md`
+7. `docs/04_implementation/ai-job-contracts.md`
+8. `backend/worker/AGENTS.md`
+9. `backend/api/AGENTS.md`
 
 ## Owns
 
