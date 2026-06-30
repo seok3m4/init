@@ -29,4 +29,10 @@ export class CreateApplicantDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  @ApiPropertyOptional({ example: "1차 유선 확인 완료" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  memo?: string;
 }

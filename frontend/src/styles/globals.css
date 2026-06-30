@@ -289,7 +289,8 @@ a.gnb-link:focus-visible {
   gap: 18px;
 }
 
-.wide {
+.wide,
+.grid-full {
   grid-column: 1 / -1;
 }
 
@@ -403,6 +404,27 @@ textarea:focus {
 
 .btn.primary:disabled {
   background: var(--surface-soft);
+}
+
+.btn.secondary.danger {
+  color: #c8392f;
+  border-color: #f3c5c2;
+}
+
+.btn.secondary.danger:hover,
+.btn.secondary.danger:focus-visible {
+  background: #fff4f2;
+  border-color: #e89992;
+}
+
+.btn.primary.danger {
+  background: #d92d20;
+  box-shadow: 0 8px 20px rgba(217, 45, 32, 0.22);
+}
+
+.btn.primary.danger:hover,
+.btn.primary.danger:focus-visible {
+  background: #b42318;
 }
 
 .text-link {
@@ -868,7 +890,32 @@ td input {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 18px;
+}
+
+.split-actions {
+  justify-content: space-between;
+}
+
+.confirm-box {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+}
+
+.confirm-box strong {
+  color: var(--ink-900);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.confirm-box span {
+  color: var(--ink-400);
+  font-size: 13px;
 }
 
 .invite-list {

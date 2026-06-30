@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
+import { deleteRecruitment, getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
 import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 import {
@@ -21,12 +22,15 @@ import type { Applicant, Recruitment, ScreeningDecision } from "./types";
 const decisions: ScreeningDecision[] = ["UNDECIDED", "PASS", "HOLD", "FAIL"];
 
 export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number }) {
+  const router = useRouter();
   const [recruitment, setRecruitment] = useState<Recruitment | null>(null);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [screeningDrafts, setScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
   const [savedScreeningDrafts, setSavedScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
   const [autosaveState, setAutosaveState] = useState<ScreeningAutosaveState>({});
   const [message, setMessage] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async (options: { clearMessage?: boolean } = {}) => {
@@ -109,6 +113,23 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
       setAutosaveState((current) => markScreeningAutosaveSuccess(current, applicant.applicationId, field));
     } catch {
       setAutosaveState((current) => markScreeningAutosaveError(current, applicant.applicationId, field));
+    }
+  }
+
+  async function handleDeleteConfirmed() {
+    if (!recruitment) {
+      return;
+    }
+
+    setLoading(true);
+    setDeleteError("");
+    try {
+      await deleteRecruitment(recruitment.recruitmentId);
+      router.push("/company/recruitments");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "공고 삭제에 실패했습니다.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -268,10 +289,58 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
                 </div>
               )}
             </section>
+
+            {canDeleteRecruitment(recruitment.status) ? (
+              <div className="sticky-actions">
+                <button
+                  className="btn secondary danger"
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    setMessage("");
+                    setDeleteError("");
+                    setDeleteOpen(true);
+                  }}
+                >
+                  공고 삭제
+                </button>
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="empty">{loading ? "공고 대시보드를 불러오는 중입니다." : "공고 대시보드를 불러올 수 없습니다."}</div>
         )}
+
+        {deleteOpen && recruitment ? (
+          <div className="modal-backdrop" role="presentation">
+            <div className="modal" role="dialog" aria-modal="true" aria-labelledby="delete-recruitment-title">
+              <div className="modal-head">
+                <div>
+                  <h2 id="delete-recruitment-title">공고 삭제</h2>
+                  <p>삭제하면 공고 목록에서 숨겨지고 상태가 ARCHIVED로 변경됩니다.</p>
+                </div>
+                <button className="btn secondary compact" type="button" disabled={loading} onClick={() => setDeleteOpen(false)}>
+                  닫기
+                </button>
+              </div>
+              {deleteError ? <p className="notice danger">{deleteError}</p> : null}
+              <div className="confirm-box">
+                <strong>{recruitment.title}</strong>
+                <span>
+                  {recruitment.jobRole} · {formatPeriod(recruitment)}
+                </span>
+              </div>
+              <div className="modal-actions split-actions">
+                <button className="btn secondary" type="button" disabled={loading} onClick={() => setDeleteOpen(false)}>
+                  취소
+                </button>
+                <button className="btn primary danger" type="button" disabled={loading} onClick={() => void handleDeleteConfirmed()}>
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
     </section>
   );
 }
@@ -296,4 +365,8 @@ function toScreeningDraft(item: Applicant): ScreeningDraft {
 
 function normalizeDecision(value: string): ScreeningDecision {
   return decisions.includes(value as ScreeningDecision) ? (value as ScreeningDecision) : "UNDECIDED";
+}
+
+function canDeleteRecruitment(status: Recruitment["status"]) {
+  return status === "DRAFT" || status === "CLOSED";
 }
