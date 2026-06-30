@@ -142,7 +142,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   }
 
   return (
-    <section className="app-page">
+    <section className="app-page glass-page">
         <div className="page-head">
           <div>
             <Breadcrumb

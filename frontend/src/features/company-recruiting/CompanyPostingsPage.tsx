@@ -66,6 +66,9 @@ export function CompanyPostingsPage() {
             <h1>공고 목록</h1>
             <p className="page-sub">진행 중인 채용 공고를 관리합니다.</p>
           </div>
+        </div>
+
+        <div className="list-actions">
           <Link className="btn primary" href="/company/recruitments/new">
             공고 생성
           </Link>
@@ -73,18 +76,19 @@ export function CompanyPostingsPage() {
 
         <section className="panel">
           <div className="panel-head">
-            <div>
+            <div className="panel-title">
               <h2>채용 공고</h2>
+              {items.length > 0 ? <span className="count-pill">{items.length}</span> : null}
             </div>
             <form className="toolbar" onSubmit={handleSearch}>
               <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="프로젝트명, 직무명 검색" />
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
                 <option value="ALL">전체 상태</option>
-                <option value="DRAFT">DRAFT</option>
-                <option value="OPEN">OPEN</option>
-                <option value="CLOSING_SOON">CLOSING_SOON</option>
-                <option value="CLOSED">CLOSED</option>
-                <option value="ARCHIVED">ARCHIVED</option>
+                <option value="DRAFT">작성중</option>
+                <option value="OPEN">모집중</option>
+                <option value="CLOSING_SOON">마감임박</option>
+                <option value="CLOSED">마감</option>
+                <option value="ARCHIVED">보관</option>
               </select>
               <button className="btn secondary" type="submit" disabled={loading}>
                 조회

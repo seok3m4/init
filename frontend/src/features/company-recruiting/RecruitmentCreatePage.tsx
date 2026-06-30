@@ -57,7 +57,7 @@ export function RecruitmentCreatePage() {
   }
 
   return (
-    <section className="app-page">
+    <section className="app-page glass-page">
         <div className="page-head">
           <div>
             <Breadcrumb
@@ -148,7 +148,7 @@ export function RecruitmentCreatePage() {
             </div>
           </section>
 
-          <div className="sticky-actions">
+          <div className="form-actions">
             <button className="btn primary" type="submit" disabled={loading}>
               다음
             </button>
