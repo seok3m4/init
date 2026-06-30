@@ -541,11 +541,13 @@ test("answer evaluation step stores scores and evidences without completing the 
 
   const output = JSON.parse(repository.get(27).outputRef ?? "{}") as {
     scores?: unknown[];
+    questionEvaluations?: unknown[];
     evidences?: unknown[];
     guardrail?: { result?: string };
   };
   assert.equal(output.guardrail?.result, "PASS");
   assert.equal(output.scores?.length, 1);
+  assert.equal(output.questionEvaluations?.length, 1);
   assert.equal(output.evidences?.length, 2);
   assert.equal(results.reportScores.get(31)?.length, 1);
   assert.equal(results.generatedReports.has(31), false);
@@ -604,6 +606,7 @@ test("report generation stores scores and evidences after guardrail pass", async
   const report = results.generatedReports.get(30);
   assert.equal(report?.reportType, "RECRUITING_REPORT");
   assert.equal(report?.scores.length, 1);
+  assert.equal(report?.questionEvaluations.length, 1);
   assert.equal(report?.scores[0].evidences.length, 2);
 });
 

@@ -10,6 +10,7 @@ import {
   GeneratedDraftRecord,
   GeneratedReportRecord,
   GeneratedReportScoreRecord,
+  assertQuestionEvaluationsHaveEvidence,
   TranscriptRecord,
   assertScoresHaveEvidence,
   hashSourceText
@@ -144,6 +145,7 @@ export class PrismaAiResultRepository implements AiResultRepository {
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
     assertScoresHaveEvidence(record.scores);
+    assertQuestionEvaluationsHaveEvidence(record.questionEvaluations);
     await this.prisma.evaluationReport.upsert({
       where: { reportId: BigInt(record.reportId) },
       create: {

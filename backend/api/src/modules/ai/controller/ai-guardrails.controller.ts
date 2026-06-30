@@ -36,7 +36,8 @@ export class AiGuardrailsController {
         ? this.guardrailService.validateReport(body.reportType, {
             summary: body.summary ?? "",
             totalScore: body.totalScore ?? 0,
-            scores: body.scores
+            scores: body.scores,
+            questionEvaluations: body.questionEvaluations ?? []
           })
         : this.guardrailService.validateScores(body.reportType, body.scores);
 

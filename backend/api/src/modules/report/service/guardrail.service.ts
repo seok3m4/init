@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
-import { GeneratedReport, GuardrailDecision, ReportScore, ReportType } from "../report.types";
+import { GeneratedReport, GuardrailDecision, QuestionEvaluation, ReportEvidence, ReportScore, ReportType } from "../report.types";
+
+const VALID_CONFIDENCE = new Set(["HIGH", "MEDIUM", "LOW"]);
 
 const MOCK_REPORT_BANNED_TERMS = ["합격", "탈락", "채용 적합", "채용 부적합", "선별"];
 
@@ -10,7 +12,12 @@ export class GuardrailService {
       return this.block("summary is required");
     }
 
-    return this.validateScores(reportType, report.scores, report.summary);
+    const scoreDecision = this.validateScores(reportType, report.scores, report.summary);
+    if (scoreDecision.result === "BLOCKED") {
+      return scoreDecision;
+    }
+
+    return this.validateQuestionEvaluations(report.questionEvaluations);
   }
 
   validateScores(reportType: ReportType, scores: ReportScore[], summary = ""): GuardrailDecision {
@@ -19,6 +26,11 @@ export class GuardrailService {
     }
 
     for (const score of scores) {
+      const structuredDecision = this.validateStructuredScore(score);
+      if (structuredDecision.result === "BLOCKED") {
+        return structuredDecision;
+      }
+
       if (!score.rationale.trim()) {
         return this.block(`rationale is required for criterion ${score.criterionId}`);
       }
@@ -48,12 +60,96 @@ export class GuardrailService {
       const combinedText = [
         summary,
         ...scores.map((score) => score.rationale),
+        ...scores.map((score) => score.rubricAnchor),
+        ...scores.flatMap((score) => score.uncertaintyReasons),
         ...scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
       ].join("\n");
 
       const bannedTerm = MOCK_REPORT_BANNED_TERMS.find((term) => combinedText.includes(term));
       if (bannedTerm) {
         return this.block(`mock interview feedback cannot include hiring decision expression: ${bannedTerm}`);
+      }
+    }
+
+    return {
+      result: "PASS",
+      reason: null
+    };
+  }
+
+  private validateStructuredScore(score: ReportScore): GuardrailDecision {
+    if (!score.rubricAnchor?.trim()) {
+      return this.block(`rubric anchor is required for criterion ${score.criterionId}`);
+    }
+    if (!VALID_CONFIDENCE.has(score.confidence)) {
+      return this.block(`confidence is required for criterion ${score.criterionId}`);
+    }
+    if (!Array.isArray(score.uncertaintyReasons)) {
+      return this.block(`uncertainty reasons are required for criterion ${score.criterionId}`);
+    }
+    if (score.uncertaintyReasons.some((reason) => !reason.trim())) {
+      return this.block(`uncertainty reasons must be non-empty for criterion ${score.criterionId}`);
+    }
+
+    return {
+      result: "PASS",
+      reason: null
+    };
+  }
+
+  private validateQuestionEvaluations(questionEvaluations: QuestionEvaluation[]): GuardrailDecision {
+    if (!Array.isArray(questionEvaluations) || questionEvaluations.length === 0) {
+      return this.block("question evaluations are required");
+    }
+
+    for (const evaluation of questionEvaluations) {
+      if (!evaluation.answerId || !evaluation.question?.trim()) {
+        return this.block(`question evaluation source is required for criterion ${evaluation.criterionId}`);
+      }
+      if (!evaluation.rubricAnchor?.trim()) {
+        return this.block(`question evaluation rubric anchor is required for criterion ${evaluation.criterionId}`);
+      }
+      if (!VALID_CONFIDENCE.has(evaluation.confidence)) {
+        return this.block(`question evaluation confidence is required for criterion ${evaluation.criterionId}`);
+      }
+      if (!Array.isArray(evaluation.uncertaintyReasons)) {
+        return this.block(`question evaluation uncertainty reasons are required for criterion ${evaluation.criterionId}`);
+      }
+      if (evaluation.uncertaintyReasons.some((reason) => !reason.trim())) {
+        return this.block(
+          `question evaluation uncertainty reasons must be non-empty for criterion ${evaluation.criterionId}`
+        );
+      }
+      if (!Array.isArray(evaluation.evidences) || evaluation.evidences.length === 0) {
+        return this.block(`question evaluation evidence is required for criterion ${evaluation.criterionId}`);
+      }
+
+      const evidenceDecision = this.validateEvidenceRefs(evaluation.criterionId, evaluation.evidences);
+      if (evidenceDecision.result === "BLOCKED") {
+        return evidenceDecision;
+      }
+    }
+
+    return {
+      result: "PASS",
+      reason: null
+    };
+  }
+
+  private validateEvidenceRefs(criterionId: number, evidences: ReportEvidence[]): GuardrailDecision {
+    for (const evidence of evidences) {
+      if (!["INTERVIEW_ANSWER", "APPLICATION_DOCUMENT"].includes(evidence.sourceType)) {
+        return this.block(`evidence source type is required for criterion ${criterionId}`);
+      }
+      if (evidence.sourceType === "INTERVIEW_ANSWER" && !evidence.answerId) {
+        return this.block(`answer evidence source is required for criterion ${criterionId}`);
+      }
+      if (
+        evidence.sourceType === "APPLICATION_DOCUMENT" &&
+        !evidence.documentId &&
+        !evidence.documentRef?.trim()
+      ) {
+        return this.block(`document evidence source is required for criterion ${criterionId}`);
       }
     }
 

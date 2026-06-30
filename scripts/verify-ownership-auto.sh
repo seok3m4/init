@@ -70,7 +70,7 @@ role_pattern() {
       printf '%s\n' '(^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/modules/(candidate|interview)/)'
       ;;
     E)
-      printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
+      printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^backend/api/scripts/report-smoke\.ts$|^docs/04_implementation/ai-golden/)'
       ;;
     PM)
       printf '%s\n' '(^docs/|^assets/|^design\.md$)'

@@ -200,6 +200,64 @@ export class GuardrailScoreDto {
   @IsNotEmpty()
   rationale!: string;
 
+  @ApiProperty({ example: "Matches criterion: Communicates clearly with evidence." })
+  @IsOptional()
+  @IsString()
+  rubricAnchor!: string;
+
+  @ApiProperty({ enum: ["HIGH", "MEDIUM", "LOW"], example: "MEDIUM" })
+  @IsOptional()
+  @IsIn(["HIGH", "MEDIUM", "LOW"])
+  confidence!: "HIGH" | "MEDIUM" | "LOW";
+
+  @ApiProperty({ type: [String], example: ["No explicit measurable outcome was provided."] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  uncertaintyReasons!: string[];
+
+  @ApiProperty({ type: [GuardrailEvidenceDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GuardrailEvidenceDto)
+  evidences!: GuardrailEvidenceDto[];
+}
+
+export class GuardrailQuestionEvaluationDto {
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  @Min(1)
+  criterionId!: number;
+
+  @ApiProperty({ example: "Communication" })
+  @IsString()
+  @IsNotEmpty()
+  criterionName!: string;
+
+  @ApiProperty({ example: 10 })
+  @IsInt()
+  @Min(1)
+  answerId!: number;
+
+  @ApiProperty({ example: "Describe your Redis experience." })
+  @IsString()
+  @IsNotEmpty()
+  question!: string;
+
+  @ApiProperty({ example: "Matches criterion: Communicates clearly with evidence." })
+  @IsString()
+  @IsNotEmpty()
+  rubricAnchor!: string;
+
+  @ApiProperty({ enum: ["HIGH", "MEDIUM", "LOW"], example: "MEDIUM" })
+  @IsIn(["HIGH", "MEDIUM", "LOW"])
+  confidence!: "HIGH" | "MEDIUM" | "LOW";
+
+  @ApiProperty({ type: [String], example: ["No explicit measurable outcome was provided."] })
+  @IsArray()
+  @IsString({ each: true })
+  uncertaintyReasons!: string[];
+
   @ApiProperty({ type: [GuardrailEvidenceDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -252,6 +310,13 @@ export class GuardrailValidationRequestDto {
   @ValidateNested({ each: true })
   @Type(() => GuardrailScoreDto)
   scores!: GuardrailScoreDto[];
+
+  @ApiPropertyOptional({ type: [GuardrailQuestionEvaluationDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GuardrailQuestionEvaluationDto)
+  questionEvaluations?: GuardrailQuestionEvaluationDto[];
 }
 
 export class GuardrailDecisionDto {
