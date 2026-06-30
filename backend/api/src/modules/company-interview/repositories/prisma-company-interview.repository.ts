@@ -82,6 +82,14 @@ export class PrismaCompanyInterviewRepository
     return duplicate ? mapQuestion(duplicate) : undefined;
   }
 
+  async listTags(): Promise<CriterionTagRecord[]> {
+    const tags = await this.prisma.criterionTag.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { tagId: 'asc' }],
+    });
+    return tags.map(mapTag);
+  }
+
   async findTag(tagId: number): Promise<CriterionTagRecord | undefined> {
     const tag = await this.prisma.criterionTag.findFirst({
       where: { tagId: BigInt(tagId), isActive: true },

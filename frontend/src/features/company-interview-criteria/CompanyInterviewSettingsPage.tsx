@@ -7,7 +7,8 @@ import { createInterviewQuestion, getInterviewSettings, updateEvaluationCriteria
 import type { InterviewSettings, QuestionType } from "./types";
 
 type CriteriaDraft = {
-  criterionId: number;
+  draftId: string;
+  criterionId?: number;
   tagId: number;
   tagName: string;
   category: string;
@@ -41,6 +42,7 @@ const initialQuestionForm: QuestionForm = {
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
   const [criteriaDrafts, setCriteriaDrafts] = useState<CriteriaDraft[]>([]);
+  const [selectedTagId, setSelectedTagId] = useState("");
   const [questionForm, setQuestionForm] = useState<QuestionForm>(initialQuestionForm);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,6 +60,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       const response = await getInterviewSettings(postingId);
       setSettings(response.data);
       setCriteriaDrafts(toCriteriaDrafts(response.data));
+      setSelectedTagId("");
       setQuestionForm((current) => ({
         ...current,
         criterionId: current.criterionId || String(response.data.criteria[0]?.criterionId ?? ""),
@@ -83,10 +86,47 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     return JSON.stringify(criteriaDrafts) !== JSON.stringify(toCriteriaDrafts(settings));
   }, [criteriaDrafts, settings]);
 
-  function updateCriteriaDraft(criterionId: number, field: "weight" | "passScore" | "sortOrder", value: string) {
+  const availableTagOptions = useMemo(() => {
+    if (!settings) return [];
+    const selectedTagIds = new Set(criteriaDrafts.map((criterion) => criterion.tagId));
+    return settings.availableTags.filter((tag) => !selectedTagIds.has(tag.tagId));
+  }, [criteriaDrafts, settings]);
+
+  function addCriteriaDraft() {
+    if (!settings || selectedTagId === "") return;
+
+    const tag = settings.availableTags.find((item) => item.tagId === Number(selectedTagId));
+    if (!tag) {
+      setCriteriaError("추가할 평가 태그를 선택해주세요.");
+      return;
+    }
+
+    setCriteriaError("");
+    setCriteriaDrafts((current) => [
+      ...current,
+      {
+        draftId: `new-${tag.tagId}`,
+        tagId: tag.tagId,
+        tagName: tag.tagName,
+        category: tag.category,
+        description: tag.description,
+        weight: "10",
+        passScore: "",
+        sortOrder: String(current.length + 1),
+      },
+    ]);
+    setSelectedTagId("");
+  }
+
+  function removeCriteriaDraft(draftId: string) {
+    setCriteriaError("");
+    setCriteriaDrafts((current) => current.filter((criterion) => criterion.draftId !== draftId));
+  }
+
+  function updateCriteriaDraft(draftId: string, field: "weight" | "passScore" | "sortOrder", value: string) {
     setCriteriaError("");
     setCriteriaDrafts((current) =>
-      current.map((criterion) => (criterion.criterionId === criterionId ? { ...criterion, [field]: value } : criterion)),
+      current.map((criterion) => (criterion.draftId === draftId ? { ...criterion, [field]: value } : criterion)),
     );
   }
 
@@ -130,6 +170,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       );
       setCriteriaDrafts(
         response.data.criteria.map((criterion) => ({
+          draftId: String(criterion.criterionId),
           criterionId: criterion.criterionId,
           tagId: criterion.tagId,
           tagName: criterion.tagName,
@@ -253,6 +294,26 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 </div>
               </div>
               {criteriaError ? <p className="notice danger">{criteriaError}</p> : null}
+              <div className="toolbar">
+                <select
+                  aria-label="추가할 평가 태그"
+                  disabled={criteriaSaving || availableTagOptions.length === 0}
+                  value={selectedTagId}
+                  onChange={(event) => setSelectedTagId(event.target.value)}
+                >
+                  <option value="">
+                    {availableTagOptions.length === 0 ? "추가 가능한 태그 없음" : "평가 태그 선택"}
+                  </option>
+                  {availableTagOptions.map((tag) => (
+                    <option key={tag.tagId} value={tag.tagId}>
+                      {tag.tagName} · {tag.category}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn secondary compact" type="button" disabled={selectedTagId === "" || criteriaSaving} onClick={addCriteriaDraft}>
+                  기준 추가
+                </button>
+              </div>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
@@ -263,11 +324,12 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                       <th>배점</th>
                       <th>합격점</th>
                       <th>설명</th>
+                      <th>관리</th>
                     </tr>
                   </thead>
                   <tbody>
                     {criteriaDrafts.map((criterion) => (
-                      <tr key={criterion.criterionId}>
+                      <tr key={criterion.draftId}>
                         <td>
                           <input
                             aria-label={`${criterion.tagName} 순서`}
@@ -275,7 +337,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                             min={1}
                             type="number"
                             value={criterion.sortOrder}
-                            onChange={(event) => updateCriteriaDraft(criterion.criterionId, "sortOrder", event.target.value)}
+                            onChange={(event) => updateCriteriaDraft(criterion.draftId, "sortOrder", event.target.value)}
                           />
                         </td>
                         <td>{criterion.tagName}</td>
@@ -288,7 +350,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                             max={100}
                             type="number"
                             value={criterion.weight}
-                            onChange={(event) => updateCriteriaDraft(criterion.criterionId, "weight", event.target.value)}
+                            onChange={(event) => updateCriteriaDraft(criterion.draftId, "weight", event.target.value)}
                           />
                         </td>
                         <td>
@@ -300,11 +362,16 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                             placeholder="-"
                             type="number"
                             value={criterion.passScore}
-                            onChange={(event) => updateCriteriaDraft(criterion.criterionId, "passScore", event.target.value)}
+                            onChange={(event) => updateCriteriaDraft(criterion.draftId, "passScore", event.target.value)}
                           />
                         </td>
                         <td>
                           <span>{criterion.description ?? "설명 없음"}</span>
+                        </td>
+                        <td>
+                          <button className="btn secondary compact" type="button" disabled={criteriaSaving} onClick={() => removeCriteriaDraft(criterion.draftId)}>
+                            삭제
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -326,14 +393,14 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                     평가 기준
                     <select
                       required
-                      disabled={criteriaDrafts.length === 0 || questionSaving}
+                      disabled={settings.criteria.length === 0 || questionSaving}
                       value={questionForm.criterionId}
                       onChange={(event) => updateQuestionForm("criterionId", event.target.value)}
                     >
                       <option value="" disabled>
-                        {criteriaDrafts.length === 0 ? "먼저 평가 기준을 저장해주세요" : "평가 기준 선택"}
+                        {settings.criteria.length === 0 ? "먼저 평가 기준을 저장해주세요" : "평가 기준 선택"}
                       </option>
-                      {criteriaDrafts.map((criterion) => (
+                      {settings.criteria.map((criterion) => (
                         <option key={criterion.criterionId} value={criterion.criterionId}>
                           {criterion.tagName} · {criterion.category}
                         </option>
@@ -367,9 +434,10 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                   </label>
                 </div>
                 {questionError ? <p className="notice danger">{questionError}</p> : null}
-                {criteriaDrafts.length === 0 ? <p className="notice">질문을 등록하려면 먼저 평가 기준이 필요합니다.</p> : null}
+                {settings.criteria.length === 0 ? <p className="notice">질문을 등록하려면 먼저 평가 기준을 추가하고 저장해주세요.</p> : null}
+                {hasCriteriaChanges ? <p className="notice">평가 기준 변경사항을 저장하면 질문 등록 대상에 반영됩니다.</p> : null}
                 <div className="toolbar">
-                  <button className="btn primary" type="submit" disabled={questionSaving || criteriaDrafts.length === 0}>
+                  <button className="btn primary" type="submit" disabled={questionSaving || settings.criteria.length === 0 || hasCriteriaChanges}>
                     {questionSaving ? "저장 중" : "질문 저장"}
                   </button>
                   <button className="btn secondary" type="button" disabled={questionSaving} onClick={() => resetQuestionForm()}>
@@ -432,6 +500,7 @@ function Metric({ label, value }: { label: string; value: number | string }) {
 
 function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {
   return settings.criteria.map((criterion) => ({
+    draftId: String(criterion.criterionId),
     criterionId: criterion.criterionId,
     tagId: criterion.tagId,
     tagName: criterion.tagName,
@@ -447,6 +516,7 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
   if (criteria.length === 0) return "";
 
   const sortOrders = new Set<number>();
+  const tagIds = new Set<number>();
   let totalWeight = 0;
 
   for (const criterion of criteria) {
@@ -461,6 +531,10 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
       return "평가 기준 순서가 중복되었습니다.";
     }
     sortOrders.add(sortOrder);
+    if (tagIds.has(criterion.tagId)) {
+      return "평가 태그가 중복되었습니다.";
+    }
+    tagIds.add(criterion.tagId);
 
     if (!Number.isInteger(weight) || weight < 1 || weight > 100) {
       return "배점은 1부터 100 사이의 정수로 입력해주세요.";

@@ -28,6 +28,8 @@ describe('CompanyInterviewService', () => {
     const settings = await createService().getSettings(companyUser, { postingId: 1 });
 
     assert.equal(settings.posting.postingId, 1);
+    assert.equal(settings.availableTags.length, 3);
+    assert.equal(settings.availableTags[0].tagName, 'API 설계');
     assert.equal(settings.criteria.length, 3);
     assert.equal(settings.questions.length, 3);
   });
@@ -44,12 +46,33 @@ describe('CompanyInterviewService', () => {
     assert.equal(criteriaResult.totalWeight, 100);
     assert.equal(criteriaResult.criteria.length, 2);
 
+    const addedCriteriaResult = await createService().updateEvaluationCriteria(companyUser, {
+      postingId: 1,
+      criteria: [
+        { criterionId: 1, tagId: 1, weight: 50, passScore: 70, sortOrder: 1 },
+        { tagId: 3, weight: 50, passScore: null, sortOrder: 2 },
+      ],
+    });
+
+    assert.equal(addedCriteriaResult.criteria.length, 2);
+    assert.equal(addedCriteriaResult.criteria[1].tagName, '협업 커뮤니케이션');
+
     await assertBadRequest(() =>
       createService().updateEvaluationCriteria(companyUser, {
         postingId: 1,
         criteria: [
           { criterionId: 1, tagId: 1, weight: 50, sortOrder: 1 },
           { criterionId: 2, tagId: 2, weight: 50, sortOrder: 1 },
+        ],
+      }),
+    );
+
+    await assertBadRequest(() =>
+      createService().updateEvaluationCriteria(companyUser, {
+        postingId: 1,
+        criteria: [
+          { criterionId: 1, tagId: 1, weight: 50, sortOrder: 1 },
+          { criterionId: 2, tagId: 1, weight: 50, sortOrder: 2 },
         ],
       }),
     );
