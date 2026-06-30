@@ -371,20 +371,29 @@ export interface CompleteInterviewResponse {
 
 export interface AiInterviewRequest {
   answerId?: number;
+  audioFileId?: number;
+  audioS3Key?: string;
+  previousQuestion?: string;
+  transcript?: string;
+  jobDescription?: string;
+  documentSummary?: string;
 }
 
 export interface AiInterviewHandoffResponse {
-  accepted: true;
+  accepted?: true;
+  processLogId?: number;
   processType: "STT" | "FOLLOW_UP";
-  status: "PENDING";
-  sessionId: number;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  queued?: boolean;
+  inputRef?: string;
+  sessionId?: number;
   applicationId?: number;
-  answerId: number;
-  questionId: number;
+  answerId?: number;
+  questionId?: number;
   fileId?: number;
   videoFileId?: number;
   audioFileId?: number;
-  callbackTopic: string;
+  callbackTopic?: string;
 }
 
 export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";

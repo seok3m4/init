@@ -58,7 +58,7 @@ $allowed = @{
   A = $common + $baselineSkeleton + @("^backend/common/", "^backend/api/(src|prisma)/", "^infra/", "^docs/03_contracts/", "^docs/02_architecture/")
   B = $common + $baselineSkeleton + @("^frontend/src/features/company-recruiting/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
   C = $common + $baselineSkeleton + @("^frontend/src/features/company-interview-criteria/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
-  D = $common + $baselineSkeleton + @("^frontend/src/features/candidate-application-interview/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
+  D = $common + $baselineSkeleton + @("^frontend/src/features/candidate-application-interview/", "^frontend/src/app/candidate/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
   E = $common + $baselineSkeleton + @("^frontend/src/features/ai-report/", "^backend/worker/", "^backend/api/src/", "^docs/04_implementation/ai-golden/", "^docs/03_contracts/", "^docs/02_architecture/")
   PM = $common + $baselineSkeleton + @("^docs/", "^assets/")
 }

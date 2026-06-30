@@ -35,6 +35,14 @@ export class AuthService {
 
   async login(input: { email: string; password: string; userType: UserType }): Promise<TokenPair & { refreshToken: string }> {
     const email = this.normalizeEmail(input.email);
+    const localUser = this.localNoDbUser(email, input.userType);
+    if (localUser) {
+      if ((input.password ?? "") !== "Password123") {
+        throw new ApiException(ERROR_CODES.AUTH_INVALID_CREDENTIALS, "이메일 또는 비밀번호를 확인해 주세요.", HttpStatus.UNAUTHORIZED);
+      }
+      return this.issueLocalLogin(localUser);
+    }
+
     const user = await this.authRepository.findUserByEmail(email);
     if (!user || user.status !== "ACTIVE" || user.userType !== input.userType || !user.passwordHash) {
       throw new ApiException(ERROR_CODES.AUTH_INVALID_CREDENTIALS, "이메일 또는 비밀번호를 확인해 주세요.", HttpStatus.UNAUTHORIZED);
@@ -123,6 +131,9 @@ export class AuthService {
   }
 
   async me(currentUser: CurrentUser) {
+    const localUser = this.localNoDbUserByCurrentUser(currentUser);
+    if (localUser) return localUser;
+
     const user = await this.authRepository.findUserById(BigInt(currentUser.userId));
     if (!user) throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED);
     return { ...currentUser, email: user.email, name: user.name };
@@ -248,6 +259,64 @@ export class AuthService {
     const accessToken = this.signToken(current, "access");
     const refreshToken = this.signToken(current, "refresh");
     return { accessToken, refreshToken, user: { ...current, email: user.email, name: user.name } };
+  }
+
+  private issueLocalLogin(user: CurrentUser & { email: string; name: string }) {
+    const current: CurrentUser = {
+      userId: user.userId,
+      userType: user.userType,
+      companyId: user.companyId,
+      candidateId: user.candidateId,
+    };
+    return {
+      accessToken: this.signToken(current, "access"),
+      refreshToken: this.signToken(current, "refresh"),
+      user,
+    };
+  }
+
+  private localNoDbUser(email: string, userType: UserType): (CurrentUser & { email: string; name: string }) | null {
+    if (process.env.DISABLE_PRISMA_CONNECT !== "true") return null;
+    if (userType === "CANDIDATE" && email === "dev.candidate@example.com") {
+      return {
+        userId: 2,
+        userType: "CANDIDATE",
+        companyId: null,
+        candidateId: 1,
+        email,
+        name: "Dev Candidate User",
+      };
+    }
+    if (userType === "COMPANY" && email === "dev.company@example.com") {
+      return {
+        userId: 1,
+        userType: "COMPANY",
+        companyId: 1,
+        candidateId: null,
+        email,
+        name: "Dev Company User",
+      };
+    }
+    return null;
+  }
+
+  private localNoDbUserByCurrentUser(currentUser: CurrentUser): (CurrentUser & { email: string; name: string }) | null {
+    if (process.env.DISABLE_PRISMA_CONNECT !== "true") return null;
+    if (currentUser.userType === "CANDIDATE" && currentUser.userId === 2 && currentUser.candidateId === 1) {
+      return {
+        ...currentUser,
+        email: "dev.candidate@example.com",
+        name: "Dev Candidate User",
+      };
+    }
+    if (currentUser.userType === "COMPANY" && currentUser.userId === 1 && currentUser.companyId === 1) {
+      return {
+        ...currentUser,
+        email: "dev.company@example.com",
+        name: "Dev Company User",
+      };
+    }
+    return null;
   }
 
   private signToken(current: CurrentUser, tokenType: "access" | "refresh") {

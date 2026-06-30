@@ -55,19 +55,12 @@ export function CandidateDocumentAssetsView({
   }
 
   return (
-    <section aria-labelledby="candidate-documents-heading" className="candidate-feature">
-      <header className="candidate-feature__header">
-        <div>
-          <p className="candidate-feature__eyebrow">Candidate #{candidateId}</p>
-          <h1 id="candidate-documents-heading">Documents</h1>
-        </div>
-      </header>
-
-      <div className="candidate-feature__split">
-        <form aria-labelledby="candidate-resume-heading" className="candidate-feature__grid" onSubmit={handleResumeSubmit}>
-          <h2 id="candidate-resume-heading">Resume</h2>
+    <section aria-labelledby="candidate-documents-heading" className="candidate-feature__stack">
+      <div className="candidate-cards-2">
+        <form aria-labelledby="candidate-resume-heading" className="panel" onSubmit={handleResumeSubmit}>
+          <p className="panel-title" id="candidate-resume-heading">이력서 업로드</p>
           <label>
-            File
+            이력서 파일
             <input
               accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               type="file"
@@ -79,61 +72,30 @@ export function CandidateDocumentAssetsView({
               }}
             />
           </label>
-          <label>
-            Object key
-            <input
-              value={resumeState.storageKey}
-              onChange={(event) => onResumeStateChange({ ...resumeState, storageKey: event.currentTarget.value })}
-            />
-          </label>
-          <label>
-            Original name
-            <input
-              value={resumeState.originalName}
-              onChange={(event) => onResumeStateChange({ ...resumeState, originalName: event.currentTarget.value })}
-            />
-          </label>
-          <label>
-            MIME type
-            <select
-              value={resumeState.mimeType}
-              onChange={(event) =>
-                onResumeStateChange({
-                  ...resumeState,
-                  mimeType: isAllowedCandidateDocumentMimeType(event.currentTarget.value)
-                    ? event.currentTarget.value
-                    : "",
-                })
-              }
-            >
-              <option value="">Select</option>
-              <option value="application/pdf">PDF</option>
-              <option value="application/vnd.openxmlformats-officedocument.wordprocessingml.document">DOCX</option>
-            </select>
-          </label>
-          <label>
-            Size
-            <input
-              inputMode="numeric"
-              value={resumeState.sizeBytes || ""}
-              onChange={(event) =>
-                onResumeStateChange({ ...resumeState, sizeBytes: toOptionalNumber(event.currentTarget.value) ?? 0 })
-              }
-            />
-          </label>
-          <button disabled={!canSubmitResume} type="submit">
-            Save resume
+          <p className="note">PDF, DOCX · 20MB 이하</p>
+          <dl className="candidate-feature__summary compact">
+            <div>
+              <dt>선택 파일</dt>
+              <dd>{resumeState.originalName || "선택 전"}</dd>
+            </div>
+            <div>
+              <dt>업로드 상태</dt>
+              <dd>{latestResumeFile ? "업로드 완료" : "대기"}</dd>
+            </div>
+          </dl>
+          <button className="btn primary" disabled={!canSubmitResume} type="submit">
+            이력서 업로드 완료
           </button>
         </form>
 
         <form
           aria-labelledby="candidate-portfolio-heading"
-          className="candidate-feature__grid"
+          className="panel"
           onSubmit={handlePortfolioSubmit}
         >
-          <h2 id="candidate-portfolio-heading">Portfolio</h2>
+          <p className="panel-title" id="candidate-portfolio-heading">포트폴리오 / 깃허브</p>
           <label>
-            URL
+            주소
             <input
               type="url"
               value={portfolioState.url}
@@ -147,7 +109,7 @@ export function CandidateDocumentAssetsView({
             />
           </label>
           <label>
-            Type
+            유형
             <select
               value={portfolioState.linkType}
               onChange={(event) =>
@@ -157,12 +119,12 @@ export function CandidateDocumentAssetsView({
                 })
               }
             >
-              <option value="PORTFOLIO">Portfolio</option>
-              <option value="GITHUB">GitHub</option>
+              <option value="PORTFOLIO">포트폴리오</option>
+              <option value="GITHUB">깃허브</option>
             </select>
           </label>
           <label>
-            File ID
+            첨부 파일 번호
             <input
               inputMode="numeric"
               value={portfolioState.fileId ?? ""}
@@ -175,31 +137,31 @@ export function CandidateDocumentAssetsView({
             />
           </label>
           <label>
-            Description
+            설명
             <input
               value={portfolioState.description}
               onChange={(event) => onPortfolioStateChange({ ...portfolioState, description: event.currentTarget.value })}
             />
           </label>
-          <button disabled={!canSubmitPortfolio} type="submit">
-            Save link
+          <button className="btn primary" disabled={!canSubmitPortfolio} type="submit">
+            링크 등록
           </button>
         </form>
       </div>
 
-      <section aria-labelledby="candidate-document-assets-heading" className="candidate-feature__body">
-        <h2 id="candidate-document-assets-heading">Assets</h2>
+      <section aria-labelledby="candidate-document-assets-heading" className="panel">
+        <p className="panel-title" id="candidate-document-assets-heading">서류 연결 상태</p>
         <dl className="candidate-feature__summary">
           <div>
-            <dt>Resume file ID</dt>
+            <dt>이력서 파일 ID</dt>
             <dd>{latestResumeFile?.fileId ?? "-"}</dd>
           </div>
           <div>
-            <dt>Resume key</dt>
+            <dt>이력서 파일</dt>
             <dd>{latestResumeFile?.storageKey ?? "-"}</dd>
           </div>
           <div>
-            <dt>Portfolio links</dt>
+            <dt>포트폴리오 링크</dt>
             <dd>{portfolioLinks.length}</dd>
           </div>
         </dl>

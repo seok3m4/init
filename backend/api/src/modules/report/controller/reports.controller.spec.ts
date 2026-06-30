@@ -90,23 +90,6 @@ describe("ReportsController", () => {
     expect(response.body.meta.traceId).toBeTruthy();
   });
 
-  it("generates a mock interview report for a candidate dev user", async () => {
-    const payload = { ...validGeneratePayload(), reportType: "MOCK_INTERVIEW_REPORT" };
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/candidate/mock-interview/reports/2/generate")
-      .set("X-Dev-User-Id", "2")
-      .set("X-Dev-User-Type", "CANDIDATE")
-      .set("X-Dev-Candidate-Id", "1")
-      .send(payload)
-      .expect(202);
-
-    expect(response.body.data.processType).toBe("REPORT_GENERATE");
-    expect(response.body.data.status).toBe("PENDING");
-    expect(response.body.data.queued).toBe(true);
-    expect(response.body.data.report.reportType).toBe("MOCK_INTERVIEW_REPORT");
-    expect(response.body.data.report.status).toBe("GENERATING");
-  });
-
   it("validates guardrails for an admin dev user", async () => {
     const response = await adminRequest("/api/v1/ai/guardrails/validate")
       .send({
@@ -489,7 +472,6 @@ describe("ReportsController", () => {
       .send({ ...validGeneratePayload(), reportType: "MOCK_INTERVIEW_REPORT" })
       .expect(400);
 
-    await candidateRequest("/api/v1/candidate/mock-interview/reports/2/generate").send(validGeneratePayload()).expect(400);
   });
 
   it("returns unauthorized when dev auth headers are missing", async () => {

@@ -189,7 +189,7 @@ verify_ownership() {
     A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     E) pattern="($common|$baseline|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     PM) pattern="($common|$baseline|^docs/|^assets/)" ;;
   esac

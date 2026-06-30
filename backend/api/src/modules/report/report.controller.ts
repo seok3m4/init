@@ -1,4 +1,4 @@
-import { Controller, Get, HttpException, Inject, Param, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, HttpCode, HttpException, HttpStatus, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
 import type { CurrentUser } from "@init/common";
 import { type RequestLike } from "../../shared/response-envelope";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -34,6 +34,15 @@ export class ReportController {
     return this.handle(() => {
       const currentUser = resolveCurrentCandidate(request.currentUser);
       return this.reportService.getMockReportMedia(Number(reportId), currentUser);
+    });
+  }
+
+  @Post(reportApiRoutes.mockGenerate)
+  @HttpCode(HttpStatus.ACCEPTED)
+  requestMockReportGeneration(@Req() request: CandidateRequest, @Param("reportId") reportId: string) {
+    return this.handle(() => {
+      const currentUser = resolveCurrentCandidate(request.currentUser);
+      return Promise.resolve(this.reportService.requestMockReportGeneration(Number(reportId), currentUser));
     });
   }
 

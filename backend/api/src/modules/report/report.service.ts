@@ -59,7 +59,7 @@ export class ReportService {
         sessionId: session.sessionId,
         reportType: "MOCK_INTERVIEW_REPORT",
         status,
-        summary: "Practice feedback is being generated.",
+        summary: "연습 피드백을 생성하는 중입니다.",
         strengths: [],
         improvements: [],
         nextPractice: [],
@@ -78,19 +78,19 @@ export class ReportService {
       reportType: "MOCK_INTERVIEW_REPORT",
       status,
       generatedAt: session.completedAt,
-      summary: `Practice feedback is ready for ${answeredCount} recorded answer${answeredCount === 1 ? "" : "s"}.`,
+      summary: `녹화 답변 ${answeredCount}개에 대한 연습 피드백이 준비되었습니다.`,
       strengths: [
-        "Answers were submitted in the expected question order.",
-        "Media references are connected through file asset metadata.",
+        "질문 순서에 맞춰 답변을 빠짐없이 제출했습니다.",
+        "답변 영상/음성 파일이 file_assets 메타데이터와 정상적으로 연결되었습니다.",
       ],
       improvements: [
-        "Review answer length and keep the main point clear.",
-        "Use the next practice session to tighten concrete examples.",
+        "답변 길이를 점검하고 핵심 메시지를 더 선명하게 정리해보세요.",
+        "다음 연습에서는 구체적인 사례를 더 짧고 명확하게 말하는 데 집중해보세요.",
       ],
       nextPractice: [
-        "Replay the recorded answers.",
-        "Compare each answer with the original question intent.",
-        "Request AI feedback generation again after E pipeline results arrive.",
+        "녹화된 답변을 다시 보며 말의 흐름과 속도를 확인하세요.",
+        "각 답변이 원래 질문 의도에 직접 답하고 있는지 비교해보세요.",
+        "AI 리포트 생성 파이프라인이 연결되면 피드백 생성을 다시 요청해보세요.",
       ],
       visibilityPolicy: this.mockFeedbackVisibilityPolicy(),
     });
@@ -208,24 +208,24 @@ export class ReportService {
     if (application.reportStatus === "GENERATING") {
       return this.envelope({
         ...base,
-        candidateMessage: "Interview analysis is in progress.",
-        nextStepLabel: "Analysis in progress",
+        candidateMessage: "면접 분석이 진행 중입니다.",
+        nextStepLabel: "분석 진행 중",
       });
     }
 
     if (application.reportStatus === "FAILED") {
       return this.envelope({
         ...base,
-        candidateMessage: "Interview analysis could not be completed. Please check again later.",
-        nextStepLabel: "Analysis retry needed",
+        candidateMessage: "면접 분석을 완료하지 못했습니다. 잠시 후 다시 확인해주세요.",
+        nextStepLabel: "분석 재시도 필요",
       });
     }
 
     return this.envelope({
       ...base,
-      summary: "Your recruiting interview result is ready.",
-      candidateMessage: "Only candidate-facing result information is shown here.",
-      nextStepLabel: "Check application status",
+      summary: "채용 AI 면접 결과가 준비되었습니다.",
+      candidateMessage: "지원자에게 공개 가능한 결과 정보만 표시됩니다.",
+      nextStepLabel: "지원 상태 확인",
     });
   }
 
