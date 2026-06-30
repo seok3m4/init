@@ -55,7 +55,7 @@ $baselineSkeleton = @(
 )
 
 $allowed = @{
-  A = $common + $baselineSkeleton + @("^backend/common/", "^backend/api/(src|prisma)/", "^infra/", "^docs/03_contracts/", "^docs/02_architecture/")
+  A = $common + $baselineSkeleton + @("^backend/common/", "^backend/api/(src|prisma)/", "^frontend/src/api/", "^frontend/src/features/auth/", "^infra/", "^docs/03_contracts/", "^docs/02_architecture/")
   B = $common + $baselineSkeleton + @("^frontend/src/features/company-recruiting/", "^frontend/src/app/company/layout\.tsx$", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
   C = $common + $baselineSkeleton + @("^frontend/src/features/company-interview-criteria/", "^frontend/src/app/company/layout\.tsx$", "^frontend/src/app/company/interviews/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
   D = $common + $baselineSkeleton + @("^frontend/src/features/candidate-application-interview/", "^frontend/src/app/candidate/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
