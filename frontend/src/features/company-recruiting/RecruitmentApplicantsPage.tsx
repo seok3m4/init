@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
-import { StatusBadge } from "./CompanyRecruitingChrome";
+import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
 import type { Applicant, Recruitment } from "./types";
 
 type FormState = {
@@ -145,9 +145,15 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">APPLICANTS</p>
-            <h1>{recruitment?.title ?? "지원자 관리"}</h1>
-            <p>같은 공고 안에서는 같은 이메일을 중복 등록할 수 없습니다.</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                { label: recruitment?.title ?? "공고", href: `/company/recruitments/${recruitmentId}` },
+                { label: "지원자 관리" },
+              ]}
+            />
+            <h1>지원자 관리</h1>
+            <p className="page-sub">같은 공고 안에서는 같은 이메일을 중복 등록할 수 없습니다.</p>
           </div>
           <div className="page-actions">
             <button

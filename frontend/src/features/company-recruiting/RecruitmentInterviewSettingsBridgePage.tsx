@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getRecruitment, publishRecruitment } from "./api";
-import { StatusBadge } from "./CompanyRecruitingChrome";
+import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
 const setupItems = [
@@ -65,9 +65,14 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
     <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">INTERVIEW SETTINGS</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                { label: recruitment?.title ?? "공고", href: `/company/recruitments/${recruitmentId}` },
+                { label: "면접 설정" },
+              ]}
+            />
             <h1>면접 설정</h1>
-            <p>{recruitment ? `${recruitment.title} 공고의 면접 설정 연결 단계입니다.` : "공고 정보를 확인하고 있습니다."}</p>
           </div>
           <div className="page-actions">
             <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}/settings`}>
@@ -96,7 +101,7 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
           <div className="panel-head">
             <div>
               <h2>면접 설정 연결</h2>
-              <p>C 담당 화면이 준비되면 이 단계에서 평가 기준, 질문 뱅크, 면접 시간을 저장합니다.</p>
+              <p>B 임시 브릿지입니다. 평가 기준·질문 뱅크·면접 시간 저장은 C 담당 화면이 연결될 때까지 대기하며, 이 화면이 C 구현을 대체하지 않습니다.</p>
             </div>
           </div>
           <div className="setup-card-grid">

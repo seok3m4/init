@@ -60,12 +60,11 @@ export function CompanyPostingsPage() {
   }
 
   return (
-    <section className="app-page">
+    <section className="app-page glass-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">RECRUITMENTS</p>
             <h1>공고 목록</h1>
-            <p>진행 중인 채용 공고를 관리합니다.</p>
+            <p className="page-sub">진행 중인 채용 공고를 관리합니다.</p>
           </div>
           <Link className="btn primary" href="/company/recruitments/new">
             공고 생성
@@ -76,7 +75,6 @@ export function CompanyPostingsPage() {
           <div className="panel-head">
             <div>
               <h2>채용 공고</h2>
-              <p>자기 회사 공고만 조회됩니다.</p>
             </div>
             <form className="toolbar" onSubmit={handleSearch}>
               <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="프로젝트명, 직무명 검색" />

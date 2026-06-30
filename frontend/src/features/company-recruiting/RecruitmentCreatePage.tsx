@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { createRecruitment } from "./api";
+import { Breadcrumb } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
@@ -59,9 +60,13 @@ export function RecruitmentCreatePage() {
     <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">CREATE RECRUITMENT</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                { label: "공고 생성" },
+              ]}
+            />
             <h1>공고 생성</h1>
-            <p>공고 기본 정보와 JD를 입력한 뒤 면접 설정으로 이어집니다.</p>
           </div>
           <Link className="btn secondary" href="/company/recruitments">
             공고 목록
@@ -75,7 +80,6 @@ export function RecruitmentCreatePage() {
             <div className="panel-head">
               <div>
                 <h2>기본 정보</h2>
-                <p>지원자에게 노출할 공고 정보를 입력합니다.</p>
               </div>
             </div>
 
@@ -113,23 +117,14 @@ export function RecruitmentCreatePage() {
             <div className="panel-head">
               <div>
                 <h2>JD 등록</h2>
-                <p>파일 칸은 후속 업로드 연동 전 UI이며, 이번 저장은 텍스트 JD를 기준으로 처리합니다.</p>
+                <p>이번 저장은 텍스트 JD 기준입니다.</p>
               </div>
               <button className="btn primary" type="submit" disabled={loading}>
                 다음
               </button>
             </div>
 
-            <div className="grid-2">
-              <label>
-                JD 파일
-                <input
-                  accept=".txt,.pdf,.doc,.docx"
-                  type="file"
-                  onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
-                />
-                <span className="field-hint">{jdFileName ? `${jdFileName} 선택됨` : "txt, pdf, doc, docx 파일 칸만 먼저 제공합니다."}</span>
-              </label>
+            <div className="creation-flow">
               <label className="wide">
                 JD 직접 입력
                 <textarea
@@ -137,6 +132,21 @@ export function RecruitmentCreatePage() {
                   onChange={(event) => updateField("jobDescription", event.target.value)}
                   placeholder="담당 업무, 자격 요건, 우대 사항을 입력하세요."
                 />
+              </label>
+              <label className="wide">
+                JD 파일 (임시 UI)
+                <div className="upload-zone">
+                  <input
+                    accept=".txt,.pdf,.doc,.docx"
+                    type="file"
+                    onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
+                  />
+                  <span className="field-hint">
+                    {jdFileName
+                      ? `${jdFileName} 선택됨 · 파일 저장/파싱은 아직 연동 전입니다.`
+                      : "txt, pdf, doc, docx · 실제 업로드 저장은 후속 연동 예정인 임시 칸입니다."}
+                  </span>
+                </div>
               </label>
             </div>
           </section>
