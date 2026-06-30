@@ -8,7 +8,9 @@
     "^docs/04_implementation/one-time-alignment/agent-pm\\.md$",
     "^scripts/",
     "^\\.github/",
-    "^\\.gitignore$"
+    "^\\.gitignore$",
+    "^\\.env\\.example$",
+    "^README\\.md$"
   ],
   "baselineSkeleton": [
     "^backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\\.gitkeep$",
@@ -25,6 +27,7 @@
     {
       "name": "backend api bootstrap",
       "patterns": [
+        "^backend/api/src/app\\.module\\.ts$",
         "^backend/api/src/modules/app\\.module\\.ts$",
         "^backend/api/src/main\\.ts$"
       ],
@@ -51,6 +54,8 @@
       "^backend/api/prisma/",
       "^backend/api/src/modules/auth/",
       "^backend/api/src/modules/health/",
+      "^backend/api/src/common/dev-auth/",
+      "^backend/api/src/common/response/",
       "^backend/api/src/shared/",
       "^backend/api/src/swagger/",
       "^frontend/src/app/(login|signup|password/reset)/",
@@ -87,6 +92,7 @@
     "PM": [
       "^docs/",
       "^assets/",
+      "^frontend/src/features/landing/",
       "^design\\.md$"
     ]
   }
