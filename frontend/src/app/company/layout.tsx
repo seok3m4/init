@@ -1,4 +1,4 @@
-import { CompanyNav } from "../../features/company-recruiting/CompanyRecruitingChrome";
+import { CompanyNav } from "@/features/company-recruiting/CompanyRecruitingChrome";
 
 export default function CompanyLayout({ children }: { children: React.ReactNode }) {
   return (

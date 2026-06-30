@@ -1,4 +1,4 @@
-import { CandidateJobApplyPage } from "../../../../../features/candidate-application-interview/CandidatePages";
+import { CandidateJobApplyPage } from "@/features/candidate-application-interview/CandidatePages";
 
 type Props = {
   params: Promise<{ jobId: string }>;

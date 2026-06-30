@@ -1,4 +1,4 @@
-import { PasswordResetForm } from "../../../features/auth/AuthForms";
+import { PasswordResetForm } from "@/features/auth/AuthForms";
 
 export default function PasswordResetPage() {
   return (
