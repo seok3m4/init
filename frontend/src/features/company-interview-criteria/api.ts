@@ -5,6 +5,7 @@ import type {
   CreateInterviewQuestionResult,
   EvaluationCriteriaResult,
   InterviewSettings,
+  UpdateInterviewQuestionInput,
   UpdateEvaluationCriteriaInput,
   UpdateInterviewTimePolicyInput,
   UpdateInterviewTimePolicyResult,
@@ -33,6 +34,19 @@ export async function createInterviewQuestion(input: CreateInterviewQuestionInpu
   });
 }
 
+export async function updateInterviewQuestion(questionId: number, input: UpdateInterviewQuestionInput) {
+  return request<CreateInterviewQuestionResult>(`/company/interviews/questions/${questionId}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export async function deleteInterviewQuestion(questionId: number) {
+  return request<CreateInterviewQuestionResult>(`/company/interviews/questions/${questionId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function updateInterviewTimePolicy(input: UpdateInterviewTimePolicyInput) {
   return request<UpdateInterviewTimePolicyResult>("/company/interviews/time-policy", {
     method: "PATCH",
@@ -43,7 +57,7 @@ export async function updateInterviewTimePolicy(input: UpdateInterviewTimePolicy
 async function request<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "PATCH";
+    method?: "DELETE" | "GET" | "POST" | "PATCH";
     query?: Record<string, string | number | undefined>;
     body?: unknown;
   } = {},

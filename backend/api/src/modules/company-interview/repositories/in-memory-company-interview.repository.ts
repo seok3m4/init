@@ -10,6 +10,7 @@ import {
   CompanyInterviewRepository,
   CreateQuestionInput,
   UpdateCriterionInput,
+  UpdateQuestionInput,
   UpdateTimePolicyInput,
 } from './company-interview.repository';
 
@@ -152,7 +153,7 @@ export class InMemoryCompanyInterviewRepository
 
   async listQuestions(postingId: number): Promise<QuestionRecord[]> {
     return this.questions
-      .filter((question) => question.postingId === postingId)
+      .filter((question) => question.postingId === postingId && question.isActive)
       .sort((a, b) => a.questionId - b.questionId);
   }
 
@@ -201,6 +202,19 @@ export class InMemoryCompanyInterviewRepository
     postingId: number,
     criteria: UpdateCriterionInput[],
   ): Promise<EvaluationCriterionRecord[]> {
+    const nextCriterionIds = new Set(
+      criteria
+        .map((criterion) => criterion.criterionId)
+        .filter((criterionId): criterionId is number => criterionId !== undefined),
+    );
+    const removedCriterionIds = this.evaluationCriteria
+      .filter(
+        (criterion) =>
+          criterion.postingId === postingId &&
+          !nextCriterionIds.has(criterion.criterionId),
+      )
+      .map((criterion) => criterion.criterionId);
+
     const nextCriteria = criteria.map((criterion) => ({
       criterionId: criterion.criterionId ?? this.nextCriterionId++,
       postingId,
@@ -216,6 +230,14 @@ export class InMemoryCompanyInterviewRepository
       ),
       ...nextCriteria,
     ];
+
+    this.questions = this.questions.map((question) =>
+      question.postingId === postingId &&
+      question.criterionId !== null &&
+      removedCriterionIds.includes(question.criterionId)
+        ? { ...question, criterionId: null, isActive: false }
+        : question,
+    );
 
     return this.listCriteria(postingId);
   }
@@ -233,6 +255,40 @@ export class InMemoryCompanyInterviewRepository
 
     this.questions = [...this.questions, question];
     return question;
+  }
+
+  async updateQuestion(
+    questionId: number,
+    input: UpdateQuestionInput,
+  ): Promise<QuestionRecord> {
+    const question = this.questions.find((item) => item.questionId === questionId);
+    if (!question) {
+      throw new Error('Question not found');
+    }
+
+    const updated: QuestionRecord = {
+      ...question,
+      criterionId: input.criterionId,
+      questionType: input.questionType,
+      content: input.content.trim(),
+    };
+    this.questions = this.questions.map((item) =>
+      item.questionId === questionId ? updated : item,
+    );
+    return updated;
+  }
+
+  async deactivateQuestion(questionId: number): Promise<QuestionRecord> {
+    const question = this.questions.find((item) => item.questionId === questionId);
+    if (!question) {
+      throw new Error('Question not found');
+    }
+
+    const updated = { ...question, isActive: false };
+    this.questions = this.questions.map((item) =>
+      item.questionId === questionId ? updated : item,
+    );
+    return updated;
   }
 
   async updateTimePolicy(

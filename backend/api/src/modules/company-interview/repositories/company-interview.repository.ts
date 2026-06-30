@@ -32,6 +32,12 @@ export type CreateQuestionInput = {
   content: string;
 };
 
+export type UpdateQuestionInput = {
+  criterionId: number;
+  questionType: QuestionType;
+  content: string;
+};
+
 export type UpdateTimePolicyInput = {
   preparationTimeSec: number;
   answerTimeSec: number;
@@ -57,6 +63,8 @@ export interface CompanyInterviewRepository {
     criteria: UpdateCriterionInput[],
   ): Promise<EvaluationCriterionRecord[]>;
   createQuestion(input: CreateQuestionInput): Promise<QuestionRecord>;
+  updateQuestion(questionId: number, input: UpdateQuestionInput): Promise<QuestionRecord>;
+  deactivateQuestion(questionId: number): Promise<QuestionRecord>;
   updateTimePolicy(
     postingId: number,
     input: UpdateTimePolicyInput,
