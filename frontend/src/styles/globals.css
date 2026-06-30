@@ -698,6 +698,31 @@ table {
   font-size: 14px;
 }
 
+.screening-table {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.screening-col-candidate {
+  width: 25%;
+}
+
+.screening-col-interview {
+  width: 14%;
+}
+
+.screening-col-report {
+  width: 16%;
+}
+
+.screening-col-decision {
+  width: 20%;
+}
+
+.screening-col-memo {
+  width: 25%;
+}
+
 th {
   padding: 12px 14px;
   color: var(--ink-400);
@@ -738,6 +763,59 @@ td select,
 td input {
   min-height: 38px;
   min-width: 120px;
+}
+
+.autosave-field {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.autosave-field select,
+.autosave-field input {
+  min-height: 42px;
+}
+
+.autosave-field.is-saving select,
+.autosave-field.is-saving input {
+  padding-right: 42px;
+}
+
+.autosave-field.is-saving select,
+.autosave-field.is-saving input {
+  border-color: #9bb1ff;
+}
+
+.autosave-field.is-error select,
+.autosave-field.is-error input {
+  background: #fff4f2;
+  border-color: #d92d20;
+}
+
+.autosave-field.is-saving::after {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #c7d2fe;
+  border-top-color: var(--brand-strong);
+  border-radius: 50%;
+  content: "";
+  animation: autosave-spin 800ms linear infinite;
+}
+
+.autosave-state {
+  min-height: 16px;
+  color: #d92d20;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@keyframes autosave-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .modal-backdrop {
