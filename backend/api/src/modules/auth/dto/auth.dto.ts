@@ -17,21 +17,10 @@ export class LoginDto {
 }
 
 export class GoogleLoginQueryDto {
-  @ApiProperty({ enum: ["CANDIDATE"], example: "CANDIDATE" })
-  @IsIn(["CANDIDATE"])
-  userType!: "CANDIDATE";
-}
-
-export class GoogleCallbackQueryDto {
-  @ApiProperty({ example: "4/0AbCdEf" })
-  @IsString()
-  @IsNotEmpty()
-  code!: string;
-
-  @ApiProperty({ example: "CANDIDATE" })
-  @IsString()
-  @IsNotEmpty()
-  state!: string;
+  @ApiPropertyOptional({ enum: ["COMPANY", "CANDIDATE"], example: "CANDIDATE" })
+  @IsOptional()
+  @IsIn(["COMPANY", "CANDIDATE"])
+  userType?: "COMPANY" | "CANDIDATE";
 }
 
 export class SignupCandidateDto {
