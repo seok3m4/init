@@ -15,11 +15,20 @@ jobs:
   docs-harness:
     name: Docs and Harness
     runs-on: windows-latest
+    outputs:
+      impacted_roles_json: ${{ steps.ownership.outputs.roles_json }}
+      impacted_roles_csv: ${{ steps.ownership.outputs.roles_csv }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify docs, contracts, and folder structure
         shell: pwsh
         run: ./scripts/verify-docs.ps1
+      - name: Verify changed-file ownership
+        id: ownership
+        shell: pwsh
+        run: ./scripts/verify-ownership-auto.ps1
       - name: Verify implementation baseline
         shell: pwsh
         run: ./scripts/verify-baseline.ps1
@@ -27,11 +36,19 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-package-baseline.ps1
 
-  macos-b-harness:
-    name: macOS B Harness
+  role-harness:
+    name: Role Harness (${{ matrix.role }})
+    needs: docs-harness
+    if: needs.docs-harness.outputs.impacted_roles_json != '[]'
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        role: ${{ fromJson(needs.docs-harness.outputs.impacted_roles_json) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -43,9 +60,12 @@ jobs:
           else
             echo "backend/api/package-lock.json not found; skipping backend API dependency install"
           fi
-      - name: Verify B workflow without PowerShell
+      - name: Verify changed-file ownership without PowerShell
         shell: bash
-        run: bash scripts/check-local.sh -Role B
+        run: bash scripts/verify-ownership-auto.sh
+      - name: Verify local workflow without PowerShell
+        shell: bash
+        run: bash scripts/check-local.sh -Role ${{ matrix.role }} -SkipOwnership
 
   extended-harness:
     name: Extended Local Harness
