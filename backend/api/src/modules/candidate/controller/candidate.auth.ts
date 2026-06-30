@@ -1,6 +1,6 @@
 import type { CurrentUser } from "@init/common";
-import { CandidateDomainError } from "./candidate.service";
-import type { CurrentCandidateUser } from "./candidate.types";
+import { CandidateDomainError } from "../candidate.errors";
+import type { CurrentCandidateUser } from "../candidate.types";
 
 export function resolveCurrentCandidate(
   currentUser: CurrentUser | CurrentCandidateUser | undefined,

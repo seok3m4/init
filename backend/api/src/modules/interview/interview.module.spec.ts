@@ -2,9 +2,9 @@ import "reflect-metadata";
 import { strict as assert } from "node:assert";
 import { MODULE_METADATA } from "@nestjs/common/constants";
 import { CandidateModule } from "../candidate";
-import { InterviewController } from "./interview.controller";
+import { InterviewController } from "./controller/interview.controller";
 import { InterviewModule } from "./interview.module";
-import { InterviewService } from "./interview.service";
+import { InterviewService } from "./service/interview.service";
 
 const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, InterviewModule) as unknown[];
 const controllers = Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, InterviewModule) as unknown[];

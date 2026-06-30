@@ -1,9 +1,10 @@
 import { Module } from "@nestjs/common";
 import { PrismaService } from "../../shared/prisma.service";
 import { AuthModule } from "../auth/auth.module";
-import { CandidateController } from "./candidate.controller";
-import { CANDIDATE_REPOSITORY, CandidateService, InMemoryCandidateRepository } from "./candidate.service";
-import { PrismaCandidateRepository } from "./prisma-candidate.repository";
+import { CandidateController } from "./controller/candidate.controller";
+import { InMemoryCandidateRepository } from "./repository/in-memory-candidate.repository";
+import { PrismaCandidateRepository } from "./repository/prisma-candidate.repository";
+import { CANDIDATE_REPOSITORY, CandidateService } from "./service/candidate.service";
 
 @Module({
   imports: [AuthModule],

@@ -1,12 +1,12 @@
 import { strict as assert } from "node:assert";
-import { resolveCurrentCandidate } from "./candidate.auth";
+import { resolveCurrentCandidate } from "../controller/candidate.auth";
 import {
   CandidateDomainError,
   CandidateService,
   DEV_CANDIDATE_USER,
-  InMemoryCandidateRepository,
 } from "./candidate.service";
-import { createCandidateValidationException } from "./candidate.validation";
+import { createCandidateValidationException } from "../candidate.validation";
+import { InMemoryCandidateRepository } from "../repository/in-memory-candidate.repository";
 
 async function run() {
   const service = new CandidateService(new InMemoryCandidateRepository());

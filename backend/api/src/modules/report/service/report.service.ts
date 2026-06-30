@@ -7,8 +7,8 @@ import {
   type CurrentCandidateUser,
   type FileAsset,
   type ReportStatus,
-} from "../candidate";
-import { InterviewService, type InterviewAnswer, type RuntimeInterviewSession } from "../interview";
+} from "../../candidate";
+import { InterviewService, type InterviewAnswer, type RuntimeInterviewSession } from "../../interview";
 import {
   CandidateApplicationStatusView,
   CandidateMockInterviewHistoryItem,
@@ -19,7 +19,7 @@ import {
   CandidateRecruitingReportView,
   CandidateReportFileReference,
   CandidateReportGenerationHandoff,
-} from "./candidate-report.types";
+} from "../candidate-report.types";
 
 @Injectable()
 export class ReportService {

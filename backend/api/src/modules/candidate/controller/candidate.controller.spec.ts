@@ -3,8 +3,9 @@ import { strict as assert } from "node:assert";
 import { HttpException, RequestMethod } from "@nestjs/common";
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { CandidateController } from "./candidate.controller";
-import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
-import { CandidateService, DEV_CANDIDATE_USER, InMemoryCandidateRepository } from "./candidate.service";
+import { candidateApiRoutePrefix, candidateApiRoutes } from "../candidate.routes";
+import { InMemoryCandidateRepository } from "../repository/in-memory-candidate.repository";
+import { CandidateService, DEV_CANDIDATE_USER } from "../service/candidate.service";
 
 type CandidateControllerRoute =
   | "listJobs"

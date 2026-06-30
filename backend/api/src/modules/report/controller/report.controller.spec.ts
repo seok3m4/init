@@ -6,11 +6,11 @@ import {
   CandidateService,
   DEV_CANDIDATE_USER,
   InMemoryCandidateRepository,
-} from "../candidate";
-import { InterviewService } from "../interview";
+} from "../../candidate";
+import { InterviewService } from "../../interview";
 import { ReportController } from "./report.controller";
-import { reportApiRoutePrefix, reportApiRoutes } from "./report.routes";
-import { ReportService } from "./report.service";
+import { reportApiRoutePrefix, reportApiRoutes } from "../report.routes";
+import { ReportService } from "../service/report.service";
 
 type ReportControllerRoute =
   | "listMockReports"

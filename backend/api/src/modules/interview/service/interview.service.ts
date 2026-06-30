@@ -5,9 +5,9 @@ import {
   type CurrentCandidateUser,
   type FileAsset,
   type InterviewSession,
-} from "../candidate";
-import { DeviceCheckDto } from "./interview.device-check.dto";
-import { AiInterviewRequestDto, RuntimeFileAssetDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "./interview.runtime.dto";
+} from "../../candidate";
+import { DeviceCheckDto } from "../dto/interview.device-check.dto";
+import { AiInterviewRequestDto, RuntimeFileAssetDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "../dto/interview.runtime.dto";
 import {
   AiHandoffResult,
   CompleteInterviewResult,
@@ -20,7 +20,7 @@ import {
   RuntimeInterviewSession,
   SaveInterviewAnswerResult,
   StartMockInterviewResult,
-} from "./interview.runtime.types";
+} from "../interview.runtime.types";
 
 const DEFAULT_MOCK_QUESTION_TYPES = ["INTRO", "TECHNICAL", "EXPERIENCE", "CLOSING"] as const;
 

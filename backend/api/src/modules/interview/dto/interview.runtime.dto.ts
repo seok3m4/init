@@ -1,5 +1,5 @@
 import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsPositive, IsString, Min } from "class-validator";
-import type { QuestionType } from "./interview.runtime.types";
+import type { QuestionType } from "../interview.runtime.types";
 
 export class RuntimeFileAssetDto {
   @IsString()
