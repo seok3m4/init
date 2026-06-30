@@ -6,12 +6,17 @@ import { useCallback, useEffect, useState } from "react";
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
 import { StatusBadge } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
+import {
+  getScreeningAutosaveFieldState,
+  hasScreeningDraftChanged,
+  markScreeningAutosaveError,
+  markScreeningAutosaveSaving,
+  markScreeningAutosaveSuccess,
+  type ScreeningAutosaveField,
+  type ScreeningAutosaveState,
+  type ScreeningDraft,
+} from "./screening-autosave";
 import type { Applicant, Recruitment, ScreeningDecision } from "./types";
-
-type ScreeningDraft = {
-  decision: ScreeningDecision;
-  memo: string;
-};
 
 const decisions: ScreeningDecision[] = ["UNDECIDED", "PASS", "HOLD", "FAIL"];
 
@@ -19,6 +24,8 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const [recruitment, setRecruitment] = useState<Recruitment | null>(null);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [screeningDrafts, setScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
+  const [savedScreeningDrafts, setSavedScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
+  const [autosaveState, setAutosaveState] = useState<ScreeningAutosaveState>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -32,19 +39,14 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
         getRecruitment(recruitmentId),
         listRecruitmentApplicants(recruitmentId, { page: 1, limit: 20, sort: "updatedAt", order: "desc" }),
       ]);
+      const nextDrafts = Object.fromEntries(
+        applicantList.data.items.map((item) => [item.applicationId, toScreeningDraft(item)]),
+      );
       setRecruitment(detail.data);
       setApplicants(applicantList.data.items);
-      setScreeningDrafts(
-        Object.fromEntries(
-          applicantList.data.items.map((item) => [
-            item.applicationId,
-            {
-              decision: normalizeDecision(item.screeningDecision),
-              memo: item.screeningMemo ?? "",
-            },
-          ]),
-        ),
-      );
+      setScreeningDrafts(nextDrafts);
+      setSavedScreeningDrafts(nextDrafts);
+      setAutosaveState({});
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "공고 대시보드를 불러오지 못했습니다.");
     } finally {
@@ -56,24 +58,57 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
     void load();
   }, [load]);
 
-  async function handleScreeningSave(applicant: Applicant) {
+  async function handleDecisionChange(applicant: Applicant, decision: ScreeningDecision) {
+    const nextDraft = {
+      decision,
+      memo: screeningDrafts[applicant.applicationId]?.memo ?? "",
+    };
+    updateDraft(applicant.applicationId, nextDraft);
+    await saveScreeningField(applicant, "decision", nextDraft);
+  }
+
+  async function handleMemoBlur(applicant: Applicant) {
     const draft = screeningDrafts[applicant.applicationId];
-    if (!draft) {
+    const savedDraft = savedScreeningDrafts[applicant.applicationId];
+    if (!draft || (savedDraft && draft.memo === savedDraft.memo)) {
       return;
     }
-    setLoading(true);
-    setMessage("");
+    await saveScreeningField(applicant, "memo", draft);
+  }
+
+  async function saveScreeningField(applicant: Applicant, field: ScreeningAutosaveField, draft: ScreeningDraft) {
+    const savedDraft = savedScreeningDrafts[applicant.applicationId];
+    if (savedDraft && !hasScreeningDraftChanged(savedDraft, draft)) {
+      return;
+    }
+
+    setAutosaveState((current) => markScreeningAutosaveSaving(current, applicant.applicationId, field));
     try {
-      await updateScreeningStatus(applicant.applicationId, {
+      const result = await updateScreeningStatus(applicant.applicationId, {
         screeningDecision: draft.decision,
         screeningMemo: draft.memo || undefined,
       });
-      setMessage(`${applicant.name} 지원자의 전형 상태가 저장되었습니다.`);
-      await load({ clearMessage: false });
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "전형 상태 저장에 실패했습니다.");
-    } finally {
-      setLoading(false);
+      const updatedDraft = toScreeningDraft(result.data);
+      setApplicants((current) =>
+        current.map((item) => (item.applicationId === result.data.applicationId ? result.data : item)),
+      );
+      setSavedScreeningDrafts((current) => ({
+        ...current,
+        [applicant.applicationId]: updatedDraft,
+      }));
+      setScreeningDrafts((current) => {
+        const currentDraft = current[applicant.applicationId];
+        if (currentDraft && hasScreeningDraftChanged(draft, currentDraft)) {
+          return current;
+        }
+        return {
+          ...current,
+          [applicant.applicationId]: updatedDraft,
+        };
+      });
+      setAutosaveState((current) => markScreeningAutosaveSuccess(current, applicant.applicationId, field));
+    } catch {
+      setAutosaveState((current) => markScreeningAutosaveError(current, applicant.applicationId, field));
     }
   }
 
@@ -158,7 +193,14 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
                 <div className="empty">등록된 지원자가 없습니다. 우측 상단의 지원자 관리에서 먼저 등록하세요.</div>
               ) : (
                 <div className="table-wrap">
-                  <table>
+                  <table className="screening-table">
+                    <colgroup>
+                      <col className="screening-col-candidate" />
+                      <col className="screening-col-interview" />
+                      <col className="screening-col-report" />
+                      <col className="screening-col-decision" />
+                      <col className="screening-col-memo" />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th>지원자</th>
@@ -166,44 +208,56 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
                         <th>리포트</th>
                         <th>전형 상태</th>
                         <th>메모</th>
-                        <th>저장</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {applicants.map((item) => (
-                        <tr key={item.applicationId}>
-                          <td>
-                            <strong>{item.name}</strong>
-                            <span>{item.email}</span>
-                          </td>
-                          <td>{item.interviewStatus}</td>
-                          <td>{item.report ? `${item.report.status} · ${item.report.totalScore ?? "점수 없음"}` : "없음/생성중"}</td>
-                          <td>
-                            <select
-                              value={screeningDrafts[item.applicationId]?.decision ?? "UNDECIDED"}
-                              onChange={(event) => updateDraft(item.applicationId, { decision: event.target.value as ScreeningDecision })}
-                            >
-                              {decisions.map((decision) => (
-                                <option key={decision} value={decision}>
-                                  {decision}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              value={screeningDrafts[item.applicationId]?.memo ?? ""}
-                              onChange={(event) => updateDraft(item.applicationId, { memo: event.target.value })}
-                              placeholder="수동 메모"
-                            />
-                          </td>
-                          <td>
-                            <button className="btn secondary compact" type="button" disabled={loading} onClick={() => void handleScreeningSave(item)}>
-                              저장
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {applicants.map((item) => {
+                        const decisionState = getScreeningAutosaveFieldState(autosaveState, item.applicationId, "decision");
+                        const memoState = getScreeningAutosaveFieldState(autosaveState, item.applicationId, "memo");
+
+                        return (
+                          <tr key={item.applicationId}>
+                            <td>
+                              <strong>{item.name}</strong>
+                              <span>{item.email}</span>
+                            </td>
+                            <td>{item.interviewStatus}</td>
+                            <td>{item.report ? `${item.report.status} · ${item.report.totalScore ?? "점수 없음"}` : "없음/생성중"}</td>
+                            <td>
+                              <div className={`autosave-field ${decisionState === "saving" ? "is-saving" : ""} ${decisionState === "error" ? "is-error" : ""}`}>
+                                <select
+                                  aria-label={`${item.name} 전형 상태`}
+                                  value={screeningDrafts[item.applicationId]?.decision ?? "UNDECIDED"}
+                                  onChange={(event) => void handleDecisionChange(item, event.target.value as ScreeningDecision)}
+                                >
+                                  {decisions.map((decision) => (
+                                    <option key={decision} value={decision}>
+                                      {decision}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span className="autosave-state" aria-live="polite">
+                                  {decisionState === "error" ? "저장 실패" : ""}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className={`autosave-field ${memoState === "saving" ? "is-saving" : ""} ${memoState === "error" ? "is-error" : ""}`}>
+                                <input
+                                  aria-label={`${item.name} 메모`}
+                                  value={screeningDrafts[item.applicationId]?.memo ?? ""}
+                                  onBlur={() => void handleMemoBlur(item)}
+                                  onChange={(event) => updateDraft(item.applicationId, { memo: event.target.value })}
+                                  placeholder="수동 메모"
+                                />
+                                <span className="autosave-state" aria-live="polite">
+                                  {memoState === "error" ? "저장 실패" : ""}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -211,7 +265,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
             </section>
           </>
         ) : (
-          <div className="empty">공고 대시보드를 불러오는 중입니다.</div>
+          <div className="empty">{loading ? "공고 대시보드를 불러오는 중입니다." : "공고 대시보드를 불러올 수 없습니다."}</div>
         )}
     </section>
   );
@@ -226,6 +280,13 @@ function formatPeriod(item: Recruitment) {
 
 function isCompleted(value: string) {
   return ["COMPLETED", "DONE", "GENERATED"].includes(value);
+}
+
+function toScreeningDraft(item: Applicant): ScreeningDraft {
+  return {
+    decision: normalizeDecision(item.screeningDecision),
+    memo: item.screeningMemo ?? "",
+  };
 }
 
 function normalizeDecision(value: string): ScreeningDecision {
