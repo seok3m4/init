@@ -454,8 +454,7 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
       if (!guide.consentCompleted) {
         await getCandidateApi().saveInterviewConsent(applicationId, toSaveInterviewConsentRequest(consentState));
       }
-      setStep("device");
-      setMessage("동의가 저장되었습니다. 카메라와 마이크를 점검해주세요.");
+      router.push(candidateApplicationInterviewRoutes.interview(applicationId));
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
     } finally {
@@ -732,7 +731,7 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   const resource = useCandidateResource(load, [applicationId]);
   const runtimeStatus = resource.data?.runtime.status;
   const shouldRedirectToGuide =
-    (runtimeStatus !== undefined && runtimeStatus !== "IN_PROGRESS") ||
+    (runtimeStatus !== undefined && !["READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
     resource.error === "Interview has not been started.";
 
   useEffect(() => {
@@ -743,7 +742,7 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   if (shouldRedirectToGuide) {
     return (
       <CandidatePageShell active="applications">
-        <StatusNotice loading message="면접 안내와 장치 점검 화면으로 이동합니다." />
+        <StatusNotice loading message="면접 안내 화면으로 이동합니다." />
       </CandidatePageShell>
     );
   }
@@ -1262,7 +1261,7 @@ function InterviewRuntimePanel({
   const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordedFileName, setRecordedFileName] = useState("");
-  const [setupCompleted, setSetupCompleted] = useState(false);
+  const [setupCompleted, setSetupCompleted] = useState(mode === "recruiting");
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
   const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
@@ -1278,6 +1277,8 @@ function InterviewRuntimePanel({
   const recordingStartedAtRef = useRef(0);
   const submitAfterRecordingStopRef = useRef(false);
   const autoAdvanceAfterAnswerSubmitRef = useRef(false);
+  const startRuntimeAfterRefreshRef = useRef(false);
+  const autoEnterRecruitingRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
   const autoSpokenQuestionRef = useRef<number | null>(null);
   const timeExpiredQuestionRef = useRef<number | null>(null);
@@ -1367,12 +1368,14 @@ function InterviewRuntimePanel({
       } catch (previewError) {
         if (videoRef.current !== node || videoAttachRunRef.current !== attachRun) return;
         setCameraReady(false);
-        setSetupCompleted(false);
+        if (mode !== "recruiting") {
+          setSetupCompleted(false);
+        }
         setCameraPreviewStatus(`카메라 연결 실패: ${formatMediaError(previewError)}`);
         setMessage(formatMediaError(previewError));
       }
     })();
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (currentQuestion) {
@@ -1411,6 +1414,24 @@ function InterviewRuntimePanel({
   }, [data]);
 
   useEffect(() => {
+    if (!data || data.runtime.status !== "IN_PROGRESS" || !startRuntimeAfterRefreshRef.current) return;
+    startRuntimeAfterRefreshRef.current = false;
+    setSetupCompleted(true);
+    setMessage("면접을 시작했습니다. 답변 녹화가 자동으로 진행됩니다.");
+    autoRecordingQuestionRef.current = null;
+  }, [data]);
+
+  useEffect(() => {
+    if (!data || mode !== "recruiting" || autoEnterRecruitingRef.current) return;
+    if (!["READY", "IN_PROGRESS"].includes(data.runtime.status)) return;
+    autoEnterRecruitingRef.current = true;
+    setSetupCompleted(true);
+    void handleEnterInterview();
+    // Recruiting interviews should enter the runtime directly; camera permission and the start API are chained once here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.runtime.sessionId, data?.runtime.status, mode]);
+
+  useEffect(() => {
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
     attachRuntimeVideoRef(videoRef.current);
   }, [attachRuntimeVideoRef, setupCompleted]);
@@ -1419,7 +1440,7 @@ function InterviewRuntimePanel({
     const supported = isQuestionSpeechSupported();
     setQuestionSpeechSupported(supported);
     setQuestionSpeechStatus(supported ? "질문 음성 대기" : "이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (!setupCompleted || !currentQuestion || currentQuestionAnswered) {
@@ -1576,6 +1597,7 @@ function InterviewRuntimePanel({
   }
 
   async function handleEnterInterview() {
+    if (!data) return;
     if (!streamRef.current || !cameraReady || !microphoneReady) {
       await handleEnableCamera();
     }
@@ -1585,6 +1607,37 @@ function InterviewRuntimePanel({
     const hasLiveAudio = stream?.getAudioTracks().some((track) => track.readyState === "live") ?? false;
     if (!hasLiveVideo || !hasLiveAudio) {
       setMessage("카메라와 마이크 점검을 완료한 뒤 면접을 시작해주세요.");
+      return;
+    }
+
+    if (mode === "recruiting" && data.runtime.status !== "IN_PROGRESS") {
+      if (!data.runtime.applicationId) {
+        setMessage("지원서 정보를 확인할 수 없습니다.");
+        return;
+      }
+
+      setBusy(true);
+      setMessage("");
+      try {
+        const api = getCandidateApi();
+        await api.saveDeviceCheck(
+          data.runtime.sessionId,
+          toDeviceCheckRequest({
+            cameraGranted: true,
+            microphoneGranted: true,
+            networkStable: navigator.onLine,
+          }),
+        );
+        await api.startInterview(data.runtime.applicationId);
+        startRuntimeAfterRefreshRef.current = true;
+        setMessage("장치 점검이 완료되었습니다. 면접 화면으로 이동합니다.");
+        refresh();
+      } catch (submitError) {
+        startRuntimeAfterRefreshRef.current = false;
+        setMessage(toErrorMessage(submitError));
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 
@@ -2713,7 +2766,8 @@ function toRecruitingRuntimeSession(
 ): RuntimePageSession {
   const currentQuestion =
     questions.questions.find((question) => question.current) ??
-    questions.questions.find((question) => question.questionId === questions.currentQuestionId);
+    questions.questions.find((question) => question.questionId === questions.currentQuestionId) ??
+    questions.questions.find((question) => !question.answered);
 
   return {
     sessionId: runtime.sessionId,
