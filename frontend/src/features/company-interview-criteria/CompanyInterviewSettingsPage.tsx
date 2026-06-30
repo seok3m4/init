@@ -1,22 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { StatusBadge } from "../company-recruiting/CompanyRecruitingChrome";
-import { getInterviewSettings } from "./api";
+import { getInterviewSettings, updateEvaluationCriteria } from "./api";
 import type { InterviewSettings } from "./types";
+
+type CriteriaDraft = {
+  criterionId: number;
+  tagId: number;
+  tagName: string;
+  category: string;
+  description: string | null;
+  weight: string;
+  passScore: string;
+  sortOrder: string;
+};
 
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
+  const [criteriaDrafts, setCriteriaDrafts] = useState<CriteriaDraft[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [criteriaSaving, setCriteriaSaving] = useState(false);
+  const [criteriaError, setCriteriaError] = useState("");
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
     setMessage("");
+    setCriteriaError("");
     try {
       const response = await getInterviewSettings(postingId);
       setSettings(response.data);
+      setCriteriaDrafts(toCriteriaDrafts(response.data));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "면접 설정을 불러오지 못했습니다.");
     } finally {
@@ -27,6 +43,80 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  const criteriaTotalWeight = useMemo(
+    () => criteriaDrafts.reduce((sum, criterion) => sum + toNumber(criterion.weight), 0),
+    [criteriaDrafts],
+  );
+
+  const hasCriteriaChanges = useMemo(() => {
+    if (!settings) return false;
+    return JSON.stringify(criteriaDrafts) !== JSON.stringify(toCriteriaDrafts(settings));
+  }, [criteriaDrafts, settings]);
+
+  function updateCriteriaDraft(criterionId: number, field: "weight" | "passScore" | "sortOrder", value: string) {
+    setCriteriaError("");
+    setCriteriaDrafts((current) =>
+      current.map((criterion) => (criterion.criterionId === criterionId ? { ...criterion, [field]: value } : criterion)),
+    );
+  }
+
+  function resetCriteriaDrafts() {
+    if (!settings) return;
+    setCriteriaError("");
+    setCriteriaDrafts(toCriteriaDrafts(settings));
+  }
+
+  async function handleCriteriaSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!settings) return;
+
+    const validationMessage = validateCriteriaDrafts(criteriaDrafts);
+    if (validationMessage) {
+      setCriteriaError(validationMessage);
+      return;
+    }
+
+    setCriteriaSaving(true);
+    setCriteriaError("");
+    try {
+      const response = await updateEvaluationCriteria({
+        postingId: settings.posting.postingId,
+        criteria: criteriaDrafts.map((criterion) => ({
+          criterionId: criterion.criterionId,
+          tagId: criterion.tagId,
+          weight: toNumber(criterion.weight),
+          passScore: criterion.passScore.trim() === "" ? null : toNumber(criterion.passScore),
+          sortOrder: toNumber(criterion.sortOrder),
+        })),
+      });
+
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              criteria: response.data.criteria,
+            }
+          : current,
+      );
+      setCriteriaDrafts(
+        response.data.criteria.map((criterion) => ({
+          criterionId: criterion.criterionId,
+          tagId: criterion.tagId,
+          tagName: criterion.tagName,
+          category: criterion.category,
+          description: criterion.description,
+          weight: String(criterion.weight),
+          passScore: criterion.passScore === null ? "" : String(criterion.passScore),
+          sortOrder: String(criterion.sortOrder),
+        })),
+      );
+    } catch (error) {
+      setCriteriaError(error instanceof Error ? error.message : "평가 기준 저장에 실패했습니다.");
+    } finally {
+      setCriteriaSaving(false);
+    }
+  }
 
   return (
     <section className="app-page">
@@ -65,13 +155,25 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
               </div>
             </section>
 
-            <section className="panel">
+            <form className="panel" onSubmit={handleCriteriaSave}>
               <div className="panel-head">
                 <div>
                   <h2>평가 기준</h2>
-                  <p>배점과 합격 기준을 공고 기준으로 확인합니다.</p>
+                  <p>배점, 합격점, 표시 순서를 공고 기준으로 조정합니다.</p>
+                </div>
+                <div className="toolbar">
+                  <span className={`badge ${criteriaTotalWeight > 0 && criteriaTotalWeight <= 100 ? "info" : "danger"}`}>
+                    배점 합계 {criteriaTotalWeight}
+                  </span>
+                  <button className="btn secondary compact" type="button" disabled={!hasCriteriaChanges || criteriaSaving} onClick={resetCriteriaDrafts}>
+                    되돌리기
+                  </button>
+                  <button className="btn primary compact" type="submit" disabled={!hasCriteriaChanges || criteriaSaving}>
+                    {criteriaSaving ? "저장 중" : "평가 기준 저장"}
+                  </button>
                 </div>
               </div>
+              {criteriaError ? <p className="notice danger">{criteriaError}</p> : null}
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
@@ -81,22 +183,56 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                       <th>분류</th>
                       <th>배점</th>
                       <th>합격점</th>
+                      <th>설명</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {settings.criteria.map((criterion) => (
+                    {criteriaDrafts.map((criterion) => (
                       <tr key={criterion.criterionId}>
-                        <td>{criterion.sortOrder}</td>
+                        <td>
+                          <input
+                            aria-label={`${criterion.tagName} 순서`}
+                            inputMode="numeric"
+                            min={1}
+                            type="number"
+                            value={criterion.sortOrder}
+                            onChange={(event) => updateCriteriaDraft(criterion.criterionId, "sortOrder", event.target.value)}
+                          />
+                        </td>
                         <td>{criterion.tagName}</td>
                         <td>{criterion.category}</td>
-                        <td>{criterion.weight}</td>
-                        <td>{criterion.passScore ?? "-"}</td>
+                        <td>
+                          <input
+                            aria-label={`${criterion.tagName} 배점`}
+                            inputMode="numeric"
+                            min={1}
+                            max={100}
+                            type="number"
+                            value={criterion.weight}
+                            onChange={(event) => updateCriteriaDraft(criterion.criterionId, "weight", event.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            aria-label={`${criterion.tagName} 합격점`}
+                            inputMode="numeric"
+                            min={0}
+                            max={100}
+                            placeholder="-"
+                            type="number"
+                            value={criterion.passScore}
+                            onChange={(event) => updateCriteriaDraft(criterion.criterionId, "passScore", event.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <span>{criterion.description ?? "설명 없음"}</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </section>
+            </form>
 
             <section className="panel">
               <div className="panel-head">
@@ -131,4 +267,57 @@ function Metric({ label, value }: { label: string; value: number | string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {
+  return settings.criteria.map((criterion) => ({
+    criterionId: criterion.criterionId,
+    tagId: criterion.tagId,
+    tagName: criterion.tagName,
+    category: criterion.category,
+    description: criterion.description,
+    weight: String(criterion.weight),
+    passScore: criterion.passScore === null ? "" : String(criterion.passScore),
+    sortOrder: String(criterion.sortOrder),
+  }));
+}
+
+function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
+  if (criteria.length === 0) return "";
+
+  const sortOrders = new Set<number>();
+  let totalWeight = 0;
+
+  for (const criterion of criteria) {
+    const sortOrder = toNumber(criterion.sortOrder);
+    const weight = toNumber(criterion.weight);
+    const passScore = criterion.passScore.trim() === "" ? null : toNumber(criterion.passScore);
+
+    if (!Number.isInteger(sortOrder) || sortOrder < 1) {
+      return "평가 기준 순서는 1 이상의 정수로 입력해주세요.";
+    }
+    if (sortOrders.has(sortOrder)) {
+      return "평가 기준 순서가 중복되었습니다.";
+    }
+    sortOrders.add(sortOrder);
+
+    if (!Number.isInteger(weight) || weight < 1 || weight > 100) {
+      return "배점은 1부터 100 사이의 정수로 입력해주세요.";
+    }
+    if (passScore !== null && (!Number.isInteger(passScore) || passScore < 0 || passScore > 100)) {
+      return "합격점은 비워두거나 0부터 100 사이의 정수로 입력해주세요.";
+    }
+
+    totalWeight += weight;
+  }
+
+  if (totalWeight <= 0 || totalWeight > 100) {
+    return "배점 합계는 1부터 100 사이여야 합니다.";
+  }
+
+  return "";
+}
+
+function toNumber(value: string) {
+  return Number(value.trim());
 }
