@@ -33,6 +33,40 @@
 | `frontend/src/shared` | 여러 feature가 쓰는 UI/helper | touched owners |
 | `design.md` | 디자인 시스템, 공통 UI 토큰, 제품 UI 기준 | PM with touched frontend reviewers |
 
+### Frontend Route Ownership
+
+App Router의 `frontend/src/app` 경로는 화면 도메인 기준으로 feature ownership과 함께 본다. 동일 PR에 여러 route가 섞이면 CI는 영향 role을 합산해 role별 harness를 실행한다.
+
+| Path | Owner | Notes |
+| --- | --- | --- |
+| `frontend/src/app/company/recruitments` | B | 기업 채용공고 |
+| `frontend/src/app/company/applicants` | B | 기업 지원자 운영 |
+| `frontend/src/app/company/applications` | B | 기업 지원현황/공고 관리 |
+| `frontend/src/app/company/interviews` | C | 기업 면접 설정, 평가 기준, 질문 관리 |
+| `frontend/src/app/candidate` | D | 지원자 공고, 지원서, 지원현황, 면접 진행, 마이페이지 |
+| `frontend/src/app/reports`, `frontend/src/app/ai` | E | AI 리포트와 AI 작업 화면 |
+| `frontend/src/app/layout.tsx`, `frontend/src/app/page.tsx` | B | 초기 shell과 기업 진입 화면. 인증 흐름 영향이 있으면 A 리뷰를 요청한다. |
+
+### Backend Shared Runtime Ownership
+
+| Path | Owner | Notes |
+| --- | --- | --- |
+| `backend/api/src/modules/health` | A | 배포/헬스체크와 런타임 상태 |
+| `backend/api/src/swagger` | A | OpenAPI/Swagger 공통 문서화 DTO |
+
+### Ownership Map Baseline
+
+CI와 로컬 harness의 ownership 기준은 `docs/04_implementation/ownership-map.json`을 단일 source of truth로 사용한다. PowerShell/bash 스크립트에 role별 경로를 중복 하드코딩하지 않는다.
+
+새 경로를 ownership에 추가할 때는 너무 넓은 패턴을 피한다.
+
+| Avoid | Prefer |
+| --- | --- |
+| `frontend/src/**` | `frontend/src/features/<domain>/**`, `frontend/src/app/<domain>/**` |
+| `backend/api/src/**` | `backend/api/src/modules/<module>/**` |
+
+ownership map 변경 PR은 영향 role과 추가된 path pattern을 PR 본문에 적고 관련 owner 리뷰를 요청한다.
+
 ### DTO Naming and Location Baseline
 
 DTO와 API client 타입은 아래 naming을 따른다. 같은 요청/응답 타입을 각 module에 중복 생성하지 않는다.

@@ -8,6 +8,29 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$ownershipMapPath = Join-Path $root "docs\04_implementation\ownership-map.json"
+
+function Read-OwnershipMap {
+  if (-not (Test-Path -LiteralPath $ownershipMapPath)) {
+    throw "ownership map not found: $ownershipMapPath"
+  }
+  return Get-Content -Encoding UTF8 -LiteralPath $ownershipMapPath -Raw | ConvertFrom-Json
+}
+
+function Test-AnyPattern {
+  param(
+    [string]$File,
+    [string[]]$Patterns
+  )
+
+  foreach ($pattern in $Patterns) {
+    if ($File -match $pattern) {
+      return $true
+    }
+  }
+  return $false
+}
+
 Push-Location $root
 try {
   $changed = @()
@@ -31,49 +54,19 @@ if (-not $changed -or $changed.Count -eq 0) {
   exit 0
 }
 
-$common = @(
-  "^AGENTS\.md$",
-  "^docs/05_agents/",
-  "^docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md$",
-  "^docs/04_implementation/one-time-alignment/agent-[a-e]\.md$",
-  "^docs/04_implementation/one-time-alignment/agent-pm\.md$",
-  "^scripts/",
-  "^\.github/",
-  "^\.gitignore$"
-)
+$ownershipMap = Read-OwnershipMap
+$allowed = @($ownershipMap.common) + @($ownershipMap.baselineSkeleton) + @($ownershipMap.roles.$Role)
 
-$baselineSkeleton = @(
-  "^backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep$",
-  "^backend/common/src/(enums|dto|errors)/\.gitkeep$",
-  "^frontend/src/features/company-profile/\.gitkeep$",
-  "^frontend/package(-lock)?\.json$",
-  "^frontend/(eslint\.config\.mjs|next\.config\.js|tsconfig\.json)$",
-  "^backend/(api|common|worker)/package(-lock)?\.json$",
-  "^backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)$",
-  "^backend/common/tsconfig\.json$",
-  "^backend/worker/tsconfig\.json$"
-)
-
-$allowed = @{
-  A = $common + $baselineSkeleton + @("^backend/common/", "^backend/api/(src|prisma)/", "^frontend/src/api/", "^frontend/src/features/auth/", "^infra/", "^docs/03_contracts/", "^docs/02_architecture/")
-  B = $common + $baselineSkeleton + @("^frontend/src/features/company-recruiting/", "^frontend/src/app/company/layout\.tsx$", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
-  C = $common + $baselineSkeleton + @("^frontend/src/features/company-interview-criteria/", "^frontend/src/app/company/layout\.tsx$", "^frontend/src/app/company/interviews/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
-  D = $common + $baselineSkeleton + @("^frontend/src/features/candidate-application-interview/", "^frontend/src/app/candidate/", "^backend/api/src/", "^docs/03_contracts/", "^docs/02_architecture/")
-  E = $common + $baselineSkeleton + @("^frontend/src/features/ai-report/", "^backend/worker/", "^backend/api/src/", "^docs/04_implementation/ai-golden/", "^docs/03_contracts/", "^docs/02_architecture/")
-  PM = $common + $baselineSkeleton + @("^docs/", "^assets/", "^design\.md$")
+foreach ($shared in @($ownershipMap.shared)) {
+  if (@($shared.roles) -contains $Role) {
+    $allowed += @($shared.patterns)
+  }
 }
 
 $blocked = @()
 foreach ($file in $changed) {
   $normalized = $file -replace "\\", "/"
-  $match = $false
-  foreach ($pattern in $allowed[$Role]) {
-    if ($normalized -match $pattern) {
-      $match = $true
-      break
-    }
-  }
-  if (-not $match) {
+  if (-not (Test-AnyPattern $normalized $allowed)) {
     $blocked += $normalized
   }
 }
@@ -81,6 +74,7 @@ foreach ($file in $changed) {
 if ($blocked.Count -gt 0) {
   Write-Host "[fail] files outside role $Role ownership:"
   $blocked | ForEach-Object { Write-Host "  $_" }
+  Write-Host "[hint] If these paths are valid for this role, add narrow patterns to docs/04_implementation/ownership-map.json and request the affected owner review."
   throw "verify-ownership failed"
 }
 
