@@ -174,6 +174,12 @@ export class InMemoryCompanyInterviewRepository
     );
   }
 
+  async listTags(): Promise<CriterionTagRecord[]> {
+    return this.criterionTags
+      .filter((tag) => tag.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.tagId - b.tagId);
+  }
+
   async findTag(tagId: number): Promise<CriterionTagRecord | undefined> {
     return this.criterionTags.find(
       (tag) => tag.tagId === tagId && tag.isActive,
