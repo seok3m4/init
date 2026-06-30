@@ -45,7 +45,6 @@ import {
   defaultPortfolioLinkFormState,
   defaultStartMockInterviewState,
   createResumeUploadStateFromFile,
-  getCandidateApplicationInterviewActionHref,
   getCandidateApplicationReportHref,
   getMockReportHref,
   inferPortfolioLinkType,
@@ -333,57 +332,6 @@ export function CandidateApplicationsPage() {
   );
 }
 
-function LegacyCandidateApplicationsPage() {
-  const load = useCallback(() => getCandidateApi().listApplications(), []);
-  const { data, loading, error, refresh } = useCandidateResource(load, []);
-  const applications = data?.data.items ?? [];
-  const selectedApplication = applications[0];
-
-  return (
-    <CandidatePageShell active="applications">
-      <CandidatePageHead
-        eyebrow="지원현황"
-        title="지원현황"
-        description="지원 상태, 면접 상태, 리포트 상태를 한 곳에서 확인합니다."
-        actions={
-          <>
-            <button className="btn secondary" type="button" onClick={refresh}>새로고침</button>
-            <Link className="btn primary" href={candidateApplicationInterviewRoutes.jobs}>공고 찾기</Link>
-          </>
-        }
-      />
-      <StatusNotice loading={loading} error={error} />
-      <section className="panel">
-        {applications.length ? <ApplicationsTable applications={applications} /> : <p className="empty">제출된 지원서가 없습니다.</p>}
-      </section>
-      {selectedApplication ? (
-        <section className="panel">
-          <div className="panel-head">
-            <p className="panel-title">선택한 지원 건 · {selectedApplication.companyName} / {selectedApplication.jobTitle}</p>
-            <StatusPill value={selectedApplication.canStartInterview ? "응시 가능" : "응시 대기"} />
-          </div>
-          <div className="ph-box">AI 면접 방식, 유의사항, 답변 절차를 안내합니다.</div>
-          <p className="label">응시 동의</p>
-          <div className="toolbar">
-            <span className="tag">{selectedApplication.consentCompleted ? "✓" : "☐"} 개인정보 수집 동의</span>
-            <span className="tag">{selectedApplication.consentCompleted ? "✓" : "☐"} 영상/음성 수집 동의</span>
-            <span className="tag">{selectedApplication.consentCompleted ? "✓" : "☐"} AI 분석 동의</span>
-          </div>
-          <p className="label">장치 점검</p>
-          <div className="toolbar">
-            <Link className="btn secondary" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>카메라 점검</Link>
-            <Link className="btn secondary" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>마이크 점검</Link>
-            <Link className="btn secondary" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>네트워크 점검</Link>
-          </div>
-          <Link className="btn primary lg" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>
-            채용 AI 면접 시작
-          </Link>
-        </section>
-      ) : null}
-    </CandidatePageShell>
-  );
-}
-
 export function CandidateInterviewGuidePage({ applicationId }: { applicationId: number }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -405,7 +353,7 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => getCandidateApi().getInterviewGuide(applicationId), [applicationId]);
-  const { data, loading, error, refresh } = useCandidateResource(load, [applicationId]);
+  const { data, loading, error } = useCandidateResource(load, [applicationId]);
   const guide = data?.data;
   const guideInterviewAlreadyInProgress = guide?.interviewSessionStatus === "IN_PROGRESS";
   const guidePrimaryActionLabel = guideInterviewAlreadyInProgress ? "면접 재개" : "면접 시작";
@@ -2106,53 +2054,6 @@ function ApplicationsTable({
       ))}
     </div>
   );
-}
-
-function LegacyApplicationsTable({ applications }: { applications: CandidateApplicationSummary[] }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>지원서</th>
-            <th>공고</th>
-            <th>지원 상태</th>
-            <th>면접 상태</th>
-            <th>리포트</th>
-            <th>액션</th>
-          </tr>
-        </thead>
-        <tbody>
-          {applications.map((application) => (
-            <tr key={application.applicationId}>
-              <td>#{application.applicationId}<span>{formatDateTime(application.submittedAt)}</span></td>
-              <td>{application.companyName}<span>{application.jobTitle}</span></td>
-              <td><StatusPill value={application.applicationStatus} /></td>
-              <td><StatusPill value={application.interviewStatus} /></td>
-              <td><StatusPill value={application.reportStatus} /></td>
-              <td>
-                <div className="toolbar">
-                  <Link className="btn secondary compact" href={getCandidateApplicationInterviewActionHref(application)}>
-                    {getInterviewActionLabel(application)}
-                  </Link>
-                  <Link className="btn secondary compact" href={getCandidateApplicationReportHref(application)}>
-                    결과/요약
-                  </Link>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function getInterviewActionLabel(application: CandidateApplicationSummary): string {
-  if (application.interviewStatus === "COMPLETED") return "면접 완료";
-  if (application.interviewStatus === "IN_PROGRESS") return "면접 계속하기";
-  if (application.canStartInterview || application.interviewStatus === "READY") return "AI 면접 응시하기";
-  return "면접 준비";
 }
 
 function ApplicationStatusBadge({ label, tone }: { label: string; tone: ApplicationBadgeTone }) {
