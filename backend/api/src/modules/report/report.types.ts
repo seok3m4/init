@@ -96,6 +96,7 @@ export interface ReportCommand<TBody> {
 }
 
 export type EvidenceSourceType = "INTERVIEW_ANSWER" | "APPLICATION_DOCUMENT";
+export type ReportEvaluationConfidence = "HIGH" | "MEDIUM" | "LOW";
 
 export interface ReportEvidence {
   sourceType: EvidenceSourceType;
@@ -110,6 +111,20 @@ export interface ReportScore {
   criterionName: string;
   score: number;
   rationale: string;
+  rubricAnchor: string;
+  confidence: ReportEvaluationConfidence;
+  uncertaintyReasons: string[];
+  evidences: ReportEvidence[];
+}
+
+export interface QuestionEvaluation {
+  criterionId: number;
+  criterionName: string;
+  answerId: number;
+  question: string;
+  rubricAnchor: string;
+  confidence: ReportEvaluationConfidence;
+  uncertaintyReasons: string[];
   evidences: ReportEvidence[];
 }
 
@@ -117,6 +132,7 @@ export interface GeneratedReport {
   summary: string;
   totalScore: number;
   scores: ReportScore[];
+  questionEvaluations: QuestionEvaluation[];
 }
 
 export interface EvaluationContext {
@@ -158,6 +174,7 @@ export interface GuardrailValidationRequest {
   summary?: string;
   totalScore?: number;
   scores: ReportScore[];
+  questionEvaluations?: QuestionEvaluation[];
 }
 
 export interface GuardrailValidationResult {
@@ -228,6 +245,7 @@ export interface EvaluationContextResult extends PipelineResult {
 
 export interface AnswerEvaluationResult extends PipelineResult {
   scores: ReportScore[];
+  questionEvaluations: QuestionEvaluation[];
   guardrail: GuardrailDecision;
   stored: StoredCounts;
 }

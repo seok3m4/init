@@ -1,7 +1,7 @@
 import "../styles/globals.css";
 import "../styles/global.css";
 
-import { AuthProvider } from "../features/auth/AuthProvider";
+import { AuthProvider } from "@/features/auth/AuthProvider";
 
 export const metadata = {
   title: "INIT",

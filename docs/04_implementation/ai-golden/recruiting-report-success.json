@@ -27,6 +27,7 @@
       "summary": "string",
       "totalScore": "number",
       "scores": "array",
+      "questionEvaluations": "array",
       "evidences": "array",
       "guardrail": "object"
     }

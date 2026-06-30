@@ -58,7 +58,7 @@ shared_frontend_company='^frontend/src/app/company/layout\.tsx$'
 role_pattern() {
   case "$1" in
     A)
-      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
+      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^frontend/src/app/(login|signup|password/reset)/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
       ;;
     B)
       printf '%s\n' '(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)'
@@ -70,7 +70,7 @@ role_pattern() {
       printf '%s\n' '(^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/modules/(candidate|interview)/)'
       ;;
     E)
-      printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
+      printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^backend/api/scripts/report-smoke\.ts$|^docs/04_implementation/ai-golden/)'
       ;;
     PM)
       printf '%s\n' '(^docs/|^assets/|^design\.md$)'

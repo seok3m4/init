@@ -160,6 +160,9 @@ test("PrismaAiResultRepository stores report scores without completing a report"
         criterionName: "Problem solving",
         score: 82,
         rationale: "evidence-based score",
+        rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+        confidence: "MEDIUM",
+        uncertaintyReasons: [],
         evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "answer evidence" }]
       }
     ]
@@ -186,6 +189,9 @@ test("PrismaAiResultRepository rejects scores without evidence before deleting e
             criterionName: "Problem solving",
             score: 82,
             rationale: "evidence is missing",
+            rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+            confidence: "MEDIUM",
+            uncertaintyReasons: [],
             evidences: []
           }
         ]
@@ -215,9 +221,13 @@ test("PrismaAiResultRepository rejects generated reports without evidence before
             criterionName: "Problem solving",
             score: 82,
             rationale: "evidence is missing",
+            rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+            confidence: "MEDIUM",
+            uncertaintyReasons: [],
             evidences: []
           }
-        ]
+        ],
+        questionEvaluations: []
       }),
     {
       name: "NonRetryableAiWorkerFailure",
@@ -271,6 +281,21 @@ test("PrismaAiResultRepository stores generated reports after guardrail pass", a
         criterionName: "Problem solving",
         score: 82,
         rationale: "evidence-based score",
+        rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+        confidence: "MEDIUM",
+        uncertaintyReasons: [],
+        evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "answer evidence" }]
+      }
+    ],
+    questionEvaluations: [
+      {
+        criterionId: 1,
+        criterionName: "Problem solving",
+        answerId: 10,
+        question: "Describe your Redis experience.",
+        rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+        confidence: "MEDIUM",
+        uncertaintyReasons: [],
         evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "answer evidence" }]
       }
     ]

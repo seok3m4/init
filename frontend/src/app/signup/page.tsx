@@ -1,4 +1,4 @@
-import { SignupChoice } from "../../features/auth/AuthForms";
+import { SignupChoice } from "@/features/auth/AuthForms";
 
 export default function SignupPage() {
   return (

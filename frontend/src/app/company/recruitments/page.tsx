@@ -1,4 +1,4 @@
-import { CompanyPostingsPage } from "../../../features/company-recruiting/CompanyPostingsPage";
+import { CompanyPostingsPage } from "@/features/company-recruiting/CompanyPostingsPage";
 
 export default function RecruitmentsRoute() {
   return <CompanyPostingsPage />;
