@@ -1,0 +1,24 @@
+
+> final-weapon-frontend@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.17.0.1:3000
+✓ Ready in 306ms
+
+ GET /candidate/jobs 200 in 360ms (next.js: 151ms, application-code: 209ms)
+ GET /candidate/applications 200 in 394ms (next.js: 314ms, application-code: 80ms)
+ GET /sw.js 404 in 79ms (next.js: 25ms, application-code: 54ms)
+ GET /candidate/jobs/1 200 in 386ms (next.js: 308ms, application-code: 79ms)
+ GET /sw.js 404 in 64ms (next.js: 7ms, application-code: 57ms)
+ GET /candidate/jobs 200 in 75ms (next.js: 6ms, application-code: 69ms)
+ GET /sw.js 404 in 55ms (next.js: 7ms, application-code: 48ms)
+ GET /candidate/jobs 200 in 72ms (next.js: 5ms, application-code: 67ms)
+ GET /candidate/applications 200 in 47ms (next.js: 5ms, application-code: 42ms)
+ GET /sw.js 404 in 53ms (next.js: 7ms, application-code: 45ms)
+ GET /candidate/applications/1/interview-guide 200 in 489ms (next.js: 445ms, application-code: 44ms)
+ GET /candidate/applications/1/interview 200 in 355ms (next.js: 315ms, application-code: 39ms)
+ GET /candidate/applications/1/report 200 in 357ms (next.js: 312ms, application-code: 44ms)
+ GET /candidate/jobs 200 in 32ms (next.js: 5ms, application-code: 27ms)
+ GET /sw.js 404 in 59ms (next.js: 7ms, application-code: 51ms)

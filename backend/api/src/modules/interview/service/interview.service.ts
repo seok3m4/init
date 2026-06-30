@@ -107,7 +107,7 @@ export class InterviewService {
   }
 
   async listMockQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = this.syncCurrentQuestionToFirstUnanswered(this.getOwnedMockSession(sessionId, currentUser));
     this.assertInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
@@ -138,7 +138,9 @@ export class InterviewService {
   }
 
   async listRecruitingQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
+    const session = this.syncCurrentQuestionToFirstUnanswered(
+      await this.getRecruitingRuntimeSession(sessionId, currentUser),
+    );
     this.assertInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
@@ -231,6 +233,7 @@ export class InterviewService {
     dto: SaveInterviewAnswerDto,
     currentUser: CurrentCandidateUser,
   ): Promise<{ data: SaveInterviewAnswerResult; meta: { traceId: string; timestamp: string } }> {
+    session = this.syncCurrentQuestionToFirstUnanswered(session);
     this.assertInProgress(session);
     const requestBody = this.assertAnswerRequest(dto);
     const currentQuestionId = this.currentQuestionId(session);
@@ -562,6 +565,23 @@ export class InterviewService {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Current question was not found.", 404);
     }
     return questionId;
+  }
+
+  private syncCurrentQuestionToFirstUnanswered(session: RuntimeInterviewSession): RuntimeInterviewSession {
+    if (session.status !== "IN_PROGRESS") {
+      return session;
+    }
+
+    const firstUnansweredIndex = session.questionIds.findIndex(
+      (questionId) => !this.interviewRepository.findAnswer(session.sessionId, questionId),
+    );
+    if (firstUnansweredIndex < 0 || firstUnansweredIndex === session.currentQuestionIndex) {
+      return session;
+    }
+
+    session.currentQuestionIndex = firstUnansweredIndex;
+    session.updatedAt = new Date().toISOString();
+    return this.interviewRepository.saveRuntimeSession(session);
   }
 
   private requiredQuestion(questionId: number): InterviewQuestion {

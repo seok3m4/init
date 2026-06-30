@@ -300,6 +300,19 @@ export class CandidateService {
         { field: "deviceCheck", reason: "camera, microphone, and network checks are required" },
       ]);
     }
+    if (refreshedSession.status === "IN_PROGRESS") {
+      if (application.interviewStatus !== "IN_PROGRESS") {
+        await this.repository.updateApplicationInterviewStatus(application.applicationId, "IN_PROGRESS");
+      }
+      return this.envelope({
+        applicationId: application.applicationId,
+        sessionId: refreshedSession.sessionId,
+        interviewStatus: "IN_PROGRESS",
+        sessionStatus: "IN_PROGRESS",
+        interviewUrl: `/candidate/applications/${application.applicationId}/interview`,
+        startedAt: refreshedSession.startedAt ?? new Date().toISOString(),
+      });
+    }
     if (refreshedSession.status !== "READY") {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview cannot be started from the current state.", 409, [
         { field: "interviewStatus", reason: `current status is ${refreshedSession.status}` },
@@ -601,6 +614,8 @@ export class CandidateService {
       applicationId: application.applicationId,
       sessionId: session.sessionId,
       interviewType: "RECRUITING",
+      applicationInterviewStatus: application.interviewStatus,
+      interviewSessionStatus: session.status,
       interviewWindowStartsAt: session.windowStartsAt,
       interviewWindowEndsAt: session.windowEndsAt,
       method: [
@@ -616,7 +631,7 @@ export class CandidateService {
       requiredConsentTypes: [...REQUIRED_INTERVIEW_CONSENTS],
       consentCompleted,
       deviceCheckCompleted,
-      canStart: consentCompleted && deviceCheckCompleted && session.status === "READY",
+      canStart: consentCompleted && deviceCheckCompleted && ["READY", "IN_PROGRESS"].includes(session.status),
     };
   }
 

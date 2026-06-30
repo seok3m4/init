@@ -517,6 +517,13 @@ async function run() {
   assert.equal(startedInterview.data.sessionStatus, "IN_PROGRESS");
   assert.equal(startedInterview.data.interviewUrl, `/candidate/applications/${submitted.data.application.applicationId}/interview`);
 
+  const resumedInterview = await service.startInterview(submitted.data.application.applicationId, currentUser);
+  assert.equal(resumedInterview.data.applicationId, submitted.data.application.applicationId);
+  assert.equal(resumedInterview.data.sessionId, consentSaved.data.sessionId);
+  assert.equal(resumedInterview.data.interviewStatus, "IN_PROGRESS");
+  assert.equal(resumedInterview.data.sessionStatus, "IN_PROGRESS");
+  assert.equal(resumedInterview.data.interviewUrl, `/candidate/applications/${submitted.data.application.applicationId}/interview`);
+
   const runtime = await service.getInterviewRuntime(submitted.data.application.applicationId, currentUser);
   assert.equal(runtime.data.applicationId, submitted.data.application.applicationId);
   assert.equal(runtime.data.sessionId, consentSaved.data.sessionId);

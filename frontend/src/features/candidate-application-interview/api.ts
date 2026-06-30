@@ -217,6 +217,8 @@ export interface CandidateInterviewGuide {
   applicationId: number;
   sessionId: number;
   interviewType: "RECRUITING";
+  applicationInterviewStatus: InterviewStatus;
+  interviewSessionStatus: InterviewStatus;
   interviewWindowStartsAt: string;
   interviewWindowEndsAt: string;
   method: string[];

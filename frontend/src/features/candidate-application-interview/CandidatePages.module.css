@@ -1074,6 +1074,186 @@
   font-weight: 800;
 }
 
+:global(.candidate-status-filter) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+:global(.candidate-status-filter select) {
+  min-width: 118px;
+  height: 46px;
+  padding: 0 38px 0 18px;
+  color: var(--ink-900);
+  font-size: 15px;
+  font-weight: 900;
+  appearance: none;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+}
+
+:global(.candidate-status-filter::after) {
+  position: absolute;
+  right: 16px;
+  color: var(--ink-900);
+  font-size: 11px;
+  pointer-events: none;
+  content: "▼";
+}
+
+:global(.candidate-applications-panel) {
+  padding: 28px;
+}
+
+:global(.candidate-applications-table) {
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+}
+
+:global(.candidate-applications-table__row) {
+  display: grid;
+  grid-template-columns: 1.1fr 2.5fr 1.3fr 1.3fr 1.3fr;
+  align-items: center;
+  width: 100%;
+  min-height: 72px;
+  padding: 0 28px;
+  color: var(--ink-800);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+:global(.candidate-applications-table__row:not(.candidate-applications-table__head)) {
+  cursor: pointer;
+}
+
+:global(.candidate-applications-table__row:last-child) {
+  border-bottom: 0;
+}
+
+:global(.candidate-applications-table__row:not(.candidate-applications-table__head):hover),
+:global(.candidate-applications-table__row.selected) {
+  background: #fbfaff;
+}
+
+:global(.candidate-applications-table__row.selected) {
+  box-shadow: inset 4px 0 0 var(--brand-strong);
+}
+
+:global(.candidate-applications-table__row:focus-visible) {
+  outline: 3px solid rgba(105, 95, 245, 0.24);
+  outline-offset: -3px;
+}
+
+:global(.candidate-applications-table__head) {
+  min-height: 54px;
+  color: var(--ink-500);
+  font-size: 15px;
+  font-weight: 900;
+  cursor: default;
+  background: #f8f6fb;
+}
+
+:global(.candidate-application-badge) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 15px;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+:global(.candidate-application-badge.green) {
+  color: #278455;
+  background: #e7f7ee;
+}
+
+:global(.candidate-application-badge.yellow) {
+  color: #8b6113;
+  background: #fff4d9;
+}
+
+:global(.candidate-application-badge.purple) {
+  color: var(--brand-strong);
+  background: #eeebff;
+}
+
+:global(.candidate-application-badge.neutral) {
+  color: var(--ink-500);
+  background: #f2f0f7;
+}
+
+:global(.candidate-report-empty) {
+  color: var(--ink-700);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+:global(.candidate-selected-application) {
+  display: grid;
+  gap: 22px;
+  padding: 30px;
+}
+
+:global(.candidate-selected-application__head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+:global(.candidate-selected-application__head .panel-title) {
+  margin: 0;
+  font-size: 20px;
+}
+
+:global(.candidate-selected-application__notice) {
+  min-height: 72px;
+  padding: 22px 24px;
+  color: var(--ink-500);
+  font-size: 16px;
+  font-weight: 700;
+  background: #f6f4fd;
+  border: 1px dashed #e3def4;
+  border-radius: 14px;
+}
+
+:global(.candidate-consent-chips) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+:global(.candidate-consent-chips span) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 18px;
+  color: var(--ink-800);
+  font-size: 15px;
+  font-weight: 800;
+  background: #f8f6ff;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+}
+
+:global(.candidate-application-start-button) {
+  justify-self: start;
+  min-width: 180px;
+  min-height: 56px;
+  margin-top: 4px;
+}
+
 :global(.note) {
   margin: 10px 0 0;
   color: var(--ink-400);
@@ -2267,5 +2447,34 @@
   :global(.candidate-runtime-controls),
   :global(.candidate-next-actions) {
     justify-content: flex-start;
+  }
+
+  :global(.candidate-applications-panel),
+  :global(.candidate-selected-application) {
+    padding: 20px;
+  }
+
+  :global(.candidate-applications-table__row) {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 18px;
+  }
+
+  :global(.candidate-applications-table__head) {
+    display: none;
+  }
+
+  :global(.candidate-selected-application__head) {
+    display: grid;
+  }
+
+  :global(.candidate-consent-chips),
+  :global(.candidate-application-start-button) {
+    width: 100%;
+  }
+
+  :global(.candidate-consent-chips span) {
+    width: 100%;
   }
 }

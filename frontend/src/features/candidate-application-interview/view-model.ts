@@ -194,9 +194,7 @@ export function getCandidateJobDetailActionHref(
 export function getCandidateApplicationInterviewActionHref(
   application: Pick<CandidateApplicationSummary, "applicationId" | "interviewStatus">,
 ): string {
-  return application.interviewStatus === "IN_PROGRESS"
-    ? candidateApplicationInterviewRoutes.interview(application.applicationId)
-    : candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
+  return candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
 }
 
 export function getMockInterviewHref(session: Pick<InterviewRuntimeSessionView, "sessionId">): string {
