@@ -45,7 +45,6 @@ import {
   defaultPortfolioLinkFormState,
   defaultStartMockInterviewState,
   createResumeUploadStateFromFile,
-  getCandidateApplicationInterviewActionHref,
   getCandidateApplicationReportHref,
   getMockReportHref,
   inferPortfolioLinkType,
@@ -71,6 +70,9 @@ type AsyncState<T> = {
   error?: string;
 };
 type RuntimeMode = "mock" | "recruiting";
+type InterviewGuideStep = "guide" | "device";
+type CandidateApplicationStatusFilter = "ALL" | "WAITING" | "IN_PROGRESS" | "COMPLETED" | "REPORTING";
+type ApplicationBadgeTone = "green" | "yellow" | "purple" | "neutral";
 type RuntimePageData = {
   runtime: RuntimePageSession;
   questions: RuntimeQuestionListResponse;
@@ -108,6 +110,16 @@ type LastSavedAnswer = {
   audioS3Key?: string;
   videoFileId?: number;
   videoS3Key?: string;
+};
+type CandidateRecordingCacheEntry = {
+  url: string;
+  mimeType: string;
+  originalName: string;
+  sizeBytes: number;
+  createdAt: number;
+};
+type CandidateRecordingCacheWindow = Window & {
+  __candidateRecordingCache?: Map<string, CandidateRecordingCacheEntry>;
 };
 type CameraPreviewInfo = {
   width: number;
@@ -250,46 +262,69 @@ export function CandidateApplicationsPage() {
   const load = useCallback(() => getCandidateApi().listApplications(), []);
   const { data, loading, error, refresh } = useCandidateResource(load, []);
   const applications = data?.data.items ?? [];
-  const selectedApplication = applications[0];
+  const [statusFilter, setStatusFilter] = useState<CandidateApplicationStatusFilter>("ALL");
+  const [selectedApplicationId, setSelectedApplicationId] = useState<number | undefined>();
+  const filteredApplications = applications.filter((application) =>
+    matchesCandidateApplicationStatusFilter(application, statusFilter),
+  );
+  const selectedApplication =
+    filteredApplications.find((application) => application.applicationId === selectedApplicationId) ??
+    filteredApplications[0];
 
   return (
     <CandidatePageShell active="applications">
       <CandidatePageHead
-        eyebrow="지원현황"
+        eyebrow=""
         title="지원현황"
-        description="지원 상태, 면접 상태, 리포트 상태를 한 곳에서 확인합니다."
+        description="지원한 공고의 진행 상태를 확인합니다."
         actions={
-          <>
-            <button className="btn secondary" type="button" onClick={refresh}>새로고침</button>
-            <Link className="btn primary" href={candidateApplicationInterviewRoutes.jobs}>공고 찾기</Link>
-          </>
+          <label className="candidate-status-filter">
+            <span className="sr-only">지원현황 상태 필터</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value as CandidateApplicationStatusFilter);
+                setSelectedApplicationId(undefined);
+                refresh();
+              }}
+            >
+              <option value="ALL">상태 필터</option>
+              <option value="WAITING">응시 대기</option>
+              <option value="IN_PROGRESS">진행 중</option>
+              <option value="COMPLETED">응시 완료</option>
+              <option value="REPORTING">리포트 진행</option>
+            </select>
+          </label>
         }
       />
       <StatusNotice loading={loading} error={error} />
-      <section className="panel">
-        {applications.length ? <ApplicationsTable applications={applications} /> : <p className="empty">제출된 지원서가 없습니다.</p>}
+      <section className="panel candidate-applications-panel">
+        {filteredApplications.length ? (
+          <ApplicationsTable
+            applications={filteredApplications}
+            selectedApplicationId={selectedApplication?.applicationId}
+            onSelect={(applicationId) => setSelectedApplicationId(applicationId)}
+          />
+        ) : (
+          <p className="empty">조건에 맞는 지원 건이 없습니다.</p>
+        )}
       </section>
       {selectedApplication ? (
-        <section className="panel">
-          <div className="panel-head">
-            <p className="panel-title">선택한 지원 건 · {selectedApplication.companyName} / {selectedApplication.jobTitle}</p>
-            <StatusPill value={selectedApplication.canStartInterview ? "응시 가능" : "응시 대기"} />
+        <section className="panel candidate-selected-application">
+          <div className="candidate-selected-application__head">
+            <p className="panel-title">
+              선택한 지원 건 · {selectedApplication.companyName} / {selectedApplication.jobTitle}
+            </p>
+            <ApplicationStatusBadge
+              label={formatCandidateInterviewStatusLabel(selectedApplication.interviewStatus)}
+              tone={getCandidateInterviewStatusTone(selectedApplication.interviewStatus)}
+            />
           </div>
-          <div className="ph-box">AI 면접 방식, 유의사항, 답변 절차를 안내합니다.</div>
-          <p className="label">응시 동의</p>
-          <div className="toolbar">
-            <span className="tag">{selectedApplication.consentCompleted ? "✓" : "☐"} 개인정보 수집 동의</span>
-            <span className="tag">{selectedApplication.consentCompleted ? "✓" : "☐"} 영상/음성 수집 동의</span>
-            <span className="tag">{selectedApplication.consentCompleted ? "✓" : "☐"} AI 분석 동의</span>
+          <div className="candidate-selected-application__notice">
+            AI 면접 방식, 유의사항, 답변 절차를 안내합니다.
           </div>
-          <p className="label">장치 점검</p>
-          <div className="toolbar">
-            <Link className="btn secondary" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>카메라 점검</Link>
-            <Link className="btn secondary" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>마이크 점검</Link>
-            <Link className="btn secondary" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>네트워크 점검</Link>
-          </div>
-          <Link className="btn primary lg" href={candidateApplicationInterviewRoutes.interviewGuide(selectedApplication.applicationId)}>
-            채용 AI 면접 시작
+          <Link className="btn primary lg candidate-application-start-button" href={getSelectedApplicationActionHref(selectedApplication)}>
+            {getSelectedApplicationActionLabel(selectedApplication)}
           </Link>
         </section>
       ) : null}
@@ -301,16 +336,36 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const microphoneFrameRef = useRef<number | null>(null);
+  const [step, setStep] = useState<InterviewGuideStep>("guide");
   const [consentState, setConsentState] = useState<CandidateInterviewConsentState>(defaultInterviewConsentState);
   const [deviceState, setDeviceState] = useState<CandidateDeviceCheckState>(defaultDeviceCheckState);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [cameraPreviewStatus, setCameraPreviewStatus] = useState("카메라 대기");
+  const [microphoneReady, setMicrophoneReady] = useState(false);
+  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
+  const [microphoneStatus, setMicrophoneStatus] = useState("마이크 대기");
+  const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => getCandidateApi().getInterviewGuide(applicationId), [applicationId]);
-  const { data, loading, error, refresh } = useCandidateResource(load, [applicationId]);
+  const { data, loading, error } = useCandidateResource(load, [applicationId]);
   const guide = data?.data;
+  const guideInterviewAlreadyInProgress = guide?.interviewSessionStatus === "IN_PROGRESS";
+  const guidePrimaryActionLabel = guideInterviewAlreadyInProgress ? "면접 재개" : "면접 시작";
 
   useEffect(() => {
-    return () => stopMediaStream(mediaStreamRef.current);
+    void refreshGuideCameraDevices();
+    return () => {
+      stopGuideMicrophoneMeter();
+      stopMediaStream(mediaStreamRef.current);
+    };
+    // Device enumeration is intentionally run once when entering the guide flow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -321,16 +376,84 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
         microphoneGranted: guide.deviceCheckCompleted,
         networkStable: guide.deviceCheckCompleted,
       });
+      if (guide.deviceCheckCompleted) {
+        setCameraPreviewStatus("이전 장치 점검 완료 · 현재 장치를 다시 확인해주세요");
+        setMicrophoneStatus("이전 마이크 점검 완료 · 현재 장치를 다시 확인해주세요");
+      }
     }
   }, [guide]);
 
-  async function handleConsentSubmit() {
+  async function refreshGuideCameraDevices() {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter((device) => device.kind === "videoinput");
+    const audioDevices = devices.filter((device) => device.kind === "audioinput");
+    setCameraDevices(videoDevices);
+    setMicrophoneDevices(audioDevices);
+    if (!selectedCameraId && videoDevices.length === 1) {
+      setSelectedCameraId(videoDevices[0]?.deviceId ?? "");
+    }
+    if (!selectedMicrophoneId && audioDevices.length === 1) {
+      setSelectedMicrophoneId(audioDevices[0]?.deviceId ?? "");
+    }
+  }
+
+  function stopGuideMicrophoneMeter() {
+    if (microphoneFrameRef.current !== null) {
+      window.cancelAnimationFrame(microphoneFrameRef.current);
+      microphoneFrameRef.current = null;
+    }
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    setMicrophoneLevel(0);
+  }
+
+  function startGuideMicrophoneMeter(stream: MediaStream) {
+    stopGuideMicrophoneMeter();
+    const [audioTrack] = stream.getAudioTracks();
+    if (!audioTrack) return;
+
+    const AudioContextConstructor = window.AudioContext;
+    if (!AudioContextConstructor) return;
+
+    const audioContext = new AudioContextConstructor();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    audioContext.createMediaStreamSource(stream).connect(analyser);
+    audioContextRef.current = audioContext;
+    const samples = new Uint8Array(analyser.frequencyBinCount);
+
+    const tick = () => {
+      analyser.getByteTimeDomainData(samples);
+      let peak = 0;
+      samples.forEach((sample) => {
+        peak = Math.max(peak, Math.abs(sample - 128));
+      });
+      setMicrophoneLevel(Math.min(100, Math.round((peak / 128) * 100)));
+      microphoneFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    tick();
+  }
+
+  async function handleGuideNext() {
+    if (!guide) return;
+    const missingConsents = guide.requiredConsentTypes.filter(
+      (consentType) => !consentState.consentTypes.includes(consentType),
+    );
+    if (missingConsents.length > 0) {
+      setMessage("필수 동의 항목을 모두 체크한 뒤 다음으로 이동해주세요.");
+      return;
+    }
+
     setBusy(true);
     setMessage("");
     try {
-      await getCandidateApi().saveInterviewConsent(applicationId, toSaveInterviewConsentRequest(consentState));
-      setMessage("필수 동의가 저장되었습니다.");
-      refresh();
+      if (!guide.consentCompleted) {
+        await getCandidateApi().saveInterviewConsent(applicationId, toSaveInterviewConsentRequest(consentState));
+      }
+      setStep("device");
+      setMessage("동의가 저장되었습니다. 카메라와 마이크를 점검해주세요.");
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
     } finally {
@@ -344,44 +467,80 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("현재 브라우저에서 카메라/마이크 점검을 사용할 수 없습니다.");
       }
+      stopGuideMicrophoneMeter();
       stopMediaStream(mediaStreamRef.current);
-      const { stream, audioEnabled, fallbackLabel } = await getCameraMediaStream();
+      setCameraReady(false);
+      setMicrophoneReady(false);
+      setCameraPreviewStatus("카메라 연결 중");
+      setMicrophoneStatus("마이크 연결 중");
+      const streamResult = await getCameraMediaStream(selectedCameraId, selectedMicrophoneId);
+      const { stream, audioEnabled, fallbackLabel } = streamResult;
       mediaStreamRef.current = stream;
+      let previewInfo: CameraPreviewInfo | undefined;
       if (videoRef.current) {
-        await attachMediaStreamToVideo(videoRef.current, stream);
+        previewInfo = await attachMediaStreamToVideo(videoRef.current, stream);
       }
+      assertCameraPreviewHasFrame(previewInfo);
+      setCameraReady(true);
+      setMicrophoneReady(audioEnabled);
+      setCameraPreviewStatus(formatCameraPreviewStatus(previewInfo, fallbackLabel));
+      setMicrophoneStatus(formatMicrophoneStatus(streamResult));
       setDeviceState({ cameraGranted: true, microphoneGranted: audioEnabled, networkStable: navigator.onLine });
+      if (audioEnabled) {
+        startGuideMicrophoneMeter(stream);
+      } else {
+        setMicrophoneLevel(0);
+      }
+      await refreshGuideCameraDevices();
       setMessage(
         fallbackLabel
-          ? `카메라를 연결했습니다. ${fallbackLabel} 장치 점검 저장을 눌러주세요.`
-          : "카메라와 마이크 권한을 확인했습니다. 장치 점검 저장을 눌러주세요.",
+          ? `카메라를 연결했습니다. ${fallbackLabel} 마이크 권한을 확인한 뒤 면접을 시작해주세요.`
+          : "카메라와 마이크 권한을 확인했습니다. 면접 시작을 눌러주세요.",
       );
     } catch (previewError) {
+      setCameraReady(false);
+      stopGuideMicrophoneMeter();
+      stopMediaStream(mediaStreamRef.current);
+      mediaStreamRef.current = null;
+      const microphoneProbe = await probeMicrophone(selectedMicrophoneId);
+      setMicrophoneReady(microphoneProbe.ok);
+      setMicrophoneStatus(formatMicrophoneProbeStatus(microphoneProbe));
+      setCameraPreviewStatus(`카메라 연결 실패: ${formatMediaError(previewError)}`);
       setDeviceState((current) => ({ ...current, networkStable: navigator.onLine }));
-      setMessage(toErrorMessage(previewError));
-    }
-  }
-
-  async function handleDeviceSubmit() {
-    if (!guide) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      await getCandidateApi().saveDeviceCheck(guide.sessionId, toDeviceCheckRequest(deviceState));
-      setMessage("장치 점검이 저장되었습니다.");
-      refresh();
-    } catch (submitError) {
-      setMessage(toErrorMessage(submitError));
-    } finally {
-      setBusy(false);
+      setMessage(
+        microphoneProbe.ok
+          ? `${formatMediaError(previewError)} 마이크는 연결되지만 녹화를 위해 카메라 권한도 필요합니다.`
+          : `${formatMediaError(previewError)} ${formatMicrophoneProbeStatus(microphoneProbe)}`,
+      );
     }
   }
 
   async function handleStartInterview() {
+    if (!guide) return;
+    if (!cameraReady || !microphoneReady || !deviceState.networkStable) {
+      setMessage("카메라, 마이크, 네트워크 점검을 완료한 뒤 면접을 시작해주세요.");
+      return;
+    }
+    const stream = mediaStreamRef.current;
+    const hasLiveVideo = stream?.getVideoTracks().some((track) => track.readyState === "live") ?? false;
+    const hasLiveAudio = stream?.getAudioTracks().some((track) => track.readyState === "live") ?? false;
+    if (!hasLiveVideo || !hasLiveAudio) {
+      setCameraReady(false);
+      setMicrophoneReady(false);
+      setMessage("현재 브라우저의 카메라와 마이크가 연결되어 있지 않습니다. 카메라/마이크 점검을 다시 눌러주세요.");
+      return;
+    }
+
     setBusy(true);
     setMessage("");
     try {
+      if (!guide.deviceCheckCompleted) {
+        await getCandidateApi().saveDeviceCheck(guide.sessionId, toDeviceCheckRequest(deviceState));
+      }
       await getCandidateApi().startInterview(applicationId);
+      stopGuideMicrophoneMeter();
+      stopMediaStream(mediaStreamRef.current);
+      mediaStreamRef.current = null;
       router.push(candidateApplicationInterviewRoutes.interview(applicationId));
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
@@ -395,94 +554,162 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
       <StatusNotice loading={loading || busy} error={error} message={message} />
       {guide ? (
         <>
-          <CandidatePageHead
-            eyebrow="면접 준비"
-            title="채용 AI 면접 준비"
-            description="필수 동의와 장치 점검이 완료되어야 면접을 시작할 수 있습니다."
-            actions={<Link className="btn secondary" href={candidateApplicationInterviewRoutes.applications}>지원현황</Link>}
-          />
-          <section className="panel detail-stack">
-            <div className="panel-head">
-              <div>
-                <h2>응시 안내</h2>
-                <p>세션 ID {guide.sessionId} · {formatInterviewTypeLabel(guide.interviewType)}</p>
-              </div>
-              <StatusPill value={guide.canStart ? "START_READY" : "PREP_REQUIRED"} />
-            </div>
-            <dl className="candidate-feature__summary">
-              <Definition label="응시 시작" value={formatDateTime(guide.interviewWindowStartsAt)} />
-              <Definition label="응시 마감" value={formatDateTime(guide.interviewWindowEndsAt)} />
-              <Definition label="동의 완료" value={guide.consentCompleted ? "완료" : "필요"} />
-              <Definition label="장치 점검" value={guide.deviceCheckCompleted ? "완료" : "필요"} />
-            </dl>
-            <ListBlock title="진행 방식" items={guide.method} />
-            <ListBlock title="필수 준비 사항" items={guide.requiredPreparations} />
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>필수 동의</h2>
-                <p>개인정보, AI 분석, 녹화 동의를 저장합니다.</p>
-              </div>
-              <button className="btn secondary" type="button" disabled={busy} onClick={() => void handleConsentSubmit()}>
-                동의 저장
-              </button>
-            </div>
-            <div className="candidate-feature__checks">
-              {requiredInterviewConsents.map((consentType) => (
-                <label key={consentType}>
-                  <input
-                    type="checkbox"
-                    checked={consentState.consentTypes.includes(consentType)}
-                    onChange={() =>
-                      setConsentState((current) => ({
-                        consentTypes: toggleValue(current.consentTypes, consentType),
-                      }))
+          {step === "guide" ? (
+            <>
+              <CandidatePageHead
+                eyebrow="면접 안내"
+                title="채용 AI 면접 안내"
+                description="응시 안내와 필수 동의를 확인한 뒤 면접 화면으로 이동합니다."
+                actions={<Link className="btn secondary" href={candidateApplicationInterviewRoutes.applications}>지원현황</Link>}
+              />
+              <section className="panel detail-stack">
+                <div className="panel-head">
+                  <div>
+                    <h2>응시 안내</h2>
+                    <p>세션 ID {guide.sessionId} · {formatInterviewTypeLabel(guide.interviewType)}</p>
+                  </div>
+                  <StatusPill
+                    value={
+                      guideInterviewAlreadyInProgress
+                        ? "IN_PROGRESS"
+                        : guide.canStart
+                          ? "START_READY"
+                          : "PREP_REQUIRED"
                     }
                   />
-                  {formatConsentTypeLabel(consentType)}
-                </label>
-              ))}
-            </div>
-          </section>
+                </div>
+                <div className="candidate-steps" aria-label="채용 AI 면접 준비 단계">
+                  <span className="current"><b>STEP 1</b> 응시 안내</span>
+                  <span><b>STEP 2</b> 장치 점검</span>
+                  <span><b>STEP 3</b> {guidePrimaryActionLabel}</span>
+                </div>
+                <dl className="candidate-feature__summary">
+                  <Definition label="응시 시작" value={formatDateTime(guide.interviewWindowStartsAt)} />
+                  <Definition label="응시 마감" value={formatDateTime(guide.interviewWindowEndsAt)} />
+                  <Definition label="동의 완료" value={guide.consentCompleted ? "완료" : "필요"} />
+                  <Definition label="장치 점검" value={guide.deviceCheckCompleted ? "완료" : "필요"} />
+                  <Definition label="면접 상태" value={<StatusPill value={guide.interviewSessionStatus} />} />
+                </dl>
+                <ListBlock title="진행 방식" items={guide.method} />
+                <ListBlock title="필수 준비 사항" items={guide.requiredPreparations} />
+              </section>
 
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>장치 점검</h2>
-                <p>카메라, 마이크, 네트워크 상태를 확인합니다.</p>
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>필수 동의</h2>
+                    <p>개인정보, AI 분석, 녹화/녹음 안내를 확인합니다.</p>
+                  </div>
+                </div>
+                <div className="candidate-feature__checks">
+                  {requiredInterviewConsents.map((consentType) => (
+                    <label key={consentType}>
+                      <input
+                        type="checkbox"
+                        checked={consentState.consentTypes.includes(consentType)}
+                        onChange={() =>
+                          setConsentState((current) => ({
+                            consentTypes: toggleValue(current.consentTypes, consentType),
+                          }))
+                        }
+                      />
+                      {formatConsentTypeLabel(consentType)}
+                    </label>
+                  ))}
+                </div>
+                <div className="toolbar candidate-submit-toolbar">
+                  <button className="btn primary" type="button" disabled={busy} onClick={() => void handleGuideNext()}>
+                    다음
+                  </button>
+                </div>
+              </section>
+            </>
+          ) : (
+            <section className="candidate-device-setup">
+              <div className="candidate-device-setup__head">
+                <div>
+                  <p className="candidate-feature__eyebrow">장치 점검</p>
+                  <h1>카메라와 마이크를 확인해주세요</h1>
+                  <p>점검이 끝나면 채용 AI 면접이 시작됩니다.</p>
+                  <div className="candidate-steps" aria-label="채용 AI 면접 준비 단계">
+                    <span><b>STEP 1</b> 응시 안내</span>
+                    <span className="current"><b>STEP 2</b> 장치 점검</span>
+                    <span><b>STEP 3</b> {guidePrimaryActionLabel}</span>
+                  </div>
+                </div>
+                <div className="toolbar">
+                  <button className="btn secondary" type="button" disabled={busy} onClick={() => setStep("guide")}>
+                    이전
+                  </button>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={busy || !cameraReady || !microphoneReady || !deviceState.networkStable}
+                    onClick={() => void handleStartInterview()}
+                  >
+                    {guidePrimaryActionLabel}
+                  </button>
+                </div>
               </div>
-              <div className="toolbar">
-                <button className="btn secondary" type="button" disabled={busy} onClick={() => void handleDevicePreview()}>
-                  카메라 확인
-                </button>
-                <button className="btn secondary" type="button" disabled={busy} onClick={() => void handleDeviceSubmit()}>
-                  점검 저장
-                </button>
+              <div className="candidate-device-setup__grid">
+                <div className="video-box candidate-device-preview">
+                  <video ref={videoRef} autoPlay muted playsInline />
+                  <div className="camera-debug">{cameraPreviewStatus}</div>
+                  {!cameraReady ? (
+                    <div className="vlabel">
+                      <div className="vcam">⌾</div>
+                      카메라 미리보기
+                    </div>
+                  ) : null}
+                </div>
+                <aside className="panel candidate-runtime-status-panel">
+                  <p className="panel-title">장치 상태</p>
+                  <div className="status-list">
+                    <div className="status-line"><span className={cameraReady ? "ok" : "wait"}>{cameraReady ? "✓" : "!"}</span> 카메라 {cameraReady ? "정상" : "대기"}</div>
+                    <div className="status-line"><span className={microphoneReady ? "ok" : "wait"}>{microphoneReady ? "✓" : "!"}</span> {microphoneStatus}</div>
+                    <div className="mic-meter" aria-label={`마이크 입력 ${microphoneLevel}%`}>
+                      <span style={{ width: `${microphoneLevel}%` }} />
+                    </div>
+                    <div className="status-line"><span className={deviceState.networkStable ? "ok" : "wait"}>{deviceState.networkStable ? "✓" : "!"}</span> 네트워크 {deviceState.networkStable ? "정상" : "확인 필요"}</div>
+                  </div>
+                  <div className="candidate-device-controls">
+                    <select
+                      aria-label="카메라 선택"
+                      className="camera-select"
+                      value={selectedCameraId}
+                      onChange={(event) => setSelectedCameraId(event.target.value)}
+                    >
+                      <option value="">기본 카메라</option>
+                      {cameraDevices.map((device, index) => (
+                        <option key={device.deviceId || index} value={device.deviceId}>
+                          {device.label || `카메라 ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="마이크 선택"
+                      className="camera-select"
+                      value={selectedMicrophoneId}
+                      onChange={(event) => setSelectedMicrophoneId(event.target.value)}
+                    >
+                      <option value="">기본 마이크</option>
+                      {microphoneDevices.map((device, index) => (
+                        <option key={device.deviceId || index} value={device.deviceId}>
+                          {device.label || `마이크 ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    <button className="btn" type="button" disabled={busy} onClick={() => void refreshGuideCameraDevices()}>
+                      장치 새로고침
+                    </button>
+                    <button className="btn" type="button" disabled={busy} onClick={() => void handleDevicePreview()}>
+                      카메라/마이크 점검
+                    </button>
+                  </div>
+                </aside>
               </div>
-            </div>
-            <div className="candidate-runtime__preview">
-              <video ref={videoRef} autoPlay muted playsInline />
-              <dl className="candidate-feature__summary">
-                <Definition label="카메라" value={deviceState.cameraGranted ? "허용" : "대기"} />
-                <Definition label="마이크" value={deviceState.microphoneGranted ? "허용" : "대기"} />
-                <Definition label="네트워크" value={deviceState.networkStable ? "정상" : "확인 필요"} />
-              </dl>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>면접 시작</h2>
-                <p>준비 상태가 모두 완료되면 채용 면접 런타임으로 이동합니다.</p>
-              </div>
-              <button className="btn primary" type="button" disabled={busy || !guide.canStart} onClick={() => void handleStartInterview()}>
-                면접 시작
-              </button>
-            </div>
-          </section>
+            </section>
+          )}
         </>
       ) : null}
     </CandidatePageShell>
@@ -490,6 +717,7 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
 }
 
 export function CandidateInterviewPage({ applicationId }: { applicationId: number }) {
+  const router = useRouter();
   const load = useCallback(async (): Promise<RuntimePageData> => {
     const api = getCandidateApi();
     const runtimeResult = await api.getInterviewRuntime(applicationId);
@@ -500,6 +728,23 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
     };
   }, [applicationId]);
   const resource = useCandidateResource(load, [applicationId]);
+  const runtimeStatus = resource.data?.runtime.status;
+  const shouldRedirectToGuide =
+    (runtimeStatus !== undefined && runtimeStatus !== "IN_PROGRESS") ||
+    resource.error === "Interview has not been started.";
+
+  useEffect(() => {
+    if (!shouldRedirectToGuide) return;
+    router.replace(candidateApplicationInterviewRoutes.interviewGuide(applicationId));
+  }, [applicationId, router, shouldRedirectToGuide]);
+
+  if (shouldRedirectToGuide) {
+    return (
+      <CandidatePageShell active="applications">
+        <StatusNotice loading message="면접 안내와 장치 점검 화면으로 이동합니다." />
+      </CandidatePageShell>
+    );
+  }
 
   return <InterviewRuntimePanel mode="recruiting" resource={resource} />;
 }
@@ -1015,7 +1260,7 @@ function InterviewRuntimePanel({
   const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordedFileName, setRecordedFileName] = useState("");
-  const [setupCompleted, setSetupCompleted] = useState(mode !== "mock");
+  const [setupCompleted, setSetupCompleted] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Set<number>>(() => new Set());
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1027,6 +1272,7 @@ function InterviewRuntimePanel({
   const recordingStartedAtRef = useRef(0);
   const submitAfterRecordingStopRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
+  const videoAttachRunRef = useRef(0);
   const hasAnswerFile = Boolean(answer.videoFile || answer.audioFile || answer.videoFileId || answer.audioFileId);
   const canSubmitAnswer = Boolean(currentQuestion && hasAnswerFile && answer.durationSeconds > 0 && !recording);
   const currentQuestionAnswered = Boolean(
@@ -1034,6 +1280,31 @@ function InterviewRuntimePanel({
       (answeredQuestionIds.has(currentQuestion.questionId) ||
         data?.questions.questions.some((question) => question.questionId === currentQuestion.questionId && question.answered)),
   );
+
+  const attachRuntimeVideoRef = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    if (!node || !streamRef.current) return;
+
+    const attachRun = ++videoAttachRunRef.current;
+    setCameraPreviewStatus("카메라 화면 연결 중");
+    void (async () => {
+      try {
+        const stream = streamRef.current;
+        if (!stream) return;
+        const previewInfo = await attachMediaStreamToVideo(node, stream);
+        assertCameraPreviewHasFrame(previewInfo);
+        if (videoRef.current !== node || videoAttachRunRef.current !== attachRun) return;
+        setCameraReady(true);
+        setCameraPreviewStatus(formatCameraPreviewStatus(previewInfo));
+      } catch (previewError) {
+        if (videoRef.current !== node || videoAttachRunRef.current !== attachRun) return;
+        setCameraReady(false);
+        setSetupCompleted(false);
+        setCameraPreviewStatus(`카메라 연결 실패: ${formatMediaError(previewError)}`);
+        setMessage(formatMediaError(previewError));
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (currentQuestion) {
@@ -1069,8 +1340,8 @@ function InterviewRuntimePanel({
 
   useEffect(() => {
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
-    void attachMediaStreamToVideo(videoRef.current, streamRef.current);
-  }, [setupCompleted]);
+    attachRuntimeVideoRef(videoRef.current);
+  }, [attachRuntimeVideoRef, setupCompleted]);
 
   useEffect(() => {
     if (!data || !setupCompleted || !cameraReady || !microphoneReady || !currentQuestion || currentQuestionAnswered) return;
@@ -1166,6 +1437,7 @@ function InterviewRuntimePanel({
       if (videoRef.current) {
         previewInfo = await attachMediaStreamToVideo(videoRef.current, stream);
       }
+      assertCameraPreviewHasFrame(previewInfo);
 
       setCameraReady(true);
       setMicrophoneReady(streamResult.audioEnabled);
@@ -1180,6 +1452,8 @@ function InterviewRuntimePanel({
       setMessage(fallbackLabel ? `카메라가 연결되었습니다. ${fallbackLabel}` : "카메라와 마이크가 연결되었습니다.");
     } catch (cameraError) {
       setCameraReady(false);
+      stopMediaStream(streamRef.current);
+      streamRef.current = null;
       stopMicrophoneMeter();
       const errorMessage = formatMediaError(cameraError);
       const microphoneProbe = await probeMicrophone(selectedMicrophoneId);
@@ -1268,6 +1542,9 @@ function InterviewRuntimePanel({
           return;
         }
 
+        cacheRecordedInterviewBlob(videoFile, blob);
+        cacheRecordedInterviewBlob(audioFile, blob);
+
         setAnswer((current) => ({
           ...current,
           questionId: currentQuestion.questionId,
@@ -1343,7 +1620,6 @@ function InterviewRuntimePanel({
         return next;
       });
       setMessage(`답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다.`);
-      refresh();
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
     } finally {
@@ -1431,12 +1707,17 @@ function InterviewRuntimePanel({
   }
 
   const runtimeTitle = mode === "mock" ? "AI 모의면접 진행" : "채용 AI 면접 진행";
-  const questionNumber = data
-    ? Math.min(data.runtime.answeredCount + 1, data.runtime.totalQuestions || 1)
-    : 0;
   const statusThirdLine = mode === "mock" ? "꼬리질문 생성 가능" : "업로드 상태 정상";
   const answeredQuestionCount = data
     ? data.questions.questions.filter((question) => question.answered || answeredQuestionIds.has(question.questionId)).length
+    : 0;
+  const currentQuestionIndex = data && currentQuestion
+    ? data.questions.questions.findIndex((question) => question.questionId === currentQuestion.questionId)
+    : -1;
+  const questionNumber = data
+    ? currentQuestionIndex >= 0
+      ? currentQuestionIndex + 1
+      : Math.min(answeredQuestionCount + 1, data.runtime.totalQuestions || 1)
     : 0;
   const canMoveNextQuestion = Boolean(data && currentQuestionAnswered && answeredQuestionCount < data.runtime.totalQuestions);
   const canCompleteInterview = Boolean(data && answeredQuestionCount === data.runtime.totalQuestions && !recording);
@@ -1459,7 +1740,11 @@ function InterviewRuntimePanel({
               <div>
                 <p className="candidate-feature__eyebrow">장치 점검</p>
                 <h1>카메라와 마이크를 확인해주세요</h1>
-                <p>모의면접을 시작하면 답변 녹화가 자동으로 진행됩니다.</p>
+                <p>
+                  {mode === "mock"
+                    ? "모의면접을 시작하면 답변 녹화가 자동으로 진행됩니다."
+                    : "채용 AI 면접을 시작하거나 재개하기 전에 카메라와 마이크를 다시 점검합니다."}
+                </p>
               </div>
               <button className="btn primary" type="button" disabled={busy || !cameraReady || !microphoneReady} onClick={() => void handleEnterInterview()}>
                 면접 시작
@@ -1467,7 +1752,7 @@ function InterviewRuntimePanel({
             </div>
             <div className="candidate-device-setup__grid">
               <div className="video-box candidate-device-preview">
-                <video ref={videoRef} autoPlay muted playsInline />
+                <video ref={attachRuntimeVideoRef} autoPlay muted playsInline />
                 <div className="camera-debug">{cameraPreviewStatus}</div>
                 {!cameraReady ? (
                   <div className="vlabel">
@@ -1540,7 +1825,7 @@ function InterviewRuntimePanel({
 
             <section className="iv-grid">
               <div className="video-box">
-                <video ref={videoRef} autoPlay muted playsInline />
+                <video ref={attachRuntimeVideoRef} autoPlay muted playsInline />
                 <div className="camera-debug">{cameraPreviewStatus}</div>
                 {recording ? (
                   <div className="recbadge"><span className="pulse" /> 녹화 중</div>
@@ -1567,7 +1852,7 @@ function InterviewRuntimePanel({
                 </div>
                 <dl className="candidate-runtime-meta">
                   <Definition label="세션" value={`#${data.runtime.sessionId}`} />
-                  <Definition label="진행" value={`${data.runtime.answeredCount}/${data.runtime.totalQuestions}`} />
+                  <Definition label="진행" value={`${answeredQuestionCount}/${data.runtime.totalQuestions}`} />
                   <Definition label="상태" value={<StatusPill value={data.runtime.status} />} />
                 </dl>
               </aside>
@@ -1692,7 +1977,7 @@ function CandidatePageHead({
   return (
     <div className="page-head">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
@@ -1716,51 +2001,131 @@ function StatusNotice({ loading, error, message }: { loading?: boolean; error?: 
   return null;
 }
 
-function ApplicationsTable({ applications }: { applications: CandidateApplicationSummary[] }) {
+function ApplicationsTable({
+  applications,
+  selectedApplicationId,
+  onSelect,
+}: {
+  applications: CandidateApplicationSummary[];
+  selectedApplicationId?: number;
+  onSelect?: (applicationId: number) => void;
+}) {
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>지원서</th>
-            <th>공고</th>
-            <th>지원 상태</th>
-            <th>면접 상태</th>
-            <th>리포트</th>
-            <th>액션</th>
-          </tr>
-        </thead>
-        <tbody>
-          {applications.map((application) => (
-            <tr key={application.applicationId}>
-              <td>#{application.applicationId}<span>{formatDateTime(application.submittedAt)}</span></td>
-              <td>{application.companyName}<span>{application.jobTitle}</span></td>
-              <td><StatusPill value={application.applicationStatus} /></td>
-              <td><StatusPill value={application.interviewStatus} /></td>
-              <td><StatusPill value={application.reportStatus} /></td>
-              <td>
-                <div className="toolbar">
-                  <Link className="btn secondary compact" href={getCandidateApplicationInterviewActionHref(application)}>
-                    {getInterviewActionLabel(application)}
-                  </Link>
-                  <Link className="btn secondary compact" href={getCandidateApplicationReportHref(application)}>
-                    결과/요약
-                  </Link>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="candidate-applications-table">
+      <div className="candidate-applications-table__row candidate-applications-table__head">
+        <span>회사</span>
+        <span>채용공고</span>
+        <span>서류</span>
+        <span>면접</span>
+        <span>리포트</span>
+      </div>
+      {applications.map((application) => (
+        <button
+          key={application.applicationId}
+          type="button"
+          className={`candidate-applications-table__row ${
+            application.applicationId === selectedApplicationId ? "selected" : ""
+          }`}
+          onClick={() => onSelect?.(application.applicationId)}
+        >
+          <span>{application.companyName}</span>
+          <span>{application.jobTitle}</span>
+          <span>
+            <ApplicationStatusBadge label={formatCandidateDocumentStatusLabel(application.documentStatus)} tone="green" />
+          </span>
+          <span>
+            <ApplicationStatusBadge
+              label={formatCandidateInterviewStatusLabel(application.interviewStatus)}
+              tone={getCandidateInterviewStatusTone(application.interviewStatus)}
+            />
+          </span>
+          <span>{renderCandidateReportStatus(application.reportStatus)}</span>
+        </button>
+      ))}
     </div>
   );
 }
 
-function getInterviewActionLabel(application: CandidateApplicationSummary): string {
-  if (application.interviewStatus === "COMPLETED") return "면접 완료";
-  if (application.interviewStatus === "IN_PROGRESS") return "면접 계속하기";
-  if (application.canStartInterview || application.interviewStatus === "READY") return "AI 면접 응시하기";
-  return "면접 준비";
+function ApplicationStatusBadge({ label, tone }: { label: string; tone: ApplicationBadgeTone }) {
+  return <span className={`candidate-application-badge ${tone}`}>{label}</span>;
+}
+
+function renderCandidateReportStatus(status: CandidateApplicationSummary["reportStatus"]): ReactNode {
+  if (status === "PENDING") return <span className="candidate-report-empty">-</span>;
+  return (
+    <ApplicationStatusBadge
+      label={formatCandidateReportStatusLabel(status)}
+      tone={getCandidateReportStatusTone(status)}
+    />
+  );
+}
+
+function formatCandidateDocumentStatusLabel(status: CandidateApplicationSummary["documentStatus"]): string {
+  const labels: Record<string, string> = {
+    NOT_SUBMITTED: "미제출",
+    SUBMITTED: "제출완료",
+    EXTRACTING: "추출중",
+    EXTRACTED: "제출완료",
+    FAILED: "확인필요",
+  };
+  return labels[status] ?? status;
+}
+
+function formatCandidateInterviewStatusLabel(status: CandidateApplicationSummary["interviewStatus"]): string {
+  const labels: Record<string, string> = {
+    NOT_READY: "응시대기",
+    READY: "응시대기",
+    IN_PROGRESS: "진행중",
+    COMPLETED: "응시완료",
+    FAILED: "확인필요",
+  };
+  return labels[status] ?? status;
+}
+
+function getCandidateInterviewStatusTone(status: CandidateApplicationSummary["interviewStatus"]): ApplicationBadgeTone {
+  if (status === "COMPLETED") return "green";
+  if (status === "FAILED") return "neutral";
+  return "yellow";
+}
+
+function formatCandidateReportStatusLabel(status: CandidateApplicationSummary["reportStatus"]): string {
+  const labels: Record<string, string> = {
+    GENERATING: "분석중",
+    PENDING: "-",
+    COMPLETED: "완료",
+    FAILED: "확인필요",
+  };
+  return labels[status] ?? status;
+}
+
+function getCandidateReportStatusTone(status: CandidateApplicationSummary["reportStatus"]): ApplicationBadgeTone {
+  if (status === "GENERATING") return "purple";
+  if (status === "COMPLETED") return "green";
+  return "neutral";
+}
+
+function matchesCandidateApplicationStatusFilter(
+  application: CandidateApplicationSummary,
+  filter: CandidateApplicationStatusFilter,
+): boolean {
+  if (filter === "ALL") return true;
+  if (filter === "WAITING") return application.interviewStatus === "NOT_READY" || application.interviewStatus === "READY";
+  if (filter === "IN_PROGRESS") return application.interviewStatus === "IN_PROGRESS";
+  if (filter === "COMPLETED") return application.interviewStatus === "COMPLETED";
+  return application.reportStatus === "GENERATING" || application.reportStatus === "COMPLETED";
+}
+
+function getSelectedApplicationActionHref(application: CandidateApplicationSummary): string {
+  if (application.interviewStatus === "COMPLETED") {
+    return getCandidateApplicationReportHref(application);
+  }
+  return candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
+}
+
+function getSelectedApplicationActionLabel(application: CandidateApplicationSummary): string {
+  if (application.interviewStatus === "COMPLETED") return "결과 확인";
+  if (application.interviewStatus === "IN_PROGRESS") return "채용 AI 면접 재개";
+  return "채용 AI 면접 시작";
 }
 
 function MockReportsTable({ reports }: { reports: CandidateMockReportSummary[] }) {
@@ -1849,46 +2214,61 @@ function MockFeedbackView({ feedback }: { feedback: CandidateMockReportFeedback 
 
 function MockMediaView({ media }: { media: CandidateMockReportMedia }) {
   if (!media.media.length) return <p className="empty">연결된 답변 파일이 없습니다.</p>;
-  const primary = media.media[0];
+  const mediaItems = [...media.media].sort((left, right) => left.sortOrder - right.sortOrder);
   return (
     <div className="detail-stack">
-      <div className="iv-grid report-media-grid">
-        <div className="video-box report-video-box">
-          <div className="vlabel">
-            <div className="vcam">▶</div>
-            {primary.videoFile?.originalName ?? "답변 영상"}
-          </div>
-        </div>
-        <div className="script-box">
-          <strong>Q.</strong> {primary.questionContent ?? `질문 #${primary.questionId}`}<br /><br />
-          <strong>A.</strong> {primary.transcript ?? primary.transcriptStatus}
-        </div>
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>질문</th>
-              <th>영상</th>
-              <th>음성</th>
-              <th>답변 시간</th>
-              <th>스크립트</th>
-            </tr>
-          </thead>
-          <tbody>
-            {media.media.map((item) => (
-              <tr key={item.answerId}>
-                <td>#{item.questionId}<span>{formatQuestionTypeLabel(item.questionType)}</span></td>
-                <td>{item.videoFile?.originalName ?? "-"}</td>
-                <td>{item.audioFile?.originalName ?? "-"}</td>
-                <td>{item.durationSeconds}s</td>
-                <td>{item.transcript ?? item.transcriptStatus}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="report-media-list">
+        {mediaItems.map((item, index) => (
+          <MockMediaAnswerCard key={item.answerId} item={item} questionNumber={index + 1} />
+        ))}
       </div>
     </div>
+  );
+}
+
+function MockMediaAnswerCard({ item, questionNumber }: { item: CandidateMockReportMedia["media"][number]; questionNumber: number }) {
+  const videoUrl = getCachedRecordingObjectUrl(item.videoFile?.storageKey);
+  const audioUrl = getCachedRecordingObjectUrl(item.audioFile?.storageKey);
+
+  return (
+    <article className="report-answer-card">
+      <div className="report-answer-card__head">
+        <div>
+          <span>질문 {questionNumber}</span>
+          <strong>{item.questionContent ?? `질문 #${item.questionId}`}</strong>
+        </div>
+        <StatusPill value={formatQuestionTypeLabel(item.questionType)} />
+      </div>
+      <div className="report-answer-card__content">
+        <div className="report-answer-card__video">
+          {videoUrl ? (
+            <video controls preload="metadata" src={videoUrl}>
+              녹화 영상을 재생할 수 없습니다.
+            </video>
+          ) : (
+            <div className="report-media-placeholder">
+              <strong>{item.videoFile?.originalName ?? "답변 영상"}</strong>
+              <span>현재 브라우저 세션에 녹화 원본이 없습니다.</span>
+            </div>
+          )}
+        </div>
+        <div className="script-box report-answer-card__script">
+          <strong>스크립트</strong>
+          <p>{item.transcript ?? (item.transcriptStatus === "AVAILABLE" ? "스크립트를 불러오는 중입니다." : "STT 처리 대기 중입니다.")}</p>
+          <dl className="report-answer-meta">
+            <Definition label="답변 시간" value={`${item.durationSeconds}s`} />
+            <Definition label="영상 파일" value={item.videoFile?.originalName ?? "-"} />
+            <Definition label="음성 파일" value={item.audioFile?.originalName ?? "-"} />
+            <Definition label="제출 시각" value={formatDateTime(item.submittedAt)} />
+          </dl>
+          {audioUrl ? (
+            <audio className="report-audio-player" controls preload="metadata" src={audioUrl}>
+              음성 파일을 재생할 수 없습니다.
+            </audio>
+          ) : null}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -2172,6 +2552,35 @@ function createRuntimeFileAssetFromMetadata(
   };
 }
 
+function cacheRecordedInterviewBlob(file: RuntimeFileAssetRequest | undefined, blob: Blob) {
+  if (!file || typeof window === "undefined") return;
+
+  const cache = getCandidateRecordingCache();
+  const existing = cache.get(file.storageKey);
+  if (existing) {
+    URL.revokeObjectURL(existing.url);
+  }
+
+  cache.set(file.storageKey, {
+    url: URL.createObjectURL(blob),
+    mimeType: file.mimeType,
+    originalName: file.originalName,
+    sizeBytes: file.sizeBytes,
+    createdAt: Date.now(),
+  });
+}
+
+function getCachedRecordingObjectUrl(storageKey?: string): string | undefined {
+  if (!storageKey || typeof window === "undefined") return undefined;
+  return getCandidateRecordingCache().get(storageKey)?.url;
+}
+
+function getCandidateRecordingCache(): Map<string, CandidateRecordingCacheEntry> {
+  const cacheWindow = window as CandidateRecordingCacheWindow;
+  cacheWindow.__candidateRecordingCache ??= new Map<string, CandidateRecordingCacheEntry>();
+  return cacheWindow.__candidateRecordingCache;
+}
+
 function normalizeInterviewMediaMimeType(mimeType: string): RuntimeFileAssetRequest["mimeType"] | undefined {
   const baseMimeType = mimeType.split(";")[0]?.trim().toLowerCase();
   return isAllowedInterviewMediaMimeType(baseMimeType) ? baseMimeType : undefined;
@@ -2268,8 +2677,8 @@ async function attachMediaStreamToVideo(video: HTMLVideoElement, stream: MediaSt
   video.srcObject = stream;
 
   await waitForVideoMetadata(video);
-  await video.play();
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await playVideoWithTimeout(video);
+  await waitForVideoFrame(video);
 
   const [track] = stream.getVideoTracks();
   return {
@@ -2299,6 +2708,30 @@ function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
     video.addEventListener("loadedmetadata", done, { once: true });
     video.addEventListener("canplay", done, { once: true });
   });
+}
+
+async function playVideoWithTimeout(video: HTMLVideoElement): Promise<void> {
+  await Promise.race([
+    video.play(),
+    new Promise<void>((_, reject) =>
+      window.setTimeout(() => reject(new Error("카메라 화면 재생 시간이 초과되었습니다. 카메라/마이크 점검을 다시 눌러주세요.")), 2000),
+    ),
+  ]);
+}
+
+async function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      return;
+    }
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
+  }
+}
+
+function assertCameraPreviewHasFrame(info?: CameraPreviewInfo): asserts info is CameraPreviewInfo {
+  if (!info || info.width <= 0 || info.height <= 0) {
+    throw new Error("카메라가 연결됐지만 영상 화면이 표시되지 않습니다. 브라우저 권한을 허용한 뒤 카메라/마이크 점검을 다시 눌러주세요.");
+  }
 }
 
 function formatCameraPreviewStatus(info?: CameraPreviewInfo, fallbackLabel?: string): string {

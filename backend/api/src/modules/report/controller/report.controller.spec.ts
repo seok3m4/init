@@ -6,11 +6,12 @@ import {
   CandidateService,
   DEV_CANDIDATE_USER,
   InMemoryCandidateRepository,
-} from "../candidate";
-import { InterviewService } from "../interview";
+} from "../../candidate";
+import { InMemoryInterviewRepository, InterviewService } from "../../interview";
 import { ReportController } from "./report.controller";
-import { reportApiRoutePrefix, reportApiRoutes } from "./report.routes";
-import { ReportService } from "./report.service";
+import { reportApiRoutePrefix, reportApiRoutes } from "../report.routes";
+import { InMemoryCandidateReportRepository } from "../repository/in-memory-candidate-report.repository";
+import { ReportService } from "../service/report.service";
 
 type ReportControllerRoute =
   | "listMockReports"
@@ -134,8 +135,12 @@ function assertNoRecruitingInternalFields(data: Record<string, unknown>) {
 async function runReportControllerAssertions() {
   const repository = new InMemoryCandidateRepository();
   const candidateService = new CandidateService(repository);
-  const interviewService = new InterviewService(candidateService);
-  const controller = new ReportController(new ReportService(candidateService, interviewService));
+  const interviewRepository = new InMemoryInterviewRepository();
+  const interviewService = new InterviewService(candidateService, interviewRepository);
+  const candidateReportRepository = new InMemoryCandidateReportRepository();
+  const controller = new ReportController(
+    new ReportService(candidateService, interviewRepository, candidateReportRepository),
+  );
 
   const startedMock = await interviewService.startMockInterview(
     { questionTypes: ["INTRO", "TECHNICAL"], showQuestionText: true },

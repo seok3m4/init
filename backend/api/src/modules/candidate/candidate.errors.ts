@@ -1,4 +1,13 @@
-import { CandidateDomainError } from "./candidate.service";
+export class CandidateDomainError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly statusCode: number,
+    readonly details: unknown[] = [],
+  ) {
+    super(message);
+  }
+}
 
 export interface CandidateErrorResponse {
   error: {
