@@ -1,4 +1,4 @@
-import { CompanyInterviewSettingsPage } from "../../../../../features/company-interview-criteria";
+import { CompanyInterviewSettingsPage } from "@/features/company-interview-criteria";
 
 type Props = {
   params: Promise<{ recruitmentId: string }>;

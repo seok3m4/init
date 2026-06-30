@@ -102,6 +102,7 @@ $owned = @{
     "^backend/api/src/modules/health/",
     "^backend/api/src/shared/",
     "^backend/api/src/swagger/",
+    "^frontend/src/app/(login|signup|password/reset)/",
     "^frontend/src/features/auth/",
     "^infra/",
     "^docs/03_contracts/",
