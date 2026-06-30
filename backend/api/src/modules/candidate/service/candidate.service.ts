@@ -530,7 +530,10 @@ export class CandidateService {
     if (!application || !session) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Application or interview session was not found.", 404);
     }
-    if (application.interviewStatus !== "NOT_READY" || session.status !== "NOT_READY") {
+    if (
+      this.isStartedOrFinalInterviewStatus(application.interviewStatus) ||
+      this.isStartedOrFinalInterviewStatus(session.status)
+    ) {
       return session;
     }
 
@@ -539,8 +542,17 @@ export class CandidateService {
       return session;
     }
 
-    await this.repository.updateApplicationInterviewStatus(applicationId, "READY");
-    return this.repository.updateInterviewSessionStatus(sessionId, "READY");
+    if (application.interviewStatus !== "READY") {
+      await this.repository.updateApplicationInterviewStatus(applicationId, "READY");
+    }
+    if (session.status !== "READY") {
+      return this.repository.updateInterviewSessionStatus(sessionId, "READY");
+    }
+    return session;
+  }
+
+  private isStartedOrFinalInterviewStatus(status: Application["interviewStatus"] | InterviewSession["status"]): boolean {
+    return status === "IN_PROGRESS" || status === "COMPLETED" || status === "FAILED";
   }
 
   private async toApplicationSummary(application: Application): Promise<CandidateApplicationSummary> {
@@ -592,14 +604,14 @@ export class CandidateService {
       interviewWindowStartsAt: session.windowStartsAt,
       interviewWindowEndsAt: session.windowEndsAt,
       method: [
-        "Use camera and microphone in a quiet environment.",
-        "Answer each recruiting interview question in order.",
-        "Submitted video and audio files are connected to the interview session.",
+        "조용한 환경에서 카메라와 마이크를 켜고 응시합니다.",
+        "채용 AI 면접 질문을 순서대로 확인하고 답변합니다.",
+        "제출한 영상/음성 파일 메타데이터는 면접 세션에 연결됩니다.",
       ],
       requiredPreparations: [
-        "Complete privacy, AI document analysis, and interview recording consent.",
-        "Pass camera, microphone, and network device checks.",
-        "Keep the browser open until the interview is submitted.",
+        "개인정보, AI 분석, 녹화/녹음 안내 동의를 완료합니다.",
+        "카메라, 마이크, 네트워크 점검을 모두 통과합니다.",
+        "면접 제출이 끝날 때까지 브라우저를 닫지 않습니다.",
       ],
       requiredConsentTypes: [...REQUIRED_INTERVIEW_CONSENTS],
       consentCompleted,

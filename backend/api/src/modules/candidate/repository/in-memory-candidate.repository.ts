@@ -338,8 +338,8 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     const resumeFile: FileAsset = {
       fileId: 1,
       ownerUserId: DEV_CANDIDATE_USER.userId,
-      storageKey: `candidate/${DEV_CANDIDATE_USER.candidateId}/resume/demo-resume.pdf`,
-      originalName: "demo-resume.pdf",
+      storageKey: `candidate/${DEV_CANDIDATE_USER.candidateId}/resume/jiwon-resume.pdf`,
+      originalName: "jiwon-resume.pdf",
       mimeType: "application/pdf",
       sizeBytes: 512_000,
       status: "ACTIVE",
@@ -348,8 +348,8 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     const portfolioFile: FileAsset = {
       fileId: 2,
       ownerUserId: DEV_CANDIDATE_USER.userId,
-      storageKey: `candidate/${DEV_CANDIDATE_USER.candidateId}/portfolio/demo-portfolio.pdf`,
-      originalName: "demo-portfolio.pdf",
+      storageKey: `candidate/${DEV_CANDIDATE_USER.candidateId}/portfolio/jiwon-portfolio.pdf`,
+      originalName: "jiwon-portfolio.pdf",
       mimeType: "application/pdf",
       sizeBytes: 768_000,
       status: "ACTIVE",
@@ -357,7 +357,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     };
     const application: Application = {
       applicationId: 1,
-      postingId: 2,
+      postingId: 1,
       candidateId: DEV_CANDIDATE_USER.candidateId,
       applicationStatus: "SUBMITTED",
       documentStatus: "SUBMITTED",
@@ -395,8 +395,8 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       candidateId: DEV_CANDIDATE_USER.candidateId,
       applicationId: application.applicationId,
       linkType: "GITHUB",
-      url: "https://github.com/demo-candidate/init-android",
-      description: "Demo portfolio link",
+      url: "https://github.com/jiwon/init-backend",
+      description: "지원자 포트폴리오 링크",
       fileId: portfolioFile.fileId,
       createdAt: now,
     });

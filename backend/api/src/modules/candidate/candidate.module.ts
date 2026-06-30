@@ -15,11 +15,11 @@ import { CANDIDATE_REPOSITORY, CandidateService } from "./service/candidate.serv
       provide: CANDIDATE_REPOSITORY,
       inject: [PrismaService],
       useFactory: (prisma: PrismaService) => {
-      if (process.env.CANDIDATE_REPOSITORY_MODE === "memory" || process.env.DISABLE_PRISMA_CONNECT === "true") {
-        return new InMemoryCandidateRepository({
-          seedDemoApplication: process.env.CANDIDATE_DEMO_NO_AUTH === "true",
-        });
-      }
+        if (process.env.CANDIDATE_REPOSITORY_MODE === "memory" || process.env.DISABLE_PRISMA_CONNECT === "true") {
+          return new InMemoryCandidateRepository({
+            seedDemoApplication: process.env.CANDIDATE_DEMO_NO_AUTH === "true",
+          });
+        }
         return new PrismaCandidateRepository(prisma);
       },
     },

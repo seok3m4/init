@@ -472,6 +472,34 @@ async function run() {
   assert.equal(readyApplications.data.items[0]?.interviewStatus, "READY");
   assert.equal(readyApplications.data.items[0]?.interviewSessionStatus, "READY");
 
+  const deviceFirstRepository = new InMemoryCandidateRepository();
+  const deviceFirstService = new CandidateService(deviceFirstRepository);
+  const deviceFirstSubmission = await deviceFirstRepository.createApplication({
+    postingId: 1,
+    candidateId: currentUser.candidateId,
+    resumeFileId: 1,
+    consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+  });
+  const deviceFirstSession = await deviceFirstRepository.findInterviewSessionByApplication(
+    deviceFirstSubmission.application.applicationId,
+  );
+  assert.ok(deviceFirstSession);
+  await deviceFirstService.saveDeviceCheck(
+    deviceFirstSession.sessionId,
+    { cameraGranted: true, microphoneGranted: true, networkStable: true },
+    currentUser,
+  );
+  await deviceFirstRepository.updateInterviewSessionStatus(deviceFirstSession.sessionId, "READY");
+  const deviceFirstConsent = await deviceFirstService.saveInterviewConsent(
+    deviceFirstSubmission.application.applicationId,
+    { consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS", "AI_INTERVIEW_RECORDING"] },
+    currentUser,
+  );
+  assert.equal(deviceFirstConsent.data.canStart, true);
+  const deviceFirstApplications = await deviceFirstService.listApplications(currentUser);
+  assert.equal(deviceFirstApplications.data.items[0]?.interviewStatus, "READY");
+  assert.equal(deviceFirstApplications.data.items[0]?.interviewSessionStatus, "READY");
+
   await assert.rejects(
     () =>
       service.getInterviewGuide(submitted.data.application.applicationId, {

@@ -109,6 +109,16 @@ type LastSavedAnswer = {
   videoFileId?: number;
   videoS3Key?: string;
 };
+type CandidateRecordingCacheEntry = {
+  url: string;
+  mimeType: string;
+  originalName: string;
+  sizeBytes: number;
+  createdAt: number;
+};
+type CandidateRecordingCacheWindow = Window & {
+  __candidateRecordingCache?: Map<string, CandidateRecordingCacheEntry>;
+};
 type CameraPreviewInfo = {
   width: number;
   height: number;
@@ -1268,6 +1278,9 @@ function InterviewRuntimePanel({
           return;
         }
 
+        cacheRecordedInterviewBlob(videoFile, blob);
+        cacheRecordedInterviewBlob(audioFile, blob);
+
         setAnswer((current) => ({
           ...current,
           questionId: currentQuestion.questionId,
@@ -1849,46 +1862,61 @@ function MockFeedbackView({ feedback }: { feedback: CandidateMockReportFeedback 
 
 function MockMediaView({ media }: { media: CandidateMockReportMedia }) {
   if (!media.media.length) return <p className="empty">연결된 답변 파일이 없습니다.</p>;
-  const primary = media.media[0];
+  const mediaItems = [...media.media].sort((left, right) => left.sortOrder - right.sortOrder);
   return (
     <div className="detail-stack">
-      <div className="iv-grid report-media-grid">
-        <div className="video-box report-video-box">
-          <div className="vlabel">
-            <div className="vcam">▶</div>
-            {primary.videoFile?.originalName ?? "답변 영상"}
-          </div>
-        </div>
-        <div className="script-box">
-          <strong>Q.</strong> {primary.questionContent ?? `질문 #${primary.questionId}`}<br /><br />
-          <strong>A.</strong> {primary.transcript ?? primary.transcriptStatus}
-        </div>
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>질문</th>
-              <th>영상</th>
-              <th>음성</th>
-              <th>답변 시간</th>
-              <th>스크립트</th>
-            </tr>
-          </thead>
-          <tbody>
-            {media.media.map((item) => (
-              <tr key={item.answerId}>
-                <td>#{item.questionId}<span>{formatQuestionTypeLabel(item.questionType)}</span></td>
-                <td>{item.videoFile?.originalName ?? "-"}</td>
-                <td>{item.audioFile?.originalName ?? "-"}</td>
-                <td>{item.durationSeconds}s</td>
-                <td>{item.transcript ?? item.transcriptStatus}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="report-media-list">
+        {mediaItems.map((item, index) => (
+          <MockMediaAnswerCard key={item.answerId} item={item} questionNumber={index + 1} />
+        ))}
       </div>
     </div>
+  );
+}
+
+function MockMediaAnswerCard({ item, questionNumber }: { item: CandidateMockReportMedia["media"][number]; questionNumber: number }) {
+  const videoUrl = getCachedRecordingObjectUrl(item.videoFile?.storageKey);
+  const audioUrl = getCachedRecordingObjectUrl(item.audioFile?.storageKey);
+
+  return (
+    <article className="report-answer-card">
+      <div className="report-answer-card__head">
+        <div>
+          <span>질문 {questionNumber}</span>
+          <strong>{item.questionContent ?? `질문 #${item.questionId}`}</strong>
+        </div>
+        <StatusPill value={formatQuestionTypeLabel(item.questionType)} />
+      </div>
+      <div className="report-answer-card__content">
+        <div className="report-answer-card__video">
+          {videoUrl ? (
+            <video controls preload="metadata" src={videoUrl}>
+              녹화 영상을 재생할 수 없습니다.
+            </video>
+          ) : (
+            <div className="report-media-placeholder">
+              <strong>{item.videoFile?.originalName ?? "답변 영상"}</strong>
+              <span>현재 브라우저 세션에 녹화 원본이 없습니다.</span>
+            </div>
+          )}
+        </div>
+        <div className="script-box report-answer-card__script">
+          <strong>스크립트</strong>
+          <p>{item.transcript ?? (item.transcriptStatus === "AVAILABLE" ? "스크립트를 불러오는 중입니다." : "STT 처리 대기 중입니다.")}</p>
+          <dl className="report-answer-meta">
+            <Definition label="답변 시간" value={`${item.durationSeconds}s`} />
+            <Definition label="영상 파일" value={item.videoFile?.originalName ?? "-"} />
+            <Definition label="음성 파일" value={item.audioFile?.originalName ?? "-"} />
+            <Definition label="제출 시각" value={formatDateTime(item.submittedAt)} />
+          </dl>
+          {audioUrl ? (
+            <audio className="report-audio-player" controls preload="metadata" src={audioUrl}>
+              음성 파일을 재생할 수 없습니다.
+            </audio>
+          ) : null}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -2170,6 +2198,35 @@ function createRuntimeFileAssetFromMetadata(
     mimeType: normalizedMimeType,
     sizeBytes,
   };
+}
+
+function cacheRecordedInterviewBlob(file: RuntimeFileAssetRequest | undefined, blob: Blob) {
+  if (!file || typeof window === "undefined") return;
+
+  const cache = getCandidateRecordingCache();
+  const existing = cache.get(file.storageKey);
+  if (existing) {
+    URL.revokeObjectURL(existing.url);
+  }
+
+  cache.set(file.storageKey, {
+    url: URL.createObjectURL(blob),
+    mimeType: file.mimeType,
+    originalName: file.originalName,
+    sizeBytes: file.sizeBytes,
+    createdAt: Date.now(),
+  });
+}
+
+function getCachedRecordingObjectUrl(storageKey?: string): string | undefined {
+  if (!storageKey || typeof window === "undefined") return undefined;
+  return getCandidateRecordingCache().get(storageKey)?.url;
+}
+
+function getCandidateRecordingCache(): Map<string, CandidateRecordingCacheEntry> {
+  const cacheWindow = window as CandidateRecordingCacheWindow;
+  cacheWindow.__candidateRecordingCache ??= new Map<string, CandidateRecordingCacheEntry>();
+  return cacheWindow.__candidateRecordingCache;
 }
 
 function normalizeInterviewMediaMimeType(mimeType: string): RuntimeFileAssetRequest["mimeType"] | undefined {
