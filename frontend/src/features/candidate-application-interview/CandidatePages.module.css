@@ -1,13 +1,59 @@
+:global(.candidate-app .gnb) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  width: min(1440px, calc(100% - 96px));
+  min-height: 90px;
+  margin: 0 auto;
+  padding: 0;
+  background: #fff;
+}
+
+:global(.candidate-app .gnb-left) {
+  display: flex;
+  align-items: center;
+  gap: 42px;
+  min-width: 0;
+}
+
+:global(.candidate-app .brand) {
+  flex: 0 0 auto;
+}
+
+:global(.candidate-app .gnb-menu) {
+  gap: 14px;
+}
+
+:global(.candidate-app .gnb-right) {
+  margin-left: auto;
+}
+
+:global(.candidate-app .app-page) {
+  width: min(1200px, calc(100% - 96px));
+  padding-right: 0;
+  padding-left: 0;
+}
+
 :global(.candidate-app .gnb-link) {
   gap: 6px;
 }
 
 :global(.candidate-app .gnb-panel) {
-  top: 64px;
+  top: calc(100% + 8px);
   min-width: 220px;
   padding: 10px;
   border-radius: 14px;
   box-shadow: 0 16px 40px rgba(20, 18, 45, 0.12);
+}
+
+:global(.candidate-app .gnb-panel::before) {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 10px;
+  content: "";
 }
 
 :global(.candidate-app .gnb-panel a) {
@@ -2038,6 +2084,34 @@
 }
 
 @media (max-width: 760px) {
+  :global(.candidate-app .gnb) {
+    flex-wrap: wrap;
+    gap: 12px;
+    width: min(100% - 32px, 1440px);
+    min-height: auto;
+    padding: 12px 0;
+  }
+
+  :global(.candidate-app .gnb-left) {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  :global(.candidate-app .gnb-menu) {
+    justify-content: flex-start;
+  }
+
+  :global(.candidate-app .gnb-right) {
+    flex: 0 0 auto;
+    margin-left: 0;
+  }
+
+  :global(.candidate-app .app-page) {
+    width: min(100% - 32px, 1200px);
+    padding: 22px 0 32px;
+  }
+
   :global(.candidate-feature__filters),
   :global(.candidate-feature__grid),
   :global(.candidate-feature__summary),
