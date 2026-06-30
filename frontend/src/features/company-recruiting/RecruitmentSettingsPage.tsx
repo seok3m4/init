@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { getRecruitment, updateRecruitment } from "./api";
-import { CompanyNav } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
 type FormState = {
@@ -84,9 +83,7 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
   }
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">RECRUITMENT SETTINGS</p>
@@ -171,7 +168,6 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
             </button>
           </div>
         </form>
-      </section>
-    </main>
+    </section>
   );
 }

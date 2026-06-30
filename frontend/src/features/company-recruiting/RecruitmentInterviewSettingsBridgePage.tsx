@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getRecruitment, publishRecruitment } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
 const setupItems = [
@@ -62,9 +62,7 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
   const isOpen = recruitment?.status === "OPEN";
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">INTERVIEW SETTINGS</p>
@@ -123,8 +121,7 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
             </button>
           )}
         </div>
-      </section>
-    </main>
+    </section>
   );
 }
 

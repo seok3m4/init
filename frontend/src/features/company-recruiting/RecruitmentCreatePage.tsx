@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { createRecruitment } from "./api";
-import { CompanyNav } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
@@ -57,9 +56,7 @@ export function RecruitmentCreatePage() {
   }
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">CREATE RECRUITMENT</p>
@@ -144,7 +141,6 @@ export function RecruitmentCreatePage() {
             </div>
           </section>
         </form>
-      </section>
-    </main>
+    </section>
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { StatusBadge } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 import type { Applicant, Recruitment, ScreeningDecision } from "./types";
 
@@ -93,9 +93,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const completionRate = applicants.length === 0 ? 0 : Math.round((completedInterviews / applicants.length) * 100);
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">RECRUITMENT DASHBOARD</p>
@@ -215,8 +213,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
         ) : (
           <div className="empty">공고 대시보드를 불러오는 중입니다.</div>
         )}
-      </section>
-    </main>
+    </section>
   );
 }
 

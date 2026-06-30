@@ -23,7 +23,10 @@ changed_files() {
   }
 }
 
-mapfile -t changed < <(
+changed=()
+while IFS= read -r file; do
+  changed+=("$file")
+done < <(
   changed_files \
     | sed 's#\\#/#g' \
     | awk 'NF' \
@@ -45,38 +48,62 @@ fi
 common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/|\.gitignore$)'
 baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|frontend/(eslint\.config\.mjs|next-env\.d\.ts|next\.config\.(js|ts)|tsconfig\.json)|backend/(api|common|worker)/package(-lock)?\.json|backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)|backend/common/tsconfig\.json|backend/worker/tsconfig\.json)'
 shared_backend='^(backend/api/src/modules/app\.module\.ts|backend/api/src/main\.ts)$'
+shared_frontend_company='^frontend/src/app/company/layout\.tsx$'
 
-declare -A owned=(
-  [A]='(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/shared/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
-  [B]='(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)'
-  [C]='(^frontend/src/features/company-interview-criteria/|^backend/api/src/modules/company-interview/)'
-  [D]='(^frontend/src/features/candidate-application-interview/|^backend/api/src/modules/(candidate|interview)/)'
-  [E]='(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
-  [PM]='(^docs/|^assets/)'
-)
+role_pattern() {
+  case "$1" in
+    A) echo '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/shared/|^infra/|^docs/03_contracts/|^docs/02_architecture/)' ;;
+    B) echo '(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)' ;;
+    C) echo '(^frontend/src/features/company-interview-criteria/|^frontend/src/app/company/interviews/|^backend/api/src/modules/company-interview/)' ;;
+    D) echo '(^frontend/src/features/candidate-application-interview/|^backend/api/src/modules/(candidate|interview)/)' ;;
+    E) echo '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)' ;;
+    PM) echo '(^docs/|^assets/)' ;;
+  esac
+}
 
-declare -A impacted=()
+impacted=()
 blocked=()
+
+add_impacted() {
+  local role="$1"
+  local existing
+  if [[ "${#impacted[@]}" -gt 0 ]]; then
+    for existing in "${impacted[@]}"; do
+      if [[ "$existing" == "$role" ]]; then
+        return
+      fi
+    done
+  fi
+  impacted+=("$role")
+}
 
 for file in "${changed[@]}"; do
   if [[ "$file" =~ $common || "$file" =~ $baseline ]]; then
-    impacted[COMMON]=1
+    add_impacted COMMON
     continue
   fi
 
   if [[ "$file" =~ $shared_backend ]]; then
-    impacted[A]=1
-    impacted[B]=1
-    impacted[C]=1
-    impacted[D]=1
-    impacted[E]=1
+    add_impacted A
+    add_impacted B
+    add_impacted C
+    add_impacted D
+    add_impacted E
+    continue
+  fi
+
+  if [[ "$file" =~ $shared_frontend_company ]]; then
+    add_impacted A
+    add_impacted B
+    add_impacted C
     continue
   fi
 
   matched=0
   for role in A B C D E PM; do
-    if [[ "$file" =~ ${owned[$role]} ]]; then
-      impacted[$role]=1
+    pattern="$(role_pattern "$role")"
+    if [[ "$file" =~ $pattern ]]; then
+      add_impacted "$role"
       matched=1
     fi
   done
@@ -93,8 +120,8 @@ if [[ "${#blocked[@]}" -gt 0 ]]; then
   exit 1
 fi
 
-roles="$(printf '%s\n' "${!impacted[@]}" | sort | awk 'BEGIN { first = 1 } { if (!first) printf ", "; printf "%s", $0; first = 0 } END { print "" }')"
-harness_roles="$(printf '%s\n' "${!impacted[@]}" | sort | awk '$0 != "COMMON"')"
+roles="$(printf '%s\n' "${impacted[@]}" | sort -u | awk 'BEGIN { first = 1 } { if (!first) printf ", "; printf "%s", $0; first = 0 } END { print "" }')"
+harness_roles="$(printf '%s\n' "${impacted[@]}" | sort -u | awk '$0 != "COMMON"')"
 roles_csv="$(printf '%s\n' "$harness_roles" | awk 'NF' | awk 'BEGIN { first = 1 } { if (!first) printf ","; printf "%s", $0; first = 0 } END { print "" }')"
 roles_json="$(printf '%s\n' "$harness_roles" | awk 'NF' | awk 'BEGIN { printf "["; first = 1 } { if (!first) printf ","; printf "\"%s\"", $0; first = 0 } END { print "]" }')"
 if [[ -z "$roles_json" ]]; then

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { copyRecruitment, listRecruitments } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment, RecruitmentStatus } from "./types";
 
 type StatusFilter = "ALL" | RecruitmentStatus;
@@ -60,9 +60,7 @@ export function CompanyPostingsPage() {
   }
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">RECRUITMENTS</p>
@@ -128,8 +126,7 @@ export function CompanyPostingsPage() {
             </div>
           )}
         </section>
-      </section>
-    </main>
+    </section>
   );
 }
 

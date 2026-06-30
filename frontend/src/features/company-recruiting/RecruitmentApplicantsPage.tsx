@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { StatusBadge } from "./CompanyRecruitingChrome";
 import type { Applicant, Recruitment } from "./types";
 
 type FormState = {
@@ -142,9 +142,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   }
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">APPLICANTS</p>
@@ -351,7 +349,6 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
             </form>
           </div>
         ) : null}
-      </section>
-    </main>
+    </section>
   );
 }
