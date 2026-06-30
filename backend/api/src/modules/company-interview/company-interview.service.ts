@@ -12,6 +12,7 @@ import {
 import {
   CreateInterviewQuestionDto,
   CreateInterviewQuestionResponseDto,
+  UpdateInterviewQuestionDto,
 } from './dto/question-management.dto';
 import {
   UpdateInterviewTimePolicyDto,
@@ -181,6 +182,61 @@ export class CompanyInterviewService {
     };
   }
 
+  async updateQuestion(
+    currentUser: CurrentUser,
+    questionId: number,
+    dto: UpdateInterviewQuestionDto,
+  ): Promise<CreateInterviewQuestionResponseDto> {
+    this.assertCompanyUser(currentUser);
+    const question = await this.findOwnedQuestion(currentUser, questionId);
+    if (question.postingId === null) {
+      validationFailed('공고에 연결된 질문만 수정할 수 있습니다.', [
+        { field: 'questionId', reason: 'POSTING_REQUIRED' },
+      ]);
+    }
+    const criterion = await this.findPostingCriterion(
+      question.postingId,
+      dto.criterionId,
+    );
+    const duplicate = await this.repository.findDuplicateQuestion(
+      question.postingId,
+      dto.content,
+    );
+    if (duplicate && duplicate.questionId !== questionId) {
+      conflict('이미 등록된 질문입니다.');
+    }
+
+    const saved = await this.repository.updateQuestion(questionId, {
+      criterionId: criterion.criterionId,
+      questionType: dto.questionType,
+      content: dto.content,
+    });
+
+    return {
+      postingId: question.postingId,
+      question: this.mapQuestion(saved),
+    };
+  }
+
+  async deleteQuestion(
+    currentUser: CurrentUser,
+    questionId: number,
+  ): Promise<CreateInterviewQuestionResponseDto> {
+    this.assertCompanyUser(currentUser);
+    const question = await this.findOwnedQuestion(currentUser, questionId);
+    if (question.postingId === null) {
+      validationFailed('공고에 연결된 질문만 삭제할 수 있습니다.', [
+        { field: 'questionId', reason: 'POSTING_REQUIRED' },
+      ]);
+    }
+    const saved = await this.repository.deactivateQuestion(questionId);
+
+    return {
+      postingId: question.postingId,
+      question: this.mapQuestion(saved),
+    };
+  }
+
   async updateTimePolicy(
     currentUser: CurrentUser,
     dto: UpdateInterviewTimePolicyDto,
@@ -259,6 +315,23 @@ export class CompanyInterviewService {
     }
 
     return criterion;
+  }
+
+  private async findOwnedQuestion(
+    currentUser: CurrentUser & { companyId: number },
+    questionId: number,
+  ): Promise<QuestionRecord> {
+    const question = await this.repository.findQuestion(questionId);
+
+    if (!question || !question.isActive) {
+      notFound('질문을 찾을 수 없습니다.');
+    }
+
+    if (question.companyId !== currentUser.companyId) {
+      forbidden('질문 접근 권한이 없습니다.');
+    }
+
+    return question;
   }
 
   private async mapCriteria(criteria: EvaluationCriterionRecord[]) {

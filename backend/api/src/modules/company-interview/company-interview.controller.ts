@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -21,6 +24,7 @@ import {
 } from './dto/evaluation-criterion.dto';
 import {
   CreateInterviewQuestionDto,
+  UpdateInterviewQuestionDto,
 } from './dto/question-management.dto';
 import { UpdateInterviewTimePolicyDto } from './dto/time-policy.dto';
 
@@ -71,6 +75,29 @@ export class CompanyInterviewController {
     @Body() body: CreateInterviewQuestionDto,
   ) {
     const data = await this.service.createQuestion(request.currentUser, body);
+    return ok(request, data);
+  }
+
+  @Patch('questions/:questionId')
+  async updateQuestion(
+    @Req() request: CompanyRequest,
+    @Param('questionId', ParseIntPipe) questionId: number,
+    @Body() body: UpdateInterviewQuestionDto,
+  ) {
+    const data = await this.service.updateQuestion(
+      request.currentUser,
+      questionId,
+      body,
+    );
+    return ok(request, data);
+  }
+
+  @Delete('questions/:questionId')
+  async deleteQuestion(
+    @Req() request: CompanyRequest,
+    @Param('questionId', ParseIntPipe) questionId: number,
+  ) {
+    const data = await this.service.deleteQuestion(request.currentUser, questionId);
     return ok(request, data);
   }
 
