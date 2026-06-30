@@ -5,6 +5,7 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./modules/app.module";
 import { ApiExceptionFilter } from "./shared/api-exception.filter";
 import { ApiResponseInterceptor } from "./shared/api-response.interceptor";
+import { setupSwagger } from "./swagger/swagger";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,7 +16,14 @@ async function bootstrap() {
   app.enableCors({
     origin: frontendOrigin,
     credentials: true,
-    allowedHeaders: ["Authorization", "Content-Type", "X-Dev-User-Id", "X-Dev-User-Type", "X-Dev-Company-Id", "X-Dev-Candidate-Id"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "X-Dev-User-Id",
+      "X-Dev-User-Type",
+      "X-Dev-Company-Id",
+      "X-Dev-Candidate-Id",
+    ],
   });
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalInterceptors(new ApiResponseInterceptor());
@@ -26,6 +34,7 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+  setupSwagger(app);
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);

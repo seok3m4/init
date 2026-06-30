@@ -1,0 +1,45 @@
+import { HttpStatus } from '@nestjs/common';
+import { ERROR_CODES, type ErrorCode } from '@init/common';
+import { ApiException } from '../../shared/api-exception';
+
+type ErrorDetail = {
+  field?: string;
+  reason: string;
+};
+
+function apiError(
+  code: ErrorCode,
+  message: string,
+  status: HttpStatus,
+  details: ErrorDetail[] = [],
+): never {
+  throw new ApiException(code, message, status, details);
+}
+
+export function unauthorized(message = '인증 정보가 필요합니다.'): never {
+  apiError(ERROR_CODES.COMMON_UNAUTHORIZED, message, HttpStatus.UNAUTHORIZED);
+}
+
+export function forbidden(message = '접근 권한이 없습니다.'): never {
+  apiError(ERROR_CODES.COMMON_FORBIDDEN, message, HttpStatus.FORBIDDEN);
+}
+
+export function notFound(message = '리소스를 찾을 수 없습니다.'): never {
+  apiError(ERROR_CODES.COMMON_NOT_FOUND, message, HttpStatus.NOT_FOUND);
+}
+
+export function conflict(message = '이미 존재하는 리소스입니다.'): never {
+  apiError(ERROR_CODES.COMMON_CONFLICT, message, HttpStatus.CONFLICT);
+}
+
+export function validationFailed(
+  message = '입력값을 확인해주세요.',
+  details: ErrorDetail[] = [],
+): never {
+  apiError(
+    ERROR_CODES.COMMON_VALIDATION_FAILED,
+    message,
+    HttpStatus.BAD_REQUEST,
+    details,
+  );
+}

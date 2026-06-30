@@ -1,0 +1,49 @@
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, Min } from 'class-validator';
+import { PostingStatus, QuestionType } from '../company-interview.types';
+
+export class InterviewSettingsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  postingId?: number;
+}
+
+export class InterviewSettingsPostingDto {
+  postingId!: number;
+  title!: string;
+  status!: PostingStatus;
+}
+
+export class InterviewSettingsCriterionDto {
+  criterionId!: number;
+  tagId!: number;
+  tagName!: string;
+  category!: string;
+  description!: string | null;
+  weight!: number;
+  passScore!: number | null;
+  sortOrder!: number;
+}
+
+export class InterviewSettingsQuestionDto {
+  questionId!: number;
+  criterionId!: number | null;
+  questionType!: QuestionType;
+  content!: string;
+  isActive!: boolean;
+}
+
+export class InterviewTimePolicyDto {
+  preparationTimeSec!: number;
+  answerTimeSec!: number;
+  retryAllowed!: boolean;
+}
+
+export class InterviewSettingsResponseDto {
+  posting!: InterviewSettingsPostingDto;
+  criteria!: InterviewSettingsCriterionDto[];
+  questions!: InterviewSettingsQuestionDto[];
+  timePolicy!: InterviewTimePolicyDto;
+}

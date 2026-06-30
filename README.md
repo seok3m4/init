@@ -181,6 +181,22 @@ http://localhost:3001/api/v1/health
 Invoke-WebRequest http://localhost:3001/api/v1/health
 ```
 
+### Swagger 문서 확인하기
+
+API 서버가 실행 중이면 브라우저에서 Swagger UI를 확인할 수 있습니다.
+
+```text
+http://localhost:3001/api-docs
+```
+
+OpenAPI JSON 문서는 아래 주소에서 확인할 수 있습니다.
+
+```text
+http://localhost:3001/api-docs-json
+```
+
+Swagger에는 현재 구현된 API만 문서화되어 있습니다.
+
 ## 8. 프론트엔드 실행하기
 
 새 PowerShell 터미널을 하나 더 열고 프로젝트 루트에서 프론트엔드 폴더로 이동합니다.
