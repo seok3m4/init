@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { createRecruitment } from "./api";
-import { CompanyFlowSteps, CompanyNav } from "./CompanyRecruitingChrome";
+import { CompanyNav } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
@@ -70,7 +70,6 @@ export function RecruitmentCreatePage() {
             공고 목록
           </Link>
         </div>
-        <CompanyFlowSteps current="create" />
 
         {message ? <p className="notice danger">{message}</p> : null}
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { getApplicantEvaluation, updateScreeningStatus } from "./api";
-import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
 import type { ApplicantEvaluation, ScreeningDecision } from "./types";
 
 const decisions: ScreeningDecision[] = ["UNDECIDED", "PASS", "HOLD", "FAIL"];
@@ -73,7 +73,6 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
             </Link>
           ) : null}
         </div>
-        <CompanyFlowSteps current="evaluation" />
 
         {message ? <p className="notice">{message}</p> : null}
 

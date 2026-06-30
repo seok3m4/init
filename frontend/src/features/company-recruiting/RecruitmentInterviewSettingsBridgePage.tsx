@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getRecruitment, publishRecruitment } from "./api";
-import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
 const setupItems = [
@@ -80,7 +80,6 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
             </Link>
           </div>
         </div>
-        <CompanyFlowSteps current="interview" />
 
         {message ? <p className="notice danger">{message}</p> : null}
 

@@ -2,17 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 type CompanyNavSection = "postings" | "mypage";
-export type CompanyFlowStep = "list" | "create" | "interview" | "dashboard" | "settings" | "applicants" | "evaluation";
-
-const flowSteps: Array<{ key: CompanyFlowStep; label: string; description: string }> = [
-  { key: "list", label: "공고 목록", description: "공고 선택" },
-  { key: "create", label: "공고 생성", description: "JD 등록" },
-  { key: "interview", label: "면접 설정", description: "C 연결" },
-  { key: "dashboard", label: "대시보드", description: "운영 현황" },
-  { key: "settings", label: "공고 설정", description: "정보 수정" },
-  { key: "applicants", label: "지원자 관리", description: "등록/초대" },
-  { key: "evaluation", label: "평가 상세", description: "리포트 확인" },
-];
 
 export function CompanyNav({ active }: { active: CompanyNavSection }) {
   return (
@@ -56,27 +45,6 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
         </div>
       </div>
     </header>
-  );
-}
-
-export function CompanyFlowSteps({ current }: { current: CompanyFlowStep }) {
-  const currentIndex = flowSteps.findIndex((step) => step.key === current);
-
-  return (
-    <nav className="flow-steps" aria-label="기업 채용 흐름">
-      {flowSteps.map((step, index) => {
-        const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
-        return (
-          <div className={`flow-step ${state}`} key={step.key} aria-current={state === "current" ? "step" : undefined}>
-            <span className="flow-step-number">{index + 1}</span>
-            <span>
-              <strong>{step.label}</strong>
-              <small>{step.description}</small>
-            </span>
-          </div>
-        );
-      })}
-    </nav>
   );
 }
 

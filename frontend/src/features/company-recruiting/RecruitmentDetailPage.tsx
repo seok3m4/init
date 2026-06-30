@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
-import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 import type { Applicant, Recruitment, ScreeningDecision } from "./types";
 
@@ -114,7 +114,6 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
             </Link>
           </div>
         </div>
-        <CompanyFlowSteps current="dashboard" />
 
         {message ? <p className="notice">{message}</p> : null}
         {recruitment ? (

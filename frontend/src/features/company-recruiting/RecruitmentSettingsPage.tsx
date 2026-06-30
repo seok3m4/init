@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { getRecruitment, updateRecruitment } from "./api";
-import { CompanyFlowSteps, CompanyNav } from "./CompanyRecruitingChrome";
+import { CompanyNav } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
 type FormState = {
@@ -97,7 +97,6 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
             대시보드
           </Link>
         </div>
-        <CompanyFlowSteps current="settings" />
 
         {message ? <p className="notice danger">{message}</p> : null}
 

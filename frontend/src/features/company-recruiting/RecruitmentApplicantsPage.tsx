@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
-import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
 import type { Applicant, Recruitment } from "./types";
 
 type FormState = {
@@ -175,7 +175,6 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
             </button>
           </div>
         </div>
-        <CompanyFlowSteps current="applicants" />
 
         <section className="panel">
           <div className="panel-head">

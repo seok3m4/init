@@ -289,71 +289,6 @@ a.gnb-link:hover {
   letter-spacing: 0;
 }
 
-.flow-steps {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 22px;
-}
-
-.flow-step {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 58px;
-  padding: 10px 12px;
-  color: var(--ink-300);
-  background: #fff;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-}
-
-.flow-step.current {
-  color: var(--ink-900);
-  background: var(--surface-soft);
-  border-color: #7e7eff;
-}
-
-.flow-step.done {
-  color: var(--ink-700);
-  background: #fbfaff;
-}
-
-.flow-step-number {
-  display: grid;
-  flex: 0 0 28px;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  color: var(--ink-500);
-  font-size: 12px;
-  font-weight: 800;
-  background: var(--line-soft);
-  border-radius: 999px;
-}
-
-.flow-step.current .flow-step-number {
-  color: #fff;
-  background: var(--brand-strong);
-}
-
-.flow-step.done .flow-step-number {
-  color: var(--brand-strong);
-  background: var(--brand-soft);
-}
-
-.flow-step strong {
-  display: block;
-  font-size: 13px;
-}
-
-.flow-step small {
-  display: block;
-  margin-top: 2px;
-  color: var(--ink-300);
-  font-size: 12px;
-}
-
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -821,7 +756,6 @@ tr:last-child td {
   .grid-2,
   .kpi-row,
   .posting,
-  .flow-steps,
   .setup-card-grid {
     grid-template-columns: 1fr;
   }
