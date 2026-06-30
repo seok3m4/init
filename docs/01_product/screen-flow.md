@@ -11,7 +11,7 @@ Next.js route는 `frontend/src/app`에 두고, 화면별 구현 코드는 `front
 | Feature Folder | Owns Routes | Primary Owner |
 | --- | --- | --- |
 | `frontend/src/features/auth` | `/login`, `/signup`, `/signup/candidate`, `/signup/company`, `/password/reset` | A |
-| `frontend/src/features/company-recruiting` | `/company/applications/dashboard`, `/company/recruitments`, `/company/recruitments/{recruitmentId}`, `/company/recruitments/{recruitmentId}/applicants` | B |
+| `frontend/src/features/company-recruiting` | `/company/applications/dashboard`, `/company/recruitments`, `/company/recruitments/new`, `/company/recruitments/{recruitmentId}`, `/company/recruitments/{recruitmentId}/interview-settings`, `/company/recruitments/{recruitmentId}/settings`, `/company/recruitments/{recruitmentId}/applicants` | B |
 | `frontend/src/features/company-interview-criteria` | `/company/interviews/settings` | C |
 | `frontend/src/features/company-profile` | `/company/mypage` | A/B |
 | `frontend/src/features/candidate-application-interview` | `/candidate/jobs`, `/candidate/jobs/{jobId}`, `/candidate/jobs/{jobId}/apply`, `/candidate/applications`, `/candidate/applications/{applicationId}/interview`, `/candidate/applications/{applicationId}/report`, `/candidate/mypage` | D |
@@ -28,7 +28,11 @@ flowchart TD
   Signup --> CandidateSignup[/지원자 회원가입/]
   Signup --> CompanySignup[/기업 회원가입/]
   Login --> CompanyDashboard[/기업 공고 관리/]
+  CompanyDashboard --> RecruitmentCreate[/공고 생성/]
+  RecruitmentCreate --> InterviewBridge[/면접 설정 브릿지/]
+  InterviewBridge --> RecruitmentDetail
   CompanyDashboard --> RecruitmentDetail[/공고 세부내용/]
+  RecruitmentDetail --> InterviewBridge
   RecruitmentDetail --> Applicants[/지원자 관리/]
   Applicants --> Evaluation[/지원자 평가 상세/]
   Login --> MockStart[/지원자 모의면접 시작/]
@@ -41,6 +45,19 @@ flowchart TD
   Applications --> RecruitingInterview[/채용 AI 면접 진행/]
   RecruitingInterview --> RecruitingReport[/채용 AI 면접 결과/]
 ```
+
+## Company Recruitment Creation Flow
+
+기업 공고 생성 흐름은 공고 정보와 JD 입력 후 바로 `OPEN` 등록하지 않고, 먼저 `DRAFT` 공고를 생성한 뒤 면접 설정 단계를 거쳐 `OPEN`으로 전환한다.
+
+```text
+공고 정보/JD 입력 -> DRAFT 공고 생성 -> 면접 설정 브릿지 -> 공고 등록하기 -> OPEN 전환 -> 공고 대시보드
+```
+
+- B는 공고 생성, JD 텍스트 입력, DRAFT 저장, OPEN 전환, 공고 대시보드 연결을 담당한다.
+- B 임시 브릿지 경로는 `/company/recruitments/{recruitmentId}/interview-settings`다.
+- C의 실제 면접 설정 경로는 `/company/interviews/settings`이며, 평가 기준/질문 뱅크/면접 시간 저장은 C 담당 영역이다.
+- B 임시 브릿지는 실제 C 저장, AI 생성, 면접 세션 연결을 대체하지 않는다.
 
 ## Screen Catalog
 
@@ -56,7 +73,9 @@ flowchart TD
 | 공고 세부내용 화면 | /company/recruitments/{recruitmentId} | 기업 | 지원현황 (GNB button) | GET /company/recruitments/{recruitmentId} |
 | 지원자 관리 화면 | /company/recruitments/{recruitmentId}/applicants | 기업 | 지원현황 (GNB button) | GET /company/recruitments/{recruitmentId}/applicants / POST /company/applicants / POST /company/applicants/invitations / POST /company/interview-sessions / GET /company/applicants / GET /company/reports |
 | 지원자 평가 상세 화면 | /company/applicants/{applicantId}/evaluation | 기업 | 지원현황 (GNB button) | GET /company/applicants/{applicantId}/evaluation / GET /company/applicants/{applicantId}/document-evaluation / GET /company/reports/{reportId} / GET /company/reports/{reportId}/evidence / GET /company/reports/{reportId}/media / GET /company/applicants/compare / PATCH /company/applicants/{applicantId}/manual-evaluation / GET /company/reports/{reportId}/download / POST /reports/{reportId}/evaluation-context / POST /reports/{reportId}/answer-evaluation / POST /reports/{reportId}/communication-analysis / POST /reports/{reportId}/generate |
-| 채용 공고 관리 화면 | /company/recruitments | 기업 | 채용관리 (GNB button) | GET /company/recruitments / GET /company/recruitments?keyword={keyword}&status={status} / /company/recruitments/{recruitmentId} / /company/recruitments/{recruitmentId}/edit / POST /company/recruitments/{recruitmentId}/copy |
+| 채용 공고 관리 화면 | /company/recruitments | 기업 | 채용관리 (GNB button) | GET /company/recruitments / GET /company/recruitments?keyword={keyword}&status={status} / /company/recruitments/new / /company/recruitments/{recruitmentId} / /company/recruitments/{recruitmentId}/settings / POST /company/recruitments/{recruitmentId}/copy |
+| 공고 생성 화면 | /company/recruitments/new | 기업 | 채용관리 (GNB button) | POST /company/recruitments |
+| 면접 설정 브릿지 화면 | /company/recruitments/{recruitmentId}/interview-settings | 기업 | 채용관리 (GNB button) | GET /company/recruitments/{recruitmentId} / PATCH /company/recruitments/{recruitmentId} |
 | 면접 관리 화면 | /company/interviews/settings | 기업 | 채용관리 (GNB button) | GET /company/interviews/settings / POST /company/interviews/evaluation-criteria/suggest / PATCH /company/interviews/evaluation-criteria / POST /company/interviews/questions / POST /company/interviews/questions/generate / POST /company/interviews/question-sets / PATCH /company/interviews/time-policy |
 | 회사 정보 관리 화면 | /company/mypage | 기업 | 회사 정보 관리 (GNB button) | PATCH /company/profile / POST /company/profile/logo / PATCH /company/notifications/settings |
 | AI 모의면접 시작 화면 | /candidate/mock-interview/start | 지원자 | AI 모의면접 (GNB button) | POST /candidate/mock-interviews / POST /candidate/mock-interviews/questions/generate |
@@ -87,7 +106,9 @@ flowchart TD
 | company-applicants | 9. 지원자 관리 | /company/applications/postings/{postingId}/applicants | 지원현황 ▼, 공고관리, 지원자 관리, 평가 리포트, 채용관리, 마이페이지, 로그아웃, 직접 등록, CSV 업로드, 응시 시작일, 응시 종료일, 안내 메시지 입력, 초대 메일 발송, 프로젝트 ▼, 상태 ▼, 검색어, 조회, 보기 | 이름, 이메일, 지원 직무, 연락처 | 지원자 등록, 초대 링크 발송, 지원자 진행 상태 목록 |
 | document-evaluation | 10. 서류 평가 상세 | /company/applicants/{applicantId}/document-evaluation | 비교 대상 선택 ▼, 비교하기, 저장 | 수동 점수, 최종 상태, 메모 | 지원자: 김지원 / Backend Developer / 서류 평가 완료, 평가 근거 확인, 지원자 리포트 목록, 지원자 비교, 면접관 수동 평가 / 메모 |
 | recruiting-report | 11. 채용 리포트 상세 | /company/reports/{reportId} | PDF 다운로드 v2.0, Excel 다운로드 v2.0 |  | 김지원 / Backend Developer / RECRUITING_REPORT, 역량별 점수, 평가 근거, 영상 / 스크립트 동시 조회, 커뮤니케이션 보조 지표 |
-| recruitments | 12. 채용 공고 관리 | /company/recruitments | 마이페이지, 로그아웃, 지원현황, 채용관리, 생성, 등록 | 프로젝트명, 직무명, 채용 기간, 담당자, JD 직접 입력, 파일 업로드 | 채용 프로젝트 생성, JD 등록 |
+| recruitments | 12. 채용 공고 관리 | /company/recruitments | 마이페이지, 로그아웃, 채용관리, 공고 생성, 관리 | 검색어, 상태 | 채용 공고 목록 |
+| recruitment-create | 12-1. 공고 생성 | /company/recruitments/new | 공고 목록, 다음 | 공고 제목, 직무명, 채용 시작일, 채용 마감일, JD 직접 입력, JD 파일 | 공고 정보 입력, JD 등록 |
+| recruitment-interview-bridge | 12-2. 면접 설정 브릿지 | /company/recruitments/{recruitmentId}/interview-settings | 공고 설정, 대시보드, 공고 등록하기 |  | 공고 정보, 평가 기준 연결 대기, 질문 뱅크 연결 대기, 면접 시간 연결 대기 |
 | interview-settings | 13. 면접 관리 | /company/interviews/settings | 마이페이지, 로그아웃, 지원현황, 채용관리, JD 기반 평가 역량 추천, 저장, JD 기반 직무 질문 생성, 질문 세트 구성, 질문 저장, 준비 시간: 30초, 답변 시간: 90초, 재응시 허용: N, 설정 저장 | 질문 내용, 질문 유형, 평가 역량 | AI 평가 역량 제안, 평가 기준 설정, 질문 뱅크 관리, 면접 시간 설정 |
 | company-mypage | 14. 기업 마이페이지 | /company/mypage | 마이페이지, 로그아웃, 지원현황, 채용관리, 프로필 저장, 담당자 선택 ▼, □ 제출 완료, □ 면접 완료, □ 리포트 생성 완료, 프로젝트 선택 ▼, 저장 | 기업명, 산업군, 인재상, 평가 정책 | 기업 프로필 등록, 진행 상태 알림 설정 - v2.0 |
 | mock-start | 15. AI 모의면접 시작 | /candidate/mock-interview/start | 마이페이지, 로그아웃, AI 모의면접, 채용정보, 모의면접 시작 | 직무, 난이도, 질문 유형 | 모의면접 설정, 연습 이력 |

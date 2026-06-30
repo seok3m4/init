@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { getApplicantEvaluation, updateScreeningStatus } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { StatusBadge } from "./CompanyRecruitingChrome";
 import type { ApplicantEvaluation, ScreeningDecision } from "./types";
 
 const decisions: ScreeningDecision[] = ["UNDECIDED", "PASS", "HOLD", "FAIL"];
@@ -58,9 +58,7 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
   const report = evaluation?.report ?? null;
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="evaluation" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
             <p className="eyebrow">EVALUATION</p>
@@ -175,7 +173,6 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
         ) : (
           <div className="empty">평가 상세를 불러오는 중입니다.</div>
         )}
-      </section>
-    </main>
+    </section>
   );
 }

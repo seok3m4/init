@@ -22,6 +22,7 @@ import { CreateApplicantDto } from "../dto/create-applicant.dto";
 import { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
 import { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import { ListQueryDto } from "../dto/list-query.dto";
+import { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 
 type CompanyRequest = RequestLike & { currentUser: CurrentUser };
@@ -68,6 +69,20 @@ export class CompanyRecruitingController {
     @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
   ) {
     const data = await this.companyRecruitingService.getRecruitment(request.currentUser, recruitmentId);
+    return ok(request, data);
+  }
+
+  @Patch("recruitments/:recruitmentId")
+  @ApiOperationId("API-083")
+  @ApiOperation({ summary: "공고 설정 수정" })
+  @ApiParamId("recruitmentId", "채용 공고 ID")
+  @ApiEnvelopeResponse(RecruitmentResponseDto)
+  async updateRecruitment(
+    @Req() request: CompanyRequest,
+    @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
+    @Body() dto: UpdateRecruitmentDto,
+  ) {
+    const data = await this.companyRecruitingService.updateRecruitment(request.currentUser, recruitmentId, dto);
     return ok(request, data);
   }
 

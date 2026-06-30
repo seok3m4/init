@@ -22,6 +22,15 @@ export type CreatePostingInput = {
   status: PostingStatus;
 };
 
+export type UpdatePostingInput = {
+  title: string;
+  jobRole: string;
+  jobDescription: string | null;
+  startsOn: Date | null;
+  endsOn: Date | null;
+  status: PostingStatus;
+};
+
 export type CreateCandidateInput = {
   name: string;
   email: string;
@@ -40,6 +49,7 @@ export type UpdateApplicationScreeningInput = {
 
 export type CompanyRecruitingRepositoryPort = {
   createPosting(input: CreatePostingInput): Promise<RecruitmentRecord>;
+  updatePosting(postingId: number, companyId: number, input: UpdatePostingInput): Promise<RecruitmentRecord | null>;
   listPostings(companyId: number, query: NormalizedListQuery): Promise<RecruitmentRecord[]>;
   countPostings(companyId: number, query: NormalizedListQuery): Promise<number>;
   findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
@@ -70,6 +80,23 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
         ...input,
         companyId: BigInt(input.companyId),
       },
+      include: { _count: { select: { applications: true } } },
+    });
+    return mapPosting(posting);
+  }
+
+  async updatePosting(postingId: number, companyId: number, input: UpdatePostingInput): Promise<RecruitmentRecord | null> {
+    const ownedPosting = await this.prisma.posting.findFirst({
+      where: { postingId: BigInt(postingId), companyId: BigInt(companyId) },
+      select: { postingId: true },
+    });
+    if (!ownedPosting) {
+      return null;
+    }
+
+    const posting = await this.prisma.posting.update({
+      where: { postingId: BigInt(postingId) },
+      data: input,
       include: { _count: { select: { applications: true } } },
     });
     return mapPosting(posting);

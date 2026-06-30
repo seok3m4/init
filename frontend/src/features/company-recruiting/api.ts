@@ -10,6 +10,7 @@ import type {
   Recruitment,
   RecruitmentStatus,
   UpdateScreeningStatusInput,
+  UpdateRecruitmentInput,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -37,6 +38,25 @@ export async function createRecruitment(input: CreateRecruitmentInput) {
 
 export async function getRecruitment(recruitmentId: number) {
   return request<Recruitment>(`/company/recruitments/${recruitmentId}`);
+}
+
+export async function updateRecruitment(recruitmentId: number, input: UpdateRecruitmentInput) {
+  return request<Recruitment>(`/company/recruitments/${recruitmentId}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export async function publishRecruitment(recruitmentId: number) {
+  const current = await getRecruitment(recruitmentId);
+  return updateRecruitment(recruitmentId, {
+    title: current.data.title,
+    jobRole: current.data.jobRole,
+    startsOn: current.data.startsOn ?? undefined,
+    endsOn: current.data.endsOn ?? undefined,
+    status: "OPEN",
+    jobDescription: current.data.jobDescription ?? undefined,
+  });
 }
 
 export async function copyRecruitment(recruitmentId: number) {
