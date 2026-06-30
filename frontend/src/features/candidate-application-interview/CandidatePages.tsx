@@ -62,6 +62,7 @@ import { CandidateApplicationView, CandidateJobDetailView, CandidateJobsView } f
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 const DEMO_CANDIDATE_ID = 1;
+const INTERVIEW_QUESTION_TIME_LIMIT_SECONDS = 90;
 const questionTypeOptions: QuestionType[] = ["INTRO", "TECHNICAL", "EXPERIENCE", "SITUATION", "CLOSING"];
 
 type CandidateNavSection = "jobs" | "applications" | "interview" | "reports" | "mypage";
@@ -1263,6 +1264,7 @@ function InterviewRuntimePanel({
   const [recordedFileName, setRecordedFileName] = useState("");
   const [setupCompleted, setSetupCompleted] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [remainingSeconds, setRemainingSeconds] = useState(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
   const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
   const [questionSpeechSupported, setQuestionSpeechSupported] = useState(true);
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Set<number>>(() => new Set());
@@ -1275,8 +1277,10 @@ function InterviewRuntimePanel({
   const recordingChunksRef = useRef<BlobPart[]>([]);
   const recordingStartedAtRef = useRef(0);
   const submitAfterRecordingStopRef = useRef(false);
+  const autoAdvanceAfterAnswerSubmitRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
   const autoSpokenQuestionRef = useRef<number | null>(null);
+  const timeExpiredQuestionRef = useRef<number | null>(null);
   const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const videoAttachRunRef = useRef(0);
   const hasAnswerFile = Boolean(answer.videoFile || answer.audioFile || answer.videoFileId || answer.audioFileId);
@@ -1375,6 +1379,9 @@ function InterviewRuntimePanel({
       setAnswer((current) => ({ ...current, questionId: currentQuestion.questionId }));
       setRecordedFileName("");
       submitAfterRecordingStopRef.current = false;
+      autoAdvanceAfterAnswerSubmitRef.current = false;
+      timeExpiredQuestionRef.current = null;
+      setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
     }
   }, [currentQuestion]);
 
@@ -1425,6 +1432,23 @@ function InterviewRuntimePanel({
     const timer = window.setTimeout(() => speakCurrentQuestion("auto"), 250);
     return () => window.clearTimeout(timer);
   }, [currentQuestion, currentQuestionAnswered, setupCompleted, speakCurrentQuestion, stopQuestionSpeech]);
+
+  useEffect(() => {
+    if (!setupCompleted || !currentQuestion || currentQuestionAnswered || busy) return;
+    const intervalId = window.setInterval(() => {
+      setRemainingSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [busy, currentQuestion, currentQuestionAnswered, setupCompleted]);
+
+  useEffect(() => {
+    if (remainingSeconds > 0 || !setupCompleted || !currentQuestion || currentQuestionAnswered || busy) return;
+    if (timeExpiredQuestionRef.current === currentQuestion.questionId) return;
+    timeExpiredQuestionRef.current = currentQuestion.questionId;
+    void handleQuestionTimeExpired();
+    // The timeout action intentionally reads the latest runtime state when the counter reaches zero.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, currentQuestion, currentQuestionAnswered, remainingSeconds, setupCompleted]);
 
   useEffect(() => {
     if (!data || !setupCompleted || !cameraReady || !microphoneReady || !currentQuestion || currentQuestionAnswered) return;
@@ -1708,8 +1732,14 @@ function InterviewRuntimePanel({
         next.add(request.questionId);
         return next;
       });
+      const shouldAutoAdvance = autoAdvanceAfterAnswerSubmitRef.current;
+      autoAdvanceAfterAnswerSubmitRef.current = false;
       setMessage(`답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다.`);
+      if (shouldAutoAdvance) {
+        await advanceAfterTimedAnswer(question);
+      }
     } catch (submitError) {
+      autoAdvanceAfterAnswerSubmitRef.current = false;
       setMessage(toErrorMessage(submitError));
     } finally {
       setBusy(false);
@@ -1745,6 +1775,44 @@ function InterviewRuntimePanel({
     setMessage("답변 녹화가 아직 준비되지 않았습니다.");
   }
 
+  async function handleQuestionTimeExpired() {
+    if (!data || !currentQuestion || currentQuestionAnswered) return;
+    setMessage("답변 시간이 종료되어 현재 답변을 자동 제출합니다.");
+    autoAdvanceAfterAnswerSubmitRef.current = true;
+
+    const recorder = recorderRef.current;
+    if (recorder?.state === "recording") {
+      submitAfterRecordingStopRef.current = true;
+      handleStopRecording();
+      return;
+    }
+
+    if (canSubmitAnswer) {
+      await submitAnswerRequest(toSaveInterviewAnswerRequest(answer));
+      return;
+    }
+
+    autoAdvanceAfterAnswerSubmitRef.current = false;
+    setMessage("답변 시간이 종료됐지만 제출할 녹화 파일이 아직 준비되지 않았습니다. 답변 완료를 눌러 제출해주세요.");
+  }
+
+  async function advanceAfterTimedAnswer(question = currentQuestion) {
+    if (!data) return;
+    const questionIndex = question
+      ? data.questions.questions.findIndex((candidateQuestion) => candidateQuestion.questionId === question.questionId)
+      : -1;
+    const isLastQuestion = questionIndex >= 0
+      ? questionIndex >= data.runtime.totalQuestions - 1
+      : answeredQuestionCount + 1 >= data.runtime.totalQuestions;
+
+    if (isLastQuestion) {
+      await handleComplete();
+      return;
+    }
+
+    await handleNextQuestion();
+  }
+
   async function handleNextQuestion() {
     if (!data) return;
     setBusy(true);
@@ -1758,6 +1826,8 @@ function InterviewRuntimePanel({
       setAnswer(defaultInterviewAnswerFormState);
       setRecordedFileName("");
       setQuestionSpeechStatus("다음 질문 음성 대기");
+      setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
+      timeExpiredQuestionRef.current = null;
       autoRecordingQuestionRef.current = null;
       refresh();
     } catch (submitError) {
@@ -1813,6 +1883,8 @@ function InterviewRuntimePanel({
     : 0;
   const canMoveNextQuestion = Boolean(data && currentQuestionAnswered && answeredQuestionCount < data.runtime.totalQuestions);
   const canCompleteInterview = Boolean(data && answeredQuestionCount === data.runtime.totalQuestions && !recording);
+  const formattedRemainingTime = formatInterviewCountdown(remainingSeconds);
+  const timerDanger = remainingSeconds <= 10;
 
   return (
     <main className="candidate-interview-app">
@@ -1821,7 +1893,6 @@ function InterviewRuntimePanel({
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
         <span className="center">{runtimeTitle}</span>
-        <span className="timer" aria-label="남은 시간">01:30</span>
       </header>
 
       <section className="iv-body">
@@ -1904,8 +1975,16 @@ function InterviewRuntimePanel({
         {data && setupCompleted ? (
           <>
             <section className="q-card">
-              {mode === "recruiting" ? <div className="qm">채용 AI 면접</div> : null}
-              <div className="qn">질문 {questionNumber} / {data.runtime.totalQuestions}</div>
+              <div className="q-card-head">
+                <div>
+                  {mode === "recruiting" ? <div className="qm">채용 AI 면접</div> : null}
+                  <div className="qn">질문 {questionNumber} / {data.runtime.totalQuestions}</div>
+                </div>
+                <div className={`question-timer ${timerDanger ? "danger" : ""}`} aria-label={`남은 시간 ${formattedRemainingTime}`}>
+                  <span>남은 시간</span>
+                  <strong>{formattedRemainingTime}</strong>
+                </div>
+              </div>
               <div className="qt">
                 {currentQuestion
                   ? subtitlesEnabled
@@ -2395,6 +2474,13 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
       {report.summary ? <p className="description-box">{report.summary}</p> : null}
     </div>
   );
+}
+
+function formatInterviewCountdown(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const restSeconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 }
 
 function isQuestionSpeechSupported(): boolean {
