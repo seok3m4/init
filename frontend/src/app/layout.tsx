@@ -1,6 +1,8 @@
 import "../styles/globals.css";
 import "../styles/global.css";
 
+import { AuthProvider } from "../features/auth/AuthProvider";
+
 export const metadata = {
   title: "INIT",
   description: "AI interview recruiting platform",
@@ -9,7 +11,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

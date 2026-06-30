@@ -1,3 +1,5 @@
+import { authFetch } from "../../api/client";
+
 export type PostingStatus = "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
 export type CandidateJobListPostingStatus = Extract<PostingStatus, "OPEN" | "CLOSING_SOON">;
 export type SortOrder = "asc" | "desc";
@@ -645,7 +647,7 @@ export interface CandidateApiClient {
 }
 
 export function createCandidateApiClient(options: CandidateApiClientOptions = {}): CandidateApiClient {
-  const fetcher = options.fetcher ?? fetch;
+  const fetcher = options.fetcher ?? fetchWithAuth;
 
   async function request<T>(
     path: string,
@@ -781,6 +783,10 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         body: JSON.stringify(body),
       }),
   };
+}
+
+function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit) {
+  return authFetch(input instanceof Request ? input.url : input, init);
 }
 
 type CandidateJobQueryParams = Partial<Record<keyof CandidateJobQuery, string | number | undefined>>;
