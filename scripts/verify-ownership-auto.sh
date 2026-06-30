@@ -23,15 +23,22 @@ changed_files() {
   }
 }
 
-mapfile -t changed < <(
-  changed_files \
-    | sed 's#\\#/#g' \
-    | awk 'NF' \
-    | awk '$0 !~ /(^|\/)node_modules\// && $0 !~ /(^|\/)(\.next|dist|build|coverage)\//' \
-    | sort -u
-)
+changed_file="$(mktemp)"
+impacted_file="$(mktemp)"
+blocked_file="$(mktemp)"
 
-if [[ "${#changed[@]}" -eq 0 ]]; then
+cleanup() {
+  rm -f "$changed_file" "$impacted_file" "$blocked_file"
+}
+trap cleanup EXIT
+
+changed_files \
+  | sed 's#\\#/#g' \
+  | awk 'NF' \
+  | awk '$0 !~ /(^|\/)node_modules\// && $0 !~ /(^|\/)(\.next|dist|build|coverage)\//' \
+  | sort -u > "$changed_file"
+
+if [[ ! -s "$changed_file" ]]; then
   echo "[ok] no changed files for auto ownership check"
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
@@ -46,58 +53,74 @@ common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm
 baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|frontend/(eslint\.config\.mjs|next-env\.d\.ts|next\.config\.(js|ts)|tsconfig\.json)|backend/(api|common|worker)/package(-lock)?\.json|backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)|backend/common/tsconfig\.json|backend/worker/tsconfig\.json)'
 shared_backend='^(backend/api/src/modules/app\.module\.ts|backend/api/src/main\.ts)$'
 
-declare -A owned=(
-  [A]='(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
-  [B]='(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)'
-  [C]='(^frontend/src/features/company-interview-criteria/|^backend/api/src/modules/company-interview/)'
-  [D]='(^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/modules/(candidate|interview)/)'
-  [E]='(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
-  [PM]='(^docs/|^assets/)'
-)
+role_pattern() {
+  case "$1" in
+    A)
+      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
+      ;;
+    B)
+      printf '%s\n' '(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)'
+      ;;
+    C)
+      printf '%s\n' '(^frontend/src/features/company-interview-criteria/|^backend/api/src/modules/company-interview/)'
+      ;;
+    D)
+      printf '%s\n' '(^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/modules/(candidate|interview)/)'
+      ;;
+    E)
+      printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
+      ;;
+    PM)
+      printf '%s\n' '(^docs/|^assets/)'
+      ;;
+  esac
+}
 
-declare -A impacted=()
-blocked=()
+mark_impacted() {
+  printf '%s\n' "$1" >> "$impacted_file"
+}
 
-for file in "${changed[@]}"; do
+while IFS= read -r file; do
   if [[ "$file" =~ $common || "$file" =~ $baseline ]]; then
-    impacted[COMMON]=1
+    mark_impacted COMMON
     continue
   fi
 
   if [[ "$file" =~ $shared_backend ]]; then
-    impacted[A]=1
-    impacted[B]=1
-    impacted[C]=1
-    impacted[D]=1
-    impacted[E]=1
+    mark_impacted A
+    mark_impacted B
+    mark_impacted C
+    mark_impacted D
+    mark_impacted E
     continue
   fi
 
   matched=0
   for role in A B C D E PM; do
-    if [[ "$file" =~ ${owned[$role]} ]]; then
-      impacted[$role]=1
+    pattern="$(role_pattern "$role")"
+    if [[ "$file" =~ $pattern ]]; then
+      mark_impacted "$role"
       matched=1
     fi
   done
 
   if [[ "$matched" -eq 0 ]]; then
-    blocked+=("$file")
+    printf '%s\n' "$file" >> "$blocked_file"
   fi
-done
+done < "$changed_file"
 
-if [[ "${#blocked[@]}" -gt 0 ]]; then
+if [[ -s "$blocked_file" ]]; then
   echo "[fail] files outside all known ownership:"
-  printf '  %s\n' "${blocked[@]}"
+  awk '{ print "  " $0 }' "$blocked_file"
   echo "[fail] verify-ownership-auto failed"
   exit 1
 fi
 
-roles="$(printf '%s\n' "${!impacted[@]}" | sort | awk 'BEGIN { first = 1 } { if (!first) printf ", "; printf "%s", $0; first = 0 } END { print "" }')"
-harness_roles="$(printf '%s\n' "${!impacted[@]}" | sort | awk '$0 != "COMMON"')"
+roles="$(sort -u "$impacted_file" | awk 'BEGIN { first = 1 } { if (!first) printf ", "; printf "%s", $0; first = 0 } END { print "" }')"
+harness_roles="$(sort -u "$impacted_file" | awk '$0 != "COMMON"')"
 roles_csv="$(printf '%s\n' "$harness_roles" | awk 'NF' | awk 'BEGIN { first = 1 } { if (!first) printf ","; printf "%s", $0; first = 0 } END { print "" }')"
 roles_json="$(printf '%s\n' "$harness_roles" | awk 'NF' | awk 'BEGIN { printf "["; first = 1 } { if (!first) printf ","; printf "\"%s\"", $0; first = 0 } END { print "]" }')"
-if [[ -z "$roles_json" ]]; then
+if [[ -z "$roles_json" || "$roles_json" = "[" ]]; then
   roles_json="[]"
 fi
 
