@@ -29,8 +29,19 @@ closes #이슈번호
 ## 💬 리뷰어에게
 <!-- 리뷰어가 집중해서 봐야 할 부분이나 참고사항을 적어주세요 -->
 
+## 👥 Cross-owner 영향 및 리뷰 요청
+<!-- 다른 담당자 영역을 수정했다면 영향을 받은 role과 리뷰 요청 사유를 적어주세요. 예: C API가 D 면접 런타임 계약을 함께 수정하여 D 리뷰 요청 -->
+- 영향 role:
+- 리뷰 요청 대상:
+- cross-owner 수정 사유:
+
 ## 🧪 Harness 결과
-<!-- 예: powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A -->
+<!-- 단일 role PR 예: powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A -->
+<!-- cross-owner PR 예:
+powershell -ExecutionPolicy Bypass -File scripts\verify-ownership-auto.ps1
+powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A -SkipOwnership
+자동 CI에서는 impacted role별 `check-local -Role <Role> -SkipOwnership`가 matrix로 실행됩니다.
+-->
 
 ## ⏭️ 남은 skip 검증
 <!-- verify-prisma / verify-docker / verify-ai-golden / smoke-local 등 skip 사유와 전환 계획 -->
