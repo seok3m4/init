@@ -3,7 +3,7 @@ import Link from "next/link";
 
 type CompanyNavSection = "postings" | "mypage";
 
-export function CompanyNav({ active }: { active: CompanyNavSection }) {
+export function CompanyNav({ active }: { active?: CompanyNavSection }) {
   return (
     <header className="gnb">
       <div className="gnb-inner">
