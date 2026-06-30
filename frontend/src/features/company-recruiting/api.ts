@@ -10,7 +10,9 @@ import type {
   Recruitment,
   RecruitmentStatus,
   UpdateScreeningStatusInput,
+  UpdateRecruitmentInput,
 } from "./types";
+import { authFetch } from "../../api/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -37,6 +39,25 @@ export async function createRecruitment(input: CreateRecruitmentInput) {
 
 export async function getRecruitment(recruitmentId: number) {
   return request<Recruitment>(`/company/recruitments/${recruitmentId}`);
+}
+
+export async function updateRecruitment(recruitmentId: number, input: UpdateRecruitmentInput) {
+  return request<Recruitment>(`/company/recruitments/${recruitmentId}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export async function publishRecruitment(recruitmentId: number) {
+  const current = await getRecruitment(recruitmentId);
+  return updateRecruitment(recruitmentId, {
+    title: current.data.title,
+    jobRole: current.data.jobRole,
+    startsOn: current.data.startsOn ?? undefined,
+    endsOn: current.data.endsOn ?? undefined,
+    status: "OPEN",
+    jobDescription: current.data.jobDescription ?? undefined,
+  });
 }
 
 export async function copyRecruitment(recruitmentId: number) {
@@ -89,13 +110,10 @@ async function request<T>(
     }
   });
 
-  const response = await fetch(url.toString(), {
+  const response = await authFetch(url.toString(), {
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
-      "X-Dev-User-Id": "1",
-      "X-Dev-User-Type": "COMPANY",
-      "X-Dev-Company-Id": "1",
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

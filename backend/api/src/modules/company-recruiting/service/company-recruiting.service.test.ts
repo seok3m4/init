@@ -31,6 +31,22 @@ function createRepository(overrides: Record<string, unknown> = {}) {
         applicantCount: 0,
       };
     },
+    async updatePosting(postingId: number, companyId: number, input: unknown) {
+      calls.updatePosting = [postingId, companyId, input];
+      return {
+        postingId,
+        companyId,
+        title: (input as { title: string }).title,
+        jobRole: (input as { jobRole: string }).jobRole,
+        jobDescription: (input as { jobDescription: string | null }).jobDescription,
+        startsOn: (input as { startsOn: Date | null }).startsOn,
+        endsOn: (input as { endsOn: Date | null }).endsOn,
+        status: (input as { status: string }).status,
+        createdAt: new Date("2026-06-29T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-30T00:00:00.000Z"),
+        applicantCount: 2,
+      };
+    },
     async listPostings(companyId: number, query: unknown) {
       calls.listPostings = [companyId, query];
       return [];
@@ -229,6 +245,36 @@ describe("CompanyRecruitingService", () => {
         order: "desc",
         skip: 0,
         take: 20,
+      },
+    ]);
+  });
+
+  it("updates recruitment settings for the current company only", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    const result = await service.updateRecruitment(companyUser, 101, {
+      title: "Updated Backend Hiring",
+      jobRole: "Backend Engineer",
+      jobDescription: "Updated JD text",
+      startsOn: "2026-07-01",
+      endsOn: "2026-07-31",
+      status: "OPEN",
+    });
+
+    assert.equal(result.recruitmentId, 101);
+    assert.equal(result.title, "Updated Backend Hiring");
+    assert.equal(result.jobDescription, "Updated JD text");
+    assert.deepEqual(repository.calls.updatePosting, [
+      101,
+      7,
+      {
+        title: "Updated Backend Hiring",
+        jobRole: "Backend Engineer",
+        jobDescription: "Updated JD text",
+        startsOn: new Date("2026-07-01T00:00:00.000Z"),
+        endsOn: new Date("2026-07-31T00:00:00.000Z"),
+        status: "OPEN",
       },
     ]);
   });

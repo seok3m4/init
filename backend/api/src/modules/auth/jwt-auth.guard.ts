@@ -22,6 +22,12 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
+    const demoCandidate = this.readCandidateDemoAuth(request);
+    if (demoCandidate) {
+      request.currentUser = demoCandidate;
+      return true;
+    }
+
     throw new ApiException(ERROR_CODES.COMMON_UNAUTHORIZED, "로그인이 필요합니다.", 401);
   }
 
@@ -45,6 +51,21 @@ export class JwtAuthGuard implements CanActivate {
       userType,
       companyId: headers["x-dev-company-id"] ? Number(headers["x-dev-company-id"]) : null,
       candidateId: headers["x-dev-candidate-id"] ? Number(headers["x-dev-candidate-id"]) : null,
+    };
+  }
+
+  private readCandidateDemoAuth(request: { originalUrl?: string; url?: string }): CurrentUser | null {
+    if (!["local", "development", "test"].includes(process.env.NODE_ENV ?? "development")) return null;
+    if (process.env.CANDIDATE_DEMO_NO_AUTH !== "true") return null;
+
+    const url = request.originalUrl ?? request.url ?? "";
+    if (!url.includes("/candidate")) return null;
+
+    return {
+      userId: 2,
+      userType: "CANDIDATE",
+      companyId: null,
+      candidateId: 1,
     };
   }
 

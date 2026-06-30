@@ -1,78 +1,278 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { getRecruitment } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
-import type { Recruitment } from "./types";
+import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
+import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
+import { buildInterviewSettingsHref } from "./routes";
+import {
+  getScreeningAutosaveFieldState,
+  hasScreeningDraftChanged,
+  markScreeningAutosaveError,
+  markScreeningAutosaveSaving,
+  markScreeningAutosaveSuccess,
+  type ScreeningAutosaveField,
+  type ScreeningAutosaveState,
+  type ScreeningDraft,
+} from "./screening-autosave";
+import type { Applicant, Recruitment, ScreeningDecision } from "./types";
+
+const decisions: ScreeningDecision[] = ["UNDECIDED", "PASS", "HOLD", "FAIL"];
 
 export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number }) {
   const [recruitment, setRecruitment] = useState<Recruitment | null>(null);
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [screeningDrafts, setScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
+  const [savedScreeningDrafts, setSavedScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
+  const [autosaveState, setAutosaveState] = useState<ScreeningAutosaveState>({});
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const response = await getRecruitment(recruitmentId);
-        setRecruitment(response.data);
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "공고 상세를 불러오지 못했습니다.");
-      }
+  const load = useCallback(async (options: { clearMessage?: boolean } = {}) => {
+    setLoading(true);
+    if (options.clearMessage !== false) {
+      setMessage("");
     }
-    void load();
+    try {
+      const [detail, applicantList] = await Promise.all([
+        getRecruitment(recruitmentId),
+        listRecruitmentApplicants(recruitmentId, { page: 1, limit: 20, sort: "updatedAt", order: "desc" }),
+      ]);
+      const nextDrafts = Object.fromEntries(
+        applicantList.data.items.map((item) => [item.applicationId, toScreeningDraft(item)]),
+      );
+      setRecruitment(detail.data);
+      setApplicants(applicantList.data.items);
+      setScreeningDrafts(nextDrafts);
+      setSavedScreeningDrafts(nextDrafts);
+      setAutosaveState({});
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "공고 대시보드를 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   }, [recruitmentId]);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function handleDecisionChange(applicant: Applicant, decision: ScreeningDecision) {
+    const nextDraft = {
+      decision,
+      memo: screeningDrafts[applicant.applicationId]?.memo ?? "",
+    };
+    updateDraft(applicant.applicationId, nextDraft);
+    await saveScreeningField(applicant, "decision", nextDraft);
+  }
+
+  async function handleMemoBlur(applicant: Applicant) {
+    const draft = screeningDrafts[applicant.applicationId];
+    const savedDraft = savedScreeningDrafts[applicant.applicationId];
+    if (!draft || (savedDraft && draft.memo === savedDraft.memo)) {
+      return;
+    }
+    await saveScreeningField(applicant, "memo", draft);
+  }
+
+  async function saveScreeningField(applicant: Applicant, field: ScreeningAutosaveField, draft: ScreeningDraft) {
+    const savedDraft = savedScreeningDrafts[applicant.applicationId];
+    if (savedDraft && !hasScreeningDraftChanged(savedDraft, draft)) {
+      return;
+    }
+
+    setAutosaveState((current) => markScreeningAutosaveSaving(current, applicant.applicationId, field));
+    try {
+      const result = await updateScreeningStatus(applicant.applicationId, {
+        screeningDecision: draft.decision,
+        screeningMemo: draft.memo || undefined,
+      });
+      const updatedDraft = toScreeningDraft(result.data);
+      setApplicants((current) =>
+        current.map((item) => (item.applicationId === result.data.applicationId ? result.data : item)),
+      );
+      setSavedScreeningDrafts((current) => ({
+        ...current,
+        [applicant.applicationId]: updatedDraft,
+      }));
+      setScreeningDrafts((current) => {
+        const currentDraft = current[applicant.applicationId];
+        if (currentDraft && hasScreeningDraftChanged(draft, currentDraft)) {
+          return current;
+        }
+        return {
+          ...current,
+          [applicant.applicationId]: updatedDraft,
+        };
+      });
+      setAutosaveState((current) => markScreeningAutosaveSuccess(current, applicant.applicationId, field));
+    } catch {
+      setAutosaveState((current) => markScreeningAutosaveError(current, applicant.applicationId, field));
+    }
+  }
+
+  function updateDraft(applicationId: number, patch: Partial<ScreeningDraft>) {
+    setScreeningDrafts((current) => ({
+      ...current,
+      [applicationId]: {
+        decision: current[applicationId]?.decision ?? "UNDECIDED",
+        memo: current[applicationId]?.memo ?? "",
+        ...patch,
+      },
+    }));
+  }
+
+  const completedInterviews = applicants.filter((item) => isCompleted(item.interviewStatus)).length;
+  const reportCompleted = applicants.filter((item) => item.report && isCompleted(item.report.status)).length;
+  const completionRate = applicants.length === 0 ? 0 : Math.round((completedInterviews / applicants.length) * 100);
+
   return (
-    <main className="app-shell">
-      <CompanyNav active="postings" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">RECRUITMENT DETAIL</p>
-            <h1>{recruitment?.title ?? "공고 세부내용"}</h1>
-            <p>자기 회사 공고만 상세 조회할 수 있습니다.</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                { label: recruitment?.title ?? "공고 대시보드" },
+              ]}
+            />
+            <h1>{recruitment?.title ?? "공고 대시보드"}</h1>
+            <p className="page-sub">공고 운영 현황과 다음 전형 대상자를 확인합니다.</p>
           </div>
-          <Link className="btn primary" href={`/company/recruitments/${recruitmentId}/applicants`}>
-            지원자 관리
-          </Link>
+          <div className="page-actions">
+            <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}/settings`}>
+              공고 설정
+            </Link>
+            <Link className="btn secondary" href={buildInterviewSettingsHref(recruitmentId)}>
+              면접 관리
+            </Link>
+            <Link className="btn primary" href={`/company/recruitments/${recruitmentId}/applicants`}>
+              지원자 관리
+            </Link>
+          </div>
         </div>
 
-        {message ? <p className="notice danger">{message}</p> : null}
+        {message ? <p className="notice">{message}</p> : null}
         {recruitment ? (
           <>
             <section className="kpi-row">
               <div className="kpi">
-                <span>상태</span>
-                <StatusBadge value={recruitment.status} />
-              </div>
-              <div className="kpi">
-                <span>지원자</span>
+                <span>지원자 수</span>
                 <strong>{recruitment.applicantCount}</strong>
               </div>
               <div className="kpi">
-                <span>채용 기간</span>
-                <strong>{formatPeriod(recruitment)}</strong>
+                <span>응시 완료율</span>
+                <strong>{completionRate}%</strong>
+              </div>
+              <div className="kpi">
+                <span>리포트 생성 완료</span>
+                <strong>{reportCompleted}건</strong>
               </div>
             </section>
 
             <section className="panel">
               <div className="panel-head">
                 <div>
-                  <h2>{recruitment.jobRole}</h2>
-                  <p>공고 ID #{recruitment.recruitmentId}</p>
+                  <h2>공고 정보</h2>
+                  <p>
+                    {recruitment.jobRole} · {formatPeriod(recruitment)}
+                  </p>
                 </div>
+                <StatusBadge value={recruitment.status} />
               </div>
               <div className="description-box">
                 {recruitment.jobDescription || "등록된 JD가 없습니다. 면접 설정은 C 역할 영역에서 별도 연결합니다."}
               </div>
             </section>
+
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>다음 전형 대상자 선별</h2>
+                  <p>전형 상태와 수동 메모는 B 소유 필드만 저장합니다.</p>
+                </div>
+              </div>
+
+              {applicants.length === 0 ? (
+                <div className="empty">등록된 지원자가 없습니다. 우측 상단의 지원자 관리에서 먼저 등록하세요.</div>
+              ) : (
+                <div className="table-wrap">
+                  <table className="screening-table">
+                    <colgroup>
+                      <col className="screening-col-candidate" />
+                      <col className="screening-col-interview" />
+                      <col className="screening-col-report" />
+                      <col className="screening-col-decision" />
+                      <col className="screening-col-memo" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>지원자</th>
+                        <th>면접</th>
+                        <th>리포트</th>
+                        <th>전형 상태</th>
+                        <th>메모</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {applicants.map((item) => {
+                        const decisionState = getScreeningAutosaveFieldState(autosaveState, item.applicationId, "decision");
+                        const memoState = getScreeningAutosaveFieldState(autosaveState, item.applicationId, "memo");
+
+                        return (
+                          <tr key={item.applicationId}>
+                            <td>
+                              <strong>{item.name}</strong>
+                              <span>{item.email}</span>
+                            </td>
+                            <td>{item.interviewStatus}</td>
+                            <td>{item.report ? `${item.report.status} · ${item.report.totalScore ?? "점수 없음"}` : "없음/생성중"}</td>
+                            <td>
+                              <div className={`autosave-field ${decisionState === "saving" ? "is-saving" : ""} ${decisionState === "error" ? "is-error" : ""}`}>
+                                <select
+                                  aria-label={`${item.name} 전형 상태`}
+                                  value={screeningDrafts[item.applicationId]?.decision ?? "UNDECIDED"}
+                                  onChange={(event) => void handleDecisionChange(item, event.target.value as ScreeningDecision)}
+                                >
+                                  {decisions.map((decision) => (
+                                    <option key={decision} value={decision}>
+                                      {decision}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span className="autosave-state" aria-live="polite">
+                                  {decisionState === "error" ? "저장 실패" : ""}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className={`autosave-field ${memoState === "saving" ? "is-saving" : ""} ${memoState === "error" ? "is-error" : ""}`}>
+                                <input
+                                  aria-label={`${item.name} 메모`}
+                                  value={screeningDrafts[item.applicationId]?.memo ?? ""}
+                                  onBlur={() => void handleMemoBlur(item)}
+                                  onChange={(event) => updateDraft(item.applicationId, { memo: event.target.value })}
+                                  placeholder="수동 메모"
+                                />
+                                <span className="autosave-state" aria-live="polite">
+                                  {memoState === "error" ? "저장 실패" : ""}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </>
         ) : (
-          <div className="empty">공고 정보를 불러오는 중입니다.</div>
+          <div className="empty">{loading ? "공고 대시보드를 불러오는 중입니다." : "공고 대시보드를 불러올 수 없습니다."}</div>
         )}
-      </section>
-    </main>
+    </section>
   );
 }
 
@@ -81,4 +281,19 @@ function formatPeriod(item: Recruitment) {
     return "기간 미정";
   }
   return `${item.startsOn ?? "시작 미정"} ~ ${item.endsOn ?? "마감 미정"}`;
+}
+
+function isCompleted(value: string) {
+  return ["COMPLETED", "DONE", "GENERATED"].includes(value);
+}
+
+function toScreeningDraft(item: Applicant): ScreeningDraft {
+  return {
+    decision: normalizeDecision(item.screeningDecision),
+    memo: item.screeningMemo ?? "",
+  };
+}
+
+function normalizeDecision(value: string): ScreeningDecision {
+  return decisions.includes(value as ScreeningDecision) ? (value as ScreeningDecision) : "UNDECIDED";
 }

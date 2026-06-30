@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { getApplicantEvaluation, updateScreeningStatus } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
 import type { ApplicantEvaluation, ScreeningDecision } from "./types";
 
 const decisions: ScreeningDecision[] = ["UNDECIDED", "PASS", "HOLD", "FAIL"];
@@ -58,14 +58,29 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
   const report = evaluation?.report ?? null;
 
   return (
-    <main className="app-shell">
-      <CompanyNav active="evaluation" />
-      <section className="app-page">
+    <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">EVALUATION</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                ...(evaluation
+                  ? [
+                      {
+                        label: evaluation.recruitment.title,
+                        href: `/company/recruitments/${evaluation.recruitment.recruitmentId}`,
+                      },
+                      {
+                        label: "지원자 관리",
+                        href: `/company/recruitments/${evaluation.recruitment.recruitmentId}/applicants`,
+                      },
+                    ]
+                  : []),
+                { label: evaluation?.applicant.name ?? "평가 상세" },
+              ]}
+            />
             <h1>{evaluation?.applicant.name ?? "지원자 평가 상세"}</h1>
-            <p>{evaluation ? `${evaluation.recruitment.title} · ${evaluation.applicant.email}` : "지원자 평가 정보를 불러옵니다."}</p>
+            {evaluation ? <p className="page-sub">{evaluation.applicant.email}</p> : null}
           </div>
           {evaluation ? (
             <Link className="btn secondary" href={`/company/recruitments/${evaluation.recruitment.recruitmentId}/applicants`}>
@@ -175,7 +190,6 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
         ) : (
           <div className="empty">평가 상세를 불러오는 중입니다.</div>
         )}
-      </section>
-    </main>
+    </section>
   );
 }

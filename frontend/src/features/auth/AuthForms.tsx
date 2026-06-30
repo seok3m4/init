@@ -2,12 +2,63 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { apiFetch, setAccessToken, UserType } from "../../api/client";
+import { AuthTokenResponse, UserType, apiFetch, getDefaultEntryPath } from "../../api/client";
+import { useAuth } from "./AuthProvider";
 
-const nextPath = {
-  COMPANY: "/company/applications/dashboard",
-  CANDIDATE: "/candidate/mock-interview/start",
-} as const;
+function EyeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="m2 2 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M10.6 10.6A3 3 0 0 0 12 15a3 3 0 0 0 2.4-4.8"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M9.9 4.2A10.4 10.4 0 0 1 12 4.1c6.5 0 10 7 10 7a17.7 17.7 0 0 1-3.1 4.2"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M6.6 6.7C3.6 8.7 2 12 2 12s3.5 7 10 7a10.8 10.8 0 0 0 4.2-.9"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
 
 function PasswordField({
   label,
@@ -25,17 +76,24 @@ function PasswordField({
   return (
     <div className="field">
       <span className="label">{label}</span>
-      <div className="inline">
+      <div className="password-control">
         <input
-          className="input"
+          className="input password-input"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           type={visible ? "text" : "password"}
           autoComplete={autoComplete}
           required
         />
-        <button type="button" className="pw-toggle" onClick={() => setVisible((prev) => !prev)}>
-          {visible ? "숨기기" : "보기"}
+        <button
+          type="button"
+          className="pw-toggle"
+          onClick={() => setVisible((prev) => !prev)}
+          aria-label={visible ? "비밀번호 숨기기" : "비밀번호 보기"}
+          aria-pressed={visible}
+          title={visible ? "비밀번호 숨기기" : "비밀번호 보기"}
+        >
+          {visible ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       </div>
     </div>
@@ -66,8 +124,76 @@ function GoogleIcon() {
   );
 }
 
+function CompanySignupIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 21V7l8-4 8 4v14" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M9 21v-6h6v6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M8 9h.01M12 9h.01M16 9h.01M8 12h.01M12 12h.01M16 12h.01" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" />
+    </svg>
+  );
+}
+
+function CandidateSignupIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M5 21a7 7 0 0 1 14 0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M17.5 5.5 20 3M20 3v4M20 3h-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+const termsContent = {
+  COMPANY: {
+    title: "기업 회원 이용약관",
+    items: [
+      "기업 회원은 채용 공고, 지원자 초대, 평가 리포트 조회 기능을 채용 목적 범위 안에서 사용합니다.",
+      "지원자 개인정보와 평가 결과는 채용 검토 및 관련 법령 준수 목적 외로 사용할 수 없습니다.",
+      "계정 담당자는 회사 정보, 채용 공고, 초대 메일 내용이 정확하도록 관리해야 합니다.",
+      "서비스 안정성, 부정 사용 방지, 보안 사고 대응을 위해 필요한 접속 기록과 처리 이력이 보관될 수 있습니다.",
+    ],
+  },
+  CANDIDATE: {
+    title: "지원자 회원 이용약관",
+    items: [
+      "지원자 회원은 AI 모의면접, 채용 공고 조회, 지원서 제출, 면접 응시 기능을 본인 계정으로 사용합니다.",
+      "제출한 이력서, 포트폴리오, 면접 답변은 지원 및 평가 진행을 위해 처리될 수 있습니다.",
+      "지원자는 본인의 입력 정보가 정확하도록 관리하며, 타인의 정보를 무단으로 사용할 수 없습니다.",
+      "서비스 품질 개선, 보안, 분쟁 대응을 위해 필요한 이용 기록과 처리 상태가 보관될 수 있습니다.",
+    ],
+  },
+} as const;
+
+function TermsModal({ userType, onClose }: { userType: UserType; onClose: () => void }) {
+  const terms = termsContent[userType];
+  const titleId = `terms-title-${userType.toLowerCase()}`;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <section className="terms-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-head">
+          <h3 id={titleId}>{terms.title}</h3>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="약관 닫기">
+            ×
+          </button>
+        </div>
+        <div className="terms-body">
+          {terms.items.map((item) => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+        <button type="button" className="btn primary full lg" onClick={onClose}>
+          확인
+        </button>
+      </section>
+    </div>
+  );
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const { completeLogin } = useAuth();
   const [userType, setUserType] = useState<UserType>("COMPANY");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -77,12 +203,12 @@ export function LoginForm() {
     event.preventDefault();
     setMessage("");
     try {
-      const result = await apiFetch<{ accessToken: string }>("/auth/login", {
+      const result = await apiFetch<AuthTokenResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ userType, email, password }),
       });
-      setAccessToken(result.accessToken);
-      router.push(nextPath[userType]);
+      completeLogin(result);
+      router.replace(getDefaultEntryPath(result.user.userType));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
     }
@@ -124,8 +250,11 @@ export function LoginForm() {
 
       <div className="link-row">
         <button type="button" onClick={() => router.push("/password/reset")}>
-          ID / 비밀번호 찾기
+          비밀번호 재설정
         </button>
+        <span className="link-separator" aria-hidden="true">
+          |
+        </span>
         <button type="button" onClick={() => router.push("/signup")}>
           회원가입
         </button>
@@ -144,8 +273,6 @@ export function LoginForm() {
           </button>
         </>
       ) : null}
-
-      <div className="note">기업 로그인 → 지원현황 · 지원자 로그인 → AI 모의면접</div>
     </form>
   );
 }
@@ -164,7 +291,7 @@ export function SignupChoice() {
         <button type="button" className={`choice ${selected === "COMPANY" ? "sel" : ""}`} onClick={() => setSelected("COMPANY")}>
           <span className="ck">✓</span>
           <span className="ico" aria-hidden="true">
-            □
+            <CompanySignupIcon />
           </span>
           <h4>기업 회원가입</h4>
           <p>채용 프로젝트 운영, 지원자 초대 및 평가 리포트 확인</p>
@@ -172,7 +299,7 @@ export function SignupChoice() {
         <button type="button" className={`choice ${selected === "CANDIDATE" ? "sel" : ""}`} onClick={() => setSelected("CANDIDATE")}>
           <span className="ck">✓</span>
           <span className="ico" aria-hidden="true">
-            ○
+            <CandidateSignupIcon />
           </span>
           <h4>지원자 회원가입</h4>
           <p>AI 모의면접 연습, 채용 AI 면접 응시</p>
@@ -200,32 +327,67 @@ export function SignupForm({ userType }: { userType: UserType }) {
   });
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
+  const [sentEmail, setSentEmail] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+
+  const canResendCode = Boolean(sentEmail) && sentEmail === form.email && !emailVerified;
+  const canVerifyCode = Boolean(sentEmail) && sentEmail === form.email && form.code.length === 6 && !emailVerified;
 
   function update(name: string, value: string | boolean) {
+    if (name === "email" && typeof value === "string") {
+      const emailChangedAfterSend = Boolean(sentEmail) && value !== sentEmail;
+      setForm((prev) => ({ ...prev, email: value, code: emailChangedAfterSend ? "" : prev.code }));
+      if (emailChangedAfterSend) {
+        setSentEmail("");
+        setEmailVerified(false);
+        setOk(false);
+        setMessage("");
+      }
+      return;
+    }
+
+    if (name === "code" && typeof value === "string") {
+      setForm((prev) => ({ ...prev, code: value.replace(/\D/g, "").slice(0, 6) }));
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   async function sendCode() {
     setMessage("");
+    setIsSendingCode(true);
     try {
       await apiFetch("/auth/email/send-code", { method: "POST", body: JSON.stringify({ email: form.email }) });
+      setSentEmail(form.email);
+      setEmailVerified(false);
+      setForm((prev) => ({ ...prev, code: "" }));
       setOk(true);
       setMessage("인증 코드를 발송했습니다.");
     } catch (error) {
       setOk(false);
       setMessage(error instanceof Error ? error.message : "인증 코드 발송에 실패했습니다.");
+    } finally {
+      setIsSendingCode(false);
     }
   }
 
   async function verifyCode() {
     setMessage("");
+    setIsVerifyingCode(true);
     try {
       await apiFetch("/auth/email/verify-code", { method: "POST", body: JSON.stringify({ email: form.email, code: form.code }) });
+      setEmailVerified(true);
       setOk(true);
       setMessage("이메일 인증이 완료되었습니다.");
     } catch (error) {
       setOk(false);
       setMessage(error instanceof Error ? error.message : "인증 확인에 실패했습니다.");
+    } finally {
+      setIsVerifyingCode(false);
     }
   }
 
@@ -282,8 +444,8 @@ export function SignupForm({ userType }: { userType: UserType }) {
             placeholder={isCompany ? "company@example.com" : "email@example.com"}
             required
           />
-          <button type="button" className="btn" onClick={sendCode}>
-            인증 메일 발송
+          <button type="button" className="btn" onClick={sendCode} disabled={isSendingCode || emailVerified}>
+            {canResendCode ? "인증 메일 재발송" : "인증 메일 발송"}
           </button>
         </div>
       </div>
@@ -291,29 +453,53 @@ export function SignupForm({ userType }: { userType: UserType }) {
       <div className="field">
         <span className="label">인증 코드</span>
         <div className="inline">
-          <input className="input" value={form.code} onChange={(event) => update("code", event.target.value)} placeholder="인증 코드 입력" required />
-          <button type="button" className="btn" onClick={verifyCode}>
-            인증 확인
+          <input
+            className={`input ${emailVerified ? "input-readonly" : ""}`}
+            value={form.code}
+            onChange={(event) => update("code", event.target.value)}
+            placeholder="인증 코드 입력"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            readOnly={emailVerified}
+            required
+          />
+          <button type="button" className="btn" onClick={verifyCode} disabled={!canVerifyCode || isVerifyingCode}>
+            {emailVerified ? "인증 완료" : "인증 확인"}
           </button>
         </div>
       </div>
 
-      <div className="grid-2">
-        <PasswordField label="비밀번호" value={form.password} onChange={(value) => update("password", value)} autoComplete="new-password" />
-        <PasswordField
-          label="비밀번호 확인"
-          value={form.passwordConfirm}
-          onChange={(value) => update("passwordConfirm", value)}
-          autoComplete="new-password"
-        />
-      </div>
+      <PasswordField label="비밀번호" value={form.password} onChange={(value) => update("password", value)} autoComplete="new-password" />
+      <PasswordField
+        label="비밀번호 확인"
+        value={form.passwordConfirm}
+        onChange={(value) => update("passwordConfirm", value)}
+        autoComplete="new-password"
+      />
 
-      <div className="field">
+      <div className="field terms-field">
         <label className="tag">
           <input type="checkbox" checked={form.termsAgreed} onChange={(event) => update("termsAgreed", event.target.checked)} required />
-          필수 약관에 모두 동의합니다
+          <span>필수 약관에 모두 동의합니다</span>
+          <span className="tag-divider" aria-hidden="true">
+            |
+          </span>
+          <button
+            type="button"
+            className="terms-detail"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setTermsOpen(true);
+            }}
+          >
+            자세히 보기
+          </button>
         </label>
       </div>
+
+      {termsOpen ? <TermsModal userType={userType} onClose={() => setTermsOpen(false)} /> : null}
 
       <StatusMessage message={message} ok={ok} />
       <button className="btn primary full lg" type="submit">
@@ -328,32 +514,66 @@ export function PasswordResetForm() {
   const [form, setForm] = useState({ email: "", code: "", password: "", passwordConfirm: "" });
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
+  const [sentEmail, setSentEmail] = useState("");
+  const [codeVerified, setCodeVerified] = useState(false);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+
+  const canResendCode = Boolean(sentEmail) && sentEmail === form.email && !codeVerified;
+  const canVerifyCode = Boolean(sentEmail) && sentEmail === form.email && form.code.length === 6 && !codeVerified;
 
   function update(name: string, value: string) {
+    if (name === "email") {
+      const emailChangedAfterSend = Boolean(sentEmail) && value !== sentEmail;
+      setForm((prev) => ({ ...prev, email: value, code: emailChangedAfterSend ? "" : prev.code }));
+      if (emailChangedAfterSend) {
+        setSentEmail("");
+        setCodeVerified(false);
+        setOk(false);
+        setMessage("");
+      }
+      return;
+    }
+
+    if (name === "code") {
+      setForm((prev) => ({ ...prev, code: value.replace(/\D/g, "").slice(0, 6) }));
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   async function sendCode() {
     setMessage("");
+    setIsSendingCode(true);
     try {
       await apiFetch("/auth/password/send-code", { method: "POST", body: JSON.stringify({ email: form.email }) });
+      setSentEmail(form.email);
+      setCodeVerified(false);
+      setForm((prev) => ({ ...prev, code: "" }));
       setOk(true);
       setMessage("인증 코드를 발송했습니다.");
     } catch (error) {
       setOk(false);
       setMessage(error instanceof Error ? error.message : "인증 코드 발송에 실패했습니다.");
+    } finally {
+      setIsSendingCode(false);
     }
   }
 
   async function verifyCode() {
     setMessage("");
+    setIsVerifyingCode(true);
     try {
       await apiFetch("/auth/password/verify-code", { method: "POST", body: JSON.stringify({ email: form.email, code: form.code }) });
+      setCodeVerified(true);
       setOk(true);
       setMessage("인증이 완료되었습니다.");
     } catch (error) {
       setOk(false);
       setMessage(error instanceof Error ? error.message : "인증 확인에 실패했습니다.");
+    } finally {
+      setIsVerifyingCode(false);
     }
   }
 
@@ -379,8 +599,8 @@ export function PasswordResetForm() {
         <span className="label">가입 이메일</span>
         <div className="inline">
           <input className="input" value={form.email} onChange={(event) => update("email", event.target.value)} type="email" autoComplete="email" placeholder="email@example.com" required />
-          <button type="button" className="btn" onClick={sendCode}>
-            코드 발송
+          <button type="button" className="btn" onClick={sendCode} disabled={isSendingCode || codeVerified}>
+            {canResendCode ? "코드 재발송" : "코드 발송"}
           </button>
         </div>
       </div>
@@ -388,9 +608,19 @@ export function PasswordResetForm() {
       <div className="field">
         <span className="label">인증 코드</span>
         <div className="inline">
-          <input className="input" value={form.code} onChange={(event) => update("code", event.target.value)} placeholder="인증 코드 입력" required />
-          <button type="button" className="btn" onClick={verifyCode}>
-            인증 확인
+          <input
+            className={`input ${codeVerified ? "input-readonly" : ""}`}
+            value={form.code}
+            onChange={(event) => update("code", event.target.value)}
+            placeholder="인증 코드 입력"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            readOnly={codeVerified}
+            required
+          />
+          <button type="button" className="btn" onClick={verifyCode} disabled={!canVerifyCode || isVerifyingCode}>
+            {codeVerified ? "인증 완료" : "인증 확인"}
           </button>
         </div>
       </div>
@@ -403,7 +633,6 @@ export function PasswordResetForm() {
         autoComplete="new-password"
       />
 
-      <div className="note">보기를 누르면 가려진 비밀번호 입력값을 잠깐 확인할 수 있습니다.</div>
       <StatusMessage message={message} ok={ok} />
       <button className="btn primary full lg reset-submit" type="submit">
         비밀번호 재설정

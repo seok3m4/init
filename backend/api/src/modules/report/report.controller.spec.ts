@@ -16,6 +16,7 @@ type ReportControllerRoute =
   | "listMockReports"
   | "getMockReportFeedback"
   | "getMockReportMedia"
+  | "requestMockReportGeneration"
   | "getApplicationReport"
   | "getApplicationStatus";
 
@@ -53,6 +54,7 @@ assert.equal(Reflect.getMetadata(PATH_METADATA, ReportController), reportApiRout
 assertRoute("listMockReports", reportApiRoutes.mockReports, RequestMethod.GET);
 assertRoute("getMockReportFeedback", reportApiRoutes.mockFeedback, RequestMethod.GET);
 assertRoute("getMockReportMedia", reportApiRoutes.mockMedia, RequestMethod.GET);
+assertRoute("requestMockReportGeneration", reportApiRoutes.mockGenerate, RequestMethod.POST, 202);
 assertRoute("getApplicationReport", reportApiRoutes.applicationReport, RequestMethod.GET);
 assertRoute("getApplicationStatus", reportApiRoutes.applicationStatus, RequestMethod.GET);
 
@@ -171,6 +173,13 @@ async function runReportControllerAssertions() {
   assert.equal(media.data.media[0]?.videoFile?.status, "ACTIVE");
   assert.equal(media.data.media[0]?.transcriptStatus, "PENDING");
   assert.ok(media.data.media[0]?.questionContent);
+
+  const generation = await controller.requestMockReportGeneration(validCandidateRequest, String(mockReportId));
+  assert.equal(generation.data.accepted, true);
+  assert.equal(generation.data.processType, "REPORT_GENERATE");
+  assert.equal(generation.data.reportId, mockReportId);
+  assert.equal(generation.data.answerIds.length, 2);
+  assert.equal(generation.data.callbackTopic, "ai.report.generate.requested");
 
   await assertReportHttpError(
     () => controller.getMockReportFeedback(otherCandidateRequest, String(mockReportId)),

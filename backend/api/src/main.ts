@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import cookieParser from "cookie-parser";
-import { ValidationPipe } from "@nestjs/common";
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./modules/app.module";
 import { ApiExceptionFilter } from "./shared/api-exception.filter";
@@ -34,7 +34,14 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  setupSwagger(app);
+  if (process.env.DISABLE_SWAGGER !== "true") {
+    try {
+      setupSwagger(app);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new Logger("Swagger").warn(`Swagger setup skipped: ${message}`);
+    }
+  }
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);

@@ -53,6 +53,8 @@ export type CreateRecruitmentInput = {
   status: "DRAFT" | "OPEN";
 };
 
+export type UpdateRecruitmentInput = CreateRecruitmentInput;
+
 export type Applicant = {
   applicantId: number;
   applicationId: number;

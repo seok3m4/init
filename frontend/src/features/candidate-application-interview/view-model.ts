@@ -124,7 +124,7 @@ export const defaultDeviceCheckState: CandidateDeviceCheckState = {
 };
 
 export const defaultStartMockInterviewState: StartMockInterviewState = {
-  jobRole: "",
+  jobRole: "Backend",
   difficulty: "NORMAL",
   questionTypes: ["INTRO", "TECHNICAL", "EXPERIENCE", "CLOSING"],
   showQuestionText: false,
@@ -299,7 +299,7 @@ export function toStartMockInterviewRequest(state: StartMockInterviewState): Sta
     jobRole: state.jobRole.trim() || undefined,
     difficulty: state.difficulty,
     questionTypes: state.questionTypes?.length ? state.questionTypes : undefined,
-    showQuestionText: state.showQuestionText,
+    showQuestionText: true,
   };
 }
 

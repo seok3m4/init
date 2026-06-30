@@ -1,3 +1,5 @@
+import { authFetch } from "../../api/client";
+
 export type PostingStatus = "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
 export type CandidateJobListPostingStatus = Extract<PostingStatus, "OPEN" | "CLOSING_SOON">;
 export type SortOrder = "asc" | "desc";
@@ -371,20 +373,29 @@ export interface CompleteInterviewResponse {
 
 export interface AiInterviewRequest {
   answerId?: number;
+  audioFileId?: number;
+  audioS3Key?: string;
+  previousQuestion?: string;
+  transcript?: string;
+  jobDescription?: string;
+  documentSummary?: string;
 }
 
 export interface AiInterviewHandoffResponse {
-  accepted: true;
+  accepted?: true;
+  processLogId?: number;
   processType: "STT" | "FOLLOW_UP";
-  status: "PENDING";
-  sessionId: number;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  queued?: boolean;
+  inputRef?: string;
+  sessionId?: number;
   applicationId?: number;
-  answerId: number;
-  questionId: number;
+  answerId?: number;
+  questionId?: number;
   fileId?: number;
   videoFileId?: number;
   audioFileId?: number;
-  callbackTopic: string;
+  callbackTopic?: string;
 }
 
 export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
@@ -636,7 +647,7 @@ export interface CandidateApiClient {
 }
 
 export function createCandidateApiClient(options: CandidateApiClientOptions = {}): CandidateApiClient {
-  const fetcher = options.fetcher ?? fetch;
+  const fetcher = options.fetcher ?? fetchWithAuth;
 
   async function request<T>(
     path: string,
@@ -772,6 +783,10 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         body: JSON.stringify(body),
       }),
   };
+}
+
+function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit) {
+  return authFetch(input instanceof Request ? input.url : input, init);
 }
 
 type CandidateJobQueryParams = Partial<Record<keyof CandidateJobQuery, string | number | undefined>>;

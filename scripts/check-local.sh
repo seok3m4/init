@@ -186,12 +186,12 @@ verify_ownership() {
   local baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|frontend/(eslint\.config\.mjs|next\.config\.js|tsconfig\.json)|backend/(api|common|worker)/package(-lock)?\.json|backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)|backend/common/tsconfig\.json|backend/worker/tsconfig\.json)'
   local pattern
   case "$ROLE" in
-    A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^frontend/src/api/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/layout\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^frontend/src/app/(company/layout\.tsx|company/interviews/)|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
+    D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
     E) pattern="($common|$baseline|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    PM) pattern="($common|$baseline|^docs/|^assets/)" ;;
+    PM) pattern="($common|$baseline|^docs/|^assets/|^design\.md$)" ;;
   esac
 
   local blocked=0

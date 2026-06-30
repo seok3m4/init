@@ -1,69 +1,22 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type CompanyNavSection = "postings" | "recruitments" | "applicants" | "evaluation";
-
-function Caret() {
-  return (
-    <svg
-      className="caret"
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
+type CompanyNavSection = "postings" | "mypage";
 
 export function CompanyNav({ active }: { active: CompanyNavSection }) {
-  const statusActive = active === "postings" || active === "applicants" || active === "evaluation";
-
   return (
     <header className="gnb">
       <div className="gnb-inner">
-        <Link className="brand" href="/company/applications/dashboard">
+        <Link className="brand" href="/company/recruitments">
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
         <nav className="gnb-menu" aria-label="기업 메뉴">
-          <div className={`gnb-item ${statusActive ? "active" : ""}`}>
-            <Link className="gnb-link" href="/company/applications/dashboard" aria-current={statusActive ? "page" : undefined}>
-              지원현황
-              <Caret />
+          <div className={`gnb-item ${active === "postings" ? "active" : ""}`}>
+            <Link className="gnb-link" href="/company/recruitments" aria-current={active === "postings" ? "page" : undefined}>
+              공고 목록
             </Link>
-            <div className="gnb-panel">
-              <Link className={active === "postings" ? "active" : ""} href="/company/applications/dashboard">
-                공고 관리
-              </Link>
-            </div>
           </div>
-          <div className={`gnb-item ${active === "recruitments" ? "active" : ""}`}>
-            <Link
-              className="gnb-link"
-              href="/company/recruitments"
-              aria-current={active === "recruitments" ? "page" : undefined}
-            >
-              채용관리
-              <Caret />
-            </Link>
-            <div className="gnb-panel">
-              <Link className={active === "recruitments" ? "active" : ""} href="/company/recruitments">
-                채용 공고 관리
-              </Link>
-              {/* 면접 관리: C 담당 범위. 전용 route 미구현 상태이므로 안전한 placeholder 유지 */}
-              <span className="gnb-soon" aria-disabled="true" title="준비 중">
-                면접 관리
-              </span>
-            </div>
-          </div>
-          <div className="gnb-item">
-            {/* 마이페이지: 기능 정의서상 기업 상세 경로 미확정. placeholder 유지 */}
+          <div className={`gnb-item ${active === "mypage" ? "active" : ""}`}>
             <span className="gnb-link gnb-soon" aria-disabled="true" title="준비 중">
               마이페이지
             </span>
@@ -95,7 +48,54 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
   );
 }
 
+type CrumbItem = {
+  label: string;
+  href?: string;
+};
+
+export function Breadcrumb({ items }: { items: CrumbItem[] }) {
+  return (
+    <nav className="crumb" aria-label="현재 위치">
+      {items.map((item, index) => (
+        <span className="crumb-segment" key={`${item.label}-${index}`}>
+          {item.href ? (
+            <Link href={item.href}>{item.label}</Link>
+          ) : (
+            <span aria-current="page">{item.label}</span>
+          )}
+          {index < items.length - 1 ? (
+            <span className="crumb-sep" aria-hidden="true">
+              /
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+const SUCCESS_STATUSES = new Set(["OPEN", "PASS", "COMPLETED", "DONE", "GENERATED", "SENT", "DELIVERED"]);
+const WARNING_STATUSES = new Set(["CLOSING_SOON", "HOLD", "IN_PROGRESS", "GENERATING", "PENDING", "REQUESTED"]);
+const DANGER_STATUSES = new Set(["FAIL", "CLOSED", "FAILED", "REJECTED"]);
+const NEUTRAL_STATUSES = new Set(["DRAFT", "ARCHIVED", "UNDECIDED", "NONE_OR_GENERATING"]);
+
+const STATUS_LABELS: Record<string, string> = {
+  OPEN: "모집중",
+  DRAFT: "작성중",
+  CLOSING_SOON: "마감임박",
+  CLOSED: "마감",
+  ARCHIVED: "보관",
+};
+
 export function StatusBadge({ value }: { value: string }) {
-  const tone = value === "OPEN" ? "success" : value === "DRAFT" ? "neutral" : "warning";
-  return <span className={`badge ${tone}`}>{value}</span>;
+  const tone = SUCCESS_STATUSES.has(value)
+    ? "success"
+    : DANGER_STATUSES.has(value)
+      ? "danger"
+      : WARNING_STATUSES.has(value)
+        ? "warning"
+        : NEUTRAL_STATUSES.has(value)
+          ? "neutral"
+          : "info";
+  return <span className={`badge ${tone}`}>{STATUS_LABELS[value] ?? value}</span>;
 }
