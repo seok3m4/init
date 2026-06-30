@@ -9,8 +9,8 @@ type HeaderMap = Record<string, string | string[] | undefined>;
 @Controller("ai/guardrails")
 export class AiGuardrailsController {
   constructor(
-    private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly guardrailService: GuardrailService,
+    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(GuardrailService) private readonly guardrailService: GuardrailService,
     @Inject(REPORT_REPOSITORY) private readonly repository: ReportRepository
   ) {}
 
