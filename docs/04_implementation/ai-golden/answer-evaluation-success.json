@@ -23,6 +23,7 @@
   "expected": {
     "outputShape": {
       "scores": "array",
+      "questionEvaluations": "array",
       "evidences": "array",
       "guardrail": "object",
       "stored": "object"

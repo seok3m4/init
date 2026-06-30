@@ -81,6 +81,7 @@
       "^frontend/src/app/(reports|ai)/",
       "^backend/worker/",
       "^backend/api/src/modules/(report|ai)/",
+      "^backend/api/scripts/report-smoke\\.ts$",
       "^docs/04_implementation/ai-golden/"
     ],
     "PM": [

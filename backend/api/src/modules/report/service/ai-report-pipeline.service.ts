@@ -57,6 +57,7 @@ export class AiReportPipelineService {
 
     try {
       const scores = this.mockProvider.evaluateAnswers(command.body);
+      const questionEvaluations = this.mockProvider.evaluateQuestions(command.body);
       const guardrail = this.guardrailService.validateScores(command.body.reportType, scores);
       await this.repository.saveGuardrailLog(processLog.processLogId, "ANSWER_EVIDENCE_REQUIRED", guardrail);
 
@@ -66,6 +67,7 @@ export class AiReportPipelineService {
         return {
           ...failed,
           scores,
+          questionEvaluations,
           guardrail,
           stored: await this.repository.countStored(command.reportId)
         };
@@ -77,6 +79,7 @@ export class AiReportPipelineService {
       return {
         ...(await this.baseResult(command.reportId, completedProcess)),
         scores,
+        questionEvaluations,
         guardrail,
         stored
       };
@@ -85,6 +88,7 @@ export class AiReportPipelineService {
       return {
         ...failed,
         scores: [],
+        questionEvaluations: [],
         guardrail: { result: "BLOCKED", reason: failed.failure?.reason ?? "answer evaluation failed" },
         stored: await this.repository.countStored(command.reportId)
       };
@@ -154,6 +158,7 @@ export class AiReportPipelineService {
         summary: "",
         totalScore: 0,
         scores: [],
+        questionEvaluations: [],
         guardrail: { result: "BLOCKED", reason: failed.failure?.reason ?? "report generation failed" },
         stored: await this.repository.countStored(command.reportId)
       };

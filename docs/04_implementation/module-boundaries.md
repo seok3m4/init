@@ -53,6 +53,7 @@ App Router의 `frontend/src/app` 경로는 화면 도메인 기준으로 feature
 | --- | --- | --- |
 | `backend/api/src/modules/health` | A | 배포/헬스체크와 런타임 상태 |
 | `backend/api/src/swagger` | A | OpenAPI/Swagger 공통 문서화 DTO |
+| `backend/api/scripts/report-smoke.ts` | E | AI 리포트 smoke 검증 |
 
 ### Ownership Map Baseline
 

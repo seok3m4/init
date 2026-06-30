@@ -2,7 +2,9 @@ import {
   AiResultRepository,
   CommunicationAnalysisRecord,
   GeneratedDraftRecord,
+  GeneratedQuestionEvaluationRecord,
   GeneratedReportRecord,
+  GeneratedReportConfidenceRecord,
   GeneratedReportScoreRecord,
   hashSourceText
 } from "./ai-result.repository";
@@ -12,6 +14,11 @@ import { AiTaskHandler, AiTaskResult, AiWorkerJob } from "./worker.types";
 interface WorkerInput {
   kind?: string;
   payload?: Record<string, unknown>;
+}
+
+interface StructuredReportEvaluation {
+  scores: GeneratedReportScoreRecord[];
+  questionEvaluations: GeneratedQuestionEvaluationRecord[];
 }
 
 const MOCK_HIRING_DECISION_TERMS = [
@@ -210,7 +217,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
   private answerEvaluation(payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     const reportType = reportTypeOf(payload.reportType);
     const reportId = optionalPositiveNumber(payload.reportId, "reportId") ?? processLogId;
-    const scores = this.scoreReport(
+    const { scores, questionEvaluations } = this.scoreReport(
       criteriaOf(payload.criteria),
       answersOf(payload.answers),
       typeof payload.documentText === "string" ? payload.documentText : undefined
@@ -223,6 +230,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
         processLogId,
         report: reportSnapshot(reportId, reportType),
         scores,
+        questionEvaluations,
         evidences,
         guardrail,
         stored: {
@@ -294,7 +302,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
         ? [{ answerId: 1, transcript: generatedSummary }]
         : answersOf(payload.answers);
     const documentText = typeof payload.documentText === "string" ? payload.documentText : undefined;
-    const scores = this.scoreReport(criteria, answers, documentText);
+    const { scores, questionEvaluations } = this.scoreReport(criteria, answers, documentText);
     const totalScore = Math.round(scores.reduce((sum, score) => sum + score.score, 0) / scores.length);
     const summary = generatedSummary ?? (reportType === "RECRUITING_REPORT"
         ? `Recruiting report generated from ${answers.length} answer(s) for ${shorten(jobDescription)}.`
@@ -304,7 +312,8 @@ export class MockAiTaskHandler implements AiTaskHandler {
       reportType,
       summary,
       totalScore,
-      scores
+      scores,
+      questionEvaluations
     };
     const guardrail = this.validateReport(report);
 
@@ -315,6 +324,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
         summary,
         totalScore,
         scores,
+        questionEvaluations,
         evidences: scores.flatMap((score) => score.evidences),
         guardrail
       }),
@@ -438,41 +448,67 @@ export class MockAiTaskHandler implements AiTaskHandler {
   }
 
   private scoreReport(
-    criteria: Array<{ criterionId: number; name: string; weight: number }>,
-    answers: Array<{ answerId: number; transcript: string }>,
+    criteria: Array<{ criterionId: number; name: string; weight: number; description?: string }>,
+    answers: Array<{ answerId: number; question?: string; transcript: string }>,
     documentText?: string
-  ): GeneratedReportScoreRecord[] {
-    return criteria.map((criterion, index) => {
+  ): StructuredReportEvaluation {
+    const scores: GeneratedReportScoreRecord[] = [];
+    const questionEvaluations: GeneratedQuestionEvaluationRecord[] = [];
+
+    criteria.forEach((criterion, index) => {
       const answer = answers[index % answers.length];
       const evidenceText = pickEvidence(answer.transcript, documentText);
       const score = Math.min(95, 70 + Math.min(10, Math.round(criterion.weight / 10)) + Math.min(10, Math.floor(evidenceText.length / 30)));
-      return {
+      const structured = structuredAssessment(answer.transcript, documentText, criterion.description);
+      const evidences: GeneratedReportScoreRecord["evidences"] = [
+        {
+          sourceType: "INTERVIEW_ANSWER",
+          answerId: answer.answerId,
+          text: pickEvidence(answer.transcript)
+        },
+        ...(documentText?.trim()
+          ? [
+              {
+                sourceType: "APPLICATION_DOCUMENT" as const,
+                documentRef: "payload.documentText",
+                text: pickEvidence(documentText)
+              }
+            ]
+          : [])
+      ];
+      const reportScore: GeneratedReportScoreRecord = {
         criterionId: criterion.criterionId,
         criterionName: criterion.name,
         score,
-        rationale: `${criterion.name} was evaluated from interview answer and document evidence.`,
-        evidences: [
-          {
-            sourceType: "INTERVIEW_ANSWER",
-            answerId: answer.answerId,
-            text: pickEvidence(answer.transcript)
-          },
-          ...(documentText?.trim()
-            ? [
-                {
-                  sourceType: "APPLICATION_DOCUMENT" as const,
-                  documentRef: "payload.documentText",
-                  text: pickEvidence(documentText)
-                }
-              ]
-            : [])
-        ]
+        rationale: `${criterion.name} was evaluated from structured interview answer evidence.`,
+        rubricAnchor: structured.rubricAnchor,
+        confidence: structured.confidence,
+        uncertaintyReasons: structured.uncertaintyReasons,
+        evidences
       };
+
+      scores.push(reportScore);
+      questionEvaluations.push({
+        criterionId: criterion.criterionId,
+        criterionName: criterion.name,
+        answerId: answer.answerId,
+        question: answer.question ?? `Answer ${answer.answerId}`,
+        rubricAnchor: structured.rubricAnchor,
+        confidence: structured.confidence,
+        uncertaintyReasons: structured.uncertaintyReasons,
+        evidences
+      });
     });
+
+    return { scores, questionEvaluations };
   }
 
   private validateReport(report: GeneratedReportRecord) {
-    return this.validateScores(report.reportType, report.scores, report.summary);
+    const scoreDecision = this.validateScores(report.reportType, report.scores, report.summary);
+    if (scoreDecision.result === "BLOCKED") {
+      return scoreDecision;
+    }
+    return this.validateQuestionEvaluations(report.questionEvaluations);
   }
 
   private validateScores(
@@ -481,6 +517,27 @@ export class MockAiTaskHandler implements AiTaskHandler {
     summary = ""
   ) {
     for (const score of scores) {
+      if (!score.rubricAnchor?.trim()) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `rubric anchor is required for criterion ${score.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (!["HIGH", "MEDIUM", "LOW"].includes(score.confidence)) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `confidence is required for criterion ${score.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (!Array.isArray(score.uncertaintyReasons)) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `uncertainty reasons are required for criterion ${score.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
       if (!score.rationale.trim()) {
         return {
           result: "BLOCKED" as const,
@@ -501,9 +558,68 @@ export class MockAiTaskHandler implements AiTaskHandler {
       const combinedText = [
         summary,
         ...scores.map((score) => score.rationale),
+        ...scores.map((score) => score.rubricAnchor),
+        ...scores.flatMap((score) => score.uncertaintyReasons),
         ...scores.flatMap((score) => score.evidences.map((evidence) => evidence.text))
       ].join("\n");
       return this.validateMockPolicy("MOCK", combinedText);
+    }
+
+    return { result: "PASS" as const, reason: null };
+  }
+
+  private validateQuestionEvaluations(questionEvaluations: GeneratedQuestionEvaluationRecord[]) {
+    if (!Array.isArray(questionEvaluations) || questionEvaluations.length === 0) {
+      return {
+        result: "BLOCKED" as const,
+        reason: "question evaluations are required",
+        failureCategory: "NON_RETRYABLE" as const
+      };
+    }
+
+    for (const evaluation of questionEvaluations) {
+      if (!evaluation.answerId || !evaluation.question?.trim()) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `question evaluation source is required for criterion ${evaluation.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (!evaluation.rubricAnchor?.trim()) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `question evaluation rubric anchor is required for criterion ${evaluation.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (!["HIGH", "MEDIUM", "LOW"].includes(evaluation.confidence)) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `question evaluation confidence is required for criterion ${evaluation.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (!Array.isArray(evaluation.uncertaintyReasons)) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `question evaluation uncertainty reasons are required for criterion ${evaluation.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (evaluation.uncertaintyReasons.some((reason) => !reason.trim())) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `question evaluation uncertainty reasons must be non-empty for criterion ${evaluation.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
+      if (!Array.isArray(evaluation.evidences) || evaluation.evidences.length === 0) {
+        return {
+          result: "BLOCKED" as const,
+          reason: `question evaluation evidence is required for criterion ${evaluation.criterionId}`,
+          failureCategory: "NON_RETRYABLE" as const
+        };
+      }
     }
 
     return { result: "PASS" as const, reason: null };
@@ -592,7 +708,7 @@ function reportTypeOf(value: unknown): GeneratedReportRecord["reportType"] {
   throw new NonRetryableAiWorkerFailure("reportType is invalid");
 }
 
-function criteriaOf(value: unknown): Array<{ criterionId: number; name: string; weight: number }> {
+function criteriaOf(value: unknown): Array<{ criterionId: number; name: string; weight: number; description?: string }> {
   if (!Array.isArray(value) || value.length === 0) {
     throw new NonRetryableAiWorkerFailure("criteria is required");
   }
@@ -605,12 +721,13 @@ function criteriaOf(value: unknown): Array<{ criterionId: number; name: string; 
     return {
       criterionId: positiveNumber(record.criterionId, "criterionId"),
       name: requiredText(record.name, "criterion name"),
+      description: typeof record.description === "string" ? record.description : undefined,
       weight: Number.isFinite(Number(record.weight)) ? Number(record.weight) : 0
     };
   });
 }
 
-function answersOf(value: unknown): Array<{ answerId: number; transcript: string }> {
+function answersOf(value: unknown): Array<{ answerId: number; question?: string; transcript: string }> {
   if (!Array.isArray(value) || value.length === 0) {
     throw new NonRetryableAiWorkerFailure("answers is required");
   }
@@ -622,6 +739,7 @@ function answersOf(value: unknown): Array<{ answerId: number; transcript: string
     const record = item as Record<string, unknown>;
     return {
       answerId: positiveNumber(record.answerId, "answerId"),
+      question: typeof record.question === "string" ? record.question : undefined,
       transcript: requiredText(record.transcript, "transcript")
     };
   });
@@ -630,6 +748,46 @@ function answersOf(value: unknown): Array<{ answerId: number; transcript: string
 function pickEvidence(transcript: string, documentText?: string): string {
   const source = transcript.trim() || documentText?.trim() || "";
   return shorten(source);
+}
+
+function structuredAssessment(
+  transcript: string,
+  documentText?: string,
+  criterionDescription?: string
+): {
+  rubricAnchor: string;
+  confidence: GeneratedReportConfidenceRecord;
+  uncertaintyReasons: string[];
+} {
+  const combined = `${transcript}\n${documentText ?? ""}`.toLowerCase();
+  const hasAction = /\b(found|analyzed|improved|optimized|built|designed|implemented|resolved|added|reduced)\b/.test(
+    combined
+  );
+  const hasResult = /\b(result|performance|latency|cache|ttl|policy|policies|reduced|improved|increased)\b/.test(
+    combined
+  );
+  const hasMetric = /\d|%|ms|sec|minute|hour|x\b/.test(combined);
+  const hasDocumentContext = Boolean(documentText?.trim());
+  const uncertaintyReasons = [
+    ...(hasMetric ? [] : ["No explicit measurable outcome was provided."]),
+    ...(hasDocumentContext ? [] : ["Application document evidence was not provided."]),
+    ...(hasAction ? [] : ["Candidate action is not explicit in the answer."]),
+    ...(hasResult ? [] : ["Result or impact is not explicit in the answer."])
+  ];
+  const confidence: GeneratedReportConfidenceRecord =
+    hasAction && hasResult && hasDocumentContext
+      ? "HIGH"
+      : hasAction && (hasResult || hasDocumentContext)
+        ? "MEDIUM"
+        : "LOW";
+
+  return {
+    rubricAnchor: criterionDescription?.trim()
+      ? `Matches criterion: ${shorten(criterionDescription)}`
+      : "Structured interview evidence is mapped to the requested evaluation criterion.",
+    confidence,
+    uncertaintyReasons
+  };
 }
 
 function shorten(value: string): string {
