@@ -64,6 +64,12 @@ export type CreateInterviewQuestionInput = {
   content: string;
 };
 
+export type UpdateInterviewQuestionInput = {
+  criterionId: number;
+  questionType: QuestionType;
+  content: string;
+};
+
 export type CreateInterviewQuestionResult = {
   postingId: number;
   question: {

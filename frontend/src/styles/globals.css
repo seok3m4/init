@@ -514,6 +514,10 @@ textarea:focus {
   gap: 12px;
 }
 
+.question-list {
+  margin-top: 18px;
+}
+
 .posting {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) auto auto auto;
@@ -795,6 +799,44 @@ td select,
 td input {
   min-height: 38px;
   min-width: 120px;
+}
+
+.criteria-table {
+  min-width: 900px;
+  table-layout: fixed;
+}
+
+.criteria-col-order,
+.criteria-cell-order {
+  width: 72px;
+}
+
+.criteria-col-score,
+.criteria-cell-score {
+  width: 92px;
+}
+
+.criteria-col-actions {
+  width: 88px;
+}
+
+.criteria-cell-order input {
+  width: 56px;
+  min-width: 56px;
+}
+
+.criteria-cell-score input {
+  min-width: 72px;
+}
+
+.criteria-table td {
+  vertical-align: middle;
+}
+
+.criteria-table td span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .autosave-field {

@@ -116,6 +116,46 @@ describe('CompanyInterviewService', () => {
     );
   });
 
+  it('updates and deactivates interview questions', async () => {
+    const service = createService();
+    const updated = await service.updateQuestion(companyUser, 1, {
+      criterionId: 2,
+      questionType: 'EXPERIENCE',
+      content: '데이터 모델 변경을 리뷰어에게 설명했던 경험을 말해주세요.',
+    });
+
+    assert.equal(updated.question.questionType, 'EXPERIENCE');
+    assert.equal(updated.question.criterionId, 2);
+
+    await assertConflict(() =>
+      service.updateQuestion(companyUser, 1, {
+        criterionId: 2,
+        questionType: 'EXPERIENCE',
+        content: '평가 기준과 질문 뱅크의 관계를 어떻게 모델링하시겠습니까?',
+      }),
+    );
+
+    const deleted = await service.deleteQuestion(companyUser, 1);
+    assert.equal(deleted.question.isActive, false);
+    assert.equal((await service.getSettings(companyUser, { postingId: 1 })).questions.length, 2);
+  });
+
+  it('hides questions linked to removed evaluation criteria', async () => {
+    const service = createService();
+
+    await service.updateEvaluationCriteria(companyUser, {
+      postingId: 1,
+      criteria: [
+        { criterionId: 1, tagId: 1, weight: 100, passScore: 70, sortOrder: 1 },
+      ],
+    });
+
+    const settings = await service.getSettings(companyUser, { postingId: 1 });
+    assert.equal(settings.criteria.length, 1);
+    assert.equal(settings.questions.length, 1);
+    assert.equal(settings.questions[0].criterionId, 1);
+  });
+
   it('updates the interview time policy and validates runtime bounds', async () => {
     const service = createService();
     const result = await service.updateTimePolicy(companyUser, {

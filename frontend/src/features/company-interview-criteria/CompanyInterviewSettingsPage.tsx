@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { StatusBadge } from "../company-recruiting/CompanyRecruitingChrome";
-import { createInterviewQuestion, getInterviewSettings, updateEvaluationCriteria } from "./api";
+import {
+  createInterviewQuestion,
+  deleteInterviewQuestion,
+  getInterviewSettings,
+  updateEvaluationCriteria,
+  updateInterviewQuestion,
+} from "./api";
 import type { InterviewSettings, QuestionType } from "./types";
 
 type CriteriaDraft = {
@@ -44,6 +50,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   const [criteriaDrafts, setCriteriaDrafts] = useState<CriteriaDraft[]>([]);
   const [selectedTagId, setSelectedTagId] = useState("");
   const [questionForm, setQuestionForm] = useState<QuestionForm>(initialQuestionForm);
+  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [criteriaSaving, setCriteriaSaving] = useState(false);
@@ -61,10 +68,11 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       setSettings(response.data);
       setCriteriaDrafts(toCriteriaDrafts(response.data));
       setSelectedTagId("");
-      setQuestionForm((current) => ({
-        ...current,
-        criterionId: current.criterionId || String(response.data.criteria[0]?.criterionId ?? ""),
-      }));
+      setEditingQuestionId(null);
+      setQuestionForm({
+        ...initialQuestionForm,
+        criterionId: String(response.data.criteria[0]?.criterionId ?? ""),
+      });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "면접 설정을 불러오지 못했습니다.");
     } finally {
@@ -119,6 +127,21 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   }
 
   function removeCriteriaDraft(draftId: string) {
+    if (!settings) return;
+    const criterion = criteriaDrafts.find((item) => item.draftId === draftId);
+    const linkedQuestionCount =
+      criterion?.criterionId === undefined
+        ? 0
+        : settings.questions.filter((question) => question.criterionId === criterion.criterionId).length;
+    if (
+      linkedQuestionCount > 0 &&
+      !window.confirm(
+        `이 평가 기준에 연결된 질문 ${linkedQuestionCount}개가 있습니다. 계속 진행하면 저장 시 연결된 질문이 비활성화됩니다. 계속하시겠습니까?`,
+      )
+    ) {
+      return;
+    }
+
     setCriteriaError("");
     setCriteriaDrafts((current) => current.filter((criterion) => criterion.draftId !== draftId));
   }
@@ -150,8 +173,8 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     setCriteriaError("");
     try {
       const response = await updateEvaluationCriteria({
-        postingId: settings.posting.postingId,
-        criteria: criteriaDrafts.map((criterion) => ({
+          postingId: settings.posting.postingId,
+        criteria: normalizeCriteriaOrder(criteriaDrafts).map((criterion) => ({
           criterionId: criterion.criterionId,
           tagId: criterion.tagId,
           weight: toNumber(criterion.weight),
@@ -193,10 +216,25 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     setQuestionForm((current) => ({ ...current, [field]: value }));
   }
 
-  function resetQuestionForm(nextCriterionId = questionForm.criterionId) {
+  function resetQuestionEditor(nextCriterionId = questionForm.criterionId) {
+    setEditingQuestionId(null);
     setQuestionForm({
       ...initialQuestionForm,
       criterionId: nextCriterionId,
+    });
+  }
+
+  function startQuestionEdit(question: InterviewSettings["questions"][number]) {
+    if (question.criterionId === null) {
+      setQuestionError("평가 기준이 연결된 질문만 수정할 수 있습니다.");
+      return;
+    }
+    setEditingQuestionId(question.questionId);
+    setQuestionError("");
+    setQuestionForm({
+      criterionId: String(question.criterionId),
+      questionType: question.questionType,
+      content: question.content,
     });
   }
 
@@ -206,7 +244,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
     const criterionId = Number(questionForm.criterionId);
     const content = questionForm.content.trim();
-    const validationMessage = validateQuestionForm(settings, criterionId, content);
+    const validationMessage = validateQuestionForm(settings, criterionId, content, editingQuestionId);
     if (validationMessage) {
       setQuestionError(validationMessage);
       return;
@@ -215,24 +253,63 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     setQuestionSaving(true);
     setQuestionError("");
     try {
-      const response = await createInterviewQuestion({
-        postingId: settings.posting.postingId,
-        criterionId,
-        questionType: questionForm.questionType,
-        content,
-      });
+      const response =
+        editingQuestionId === null
+          ? await createInterviewQuestion({
+              postingId: settings.posting.postingId,
+              criterionId,
+              questionType: questionForm.questionType,
+              content,
+            })
+          : await updateInterviewQuestion(editingQuestionId, {
+              criterionId,
+              questionType: questionForm.questionType,
+              content,
+            });
 
       setSettings((current) =>
         current
           ? {
               ...current,
-              questions: [...current.questions, response.data.question],
+              questions:
+                editingQuestionId === null
+                  ? [...current.questions, response.data.question]
+                  : current.questions.map((question) =>
+                      question.questionId === response.data.question.questionId ? response.data.question : question,
+                    ),
             }
           : current,
       );
-      resetQuestionForm(String(criterionId));
+      resetQuestionEditor(String(criterionId));
     } catch (error) {
       setQuestionError(error instanceof Error ? error.message : "질문 저장에 실패했습니다.");
+    } finally {
+      setQuestionSaving(false);
+    }
+  }
+
+  async function handleDeleteQuestion(questionId: number) {
+    if (!window.confirm("이 질문을 삭제하시겠습니까? 삭제된 질문은 질문 뱅크 목록에서 제외됩니다.")) {
+      return;
+    }
+
+    setQuestionSaving(true);
+    setQuestionError("");
+    try {
+      await deleteInterviewQuestion(questionId);
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              questions: current.questions.filter((question) => question.questionId !== questionId),
+            }
+          : current,
+      );
+      if (editingQuestionId === questionId) {
+        resetQuestionEditor();
+      }
+    } catch (error) {
+      setQuestionError(error instanceof Error ? error.message : "질문 삭제에 실패했습니다.");
     } finally {
       setQuestionSaving(false);
     }
@@ -315,22 +392,22 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 </button>
               </div>
               <div className="table-wrap">
-                <table className="data-table">
+                <table className="data-table criteria-table">
                   <thead>
                     <tr>
-                      <th>순서</th>
+                      <th className="criteria-col-order">순서</th>
                       <th>태그</th>
                       <th>분류</th>
-                      <th>배점</th>
-                      <th>합격점</th>
+                      <th className="criteria-col-score">배점</th>
+                      <th className="criteria-col-score">합격점</th>
                       <th>설명</th>
-                      <th>관리</th>
+                      <th className="criteria-col-actions">관리</th>
                     </tr>
                   </thead>
                   <tbody>
                     {criteriaDrafts.map((criterion) => (
                       <tr key={criterion.draftId}>
-                        <td>
+                        <td className="criteria-cell-order">
                           <input
                             aria-label={`${criterion.tagName} 순서`}
                             inputMode="numeric"
@@ -342,7 +419,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                         </td>
                         <td>{criterion.tagName}</td>
                         <td>{criterion.category}</td>
-                        <td>
+                        <td className="criteria-cell-score">
                           <input
                             aria-label={`${criterion.tagName} 배점`}
                             inputMode="numeric"
@@ -353,7 +430,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                             onChange={(event) => updateCriteriaDraft(criterion.draftId, "weight", event.target.value)}
                           />
                         </td>
-                        <td>
+                        <td className="criteria-cell-score">
                           <input
                             aria-label={`${criterion.tagName} 합격점`}
                             inputMode="numeric"
@@ -438,14 +515,16 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 {hasCriteriaChanges ? <p className="notice">평가 기준 변경사항을 저장하면 질문 등록 대상에 반영됩니다.</p> : null}
                 <div className="toolbar">
                   <button className="btn primary" type="submit" disabled={questionSaving || settings.criteria.length === 0 || hasCriteriaChanges}>
-                    {questionSaving ? "저장 중" : "질문 저장"}
+                    {questionSaving ? "저장 중" : editingQuestionId === null ? "질문 저장" : "질문 수정"}
                   </button>
-                  <button className="btn secondary" type="button" disabled={questionSaving} onClick={() => resetQuestionForm()}>
-                    입력 초기화
-                  </button>
+                  {editingQuestionId !== null ? (
+                    <button className="btn secondary" type="button" disabled={questionSaving} onClick={() => resetQuestionEditor()}>
+                      수정 취소
+                    </button>
+                  ) : null}
                 </div>
               </form>
-              <div className="posting-list">
+              <div className="posting-list question-list">
                 {settings.questions.map((question) => (
                   <article className="posting" key={question.questionId}>
                     <div className="logo-chip">{question.questionType}</div>
@@ -454,8 +533,19 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                       <p>{getCriterionLabel(settings, question.criterionId)}</p>
                     </div>
                     <StatusBadge value={question.isActive ? "ACTIVE" : "INACTIVE"} />
+                    <div className="posting-actions">
+                      <button className="btn secondary compact" type="button" disabled={questionSaving} onClick={() => startQuestionEdit(question)}>
+                        수정
+                      </button>
+                      <button className="btn destructive compact" type="button" disabled={questionSaving} onClick={() => void handleDeleteQuestion(question.questionId)}>
+                        삭제
+                      </button>
+                    </div>
                   </article>
                 ))}
+                {settings.questions.length === 0 ? (
+                  <div className="empty">등록된 질문이 없습니다.</div>
+                ) : null}
               </div>
             </section>
           </>
@@ -464,17 +554,28 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   );
 }
 
-function validateQuestionForm(settings: InterviewSettings, criterionId: number, content: string) {
+function validateQuestionForm(
+  settings: InterviewSettings,
+  criterionId: number,
+  content: string,
+  editingQuestionId: number | null,
+) {
   if (!Number.isInteger(criterionId)) {
     return "질문을 연결할 평가 기준을 선택해주세요.";
   }
   if (!settings.criteria.some((criterion) => criterion.criterionId === criterionId)) {
     return "공고에 연결된 평가 기준을 선택해주세요.";
   }
-  if (content.length < 5) {
-    return "질문 내용은 5자 이상 입력해주세요.";
+  if (content.length < 10) {
+    return "질문 내용은 10자 이상 입력해주세요.";
   }
-  if (settings.questions.some((question) => normalizeText(question.content) === normalizeText(content))) {
+  if (
+    settings.questions.some(
+      (question) =>
+        question.questionId !== editingQuestionId &&
+        normalizeText(question.content) === normalizeText(content),
+    )
+  ) {
     return "이미 등록된 질문입니다.";
   }
   return "";
@@ -510,6 +611,15 @@ function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {
     passScore: criterion.passScore === null ? "" : String(criterion.passScore),
     sortOrder: String(criterion.sortOrder),
   }));
+}
+
+function normalizeCriteriaOrder(criteria: CriteriaDraft[]) {
+  return [...criteria]
+    .sort((left, right) => toNumber(left.sortOrder) - toNumber(right.sortOrder))
+    .map((criterion, index) => ({
+      ...criterion,
+      sortOrder: String(index + 1),
+    }));
 }
 
 function validateCriteriaDrafts(criteria: CriteriaDraft[]) {

@@ -13,6 +13,7 @@ import {
   UpdateTimePolicyInput,
   PendingProcessLog,
   UpdateCriterionInput,
+  UpdateQuestionInput,
 } from './company-interview.repository';
 
 @Injectable()
@@ -55,7 +56,7 @@ export class PrismaCompanyInterviewRepository
 
   async listQuestions(postingId: number): Promise<QuestionRecord[]> {
     const questions = await this.prisma.question.findMany({
-      where: { postingId: BigInt(postingId) },
+      where: { postingId: BigInt(postingId), isActive: true },
       orderBy: { questionId: 'asc' },
     });
     return questions.map(mapQuestion);
@@ -140,6 +141,27 @@ export class PrismaCompanyInterviewRepository
         nextIds.push(created.criterionId);
       }
 
+      const removed = await tx.evaluationCriterion.findMany({
+        where: {
+          postingId: BigInt(postingId),
+          criterionId: { notIn: nextIds },
+        },
+        select: { criterionId: true },
+      });
+      const removedIds = removed.map((criterion) => criterion.criterionId);
+      if (removedIds.length > 0) {
+        await tx.question.updateMany({
+          where: {
+            postingId: BigInt(postingId),
+            criterionId: { in: removedIds },
+          },
+          data: {
+            isActive: false,
+            criterionId: null,
+          },
+        });
+      }
+
       await tx.evaluationCriterion.deleteMany({
         where: {
           postingId: BigInt(postingId),
@@ -173,6 +195,29 @@ export class PrismaCompanyInterviewRepository
         content: input.content.trim(),
         isActive: true,
       },
+    });
+    return mapQuestion(question);
+  }
+
+  async updateQuestion(
+    questionId: number,
+    input: UpdateQuestionInput,
+  ): Promise<QuestionRecord> {
+    const question = await this.prisma.question.update({
+      where: { questionId: BigInt(questionId) },
+      data: {
+        criterionId: BigInt(input.criterionId),
+        questionType: input.questionType,
+        content: input.content.trim(),
+      },
+    });
+    return mapQuestion(question);
+  }
+
+  async deactivateQuestion(questionId: number): Promise<QuestionRecord> {
+    const question = await this.prisma.question.update({
+      where: { questionId: BigInt(questionId) },
+      data: { isActive: false },
     });
     return mapQuestion(question);
   }
