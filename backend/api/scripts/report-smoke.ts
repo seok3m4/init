@@ -1,10 +1,10 @@
 import "reflect-metadata";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { AiReportPipelineService } from "../src/modules/report/ai-report-pipeline.service";
-import { GuardrailService } from "../src/modules/report/guardrail.service";
-import { InMemoryReportRepository } from "../src/modules/report/in-memory-report.repository";
-import { MockAiReportProvider } from "../src/modules/report/mock-ai-report.provider";
+import { InMemoryReportRepository } from "../src/modules/report/repository/in-memory-report.repository";
+import { AiReportPipelineService } from "../src/modules/report/service/ai-report-pipeline.service";
+import { GuardrailService } from "../src/modules/report/service/guardrail.service";
+import { MockAiReportProvider } from "../src/modules/report/service/mock-ai-report.provider";
 import { GenerateReportRequest } from "../src/modules/report/report.types";
 
 interface SmokeInput {
