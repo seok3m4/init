@@ -95,7 +95,6 @@ export type CreateApplicantInput = {
   email: string;
   jobRole: string;
   phone?: string;
-  memo?: string;
 };
 
 export type InviteApplicantInput = {

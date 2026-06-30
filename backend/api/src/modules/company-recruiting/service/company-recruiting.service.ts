@@ -169,7 +169,7 @@ export class CompanyRecruitingService {
     const application = await this.repository.createApplication({
       postingId: dto.recruitmentId,
       candidateId: candidate.candidateId,
-      screeningMemo: dto.memo?.trim() || null,
+      screeningMemo: null,
     });
     return toApplicantResponse(application);
   }

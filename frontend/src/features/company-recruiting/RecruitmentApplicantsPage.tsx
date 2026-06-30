@@ -12,7 +12,6 @@ type FormState = {
   email: string;
   jobRole: string;
   phone: string;
-  memo: string;
 };
 
 const initialForm: FormState = {
@@ -20,7 +19,6 @@ const initialForm: FormState = {
   email: "",
   jobRole: "",
   phone: "",
-  memo: "",
 };
 
 type InvitationState = {
@@ -83,7 +81,6 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
         email: form.email,
         jobRole: form.jobRole,
         phone: form.phone || undefined,
-        memo: form.memo || undefined,
       });
       setForm({ ...initialForm, jobRole: recruitment?.jobRole ?? "" });
       setMessage("지원자가 등록되었습니다.");
@@ -278,14 +275,6 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
                 <label>
                   연락처
                   <input value={form.phone} onChange={(event) => updateField("phone", event.target.value)} />
-                </label>
-                <label className="grid-full">
-                  운영 메모
-                  <textarea
-                    value={form.memo}
-                    onChange={(event) => updateField("memo", event.target.value)}
-                    placeholder="등록 경위, 확인 사항 등 B 운영 메모"
-                  />
                 </label>
               </div>
               <div className="modal-actions">

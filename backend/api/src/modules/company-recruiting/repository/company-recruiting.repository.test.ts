@@ -43,14 +43,14 @@ describe("PrismaCompanyRecruitingRepository", () => {
     };
     const repository = new PrismaCompanyRecruitingRepository(prisma as never);
 
-    await repository.createApplication({ postingId: 101, candidateId: 44, screeningMemo: "1차 유선 확인 완료" });
+    await repository.createApplication({ postingId: 101, candidateId: 44, screeningMemo: null });
 
     assert.deepEqual(capturedData, {
       postingId: 101n,
       candidateId: 44n,
       applicationStatus: "SUBMITTED",
       screeningDecision: "UNDECIDED",
-      screeningMemo: "1차 유선 확인 완료",
+      screeningMemo: null,
     });
   });
 

@@ -444,7 +444,6 @@ describe("CompanyRecruitingService", () => {
       email: "KIM@example.com",
       jobRole: "Backend",
       phone: "010-0000-0000",
-      memo: "1차 유선 확인 완료",
     });
 
     assert.equal(result.applicationStatus, "SUBMITTED");
@@ -457,7 +456,7 @@ describe("CompanyRecruitingService", () => {
       {
         postingId: 101,
         candidateId: 44,
-        screeningMemo: "1차 유선 확인 완료",
+        screeningMemo: null,
       },
     ]);
   });
