@@ -10,8 +10,6 @@ import { DependencyList, FormEvent, ReactNode, useCallback, useEffect, useRef, u
 import { getAccessToken } from "../../api/client";
 import {
   CandidateApiError,
-  type AiInterviewHandoffResponse,
-  type AiInterviewRequest,
   type CandidateApplicationStatusView,
   type CandidateApplicationSummary,
   type CandidateFileAsset,
@@ -21,7 +19,6 @@ import {
   type CandidateMockReportFeedback,
   type CandidateMockReportMedia,
   type CandidateMockReportSummary,
-  type CandidatePortfolioLink,
   type CandidateRecruitingReportView,
   type InterviewRuntimeSessionView,
   type QuestionType,
@@ -825,7 +822,6 @@ export function CandidateMyPage() {
   });
   const [portfolioState, setPortfolioState] = useState<CandidatePortfolioLinkFormState>(defaultPortfolioLinkFormState);
   const [latestResumeFile, setLatestResumeFile] = useState<CandidateFileAsset>();
-  const [portfolioLinks, setPortfolioLinks] = useState<CandidatePortfolioLink[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement | null>(null);
@@ -858,8 +854,7 @@ export function CandidateMyPage() {
         const fileResult = await api.uploadResume(toUploadResumeRequest(portfolioFileState));
         fileId = fileResult.data.fileId;
       }
-      const result = await api.createPortfolioLink(toCreatePortfolioLinkRequest({ ...portfolioState, fileId }));
-      setPortfolioLinks((current) => [result.data, ...current]);
+      await api.createPortfolioLink(toCreatePortfolioLinkRequest({ ...portfolioState, fileId }));
       setPortfolioState(defaultPortfolioLinkFormState);
       setPortfolioFileState({ candidateId, storageKey: "", originalName: "", mimeType: "", sizeBytes: 0 });
       setMessage("포트폴리오/깃허브가 등록되었습니다.");
@@ -1057,6 +1052,8 @@ function InterviewRuntimePanel({
       stopMicrophoneMeter();
       stopMediaStream(streamRef.current);
     };
+    // Camera/device probing is intentionally run once when the runtime panel mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1068,7 +1065,7 @@ function InterviewRuntimePanel({
       });
       return next.size === current.size ? current : next;
     });
-  }, [data?.runtime.sessionId, data?.runtime.answeredCount, data?.questions.currentQuestionId]);
+  }, [data]);
 
   useEffect(() => {
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
@@ -1081,6 +1078,8 @@ function InterviewRuntimePanel({
     if (autoRecordingQuestionRef.current === currentQuestion.questionId) return;
     autoRecordingQuestionRef.current = currentQuestion.questionId;
     void handleStartRecording();
+    // Auto-recording is guarded by refs and should not restart on every function identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     data?.runtime.sessionId,
     setupCompleted,
@@ -1429,33 +1428,6 @@ function InterviewRuntimePanel({
       return;
     }
     void handleNextQuestion();
-  }
-
-  async function handleAiRequest(kind: "STT" | "FOLLOW_UP") {
-    if (!data) return;
-    const payload = buildAiRequestPayload(kind, mode, lastAnswer);
-    if (!payload) {
-      setMessage(kind === "STT" ? "STT 요청은 음성 파일로 저장한 답변이 필요합니다." : "꼬리질문 요청은 먼저 답변 저장이 필요합니다.");
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      const api = getCandidateApi();
-      const result =
-        mode === "mock"
-          ? kind === "STT"
-            ? await api.requestMockStt(data.runtime.sessionId, payload)
-            : await api.requestMockFollowUpQuestion(data.runtime.sessionId, payload)
-          : kind === "STT"
-            ? await api.requestRecruitingStt(data.runtime.sessionId, payload)
-            : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, payload);
-      setMessage(describeAiHandoff(result.data));
-    } catch (submitError) {
-      setMessage(toErrorMessage(submitError));
-    } finally {
-      setBusy(false);
-    }
   }
 
   const runtimeTitle = mode === "mock" ? "AI 모의면접 진행" : "채용 AI 면접 진행";
@@ -1950,33 +1922,6 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
   );
 }
 
-function QuestionTable({ questions, showText }: { questions: RuntimeQuestionView[]; showText: boolean }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>순서</th>
-            <th>질문</th>
-            <th>유형</th>
-            <th>상태</th>
-          </tr>
-        </thead>
-        <tbody>
-          {questions.map((question) => (
-            <tr key={question.questionId}>
-              <td>{question.sortOrder}</td>
-              <td>{formatRuntimeQuestionPrompt(question, showText)}</td>
-              <td>{formatQuestionTypeLabel(question.questionType)}</td>
-              <td><StatusPill value={question.current ? "CURRENT" : question.answered ? "ANSWERED" : "WAITING"} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function formatRuntimeQuestionPrompt(question: RuntimeQuestionView, showText: boolean): string {
   if (showText && question.content) return question.content;
   return formatAudioPrompt(question.audioPrompt);
@@ -2151,6 +2096,8 @@ function useCandidateResource<T>(load: () => Promise<T>, dependencies: Dependenc
     return () => {
       alive = false;
     };
+    // The dependency list is supplied by each caller, mirroring React's hook API.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, refreshKey, ...dependencies]);
 
   return { ...state, refresh };
@@ -2208,47 +2155,6 @@ function toRecruitingRuntimeSession(
     nextQuestionEndpoint: runtime.nextQuestionEndpoint,
     answerUploadEndpoint: runtime.answerUploadEndpoint,
   };
-}
-
-function buildAiRequestPayload(
-  kind: "STT" | "FOLLOW_UP",
-  mode: RuntimeMode,
-  lastAnswer?: LastSavedAnswer,
-): AiInterviewRequest | undefined {
-  if (!lastAnswer) return undefined;
-
-  if (kind === "STT") {
-    if (!lastAnswer.audioFileId || !lastAnswer.audioS3Key) return undefined;
-    return {
-      answerId: lastAnswer.answerId,
-      audioFileId: lastAnswer.audioFileId,
-      audioS3Key: lastAnswer.audioS3Key,
-    };
-  }
-
-  return {
-    answerId: lastAnswer.answerId,
-    previousQuestion: lastAnswer.questionText,
-    transcript: lastAnswer.transcript,
-    ...(mode === "recruiting"
-      ? { jobDescription: "채용 AI 면접 런타임에서 저장된 답변 기반 꼬리질문 요청입니다." }
-      : {}),
-  };
-}
-
-function describeAiHandoff(response: AiInterviewHandoffResponse): string {
-  const processLabel = formatProcessTypeLabel(response.processType);
-  if (response.processLogId) {
-    return `${processLabel} 요청이 접수되었습니다. 처리 번호는 ${response.processLogId}번입니다.`;
-  }
-  if (response.callbackTopic) {
-    return `${processLabel} 요청이 접수되었습니다.`;
-  }
-  return `${processLabel} 요청이 접수되었습니다.`;
-}
-
-function createRuntimeFileAsset(file: File): RuntimeFileAssetRequest | undefined {
-  return createRuntimeFileAssetFromMetadata(file.name, file.type, file.size);
 }
 
 function createRuntimeFileAssetFromMetadata(
@@ -2430,11 +2336,6 @@ function formatMediaError(error: unknown, device: "camera" | "microphone" = "cam
 
 function toggleValue<T>(values: T[], value: T): T[] {
   return values.includes(value) ? values.filter((current) => current !== value) : [...values, value];
-}
-
-function toOptionalNumber(value: string): number | undefined {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function formatDateTime(value?: string) {
