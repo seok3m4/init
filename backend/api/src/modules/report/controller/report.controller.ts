@@ -1,4 +1,5 @@
 import { Controller, Get, HttpCode, HttpException, HttpStatus, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { ApiSecurity } from "@nestjs/swagger";
 import type { CurrentUser } from "@init/common";
 import { type RequestLike } from "../../../shared/response-envelope";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
@@ -7,6 +8,12 @@ import { reportApiRoutePrefix, reportApiRoutes } from "../report.routes";
 import { ReportService } from "../service/report.service";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
+
+const candidateDevAuthSecurity = {
+  "x-dev-user-id": [],
+  "x-dev-user-type": [],
+  "x-dev-candidate-id": [],
+};
 
 @UseGuards(JwtAuthGuard)
 @Controller(reportApiRoutePrefix)
@@ -39,6 +46,7 @@ export class ReportController {
 
   @Post(reportApiRoutes.mockGenerate)
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiSecurity(candidateDevAuthSecurity)
   requestMockReportGeneration(@Req() request: CandidateRequest, @Param("reportId") reportId: string) {
     return this.handle(() => {
       const currentUser = resolveCurrentCandidate(request.currentUser);
