@@ -55,6 +55,17 @@ describe("AiReportPipelineService", () => {
     expect(result.guardrail.result).toBe("PASS");
     expect(result.stored.scoreCount).toBe(1);
     expect(result.stored.evidenceCount).toBe(2);
+    expect(result.scores[0]).toMatchObject({
+      rubricAnchor: expect.any(String),
+      confidence: expect.stringMatching(/HIGH|MEDIUM|LOW/),
+      uncertaintyReasons: expect.any(Array)
+    });
+    expect(result.questionEvaluations).toHaveLength(1);
+    expect(result.questionEvaluations[0]).toMatchObject({
+      answerId: 10,
+      question: "Describe your Redis experience.",
+      criterionId: 1
+    });
     expect(result.scores[0].evidences.map((evidence) => evidence.sourceType)).toEqual([
       "INTERVIEW_ANSWER",
       "APPLICATION_DOCUMENT"
@@ -71,9 +82,13 @@ describe("AiReportPipelineService", () => {
           criterionName: "Problem solving",
           score: 80,
           rationale: "Reason exists.",
+          rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+          confidence: "MEDIUM",
+          uncertaintyReasons: [],
           evidences: []
         }
-      ]
+      ],
+      questionEvaluations: []
     };
     const blockedProvider = new MockAiReportProvider();
     jest.spyOn(blockedProvider, "generate").mockReturnValue(blockedReport);
@@ -111,6 +126,7 @@ describe("AiReportPipelineService", () => {
     expect(result.guardrail.result).toBe("REGENERATED");
     expect(result.stored.scoreCount).toBe(1);
     expect(result.stored.evidenceCount).toBe(2);
+    expect(result.questionEvaluations).toHaveLength(1);
   });
 
   it("records unexpected report generation failures as retryable without storing final scores", async () => {
@@ -165,6 +181,9 @@ describe("AiReportPipelineService", () => {
         criterionName: "Communication",
         score: 80,
         rationale: "이 지원자는 합격 가능성이 높습니다.",
+        rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+        confidence: "MEDIUM",
+        uncertaintyReasons: [],
         evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "Clear answer." }]
       }
     ];

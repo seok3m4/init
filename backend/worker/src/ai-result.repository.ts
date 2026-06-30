@@ -50,11 +50,27 @@ export interface GeneratedReportEvidenceRecord {
   text: string;
 }
 
+export type GeneratedReportConfidenceRecord = "HIGH" | "MEDIUM" | "LOW";
+
 export interface GeneratedReportScoreRecord {
   criterionId: number;
   criterionName: string;
   score: number;
   rationale: string;
+  rubricAnchor: string;
+  confidence: GeneratedReportConfidenceRecord;
+  uncertaintyReasons: string[];
+  evidences: GeneratedReportEvidenceRecord[];
+}
+
+export interface GeneratedQuestionEvaluationRecord {
+  criterionId: number;
+  criterionName: string;
+  answerId: number;
+  question: string;
+  rubricAnchor: string;
+  confidence: GeneratedReportConfidenceRecord;
+  uncertaintyReasons: string[];
   evidences: GeneratedReportEvidenceRecord[];
 }
 
@@ -64,6 +80,7 @@ export interface GeneratedReportRecord {
   summary: string;
   totalScore: number;
   scores: GeneratedReportScoreRecord[];
+  questionEvaluations: GeneratedQuestionEvaluationRecord[];
 }
 
 export interface CommunicationAnalysisRecord {
@@ -115,12 +132,63 @@ export interface AiResultRepository {
 
 export function assertScoresHaveEvidence(scores: GeneratedReportScoreRecord[]): void {
   for (const score of scores) {
+    if (!score.rubricAnchor?.trim()) {
+      throw new NonRetryableAiWorkerFailure(`rubric anchor is required for criterion ${score.criterionId}`);
+    }
+
+    if (!["HIGH", "MEDIUM", "LOW"].includes(score.confidence)) {
+      throw new NonRetryableAiWorkerFailure(`confidence is required for criterion ${score.criterionId}`);
+    }
+
+    if (!Array.isArray(score.uncertaintyReasons)) {
+      throw new NonRetryableAiWorkerFailure(`uncertainty reasons are required for criterion ${score.criterionId}`);
+    }
+
     if (!score.rationale.trim()) {
       throw new NonRetryableAiWorkerFailure(`rationale is required for criterion ${score.criterionId}`);
     }
 
     if (score.evidences.length === 0 || score.evidences.some((evidence) => !evidence.text.trim())) {
       throw new NonRetryableAiWorkerFailure(`evidence is required for criterion ${score.criterionId}`);
+    }
+  }
+}
+
+export function assertQuestionEvaluationsHaveEvidence(questionEvaluations: GeneratedQuestionEvaluationRecord[]): void {
+  if (!Array.isArray(questionEvaluations) || questionEvaluations.length === 0) {
+    throw new NonRetryableAiWorkerFailure("question evaluations are required");
+  }
+
+  for (const evaluation of questionEvaluations) {
+    if (!evaluation.answerId || !evaluation.question?.trim()) {
+      throw new NonRetryableAiWorkerFailure(`question evaluation source is required for criterion ${evaluation.criterionId}`);
+    }
+    if (!evaluation.rubricAnchor?.trim()) {
+      throw new NonRetryableAiWorkerFailure(
+        `question evaluation rubric anchor is required for criterion ${evaluation.criterionId}`
+      );
+    }
+    if (!["HIGH", "MEDIUM", "LOW"].includes(evaluation.confidence)) {
+      throw new NonRetryableAiWorkerFailure(
+        `question evaluation confidence is required for criterion ${evaluation.criterionId}`
+      );
+    }
+    if (!Array.isArray(evaluation.uncertaintyReasons)) {
+      throw new NonRetryableAiWorkerFailure(
+        `question evaluation uncertainty reasons are required for criterion ${evaluation.criterionId}`
+      );
+    }
+    if (evaluation.uncertaintyReasons.some((reason) => !reason.trim())) {
+      throw new NonRetryableAiWorkerFailure(
+        `question evaluation uncertainty reasons must be non-empty for criterion ${evaluation.criterionId}`
+      );
+    }
+    if (
+      !Array.isArray(evaluation.evidences) ||
+      evaluation.evidences.length === 0 ||
+      evaluation.evidences.some((evidence) => !evidence.text.trim())
+    ) {
+      throw new NonRetryableAiWorkerFailure(`question evaluation evidence is required for criterion ${evaluation.criterionId}`);
     }
   }
 }
@@ -209,6 +277,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
 
   async saveGeneratedReport(record: GeneratedReportRecord): Promise<void> {
     assertScoresHaveEvidence(record.scores);
+    assertQuestionEvaluationsHaveEvidence(record.questionEvaluations);
     await this.saveReportScoresAndEvidences({ reportId: record.reportId, scores: record.scores });
     this.generatedReports.set(record.reportId, record);
     this.failedReports.delete(record.reportId);

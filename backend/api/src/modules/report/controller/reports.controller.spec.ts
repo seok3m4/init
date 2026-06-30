@@ -118,6 +118,9 @@ describe("ReportsController", () => {
             criterionName: "Communication",
             score: 80,
             rationale: "This candidate is 합격.",
+            rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+            confidence: "MEDIUM",
+            uncertaintyReasons: [],
             evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "Clear answer." }]
           }
         ]
@@ -149,6 +152,9 @@ describe("ReportsController", () => {
             criterionName: "Communication",
             score: 80,
             rationale: "The answer is clear and evidence-backed.",
+            rubricAnchor: "Structured interview evidence is mapped to the requested evaluation criterion.",
+            confidence: "MEDIUM",
+            uncertaintyReasons: [],
             evidences: [{ sourceType: "INTERVIEW_ANSWER", answerId: 10, text: "Clear answer." }]
           }
         ]
