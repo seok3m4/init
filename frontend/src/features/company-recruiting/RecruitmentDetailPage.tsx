@@ -268,6 +268,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
                 </div>
               )}
             </section>
+
           </>
         ) : (
           <div className="empty">{loading ? "공고 대시보드를 불러오는 중입니다." : "공고 대시보드를 불러올 수 없습니다."}</div>

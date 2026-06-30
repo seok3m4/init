@@ -103,6 +103,25 @@ export class CompanyRecruitingService {
     return toRecruitmentResponse(posting);
   }
 
+  async deleteRecruitment(user: CurrentUser, recruitmentId: number) {
+    const companyId = requireCompanyId(user);
+    const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
+    if (!posting) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
+    }
+    if (posting.status !== PostingStatus.DRAFT && posting.status !== PostingStatus.CLOSED) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "임시저장 또는 마감 공고만 삭제할 수 있습니다.", [
+        { field: "status", reason: "INVALID_ARCHIVE_TRANSITION" },
+      ]);
+    }
+
+    const archived = await this.repository.archivePosting(recruitmentId, companyId);
+    if (!archived) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
+    }
+    return toRecruitmentResponse(archived);
+  }
+
   async copyRecruitment(user: CurrentUser, recruitmentId: number) {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
@@ -150,6 +169,7 @@ export class CompanyRecruitingService {
     const application = await this.repository.createApplication({
       postingId: dto.recruitmentId,
       candidateId: candidate.candidateId,
+      screeningMemo: null,
     });
     return toApplicantResponse(application);
   }

@@ -47,6 +47,22 @@ function createRepository(overrides: Record<string, unknown> = {}) {
         applicantCount: 2,
       };
     },
+    async archivePosting(postingId: number, companyId: number) {
+      calls.archivePosting = [postingId, companyId];
+      return {
+        postingId,
+        companyId,
+        title: "Backend Developer",
+        jobRole: "Backend",
+        jobDescription: "Build APIs",
+        startsOn: null,
+        endsOn: null,
+        status: "ARCHIVED",
+        createdAt: new Date("2026-06-29T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-30T00:00:00.000Z"),
+        applicantCount: 2,
+      };
+    },
     async listPostings(companyId: number, query: unknown) {
       calls.listPostings = [companyId, query];
       return [];
@@ -81,7 +97,10 @@ function createRepository(overrides: Record<string, unknown> = {}) {
     },
     async createApplication(input: unknown) {
       calls.createApplication = [input];
-      return applicant;
+      return {
+        ...applicant,
+        screeningMemo: (input as { screeningMemo?: string | null }).screeningMemo ?? null,
+      };
     },
     async listApplicationsForPosting(postingId: number, companyId: number, query: unknown) {
       calls.listApplicationsForPosting = [postingId, companyId, query];
@@ -279,6 +298,48 @@ describe("CompanyRecruitingService", () => {
     ]);
   });
 
+  it("archives recruitment deletion requests for the current company only", async () => {
+    const repository = createRepository({
+      async findPostingForCompany(postingId: number, companyId: number) {
+        return {
+          postingId,
+          companyId,
+          title: "Draft Backend Hiring",
+          jobRole: "Backend",
+          jobDescription: "Build APIs",
+          startsOn: null,
+          endsOn: null,
+          status: "DRAFT",
+          createdAt: new Date("2026-06-29T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-29T00:00:00.000Z"),
+          applicantCount: 0,
+        };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    const result = await service.deleteRecruitment(companyUser, 101);
+
+    assert.equal(result.recruitmentId, 101);
+    assert.equal(result.status, "ARCHIVED");
+    assert.deepEqual(repository.calls.archivePosting, [101, 7]);
+  });
+
+  it("rejects deleting open recruitments to keep posting status transitions", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      service.deleteRecruitment(companyUser, 101),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "COMMON_VALIDATION_FAILED",
+    );
+    assert.equal(repository.calls.archivePosting, undefined);
+  });
+
   it("copies only the current company's closed recruitment as a draft", async () => {
     const copyCalls: Record<string, unknown[]> = {};
     const repository = createRepository({
@@ -391,6 +452,13 @@ describe("CompanyRecruitingService", () => {
     assert.equal(result.reportStatus, "PENDING");
     assert.equal(result.screeningDecision, "UNDECIDED");
     assert.deepEqual(repository.calls.findApplicationByPostingAndEmail, [101, "kim@example.com"]);
+    assert.deepEqual(repository.calls.createApplication, [
+      {
+        postingId: 101,
+        candidateId: 44,
+        screeningMemo: null,
+      },
+    ]);
   });
 
   it("requests invitations through the temporary B adapter boundary", async () => {
