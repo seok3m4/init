@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { copyRecruitment, listRecruitments } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment, RecruitmentStatus } from "./types";
 
 type StatusFilter = "ALL" | RecruitmentStatus;
@@ -65,14 +65,15 @@ export function CompanyPostingsPage() {
       <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">APPLICATIONS</p>
+            <p className="eyebrow">RECRUITMENTS</p>
             <h1>공고 목록</h1>
             <p>진행 중인 채용 공고를 관리합니다.</p>
           </div>
-          <Link className="btn primary" href="/company/recruitments">
-            + 공고 만들기
+          <Link className="btn primary" href="/company/recruitments/new">
+            공고 생성
           </Link>
         </div>
+        <CompanyFlowSteps current="list" />
 
         <section className="panel">
           <div className="panel-head">

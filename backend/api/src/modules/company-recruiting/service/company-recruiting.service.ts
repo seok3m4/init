@@ -11,6 +11,7 @@ import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
 import type { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import type { ListQueryDto } from "../dto/list-query.dto";
+import type { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 import type { CompanyRecruitingRepositoryPort } from "../repository/company-recruiting.repository";
 import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
@@ -48,6 +49,36 @@ export class CompanyRecruitingService {
       status: (dto.status ?? PostingStatus.DRAFT) as PostingStatus,
     });
     return toRecruitmentResponse(posting);
+  }
+
+  async updateRecruitment(user: CurrentUser, recruitmentId: number, dto: UpdateRecruitmentDto) {
+    const companyId = requireCompanyId(user);
+    const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
+    if (!posting) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
+    }
+
+    const startsOn = parseOptionalDate(dto.startsOn, "startsOn");
+    const endsOn = parseOptionalDate(dto.endsOn, "endsOn");
+    if (startsOn && endsOn && startsOn > endsOn) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "채용 시작일은 마감일보다 늦을 수 없습니다.", [
+        { field: "startsOn", reason: "AFTER_ENDS_ON" },
+      ]);
+    }
+
+    const updated = await this.repository.updatePosting(recruitmentId, companyId, {
+      title: dto.title.trim(),
+      jobRole: dto.jobRole.trim(),
+      jobDescription: dto.jobDescription?.trim() || null,
+      startsOn,
+      endsOn,
+      status: dto.status ? parseEditablePostingStatus(dto.status) : (posting.status as PostingStatus),
+    });
+
+    if (!updated) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
+    }
+    return toRecruitmentResponse(updated);
   }
 
   async listRecruitments(user: CurrentUser, query: ListQueryDto) {
@@ -268,6 +299,15 @@ function parseOptionalPostingStatus(value: string | undefined): PostingStatus | 
   if (!["DRAFT", "OPEN", "CLOSING_SOON", "CLOSED", "ARCHIVED"].includes(value)) {
     throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "허용되지 않은 공고 상태입니다.", [
       { field: "status", reason: "INVALID_POSTING_STATUS" },
+    ]);
+  }
+  return value as PostingStatus;
+}
+
+function parseEditablePostingStatus(value: string): PostingStatus {
+  if (!["DRAFT", "OPEN"].includes(value)) {
+    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "설정 화면에서는 DRAFT 또는 OPEN만 저장할 수 있습니다.", [
+      { field: "status", reason: "INVALID_EDITABLE_POSTING_STATUS" },
     ]);
   }
   return value as PostingStatus;

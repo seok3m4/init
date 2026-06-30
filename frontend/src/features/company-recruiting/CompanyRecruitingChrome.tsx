@@ -1,69 +1,32 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type CompanyNavSection = "postings" | "recruitments" | "applicants" | "evaluation";
+type CompanyNavSection = "postings" | "mypage";
+export type CompanyFlowStep = "list" | "create" | "dashboard" | "settings" | "applicants" | "evaluation";
 
-function Caret() {
-  return (
-    <svg
-      className="caret"
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
+const flowSteps: Array<{ key: CompanyFlowStep; label: string; description: string }> = [
+  { key: "list", label: "공고 목록", description: "공고 선택" },
+  { key: "create", label: "공고 생성", description: "JD 등록" },
+  { key: "dashboard", label: "대시보드", description: "운영 현황" },
+  { key: "settings", label: "공고 설정", description: "정보 수정" },
+  { key: "applicants", label: "지원자 관리", description: "등록/초대" },
+  { key: "evaluation", label: "평가 상세", description: "리포트 확인" },
+];
 
 export function CompanyNav({ active }: { active: CompanyNavSection }) {
-  const statusActive = active === "postings" || active === "applicants" || active === "evaluation";
-
   return (
     <header className="gnb">
       <div className="gnb-inner">
-        <Link className="brand" href="/company/applications/dashboard">
+        <Link className="brand" href="/company/recruitments">
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
         <nav className="gnb-menu" aria-label="기업 메뉴">
-          <div className={`gnb-item ${statusActive ? "active" : ""}`}>
-            <Link className="gnb-link" href="/company/applications/dashboard" aria-current={statusActive ? "page" : undefined}>
-              지원현황
-              <Caret />
+          <div className={`gnb-item ${active === "postings" ? "active" : ""}`}>
+            <Link className="gnb-link" href="/company/recruitments" aria-current={active === "postings" ? "page" : undefined}>
+              공고 목록
             </Link>
-            <div className="gnb-panel">
-              <Link className={active === "postings" ? "active" : ""} href="/company/applications/dashboard">
-                공고 관리
-              </Link>
-            </div>
           </div>
-          <div className={`gnb-item ${active === "recruitments" ? "active" : ""}`}>
-            <Link
-              className="gnb-link"
-              href="/company/recruitments"
-              aria-current={active === "recruitments" ? "page" : undefined}
-            >
-              채용관리
-              <Caret />
-            </Link>
-            <div className="gnb-panel">
-              <Link className={active === "recruitments" ? "active" : ""} href="/company/recruitments">
-                채용 공고 관리
-              </Link>
-              {/* 면접 관리: C 담당 범위. 전용 route 미구현 상태이므로 안전한 placeholder 유지 */}
-              <span className="gnb-soon" aria-disabled="true" title="준비 중">
-                면접 관리
-              </span>
-            </div>
-          </div>
-          <div className="gnb-item">
-            {/* 마이페이지: 기능 정의서상 기업 상세 경로 미확정. placeholder 유지 */}
+          <div className={`gnb-item ${active === "mypage" ? "active" : ""}`}>
             <span className="gnb-link gnb-soon" aria-disabled="true" title="준비 중">
               마이페이지
             </span>
@@ -92,6 +55,27 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
         </div>
       </div>
     </header>
+  );
+}
+
+export function CompanyFlowSteps({ current }: { current: CompanyFlowStep }) {
+  const currentIndex = flowSteps.findIndex((step) => step.key === current);
+
+  return (
+    <nav className="flow-steps" aria-label="기업 채용 흐름">
+      {flowSteps.map((step, index) => {
+        const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
+        return (
+          <div className={`flow-step ${state}`} key={step.key} aria-current={state === "current" ? "step" : undefined}>
+            <span className="flow-step-number">{index + 1}</span>
+            <span>
+              <strong>{step.label}</strong>
+              <small>{step.description}</small>
+            </span>
+          </div>
+        );
+      })}
+    </nav>
   );
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
-import { CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
 import type { Applicant, Recruitment } from "./types";
 
 type FormState = {
@@ -22,14 +22,12 @@ const initialForm: FormState = {
 };
 
 type InvitationState = {
-  applicantId: string;
   availableFrom: string;
   availableUntil: string;
   message: string;
 };
 
 const initialInvitation: InvitationState = {
-  applicantId: "",
   availableFrom: "",
   availableUntil: "",
   message: "안녕하세요. 채용 AI 면접 응시 안내드립니다.",
@@ -40,6 +38,9 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   const [items, setItems] = useState<Applicant[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
   const [invitation, setInvitation] = useState<InvitationState>(initialInvitation);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [selectedApplicantIds, setSelectedApplicantIds] = useState<Record<number, boolean>>({});
   const [invitedApplicants, setInvitedApplicants] = useState<Record<number, string>>({});
   const [q, setQ] = useState("");
   const [message, setMessage] = useState("");
@@ -58,10 +59,6 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
       setRecruitment(detail.data);
       setItems(applicants.data.items);
       setForm((current) => ({ ...current, jobRole: current.jobRole || detail.data.jobRole }));
-      setInvitation((current) => ({
-        ...current,
-        applicantId: current.applicantId || String(applicants.data.items[0]?.applicationId ?? ""),
-      }));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "지원자 목록을 불러오지 못했습니다.");
     } finally {
@@ -87,6 +84,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
       });
       setForm({ ...initialForm, jobRole: recruitment?.jobRole ?? "" });
       setMessage("지원자가 등록되었습니다.");
+      setRegisterOpen(false);
       await load("", { clearMessage: false });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "지원자 등록에 실패했습니다.");
@@ -100,22 +98,29 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     setLoading(true);
     setMessage("");
     try {
-      const applicantId = Number(invitation.applicantId);
-      const result = await inviteApplicant({
-        applicantId,
-        availableFrom: invitation.availableFrom,
-        availableUntil: invitation.availableUntil,
-        message: invitation.message,
-      });
+      const selectedIds = items.filter((item) => selectedApplicantIds[item.applicationId]).map((item) => item.applicationId);
+      if (selectedIds.length === 0) {
+        setMessage("초대할 지원자를 선택해주세요.");
+        return;
+      }
+
+      const results = await Promise.all(
+        selectedIds.map((applicantId) =>
+          inviteApplicant({
+            applicantId,
+            availableFrom: invitation.availableFrom,
+            availableUntil: invitation.availableUntil,
+            message: invitation.message,
+          }),
+        ),
+      );
       setInvitedApplicants((current) => ({
         ...current,
-        [applicantId]: result.data.temporary ? "REQUESTED (임시)" : result.data.deliveryStatus,
+        ...Object.fromEntries(results.map((result) => [result.data.applicationId, result.data.temporary ? "REQUESTED (임시)" : result.data.deliveryStatus])),
       }));
-      setMessage(
-        result.data.temporary
-          ? "초대 요청이 임시 adapter에 기록되었습니다. 실제 이메일 발송과 면접 세션 생성은 연결 전입니다."
-          : "초대 요청이 처리되었습니다.",
-      );
+      setSelectedApplicantIds({});
+      setInviteOpen(false);
+      setMessage(`${selectedIds.length}명에게 초대 요청을 보냈습니다. 실제 이메일 발송과 면접 세션 생성은 연결 전일 수 있습니다.`);
       await load(q, { clearMessage: false });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "초대 요청에 실패했습니다.");
@@ -132,9 +137,13 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     setInvitation((current) => ({ ...current, [key]: value }));
   }
 
+  function toggleApplicant(applicationId: number, checked: boolean) {
+    setSelectedApplicantIds((current) => ({ ...current, [applicationId]: checked }));
+  }
+
   return (
     <main className="app-shell">
-      <CompanyNav active="applicants" />
+      <CompanyNav active="postings" />
       <section className="app-page">
         <div className="page-head">
           <div>
@@ -142,95 +151,31 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
             <h1>{recruitment?.title ?? "지원자 관리"}</h1>
             <p>같은 공고 안에서는 같은 이메일을 중복 등록할 수 없습니다.</p>
           </div>
-          <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}`}>
-            공고 상세
-          </Link>
+          <div className="page-actions">
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                setMessage("");
+                setRegisterOpen(true);
+              }}
+            >
+              지원자 직접 등록
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => {
+                setMessage("");
+                setInviteOpen(true);
+              }}
+              disabled={items.length === 0}
+            >
+              지원자 초대
+            </button>
+          </div>
         </div>
-
-        <form className="panel" onSubmit={handleCreate}>
-          <div className="panel-head">
-            <div>
-              <h2>지원자 등록</h2>
-              <p>등록 즉시 공고와 지원 이력이 연결됩니다.</p>
-            </div>
-            <button className="btn primary" type="submit" disabled={loading}>
-              직접 등록
-            </button>
-          </div>
-          <div className="grid-2">
-            <label>
-              이름
-              <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} />
-            </label>
-            <label>
-              이메일
-              <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} />
-            </label>
-            <label>
-              지원 직무
-              <input required value={form.jobRole} onChange={(event) => updateField("jobRole", event.target.value)} />
-            </label>
-            <label>
-              연락처
-              <input value={form.phone} onChange={(event) => updateField("phone", event.target.value)} />
-            </label>
-          </div>
-        </form>
-
-        <form className="panel" onSubmit={handleInvite}>
-          <div className="panel-head">
-            <div>
-              <h2>면접 초대 요청</h2>
-              <p>응시 기간과 안내 메시지를 저장하고 채용 AI 면접 세션 연결 요청을 남깁니다.</p>
-            </div>
-            <button className="btn primary" type="submit" disabled={loading || items.length === 0}>
-              초대 요청
-            </button>
-          </div>
-          <div className="grid-2">
-            <label>
-              지원자
-              <select
-                required
-                value={invitation.applicantId}
-                onChange={(event) => updateInvitation("applicantId", event.target.value)}
-              >
-                <option value="">지원자 선택</option>
-                {items.map((item) => (
-                  <option key={item.applicationId} value={item.applicationId}>
-                    {item.name} · {item.email}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              응시 시작
-              <input
-                required
-                type="datetime-local"
-                value={invitation.availableFrom}
-                onChange={(event) => updateInvitation("availableFrom", event.target.value)}
-              />
-            </label>
-            <label>
-              응시 종료
-              <input
-                required
-                type="datetime-local"
-                value={invitation.availableUntil}
-                onChange={(event) => updateInvitation("availableUntil", event.target.value)}
-              />
-            </label>
-            <label className="wide">
-              안내 메시지
-              <textarea
-                required
-                value={invitation.message}
-                onChange={(event) => updateInvitation("message", event.target.value)}
-              />
-            </label>
-          </div>
-        </form>
+        <CompanyFlowSteps current="applicants" />
 
         <section className="panel">
           <div className="panel-head">
@@ -297,6 +242,116 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
             </div>
           )}
         </section>
+
+        {registerOpen ? (
+          <div className="modal-backdrop" role="presentation">
+            <form className="modal" onSubmit={handleCreate} role="dialog" aria-modal="true" aria-labelledby="register-applicant-title">
+              <div className="modal-head">
+                <div>
+                  <h2 id="register-applicant-title">지원자 직접 등록</h2>
+                  <p>등록 즉시 공고와 지원 이력이 연결됩니다.</p>
+                </div>
+                <button className="btn secondary compact" type="button" onClick={() => setRegisterOpen(false)}>
+                  닫기
+                </button>
+              </div>
+              {message ? <p className="notice">{message}</p> : null}
+              <div className="grid-2">
+                <label>
+                  이름
+                  <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} />
+                </label>
+                <label>
+                  이메일
+                  <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} />
+                </label>
+                <label>
+                  지원 직무
+                  <input required value={form.jobRole} onChange={(event) => updateField("jobRole", event.target.value)} />
+                </label>
+                <label>
+                  연락처
+                  <input value={form.phone} onChange={(event) => updateField("phone", event.target.value)} />
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn primary" type="submit" disabled={loading}>
+                  등록
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {inviteOpen ? (
+          <div className="modal-backdrop" role="presentation">
+            <form className="modal wide-modal" onSubmit={handleInvite} role="dialog" aria-modal="true" aria-labelledby="invite-applicant-title">
+              <div className="modal-head">
+                <div>
+                  <h2 id="invite-applicant-title">지원자 초대</h2>
+                  <p>선택한 지원자에게 응시 기간과 안내 메시지로 초대 요청을 보냅니다.</p>
+                </div>
+                <button className="btn secondary compact" type="button" onClick={() => setInviteOpen(false)}>
+                  닫기
+                </button>
+              </div>
+
+              {message ? <p className="notice">{message}</p> : null}
+
+              <div className="invite-list" aria-label="초대할 지원자 목록">
+                {items.map((item) => (
+                  <label className="check-row" key={item.applicationId}>
+                    <input
+                      checked={Boolean(selectedApplicantIds[item.applicationId])}
+                      type="checkbox"
+                      onChange={(event) => toggleApplicant(item.applicationId, event.target.checked)}
+                    />
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>{item.email}</small>
+                    </span>
+                    <StatusBadge value={item.applicationStatus} />
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid-2">
+                <label>
+                  응시 시작
+                  <input
+                    required
+                    type="datetime-local"
+                    value={invitation.availableFrom}
+                    onChange={(event) => updateInvitation("availableFrom", event.target.value)}
+                  />
+                </label>
+                <label>
+                  응시 종료
+                  <input
+                    required
+                    type="datetime-local"
+                    value={invitation.availableUntil}
+                    onChange={(event) => updateInvitation("availableUntil", event.target.value)}
+                  />
+                </label>
+                <label className="wide">
+                  안내 메시지
+                  <textarea
+                    required
+                    value={invitation.message}
+                    onChange={(event) => updateInvitation("message", event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="modal-actions">
+                <button className="btn primary" type="submit" disabled={loading}>
+                  초대 요청하기
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
       </section>
     </main>
   );
