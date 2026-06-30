@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Inject, Param, Post } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from "@nestjs/swagger";
 import { DevAuthAdapter } from "../../../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../../../common/dev-auth/current-user";
 import { ApiEnvelopeResponse, ApiErrorResponses, ApiOperationId, ApiParamId } from "../../../swagger/swagger.decorators";
@@ -22,9 +22,22 @@ import {
 
 type HeaderMap = Record<string, string | string[] | undefined>;
 
+const companyDevAuthSecurity = {
+  "x-dev-user-id": [],
+  "x-dev-user-type": [],
+  "x-dev-company-id": [],
+};
+
+const candidateDevAuthSecurity = {
+  "x-dev-user-id": [],
+  "x-dev-user-type": [],
+  "x-dev-candidate-id": [],
+};
+
 @Controller("reports")
 @ApiTags("Report Pipeline")
 @ApiBearerAuth("bearer")
+@ApiSecurity(companyDevAuthSecurity)
 @ApiErrorResponses()
 export class ReportsController {
   constructor(
@@ -269,6 +282,7 @@ export class ReportsController {
 @Controller("candidate/mock-interview/reports")
 @ApiTags("Candidate Mock Reports")
 @ApiBearerAuth("bearer")
+@ApiSecurity(candidateDevAuthSecurity)
 @ApiErrorResponses()
 export class CandidateMockReportsController {
   constructor(

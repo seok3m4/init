@@ -53,4 +53,30 @@ describe("Swagger setup", () => {
     expect(securitySchemes["x-dev-user-id"]).toEqual(expect.objectContaining({ type: "apiKey", in: "header" }));
     expect(securitySchemes["x-dev-user-type"]).toEqual(expect.objectContaining({ type: "apiKey", in: "header" }));
   });
+
+  it("documents dev auth security for report generation APIs", async () => {
+    const response = await request(app.getHttpServer()).get("/api-docs-json").expect(200);
+    const recruitingGenerate = response.body.paths["/api/v1/reports/{reportId}/generate"].post;
+    const mockGenerate = response.body.paths["/api/v1/candidate/mock-interview/reports/{reportId}/generate"].post;
+    const devHeaderNames = ["X-Dev-User-Id", "X-Dev-User-Type", "X-Dev-Company-Id", "X-Dev-Candidate-Id"];
+
+    expect(recruitingGenerate.security).toContainEqual(
+      expect.objectContaining({
+        "x-dev-user-id": [],
+        "x-dev-user-type": [],
+        "x-dev-company-id": [],
+      }),
+    );
+    expect(mockGenerate.security).toContainEqual(
+      expect.objectContaining({
+        "x-dev-user-id": [],
+        "x-dev-user-type": [],
+        "x-dev-candidate-id": [],
+      }),
+    );
+    for (const headerName of devHeaderNames) {
+      expect((recruitingGenerate.parameters ?? []).map((parameter: { name: string }) => parameter.name)).not.toContain(headerName);
+      expect((mockGenerate.parameters ?? []).map((parameter: { name: string }) => parameter.name)).not.toContain(headerName);
+    }
+  });
 });
