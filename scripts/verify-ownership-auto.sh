@@ -52,12 +52,13 @@ fi
 common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/|\.gitignore$)'
 baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|frontend/(eslint\.config\.mjs|next-env\.d\.ts|next\.config\.(js|ts)|tsconfig\.json)|backend/(api|common|worker)/package(-lock)?\.json|backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)|backend/common/tsconfig\.json|backend/worker/tsconfig\.json)'
 shared_backend='^(backend/api/src/modules/app\.module\.ts|backend/api/src/main\.ts)$'
+shared_frontend_api='^frontend/src/api/'
 shared_frontend_company='^frontend/src/app/company/layout\.tsx$'
 
 role_pattern() {
   case "$1" in
     A)
-      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
+      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
       ;;
     B)
       printf '%s\n' '(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)'
@@ -72,7 +73,7 @@ role_pattern() {
       printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
       ;;
     PM)
-      printf '%s\n' '(^docs/|^assets/)'
+      printf '%s\n' '(^docs/|^assets/|^design\.md$)'
       ;;
   esac
 }
@@ -91,6 +92,14 @@ while IFS= read -r file; do
     mark_impacted A
     mark_impacted B
     mark_impacted C
+    mark_impacted D
+    mark_impacted E
+    continue
+  fi
+
+  if [[ "$file" =~ $shared_frontend_api ]]; then
+    mark_impacted A
+    mark_impacted B
     mark_impacted D
     mark_impacted E
     continue

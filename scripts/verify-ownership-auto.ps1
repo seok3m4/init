@@ -102,6 +102,7 @@ $owned = @{
     "^backend/api/src/modules/health/",
     "^backend/api/src/shared/",
     "^backend/api/src/swagger/",
+    "^frontend/src/features/auth/",
     "^infra/",
     "^docs/03_contracts/",
     "^docs/02_architecture/"
@@ -110,10 +111,11 @@ $owned = @{
   C = @("^frontend/src/features/company-interview-criteria/", "^frontend/src/app/company/interviews/", "^backend/api/src/modules/company-interview/")
   D = @("^frontend/src/features/candidate-application-interview/", "^frontend/src/app/candidate/", "^backend/api/src/modules/(candidate|interview)/")
   E = @("^frontend/src/features/ai-report/", "^backend/worker/", "^backend/api/src/modules/(report|ai)/", "^docs/04_implementation/ai-golden/")
-  PM = @("^docs/", "^assets/")
+  PM = @("^docs/", "^assets/", "^design\.md$")
 }
 
 $sharedBackend = @("^backend/api/src/modules/app\.module\.ts$", "^backend/api/src/main\.ts$")
+$sharedFrontendApi = @("^frontend/src/api/")
 $sharedFrontendCompany = @("^frontend/src/app/company/layout\.tsx$")
 $allowedCommon = $common + $baselineSkeleton
 $impacted = New-Object System.Collections.Generic.HashSet[string]
@@ -129,6 +131,14 @@ foreach ($file in $changed) {
     [void]$impacted.Add("A")
     [void]$impacted.Add("B")
     [void]$impacted.Add("C")
+    [void]$impacted.Add("D")
+    [void]$impacted.Add("E")
+    continue
+  }
+
+  if (Test-AnyPattern $file $sharedFrontendApi) {
+    [void]$impacted.Add("A")
+    [void]$impacted.Add("B")
     [void]$impacted.Add("D")
     [void]$impacted.Add("E")
     continue
