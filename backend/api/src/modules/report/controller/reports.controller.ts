@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Inject, Param, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { DevAuthAdapter } from "../../../common/dev-auth/dev-auth.adapter";
 import { CurrentUser } from "../../../common/dev-auth/current-user";
@@ -28,8 +28,8 @@ type HeaderMap = Record<string, string | string[] | undefined>;
 @ApiErrorResponses()
 export class ReportsController {
   constructor(
-    private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly dispatcher: AiJobDispatcherService
+    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(AiJobDispatcherService) private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post(":reportId/evaluation-context")
@@ -272,8 +272,8 @@ export class ReportsController {
 @ApiErrorResponses()
 export class CandidateMockReportsController {
   constructor(
-    private readonly devAuthAdapter: DevAuthAdapter,
-    private readonly dispatcher: AiJobDispatcherService
+    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
+    @Inject(AiJobDispatcherService) private readonly dispatcher: AiJobDispatcherService
   ) {}
 
   @Post(":reportId/generate")
