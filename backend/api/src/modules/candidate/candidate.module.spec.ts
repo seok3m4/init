@@ -3,15 +3,15 @@ import { strict as assert } from "node:assert";
 import { MODULE_METADATA } from "@nestjs/common/constants";
 import { CandidateController } from "./candidate.controller";
 import { CandidateModule } from "./candidate.module";
-import { CANDIDATE_REPOSITORY, CandidateService, InMemoryCandidateRepository } from "./candidate.service";
+import { CANDIDATE_REPOSITORY, CandidateService } from "./candidate.service";
 
 interface ProviderDefinition {
   provide: unknown;
-  useClass: unknown;
+  useFactory: unknown;
 }
 
 function isProviderDefinition(provider: unknown): provider is ProviderDefinition {
-  return typeof provider === "object" && provider !== null && "provide" in provider && "useClass" in provider;
+  return typeof provider === "object" && provider !== null && "provide" in provider && "useFactory" in provider;
 }
 
 const controllers = Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, CandidateModule) as unknown[];
@@ -24,7 +24,7 @@ assert.ok(exportsMetadata.includes(CandidateService));
 
 const repositoryProvider = providers.find(isProviderDefinition);
 assert.equal(repositoryProvider?.provide, CANDIDATE_REPOSITORY);
-assert.equal(repositoryProvider?.useClass, InMemoryCandidateRepository);
+assert.equal(typeof repositoryProvider?.useFactory, "function");
 
 test("candidate module metadata", () => {
   assert.ok(controllers.includes(CandidateController));

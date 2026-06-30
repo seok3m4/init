@@ -1307,6 +1307,12 @@ export class InMemoryCandidateRepository implements CandidateRepository {
   private readonly fileAssets: FileAsset[] = [];
   private readonly portfolioLinks: PortfolioLink[] = [];
 
+  constructor(options: { seedDemoApplication?: boolean } = {}) {
+    if (options.seedDemoApplication) {
+      this.seedDemoApplication();
+    }
+  }
+
   async listJobs(): Promise<CandidateJob[]> {
     return [...this.jobs];
   }
@@ -1527,6 +1533,75 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       },
       updatedAt: createdAt,
     };
+  }
+
+  private seedDemoApplication(): void {
+    const now = new Date().toISOString();
+    const resumeFile: FileAsset = {
+      fileId: 1,
+      ownerUserId: DEV_CANDIDATE_USER.userId,
+      storageKey: `candidate/${DEV_CANDIDATE_USER.candidateId}/resume/demo-resume.pdf`,
+      originalName: "demo-resume.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 512_000,
+      status: "ACTIVE",
+      createdAt: now,
+    };
+    const portfolioFile: FileAsset = {
+      fileId: 2,
+      ownerUserId: DEV_CANDIDATE_USER.userId,
+      storageKey: `candidate/${DEV_CANDIDATE_USER.candidateId}/portfolio/demo-portfolio.pdf`,
+      originalName: "demo-portfolio.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 768_000,
+      status: "ACTIVE",
+      createdAt: now,
+    };
+    const application: Application = {
+      applicationId: 1,
+      postingId: 2,
+      candidateId: DEV_CANDIDATE_USER.candidateId,
+      applicationStatus: "SUBMITTED",
+      documentStatus: "SUBMITTED",
+      interviewStatus: "NOT_READY",
+      reportStatus: "PENDING",
+      submittedAt: now,
+      updatedAt: now,
+    };
+
+    this.fileAssets.push(resumeFile, portfolioFile);
+    this.applications.push(application);
+    this.documents.push(
+      this.createApplicationDocument(1, application.applicationId, resumeFile.fileId, "RESUME", now),
+      this.createApplicationDocument(2, application.applicationId, portfolioFile.fileId, "PORTFOLIO", now),
+    );
+    this.consentRecords.push(
+      {
+        consentId: 1,
+        applicationId: application.applicationId,
+        consentType: "PRIVACY_COLLECTION",
+        agreed: true,
+        agreedAt: now,
+      },
+      {
+        consentId: 2,
+        applicationId: application.applicationId,
+        consentType: "AI_DOCUMENT_ANALYSIS",
+        agreed: true,
+        agreedAt: now,
+      },
+    );
+    this.interviewSessions.push(this.createRecruitingInterviewSession(application, now));
+    this.portfolioLinks.push({
+      portfolioLinkId: 1,
+      candidateId: DEV_CANDIDATE_USER.candidateId,
+      applicationId: application.applicationId,
+      linkType: "GITHUB",
+      url: "https://github.com/demo-candidate/init-android",
+      description: "Demo portfolio link",
+      fileId: portfolioFile.fileId,
+      createdAt: now,
+    });
   }
 
   private async requiredApplication(applicationId: number): Promise<Application> {

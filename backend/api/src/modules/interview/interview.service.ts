@@ -30,7 +30,7 @@ export class InterviewService {
     {
       questionId: 1,
       questionType: "INTRO",
-      content: "Please introduce yourself and the role you are preparing for.",
+      content: "자기소개와 현재 준비 중인 직무를 함께 설명해주세요.",
       sortOrder: 1,
       interviewType: "MOCK",
       isActive: true,
@@ -38,7 +38,7 @@ export class InterviewService {
     {
       questionId: 2,
       questionType: "TECHNICAL",
-      content: "Explain one technical decision you made recently and the trade-offs you considered.",
+      content: "최근 프로젝트에서 내린 기술적 의사결정 하나와 그때 고려한 장단점을 설명해주세요.",
       sortOrder: 2,
       interviewType: "MOCK",
       isActive: true,
@@ -46,7 +46,7 @@ export class InterviewService {
     {
       questionId: 3,
       questionType: "EXPERIENCE",
-      content: "Describe a project where you had to learn a new tool quickly.",
+      content: "새로운 도구나 기술을 빠르게 익혀서 적용했던 프로젝트 경험을 설명해주세요.",
       sortOrder: 3,
       interviewType: "MOCK",
       isActive: true,
@@ -54,7 +54,7 @@ export class InterviewService {
     {
       questionId: 4,
       questionType: "CLOSING",
-      content: "What would you like the interviewer to remember about you?",
+      content: "면접관이 당신에 대해 꼭 기억했으면 하는 강점은 무엇인가요?",
       sortOrder: 4,
       interviewType: "MOCK",
       isActive: true,
@@ -62,7 +62,7 @@ export class InterviewService {
     {
       questionId: 101,
       questionType: "INTRO",
-      content: "Tell us briefly why you applied for this recruiting position.",
+      content: "이 채용 포지션에 지원한 이유를 간단히 설명해주세요.",
       sortOrder: 1,
       interviewType: "RECRUITING",
       postingId: 1,
@@ -71,7 +71,7 @@ export class InterviewService {
     {
       questionId: 102,
       questionType: "TECHNICAL",
-      content: "How would you design a reliable API for a high-traffic hiring workflow?",
+      content: "트래픽이 많은 채용 workflow를 위한 안정적인 API를 어떻게 설계하시겠습니까?",
       sortOrder: 2,
       interviewType: "RECRUITING",
       postingId: 1,
@@ -80,7 +80,7 @@ export class InterviewService {
     {
       questionId: 103,
       questionType: "SITUATION",
-      content: "Tell us about a time you debugged a production issue under time pressure.",
+      content: "시간 압박이 있는 상황에서 운영 이슈를 디버깅했던 경험을 설명해주세요.",
       sortOrder: 3,
       interviewType: "RECRUITING",
       postingId: 1,
@@ -89,7 +89,7 @@ export class InterviewService {
     {
       questionId: 104,
       questionType: "CLOSING",
-      content: "Do you have anything else to add for the hiring team?",
+      content: "채용팀에 마지막으로 전하고 싶은 내용이 있다면 말씀해주세요.",
       sortOrder: 4,
       interviewType: "RECRUITING",
       postingId: 1,
@@ -98,7 +98,7 @@ export class InterviewService {
     {
       questionId: 201,
       questionType: "INTRO",
-      content: "Introduce yourself as an Android developer candidate.",
+      content: "Android 개발자 지원자로서 본인을 소개해주세요.",
       sortOrder: 1,
       interviewType: "RECRUITING",
       postingId: 2,
@@ -107,7 +107,7 @@ export class InterviewService {
     {
       questionId: 202,
       questionType: "TECHNICAL",
-      content: "Explain how you would structure state and networking in an Android app.",
+      content: "Android 앱에서 상태 관리와 네트워크 계층을 어떻게 구성할지 설명해주세요.",
       sortOrder: 2,
       interviewType: "RECRUITING",
       postingId: 2,
@@ -116,7 +116,7 @@ export class InterviewService {
     {
       questionId: 203,
       questionType: "EXPERIENCE",
-      content: "Describe a mobile UX problem you improved through iteration.",
+      content: "반복 개선을 통해 해결했던 모바일 UX 문제 경험을 설명해주세요.",
       sortOrder: 3,
       interviewType: "RECRUITING",
       postingId: 2,
@@ -125,7 +125,7 @@ export class InterviewService {
     {
       questionId: 204,
       questionType: "CLOSING",
-      content: "What is one Android engineering strength you want to grow next?",
+      content: "앞으로 더 키우고 싶은 Android 엔지니어링 역량은 무엇인가요?",
       sortOrder: 4,
       interviewType: "RECRUITING",
       postingId: 2,
@@ -624,12 +624,20 @@ export class InterviewService {
       .filter((question) => question.isActive && question.interviewType === "RECRUITING")
       .filter((question) => question.postingId === postingId)
       .sort((left, right) => left.sortOrder - right.sortOrder);
-    if (questions.length === 0) {
-      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview questions were not found.", 404, [
-        { field: "sessionId", reason: "question set is missing" },
-      ]);
+    if (questions.length > 0) {
+      return questions.map((question) => question.questionId);
     }
-    return questions.map((question) => question.questionId);
+
+    const fallbackBySortOrder = new Map<number, InterviewQuestion>();
+    this.questions
+      .filter((question) => question.isActive && question.interviewType === "RECRUITING")
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.questionId - right.questionId)
+      .forEach((question) => {
+        if (!fallbackBySortOrder.has(question.sortOrder)) {
+          fallbackBySortOrder.set(question.sortOrder, question);
+        }
+      });
+    return [...fallbackBySortOrder.values()].map((question) => question.questionId);
   }
 
   private assertAnswerRequest(dto: SaveInterviewAnswerDto): {

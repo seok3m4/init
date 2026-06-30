@@ -9,7 +9,9 @@ import {
   Inject,
   NotFoundException,
   Param,
-  Post
+  Post,
+  Req,
+  UseGuards
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { DevAuthAdapter } from "../../../common/dev-auth/dev-auth.adapter";
@@ -28,13 +30,24 @@ import { AiJobResponseDto } from "../../report/dto/report-response.dto";
 import { AiJobDispatcherService } from "../../report/service/ai-job-dispatcher.service";
 import { AiProcessNotFoundError, REPORT_REPOSITORY, ReportRepository } from "../../report/repository/report.repository";
 import { AiProcessType } from "../../report/report.types";
+import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 
 type HeaderMap = Record<string, string | string[] | undefined>;
+type CandidateAiRequest = {
+  headers: HeaderMap;
+  currentUser?: {
+    userId: number;
+    userType: CurrentUser["userType"];
+    companyId?: number | null;
+    candidateId?: number | null;
+  };
+};
 
 @ApiTags("Candidate AI Jobs")
 @ApiBearerAuth("bearer")
 @ApiDevAuthHeaders()
 @ApiErrorResponses()
+@UseGuards(JwtAuthGuard)
 @Controller("candidate")
 export class CandidateAiJobsController {
   constructor(
@@ -47,8 +60,8 @@ export class CandidateAiJobsController {
   @ApiOperationId("API-076")
   @ApiOperation({ summary: "서류 텍스트 추출 작업 생성" })
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async extractDocument(@Headers() headers: HeaderMap, @Body() body: DocumentExtractRequestDto) {
-    const currentUser = this.candidate(headers);
+  async extractDocument(@Req() request: CandidateAiRequest, @Body() body: DocumentExtractRequestDto) {
+    const currentUser = this.candidate(request);
     this.requirePositive(body.applicationId, "applicationId");
     this.requirePositive(body.documentId, "documentId");
     this.requirePositive(body.fileId, "fileId");
@@ -68,18 +81,18 @@ export class CandidateAiJobsController {
   @ApiOperation({ summary: "모의면접 STT 작업 생성" })
   @ApiParamId("sessionId", "모의면접 세션 ID")
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async transcribeMockInterview(@Param("sessionId") sessionIdParam: string, @Headers() headers: HeaderMap, @Body() body: SttRequestDto) {
-    return this.transcribe("MOCK_INTERVIEW_STT", sessionIdParam, headers, body);
+  async transcribeMockInterview(@Param("sessionId") sessionIdParam: string, @Req() request: CandidateAiRequest, @Body() body: SttRequestDto) {
+    return this.transcribe("MOCK_INTERVIEW_STT", sessionIdParam, request, body);
   }
 
   @Post("interviews/:sessionId/stt")
   @HttpCode(HttpStatus.ACCEPTED)
   async transcribeRecruitingInterview(
     @Param("sessionId") sessionIdParam: string,
-    @Headers() headers: HeaderMap,
+    @Req() request: CandidateAiRequest,
     @Body() body: SttRequestDto
   ) {
-    return this.transcribe("RECRUITING_INTERVIEW_STT", sessionIdParam, headers, body);
+    return this.transcribe("RECRUITING_INTERVIEW_STT", sessionIdParam, request, body);
   }
 
   @Post("mock-interviews/:sessionId/follow-up-question")
@@ -88,8 +101,8 @@ export class CandidateAiJobsController {
   @ApiOperation({ summary: "모의면접 꼬리질문 생성 작업 생성" })
   @ApiParamId("sessionId", "모의면접 세션 ID")
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async mockFollowUp(@Param("sessionId") sessionIdParam: string, @Headers() headers: HeaderMap, @Body() body: FollowUpQuestionRequestDto) {
-    return this.followUp("MOCK_FOLLOW_UP", sessionIdParam, headers, body);
+  async mockFollowUp(@Param("sessionId") sessionIdParam: string, @Req() request: CandidateAiRequest, @Body() body: FollowUpQuestionRequestDto) {
+    return this.followUp("MOCK_FOLLOW_UP", sessionIdParam, request, body);
   }
 
   @Post("interviews/:sessionId/follow-up-question")
@@ -98,8 +111,8 @@ export class CandidateAiJobsController {
   @ApiOperation({ summary: "채용면접 꼬리질문 생성 작업 생성" })
   @ApiParamId("sessionId", "채용면접 세션 ID")
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async recruitingFollowUp(@Param("sessionId") sessionIdParam: string, @Headers() headers: HeaderMap, @Body() body: FollowUpQuestionRequestDto) {
-    return this.followUp("RECRUITING_FOLLOW_UP", sessionIdParam, headers, body);
+  async recruitingFollowUp(@Param("sessionId") sessionIdParam: string, @Req() request: CandidateAiRequest, @Body() body: FollowUpQuestionRequestDto) {
+    return this.followUp("RECRUITING_FOLLOW_UP", sessionIdParam, request, body);
   }
 
   @Post("mock-interviews/questions/generate")
@@ -107,8 +120,8 @@ export class CandidateAiJobsController {
   @ApiOperationId("API-045")
   @ApiOperation({ summary: "연습용 질문 목록 구성 작업 생성" })
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async generateMockQuestions(@Headers() headers: HeaderMap, @Body() body: MockQuestionGenerateRequestDto) {
-    const currentUser = this.candidate(headers);
+  async generateMockQuestions(@Req() request: CandidateAiRequest, @Body() body: MockQuestionGenerateRequestDto) {
+    const currentUser = this.candidate(request);
     this.requirePositive(body.questionCount, "questionCount");
 
     return this.dispatcher.dispatch({
@@ -117,8 +130,8 @@ export class CandidateAiJobsController {
     });
   }
 
-  private async transcribe(kind: string, sessionIdParam: string, headers: HeaderMap, body: SttRequestDto) {
-    const currentUser = this.candidate(headers);
+  private async transcribe(kind: string, sessionIdParam: string, request: CandidateAiRequest, body: SttRequestDto) {
+    const currentUser = this.candidate(request);
     const sessionId = this.parseId(sessionIdParam, "sessionId");
     this.requirePositive(body.answerId, "answerId");
     this.requirePositive(body.audioFileId, "audioFileId");
@@ -132,8 +145,8 @@ export class CandidateAiJobsController {
     });
   }
 
-  private async followUp(kind: string, sessionIdParam: string, headers: HeaderMap, body: FollowUpQuestionRequestDto) {
-    const currentUser = this.candidate(headers);
+  private async followUp(kind: string, sessionIdParam: string, request: CandidateAiRequest, body: FollowUpQuestionRequestDto) {
+    const currentUser = this.candidate(request);
     const sessionId = this.parseId(sessionIdParam, "sessionId");
     this.requirePositive(body.answerId, "answerId");
     this.requireText(body.previousQuestion, "previousQuestion");
@@ -149,8 +162,15 @@ export class CandidateAiJobsController {
     });
   }
 
-  private candidate(headers: HeaderMap): CurrentUser {
-    const currentUser = this.devAuthAdapter.parse(headers);
+  private candidate(request: CandidateAiRequest): CurrentUser {
+    const currentUser = request.currentUser
+      ? {
+          userId: request.currentUser.userId,
+          userType: request.currentUser.userType,
+          companyId: request.currentUser.companyId ?? undefined,
+          candidateId: request.currentUser.candidateId ?? undefined,
+        }
+      : this.devAuthAdapter.parse(request.headers);
     this.devAuthAdapter.assertCandidate(currentUser);
     return currentUser;
   }
