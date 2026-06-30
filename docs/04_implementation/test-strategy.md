@@ -34,6 +34,7 @@ bash scripts/check-local.sh -Role B
 | `verify-baseline.ps1` | 구현 baseline 문서 반영, backend/frontend skeleton, 공통 위치, schema naming guard 확인 | 문서/필수 skeleton은 없으면 실패. `schema.prisma`가 있으면 model/enum 이름까지 실패 처리 |
 | `verify-package-baseline.ps1` | 패키지별 `package.json`/`package-lock.json` 존재와 정확한 dependency version 확인 | baseline 버전이 다르면 실패 |
 | `verify-ownership.ps1` | 역할별 허용 경로 외 변경 감지 | `-SkipOwnership` 지정 시 생략 |
+| `docs/04_implementation/ownership-map.json` | PowerShell/bash ownership 검증의 단일 경로 기준 | 새 role/path 추가 시 관련 owner 리뷰 필요 |
 | `verify-prisma.ps1` | Prisma schema validate, migration 폴더 확인 | schema가 아직 없으면 skip |
 | `verify-docker.ps1` | Dockerfile 기본 구조와 선택적 build 확인 | Dockerfile이 아직 없으면 skip |
 | `verify-env.ps1` | 필수 환경변수 이름 확인 | env example이 아직 없으면 skip |
@@ -123,6 +124,7 @@ powershell -ExecutionPolicy Bypass -File scripts\check-local.ps1 -Role A
 - ERDCloud SQL의 필수 테이블 존재
 - ERDCloud SQL이 `docs/02_architecture/erdcloud`에 위치하는지 여부
 - role별 허용 경로 밖의 생성/수정/삭제 감지
+- ownership 기준은 `docs/04_implementation/ownership-map.json`에서 읽고 PowerShell/bash harness가 같은 map을 사용
 - Prisma schema/migration 준비 상태
 - Dockerfile 존재 시 최소 문법과 선택적 build
 - `.env.example` 필수 변수명

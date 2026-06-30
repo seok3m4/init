@@ -23,6 +23,7 @@ closes #이슈번호
 - [ ] `npm install`이 아닌 `npm ci` 기준으로 검증
 - [ ] `package.json` 변경 시 같은 package의 `package-lock.json`도 함께 변경
 - [ ] 의존성 version 변경 시 A 또는 PM 리뷰 필요성을 표시
+- [ ] `ownership-map.json` 변경 시 영향 role과 추가/변경 path pattern을 리뷰어에게 설명
 - [ ] placeholder npm script가 실제 구현을 가리지 않는지 확인
 - [ ] skip된 harness가 있다면 skip 사유와 실제 검증 전환 예정 PR을 아래에 기재
 
