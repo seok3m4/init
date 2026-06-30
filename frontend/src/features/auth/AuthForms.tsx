@@ -2,12 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { apiFetch, setAccessToken, UserType } from "../../api/client";
-
-const nextPath = {
-  COMPANY: "/company/applications/dashboard",
-  CANDIDATE: "/candidate/mock-interview/start",
-} as const;
+import { AuthTokenResponse, UserType, apiFetch, getDefaultEntryPath } from "../../api/client";
+import { useAuth } from "./AuthProvider";
 
 function EyeIcon() {
   return (
@@ -197,6 +193,7 @@ function TermsModal({ userType, onClose }: { userType: UserType; onClose: () => 
 
 export function LoginForm() {
   const router = useRouter();
+  const { completeLogin } = useAuth();
   const [userType, setUserType] = useState<UserType>("COMPANY");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -206,12 +203,12 @@ export function LoginForm() {
     event.preventDefault();
     setMessage("");
     try {
-      const result = await apiFetch<{ accessToken: string }>("/auth/login", {
+      const result = await apiFetch<AuthTokenResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ userType, email, password }),
       });
-      setAccessToken(result.accessToken);
-      router.push(nextPath[userType]);
+      completeLogin(result);
+      router.replace(getDefaultEntryPath(result.user.userType));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
     }

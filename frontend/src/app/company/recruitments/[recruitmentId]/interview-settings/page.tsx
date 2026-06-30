@@ -1,4 +1,4 @@
-import { RecruitmentInterviewSettingsBridgePage } from "../../../../../features/company-recruiting/RecruitmentInterviewSettingsBridgePage";
+import { CompanyInterviewSettingsPage } from "../../../../../features/company-interview-criteria";
 
 type Props = {
   params: Promise<{ recruitmentId: string }>;
@@ -6,5 +6,5 @@ type Props = {
 
 export default async function RecruitmentInterviewSettingsRoute({ params }: Props) {
   const { recruitmentId } = await params;
-  return <RecruitmentInterviewSettingsBridgePage recruitmentId={Number(recruitmentId)} />;
+  return <CompanyInterviewSettingsPage postingId={Number(recruitmentId)} />;
 }

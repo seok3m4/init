@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { getRecruitment, updateRecruitment } from "./api";
+import { Breadcrumb } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
 type FormState = {
@@ -86,9 +87,14 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
     <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">RECRUITMENT SETTINGS</p>
-            <h1>{recruitment?.title ?? "공고 설정"}</h1>
-            <p>공고 기본 정보와 JD 텍스트를 수정합니다.</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                { label: recruitment?.title ?? "공고", href: `/company/recruitments/${recruitmentId}` },
+                { label: "공고 설정" },
+              ]}
+            />
+            <h1>공고 설정</h1>
           </div>
           <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}`}>
             대시보드
@@ -137,20 +143,11 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
             <div className="panel-head">
               <div>
                 <h2>JD 설정</h2>
-                <p>파일 칸은 후속 업로드 연동 전 UI이며, 이번 저장은 텍스트 JD만 반영합니다.</p>
+                <p>이번 저장은 텍스트 JD만 반영합니다.</p>
               </div>
             </div>
 
-            <div className="grid-2">
-              <label>
-                JD 파일
-                <input
-                  accept=".txt,.pdf,.doc,.docx"
-                  type="file"
-                  onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
-                />
-                <span className="field-hint">{jdFileName ? `${jdFileName} 선택됨` : "파일 저장은 후속 합의 후 연결합니다."}</span>
-              </label>
+            <div className="creation-flow">
               <label className="wide">
                 JD 직접 입력
                 <textarea
@@ -158,6 +155,21 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
                   onChange={(event) => updateField("jobDescription", event.target.value)}
                   placeholder="담당 업무, 자격 요건, 우대 사항을 입력하세요."
                 />
+              </label>
+              <label className="wide">
+                JD 파일 (임시 UI)
+                <div className="upload-zone">
+                  <input
+                    accept=".txt,.pdf,.doc,.docx"
+                    type="file"
+                    onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
+                  />
+                  <span className="field-hint">
+                    {jdFileName
+                      ? `${jdFileName} 선택됨 · 파일 저장/파싱은 아직 연동 전입니다.`
+                      : "txt, pdf, doc, docx · 실제 업로드 저장은 후속 연동 예정인 임시 칸입니다."}
+                  </span>
+                </div>
               </label>
             </div>
           </section>

@@ -29,7 +29,9 @@
 | `backend/common/src/dto` | 공통 response/error/current-user DTO | A |
 | `backend/common/src/errors` | 공통 error code와 exception mapping | A |
 | `frontend/src/api` | frontend API client entrypoint | A/B/D/E reviewers |
+| `frontend/src/features/auth` | 인증 화면, 세션 복원, 페이지 접근 제어 | A with B/D/PM reviewers |
 | `frontend/src/shared` | 여러 feature가 쓰는 UI/helper | touched owners |
+| `design.md` | 디자인 시스템, 공통 UI 토큰, 제품 UI 기준 | PM with touched frontend reviewers |
 
 ### DTO Naming and Location Baseline
 

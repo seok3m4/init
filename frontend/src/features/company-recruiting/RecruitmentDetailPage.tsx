@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
-import { StatusBadge } from "./CompanyRecruitingChrome";
+import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
 import { buildInterviewSettingsHref } from "./routes";
 import {
   getScreeningAutosaveFieldState,
@@ -131,9 +131,14 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
     <section className="app-page">
         <div className="page-head">
           <div>
-            <p className="eyebrow">RECRUITMENT DASHBOARD</p>
+            <Breadcrumb
+              items={[
+                { label: "공고 목록", href: "/company/recruitments" },
+                { label: recruitment?.title ?? "공고 대시보드" },
+              ]}
+            />
             <h1>{recruitment?.title ?? "공고 대시보드"}</h1>
-            <p>공고 운영 현황과 다음 전형 대상자를 확인합니다.</p>
+            <p className="page-sub">공고 운영 현황과 다음 전형 대상자를 확인합니다.</p>
           </div>
           <div className="page-actions">
             <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}/settings`}>
