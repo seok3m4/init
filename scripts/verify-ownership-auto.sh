@@ -58,7 +58,7 @@ shared_frontend_company='^frontend/src/app/company/layout\.tsx$'
 role_pattern() {
   case "$1" in
     A)
-      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
+      printf '%s\n' '(^backend/common/|^backend/api/prisma/|^backend/api/src/modules/auth/|^backend/api/src/modules/health/|^backend/api/src/shared/|^backend/api/src/swagger/|^frontend/src/app/(login|signup|password/reset)/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)'
       ;;
     B)
       printf '%s\n' '(^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/modules/company-recruiting/)'
