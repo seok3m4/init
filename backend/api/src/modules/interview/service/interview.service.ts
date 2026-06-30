@@ -5,9 +5,9 @@ import {
   type CurrentCandidateUser,
   type FileAsset,
   type InterviewSession,
-} from "../candidate";
-import { DeviceCheckDto } from "./interview.device-check.dto";
-import { AiInterviewRequestDto, RuntimeFileAssetDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "./interview.runtime.dto";
+} from "../../candidate";
+import { DeviceCheckDto } from "../dto/interview.device-check.dto";
+import { AiInterviewRequestDto, RuntimeFileAssetDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "../dto/interview.runtime.dto";
 import {
   AiHandoffResult,
   CompleteInterviewResult,
@@ -20,153 +20,20 @@ import {
   RuntimeInterviewSession,
   SaveInterviewAnswerResult,
   StartMockInterviewResult,
-} from "./interview.runtime.types";
+} from "../interview.runtime.types";
+import { INTERVIEW_REPOSITORY, type InterviewRepository } from "../repository/interview.repository";
 
 const DEFAULT_MOCK_QUESTION_TYPES = ["INTRO", "TECHNICAL", "EXPERIENCE", "CLOSING"] as const;
 
 @Injectable()
 export class InterviewService {
-  private readonly questions: InterviewQuestion[] = [
-    {
-      questionId: 1,
-      questionType: "INTRO",
-      content: "자기소개와 현재 준비 중인 직무를 함께 설명해주세요.",
-      sortOrder: 1,
-      interviewType: "MOCK",
-      isActive: true,
-    },
-    {
-      questionId: 2,
-      questionType: "TECHNICAL",
-      content: "최근 프로젝트에서 내린 기술적 의사결정 하나와 그때 고려한 장단점을 설명해주세요.",
-      sortOrder: 2,
-      interviewType: "MOCK",
-      isActive: true,
-    },
-    {
-      questionId: 3,
-      questionType: "EXPERIENCE",
-      content: "새로운 도구나 기술을 빠르게 익혀서 적용했던 프로젝트 경험을 설명해주세요.",
-      sortOrder: 3,
-      interviewType: "MOCK",
-      isActive: true,
-    },
-    {
-      questionId: 4,
-      questionType: "CLOSING",
-      content: "면접관이 당신에 대해 꼭 기억했으면 하는 강점은 무엇인가요?",
-      sortOrder: 4,
-      interviewType: "MOCK",
-      isActive: true,
-    },
-    {
-      questionId: 101,
-      questionType: "INTRO",
-      content: "이 채용 포지션에 지원한 이유를 간단히 설명해주세요.",
-      sortOrder: 1,
-      interviewType: "RECRUITING",
-      postingId: 1,
-      isActive: true,
-    },
-    {
-      questionId: 102,
-      questionType: "TECHNICAL",
-      content: "트래픽이 많은 채용 workflow를 위한 안정적인 API를 어떻게 설계하시겠습니까?",
-      sortOrder: 2,
-      interviewType: "RECRUITING",
-      postingId: 1,
-      isActive: true,
-    },
-    {
-      questionId: 103,
-      questionType: "SITUATION",
-      content: "시간 압박이 있는 상황에서 운영 이슈를 디버깅했던 경험을 설명해주세요.",
-      sortOrder: 3,
-      interviewType: "RECRUITING",
-      postingId: 1,
-      isActive: true,
-    },
-    {
-      questionId: 104,
-      questionType: "CLOSING",
-      content: "채용팀에 마지막으로 전하고 싶은 내용이 있다면 말씀해주세요.",
-      sortOrder: 4,
-      interviewType: "RECRUITING",
-      postingId: 1,
-      isActive: true,
-    },
-    {
-      questionId: 201,
-      questionType: "INTRO",
-      content: "Android 개발자 지원자로서 본인을 소개해주세요.",
-      sortOrder: 1,
-      interviewType: "RECRUITING",
-      postingId: 2,
-      isActive: true,
-    },
-    {
-      questionId: 202,
-      questionType: "TECHNICAL",
-      content: "Android 앱에서 상태 관리와 네트워크 계층을 어떻게 구성할지 설명해주세요.",
-      sortOrder: 2,
-      interviewType: "RECRUITING",
-      postingId: 2,
-      isActive: true,
-    },
-    {
-      questionId: 203,
-      questionType: "EXPERIENCE",
-      content: "반복 개선을 통해 해결했던 모바일 UX 문제 경험을 설명해주세요.",
-      sortOrder: 3,
-      interviewType: "RECRUITING",
-      postingId: 2,
-      isActive: true,
-    },
-    {
-      questionId: 204,
-      questionType: "CLOSING",
-      content: "앞으로 더 키우고 싶은 Android 엔지니어링 역량은 무엇인가요?",
-      sortOrder: 4,
-      interviewType: "RECRUITING",
-      postingId: 2,
-      isActive: true,
-    },
-  ];
-
-  private readonly mockSessions = new Map<number, RuntimeInterviewSession>();
-  private readonly recruitingSessions = new Map<number, RuntimeInterviewSession>();
-  private readonly answers: InterviewAnswer[] = [];
-
-  constructor(@Inject(CandidateService) private readonly candidateService: CandidateService) {}
+  constructor(
+    @Inject(CandidateService) private readonly candidateService: CandidateService,
+    @Inject(INTERVIEW_REPOSITORY) private readonly interviewRepository: InterviewRepository,
+  ) {}
 
   listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): RuntimeInterviewSession[] {
-    return [...this.mockSessions.values()]
-      .filter((session) => session.candidateId === currentUser.candidateId)
-      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
-      .map((session) => ({ ...session, questionIds: [...session.questionIds] }));
-  }
-
-  getOwnedMockInterviewSessionForReport(
-    reportId: number,
-    currentUser: CurrentCandidateUser,
-  ): RuntimeInterviewSession {
-    const session = this.getOwnedMockSession(reportId, currentUser);
-    return { ...session, questionIds: [...session.questionIds] };
-  }
-
-  listAnswersForSession(sessionId: number): InterviewAnswer[] {
-    return this.answers
-      .filter((answer) => answer.sessionId === sessionId)
-      .sort((left, right) => {
-        const leftQuestion = this.requiredQuestion(left.questionId);
-        const rightQuestion = this.requiredQuestion(right.questionId);
-        return leftQuestion.sortOrder - rightQuestion.sortOrder;
-      })
-      .map((answer) => ({ ...answer }));
-  }
-
-  getQuestionSnapshot(questionId: number): InterviewQuestion {
-    return { ...this.requiredQuestion(questionId) };
+    return this.interviewRepository.listOwnedMockSessions(currentUser.candidateId);
   }
 
   saveDeviceCheck(sessionId: number, dto: DeviceCheckDto, currentUser: CurrentCandidateUser) {
@@ -189,19 +56,14 @@ export class InterviewService {
     const showQuestionText = requestBody.showQuestionText === true;
     const questionIds = this.selectMockQuestionIds(dto);
     const now = new Date().toISOString();
-    const session: RuntimeInterviewSession = {
-      sessionId: 10000 + this.mockSessions.size + 1,
+    const session = this.interviewRepository.createMockSession({
       candidateId: currentUser.candidateId,
-      interviewType: "MOCK",
-      status: "IN_PROGRESS",
       showQuestionText,
-      currentQuestionIndex: 0,
       questionIds,
       startedAt: now,
       updatedAt: now,
-    };
+    });
 
-    this.mockSessions.set(session.sessionId, session);
     return this.envelope({
       ...this.toRuntimeView(session, "mock"),
       startedAt: now,
@@ -245,7 +107,7 @@ export class InterviewService {
   }
 
   async listMockQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = this.syncCurrentQuestionToFirstUnanswered(this.getOwnedMockSession(sessionId, currentUser));
     this.assertInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
@@ -276,7 +138,9 @@ export class InterviewService {
   }
 
   async listRecruitingQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
+    const session = this.syncCurrentQuestionToFirstUnanswered(
+      await this.getRecruitingRuntimeSession(sessionId, currentUser),
+    );
     this.assertInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
@@ -316,17 +180,16 @@ export class InterviewService {
       sessionId,
       currentUser,
     );
-    let runtimeSession = this.recruitingSessions.get(session.sessionId);
+    let runtimeSession = this.interviewRepository.findRecruitingRuntimeSession(session.sessionId);
     if (!runtimeSession) {
       runtimeSession = this.createRecruitingRuntimeSession(application.applicationId, application.postingId, session);
-      this.recruitingSessions.set(session.sessionId, runtimeSession);
     }
 
     runtimeSession.status = session.status;
     runtimeSession.showQuestionText = session.showQuestionText;
     runtimeSession.updatedAt = session.updatedAt;
     runtimeSession.completedAt = session.completedAt;
-    return runtimeSession;
+    return this.interviewRepository.saveRecruitingRuntimeSession(runtimeSession);
   }
 
   private createRecruitingRuntimeSession(
@@ -351,7 +214,7 @@ export class InterviewService {
 
   private getOwnedMockSession(sessionId: number, currentUser: CurrentCandidateUser): RuntimeInterviewSession {
     this.assertPositiveIntegerId(sessionId, "sessionId");
-    const session = this.mockSessions.get(sessionId);
+    const session = this.interviewRepository.findMockSession(sessionId);
     if (!session) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
         { field: "sessionId", reason: "mock interview session not found" },
@@ -370,6 +233,7 @@ export class InterviewService {
     dto: SaveInterviewAnswerDto,
     currentUser: CurrentCandidateUser,
   ): Promise<{ data: SaveInterviewAnswerResult; meta: { traceId: string; timestamp: string } }> {
+    session = this.syncCurrentQuestionToFirstUnanswered(session);
     this.assertInProgress(session);
     const requestBody = this.assertAnswerRequest(dto);
     const currentQuestionId = this.currentQuestionId(session);
@@ -378,7 +242,7 @@ export class InterviewService {
         { field: "questionId", reason: `current question is ${currentQuestionId}` },
       ]);
     }
-    if (this.findAnswer(session.sessionId, requestBody.questionId)) {
+    if (this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId)) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Current question has already been answered.", 409, [
         { field: "questionId", reason: "question already answered" },
       ]);
@@ -403,17 +267,16 @@ export class InterviewService {
     }
 
     const submittedAt = new Date().toISOString();
-    const answer: InterviewAnswer = {
-      answerId: this.answers.length + 1,
+    const answer = this.interviewRepository.createAnswer({
       sessionId: session.sessionId,
       questionId: requestBody.questionId,
       videoFileId: videoFile?.fileId,
       audioFileId: audioFile?.fileId,
       durationSeconds: requestBody.durationSeconds,
       submittedAt,
-    };
-    this.answers.push(answer);
+    });
     session.updatedAt = submittedAt;
+    this.interviewRepository.saveRuntimeSession(session);
 
     return this.envelope({
       sessionId: session.sessionId,
@@ -429,7 +292,7 @@ export class InterviewService {
   ): { data: NextInterviewQuestionResult; meta: { traceId: string; timestamp: string } } {
     this.assertInProgress(session);
     const previousQuestionId = this.currentQuestionId(session);
-    if (!this.findAnswer(session.sessionId, previousQuestionId)) {
+    if (!this.interviewRepository.findAnswer(session.sessionId, previousQuestionId)) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Current question must be answered before moving next.", 409, [
         { field: "questionId", reason: "current question answer is missing" },
       ]);
@@ -442,11 +305,12 @@ export class InterviewService {
 
     session.currentQuestionIndex += 1;
     session.updatedAt = new Date().toISOString();
+    const updatedSession = this.interviewRepository.saveRuntimeSession(session);
     return this.envelope({
-      sessionId: session.sessionId,
+      sessionId: updatedSession.sessionId,
       previousQuestionId,
-      currentQuestion: this.toQuestionView(session, this.currentQuestion(session), true),
-      isLastQuestion: session.currentQuestionIndex === session.questionIds.length - 1,
+      currentQuestion: this.toQuestionView(updatedSession, this.currentQuestion(updatedSession), true),
+      isLastQuestion: updatedSession.currentQuestionIndex === updatedSession.questionIds.length - 1,
     });
   }
 
@@ -465,15 +329,16 @@ export class InterviewService {
     session.status = "COMPLETED";
     session.completedAt = completedAt;
     session.updatedAt = completedAt;
+    const updatedSession = this.interviewRepository.saveRuntimeSession(session);
 
     return this.envelope({
-      sessionId: session.sessionId,
-      applicationId: session.applicationId,
-      interviewType: session.interviewType,
+      sessionId: updatedSession.sessionId,
+      applicationId: updatedSession.applicationId,
+      interviewType: updatedSession.interviewType,
       status: "COMPLETED",
       completedAt,
       answeredCount,
-      totalQuestions: session.questionIds.length,
+      totalQuestions: updatedSession.questionIds.length,
     });
   }
 
@@ -514,8 +379,8 @@ export class InterviewService {
     const answerId = rawAnswerId as number | undefined;
 
     const answer = answerId
-      ? this.answers.find((candidate) => candidate.sessionId === session.sessionId && candidate.answerId === answerId)
-      : [...this.answers].reverse().find((candidate) => candidate.sessionId === session.sessionId);
+      ? this.interviewRepository.findAnswerById(session.sessionId, answerId)
+      : this.interviewRepository.findLatestAnswer(session.sessionId);
     if (!answer) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview answer was not found.", 404, [
         { field: "answerId", reason: "answer not found for session" },
@@ -590,7 +455,7 @@ export class InterviewService {
       sortOrder: question.sortOrder,
       content: session.showQuestionText ? question.content : undefined,
       audioPrompt: `audio://interview-questions/${question.questionId}`,
-      answered: Boolean(this.findAnswer(session.sessionId, question.questionId)),
+      answered: Boolean(this.interviewRepository.findAnswer(session.sessionId, question.questionId)),
       current,
     };
   }
@@ -606,37 +471,31 @@ export class InterviewService {
       ]);
     }
 
-    const questions = this.questions
-      .filter((question) => question.isActive && question.interviewType === "MOCK")
-      .filter((question) => requestedTypes.includes(question.questionType))
-      .sort((left, right) => left.sortOrder - right.sortOrder);
+    const questions = this.interviewRepository.listQuestions({
+      interviewType: "MOCK",
+      questionTypes: requestedTypes,
+    });
     if (questions.length === 0) {
-      return this.questions
-        .filter((question) => question.isActive && question.interviewType === "MOCK")
-        .sort((left, right) => left.sortOrder - right.sortOrder)
-        .map((question) => question.questionId);
+      return this.interviewRepository.listQuestions({ interviewType: "MOCK" }).map((question) => question.questionId);
     }
     return questions.map((question) => question.questionId);
   }
 
   private selectRecruitingQuestionIds(postingId: number): number[] {
-    const questions = this.questions
-      .filter((question) => question.isActive && question.interviewType === "RECRUITING")
-      .filter((question) => question.postingId === postingId)
-      .sort((left, right) => left.sortOrder - right.sortOrder);
+    const questions = this.interviewRepository.listQuestions({
+      interviewType: "RECRUITING",
+      postingId,
+    });
     if (questions.length > 0) {
       return questions.map((question) => question.questionId);
     }
 
     const fallbackBySortOrder = new Map<number, InterviewQuestion>();
-    this.questions
-      .filter((question) => question.isActive && question.interviewType === "RECRUITING")
-      .sort((left, right) => left.sortOrder - right.sortOrder || left.questionId - right.questionId)
-      .forEach((question) => {
-        if (!fallbackBySortOrder.has(question.sortOrder)) {
-          fallbackBySortOrder.set(question.sortOrder, question);
-        }
-      });
+    this.interviewRepository.listQuestions({ interviewType: "RECRUITING" }).forEach((question) => {
+      if (!fallbackBySortOrder.has(question.sortOrder)) {
+        fallbackBySortOrder.set(question.sortOrder, question);
+      }
+    });
     return [...fallbackBySortOrder.values()].map((question) => question.questionId);
   }
 
@@ -708,8 +567,25 @@ export class InterviewService {
     return questionId;
   }
 
+  private syncCurrentQuestionToFirstUnanswered(session: RuntimeInterviewSession): RuntimeInterviewSession {
+    if (session.status !== "IN_PROGRESS") {
+      return session;
+    }
+
+    const firstUnansweredIndex = session.questionIds.findIndex(
+      (questionId) => !this.interviewRepository.findAnswer(session.sessionId, questionId),
+    );
+    if (firstUnansweredIndex < 0 || firstUnansweredIndex === session.currentQuestionIndex) {
+      return session;
+    }
+
+    session.currentQuestionIndex = firstUnansweredIndex;
+    session.updatedAt = new Date().toISOString();
+    return this.interviewRepository.saveRuntimeSession(session);
+  }
+
   private requiredQuestion(questionId: number): InterviewQuestion {
-    const question = this.questions.find((candidate) => candidate.questionId === questionId && candidate.isActive);
+    const question = this.interviewRepository.findQuestion(questionId);
     if (!question) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview question was not found.", 404, [
         { field: "questionId", reason: "question not found" },
@@ -718,12 +594,8 @@ export class InterviewService {
     return question;
   }
 
-  private findAnswer(sessionId: number, questionId: number): InterviewAnswer | undefined {
-    return this.answers.find((answer) => answer.sessionId === sessionId && answer.questionId === questionId);
-  }
-
   private countAnswers(sessionId: number): number {
-    return this.answers.filter((answer) => answer.sessionId === sessionId).length;
+    return this.interviewRepository.countAnswersBySession(sessionId);
   }
 
   private assertPositiveIntegerId(value: number, field: string): void {

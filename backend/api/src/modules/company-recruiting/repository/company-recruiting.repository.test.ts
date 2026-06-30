@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PrismaCompanyRecruitingRepository } from "./company-recruiting.repository";
 
 describe("PrismaCompanyRecruitingRepository", () => {
-  it("does not write D/E-owned application status fields during direct registration", async () => {
+  it("writes only B-owned application fields during direct registration", async () => {
     let capturedData: Record<string, unknown> | null = null;
     const prisma = {
       application: {
@@ -43,14 +43,55 @@ describe("PrismaCompanyRecruitingRepository", () => {
     };
     const repository = new PrismaCompanyRecruitingRepository(prisma as never);
 
-    await repository.createApplication({ postingId: 101, candidateId: 44 });
+    await repository.createApplication({ postingId: 101, candidateId: 44, screeningMemo: null });
 
     assert.deepEqual(capturedData, {
       postingId: 101n,
       candidateId: 44n,
       applicationStatus: "SUBMITTED",
       screeningDecision: "UNDECIDED",
+      screeningMemo: null,
     });
+  });
+
+  it("archives postings instead of physically deleting recruitment data", async () => {
+    let capturedWhere: Record<string, unknown> | null = null;
+    let capturedData: Record<string, unknown> | null = null;
+    const prisma = {
+      posting: {
+        async findFirst(args: { where: Record<string, unknown> }) {
+          capturedWhere = args.where;
+          return { postingId: 101n };
+        },
+        async update(args: { data: Record<string, unknown> }) {
+          capturedData = args.data;
+          return {
+            postingId: 101n,
+            companyId: 7n,
+            title: "Backend Developer",
+            jobRole: "Backend",
+            jobDescription: "Build APIs",
+            startsOn: null,
+            endsOn: null,
+            status: "ARCHIVED",
+            createdAt: new Date("2026-06-29T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-30T00:00:00.000Z"),
+            _count: { applications: 3 },
+          };
+        },
+      },
+    };
+    const repository = new PrismaCompanyRecruitingRepository(prisma as never);
+
+    const result = await repository.archivePosting(101, 7);
+
+    assert.deepEqual(capturedWhere, {
+      postingId: 101n,
+      companyId: 7n,
+    });
+    assert.deepEqual(capturedData, { status: "ARCHIVED" });
+    assert.equal(result?.status, "ARCHIVED");
+    assert.equal(result?.applicantCount, 3);
   });
 
   it("updates only B-owned screening fields", async () => {

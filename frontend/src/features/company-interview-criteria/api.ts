@@ -9,6 +9,7 @@ import type {
   UpdateInterviewTimePolicyInput,
   UpdateInterviewTimePolicyResult,
 } from "./types";
+import { authFetch } from "../../api/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -54,13 +55,10 @@ async function request<T>(
     }
   });
 
-  const response = await fetch(url.toString(), {
+  const response = await authFetch(url.toString(), {
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
-      "X-Dev-User-Id": "1",
-      "X-Dev-User-Type": "COMPANY",
-      "X-Dev-Company-Id": "1",
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

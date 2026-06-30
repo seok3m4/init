@@ -27,6 +27,15 @@ export class InterviewSettingsCriterionDto {
   sortOrder!: number;
 }
 
+export class InterviewSettingsAvailableTagDto {
+  tagId!: number;
+  jobRole!: string;
+  tagName!: string;
+  category!: string;
+  description!: string | null;
+  sortOrder!: number;
+}
+
 export class InterviewSettingsQuestionDto {
   questionId!: number;
   criterionId!: number | null;
@@ -43,6 +52,7 @@ export class InterviewTimePolicyDto {
 
 export class InterviewSettingsResponseDto {
   posting!: InterviewSettingsPostingDto;
+  availableTags!: InterviewSettingsAvailableTagDto[];
   criteria!: InterviewSettingsCriterionDto[];
   questions!: InterviewSettingsQuestionDto[];
   timePolicy!: InterviewTimePolicyDto;

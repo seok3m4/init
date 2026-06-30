@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
-import { getRecruitment, updateRecruitment } from "./api";
+import { deleteRecruitment, getRecruitment, updateRecruitment } from "./api";
 import { Breadcrumb } from "./CompanyRecruitingChrome";
 import type { Recruitment } from "./types";
 
@@ -32,6 +32,8 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
   const [form, setForm] = useState<FormState>(initialForm);
   const [jdFileName, setJdFileName] = useState("");
   const [message, setMessage] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -79,6 +81,23 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
     }
   }
 
+  async function handleDeleteConfirmed() {
+    if (!recruitment) {
+      return;
+    }
+
+    setLoading(true);
+    setDeleteError("");
+    try {
+      await deleteRecruitment(recruitment.recruitmentId);
+      router.push("/company/recruitments");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "공고 삭제에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -96,9 +115,25 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
             />
             <h1>공고 설정</h1>
           </div>
-          <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}`}>
-            대시보드
-          </Link>
+          <div className="page-actions">
+            {recruitment && canDeleteRecruitment(recruitment.status) ? (
+              <button
+                className="btn destructive"
+                type="button"
+                disabled={loading}
+                onClick={() => {
+                  setMessage("");
+                  setDeleteError("");
+                  setDeleteOpen(true);
+                }}
+              >
+                공고 삭제
+              </button>
+            ) : null}
+            <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}`}>
+              대시보드
+            </Link>
+          </div>
         </div>
 
         {message ? <p className="notice danger">{message}</p> : null}
@@ -180,6 +215,48 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
             </button>
           </div>
         </form>
+
+        {deleteOpen && recruitment ? (
+          <div className="modal-backdrop" role="presentation">
+            <div className="modal" role="dialog" aria-modal="true" aria-labelledby="delete-recruitment-title">
+              <div className="modal-head">
+                <div>
+                  <h2 id="delete-recruitment-title">공고 삭제</h2>
+                  <p>삭제하면 공고 목록에서 숨겨지고 상태가 ARCHIVED로 변경됩니다.</p>
+                </div>
+                <button className="btn secondary compact" type="button" disabled={loading} onClick={() => setDeleteOpen(false)}>
+                  닫기
+                </button>
+              </div>
+              {deleteError ? <p className="notice danger">{deleteError}</p> : null}
+              <div className="confirm-box">
+                <strong>{recruitment.title}</strong>
+                <span>
+                  {recruitment.jobRole} · {formatPeriod(recruitment)}
+                </span>
+              </div>
+              <div className="modal-actions split-actions">
+                <button className="btn secondary" type="button" disabled={loading} onClick={() => setDeleteOpen(false)}>
+                  취소
+                </button>
+                <button className="btn primary danger" type="button" disabled={loading} onClick={() => void handleDeleteConfirmed()}>
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
     </section>
   );
+}
+
+function formatPeriod(item: Recruitment) {
+  if (!item.startsOn && !item.endsOn) {
+    return "기간 미정";
+  }
+  return `${item.startsOn ?? "시작 미정"} ~ ${item.endsOn ?? "마감 미정"}`;
+}
+
+function canDeleteRecruitment(status: Recruitment["status"]) {
+  return status === "DRAFT" || status === "CLOSED";
 }

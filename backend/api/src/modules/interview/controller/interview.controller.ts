@@ -1,12 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { CurrentUser } from "@init/common";
-import { type RequestLike } from "../../shared/response-envelope";
-import { resolveCurrentCandidate, CandidateDomainError } from "../candidate";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { DeviceCheckDto } from "./interview.device-check.dto";
-import { AiInterviewRequestDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "./interview.runtime.dto";
-import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes";
-import { InterviewService } from "./interview.service";
+import { type RequestLike } from "../../../shared/response-envelope";
+import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
+import { resolveCurrentCandidate, CandidateDomainError } from "../../candidate";
+import { DeviceCheckDto } from "../dto/interview.device-check.dto";
+import { AiInterviewRequestDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "../dto/interview.runtime.dto";
+import { interviewApiRoutePrefix, interviewApiRoutes } from "../interview.routes";
+import { InterviewService } from "../service/interview.service";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
 

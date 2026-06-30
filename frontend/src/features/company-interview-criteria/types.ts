@@ -8,6 +8,14 @@ export type InterviewSettings = {
     title: string;
     status: PostingStatus;
   };
+  availableTags: Array<{
+    tagId: number;
+    jobRole: string;
+    tagName: string;
+    category: string;
+    description: string | null;
+    sortOrder: number;
+  }>;
   criteria: Array<{
     criterionId: number;
     tagId: number;

@@ -1,11 +1,11 @@
 import { Controller, Get, HttpCode, HttpException, HttpStatus, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiSecurity } from "@nestjs/swagger";
 import type { CurrentUser } from "@init/common";
-import { type RequestLike } from "../../shared/response-envelope";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { CandidateDomainError, resolveCurrentCandidate } from "../candidate";
-import { reportApiRoutePrefix, reportApiRoutes } from "./report.routes";
-import { ReportService } from "./report.service";
+import { type RequestLike } from "../../../shared/response-envelope";
+import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
+import { CandidateDomainError, resolveCurrentCandidate } from "../../candidate";
+import { reportApiRoutePrefix, reportApiRoutes } from "../report.routes";
+import { ReportService } from "../service/report.service";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
 

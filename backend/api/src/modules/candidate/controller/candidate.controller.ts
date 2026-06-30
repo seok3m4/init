@@ -1,15 +1,16 @@
 import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import type { CurrentUser } from "@init/common";
-import { type RequestLike } from "../../shared/response-envelope";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { type RequestLike } from "../../../shared/response-envelope";
+import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { resolveCurrentCandidate } from "./candidate.auth";
-import { candidateApiRoutePrefix, candidateApiRoutes } from "./candidate.routes";
-import { CandidateDomainError, CandidateService } from "./candidate.service";
-import { CandidateJobListQueryDto } from "./dto/candidate-job-list-query.dto";
-import { CreatePortfolioLinkDto } from "./dto/create-portfolio-link.dto";
-import { SaveInterviewConsentDto } from "./dto/save-interview-consent.dto";
-import { SubmitApplicationDto } from "./dto/submit-application.dto";
-import { UploadResumeDto } from "./dto/upload-resume.dto";
+import { candidateApiRoutePrefix, candidateApiRoutes } from "../candidate.routes";
+import { CandidateDomainError } from "../candidate.errors";
+import { CandidateService } from "../service/candidate.service";
+import { CandidateJobListQueryDto } from "../dto/candidate-job-list-query.dto";
+import { CreatePortfolioLinkDto } from "../dto/create-portfolio-link.dto";
+import { SaveInterviewConsentDto } from "../dto/save-interview-consent.dto";
+import { SubmitApplicationDto } from "../dto/submit-application.dto";
+import { UploadResumeDto } from "../dto/upload-resume.dto";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
 

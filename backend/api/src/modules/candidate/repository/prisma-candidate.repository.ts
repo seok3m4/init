@@ -10,7 +10,7 @@ import {
   ReportStatus as PrismaReportStatus,
   type Prisma,
 } from "@prisma/client";
-import { PrismaService } from "../../shared/prisma.service";
+import { PrismaService } from "../../../shared/prisma.service";
 import {
   type Application,
   type ApplicationDocument,
@@ -23,7 +23,7 @@ import {
   type InterviewSession,
   type PortfolioLink,
   type ReportStatus,
-} from "./candidate.types";
+} from "../candidate.types";
 
 type PostingWithCompany = Prisma.PostingGetPayload<{ include: { company: true } }>;
 type ApplicationRecord = Prisma.ApplicationGetPayload<Record<string, never>>;

@@ -164,54 +164,14 @@ verify_ownership() {
     return 0
   fi
 
-  local changed
-  changed="$(
+  (
     cd "$ROOT"
     {
       git diff --name-only
       git diff --cached --name-only
       git ls-files --others --exclude-standard
-    } | sed 's#\\#/#g' \
-      | awk 'NF' \
-      | awk '$0 !~ /(^|\/)node_modules\// && $0 !~ /(^|\/)(\.next|dist|build|coverage)\//' \
-      | sort -u
-  )"
-
-  if [[ -z "$changed" ]]; then
-    echo "[ok] no changed files for ownership check"
-    return 0
-  fi
-
-  local common='^(AGENTS\.md|docs/05_agents/|docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\.md|docs/04_implementation/one-time-alignment/agent-[a-e]\.md|docs/04_implementation/one-time-alignment/agent-pm\.md|scripts/|\.github/|\.gitignore$)'
-  local baseline='^(backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\.gitkeep|backend/common/src/(enums|dto|errors)/\.gitkeep|frontend/src/features/company-profile/\.gitkeep|frontend/package(-lock)?\.json|frontend/(eslint\.config\.mjs|next\.config\.js|tsconfig\.json)|backend/(api|common|worker)/package(-lock)?\.json|backend/api/(jest\.config\.js|nest-cli\.json|tsconfig(\.build)?\.json)|backend/common/tsconfig\.json|backend/worker/tsconfig\.json)'
-  local pattern
-  case "$ROLE" in
-    A) pattern="($common|$baseline|^backend/common/|^backend/api/(src|prisma)/|^frontend/src/api/|^frontend/src/features/auth/|^infra/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    B) pattern="($common|$baseline|^frontend/src/features/company-recruiting/|^frontend/src/app/(layout\.tsx|page\.tsx|company/layout\.tsx|company/recruitments/|company/applicants/|company/applications/)|^frontend/src/styles/|^frontend/public/logo-init\.png$|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    C) pattern="($common|$baseline|^frontend/src/features/company-interview-criteria/|^frontend/src/app/(company/layout\.tsx|company/interviews/)|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    D) pattern="($common|$baseline|^frontend/src/features/candidate-application-interview/|^frontend/src/app/candidate/|^backend/api/src/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    E) pattern="($common|$baseline|^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/|^docs/04_implementation/ai-golden/|^docs/03_contracts/|^docs/02_architecture/)" ;;
-    PM) pattern="($common|$baseline|^docs/|^assets/|^design\.md$)" ;;
-  esac
-
-  local blocked=0
-  local file
-  while IFS= read -r file; do
-    if [[ -n "$file" && ! "$file" =~ $pattern ]]; then
-      if [[ "$blocked" -eq 0 ]]; then
-        echo "[fail] files outside role $ROLE ownership:"
-      fi
-      echo "  $file"
-      blocked=1
-    fi
-  done <<< "$changed"
-
-  if [[ "$blocked" -ne 0 ]]; then
-    echo "[fail] verify-ownership failed"
-    return 1
-  fi
-
-  echo "[ok] verify-ownership passed for role $ROLE"
+    } | node "$SCRIPT_DIR/ownership-map-check.js" --mode role --role "$ROLE"
+  )
 }
 
 verify_prisma() {

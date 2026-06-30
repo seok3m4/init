@@ -1,9 +1,9 @@
 import "reflect-metadata";
 import { strict as assert } from "node:assert";
 import { MODULE_METADATA } from "@nestjs/common/constants";
-import { CandidateController } from "./candidate.controller";
+import { CandidateController } from "./controller/candidate.controller";
 import { CandidateModule } from "./candidate.module";
-import { CANDIDATE_REPOSITORY, CandidateService } from "./candidate.service";
+import { CANDIDATE_REPOSITORY, CandidateService } from "./service/candidate.service";
 
 interface ProviderDefinition {
   provide: unknown;

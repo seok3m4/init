@@ -1,4 +1,4 @@
-import { CandidateMockInterviewRuntimePage } from "../../../../features/candidate-application-interview/CandidatePages";
+import { CandidateMockInterviewRuntimePage } from "@/features/candidate-application-interview/CandidatePages";
 
 type Props = {
   params: Promise<{ sessionId: string }>;

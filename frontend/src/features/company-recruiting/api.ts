@@ -66,6 +66,12 @@ export async function copyRecruitment(recruitmentId: number) {
   });
 }
 
+export async function deleteRecruitment(recruitmentId: number) {
+  return request<Recruitment>(`/company/recruitments/${recruitmentId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function listRecruitmentApplicants(recruitmentId: number, query: ListQuery = {}) {
   return request<{ items: Applicant[] }>(`/company/recruitments/${recruitmentId}/applicants`, { query });
 }
@@ -98,7 +104,7 @@ export async function updateScreeningStatus(applicantId: number, input: UpdateSc
 async function request<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "PATCH";
+    method?: "GET" | "POST" | "PATCH" | "DELETE";
     query?: Record<string, string | number | undefined>;
     body?: unknown;
   } = {},

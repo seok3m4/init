@@ -44,6 +44,7 @@ export class CompanyInterviewService {
     query: InterviewSettingsQueryDto,
   ): Promise<InterviewSettingsResponseDto> {
     const posting = await this.getOwnedPosting(currentUser, query.postingId);
+    const availableTags = await this.repository.listTags();
     const criteria = await this.repository.listCriteria(posting.postingId);
     const questions = await this.repository.listQuestions(posting.postingId);
 
@@ -53,6 +54,14 @@ export class CompanyInterviewService {
         title: posting.title,
         status: posting.status,
       },
+      availableTags: availableTags.map((tag) => ({
+        tagId: tag.tagId,
+        jobRole: tag.jobRole,
+        tagName: tag.name,
+        category: tag.category,
+        description: tag.description,
+        sortOrder: tag.sortOrder,
+      })),
       criteria: await this.mapCriteria(criteria),
       questions: questions.map((question) => ({
         questionId: question.questionId,
@@ -90,6 +99,7 @@ export class CompanyInterviewService {
     const posting = await this.getOwnedPosting(currentUser, dto.postingId);
     const existingCriteria = await this.repository.listCriteria(posting.postingId);
     const seenSortOrders = new Set<number>();
+    const seenTagIds = new Set<number>();
 
     for (const criterion of dto.criteria) {
       if (seenSortOrders.has(criterion.sortOrder)) {
@@ -98,6 +108,12 @@ export class CompanyInterviewService {
         ]);
       }
       seenSortOrders.add(criterion.sortOrder);
+      if (seenTagIds.has(criterion.tagId)) {
+        validationFailed('평가 태그가 중복되었습니다.', [
+          { field: 'criteria[].tagId', reason: 'DUPLICATED' },
+        ]);
+      }
+      seenTagIds.add(criterion.tagId);
 
       if (!(await this.repository.findTag(criterion.tagId))) {
         notFound('평가 태그를 찾을 수 없습니다.');

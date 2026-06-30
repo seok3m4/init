@@ -46,8 +46,8 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
         screeningDecision: decision,
         screeningMemo: memo || undefined,
       });
-      setMessage("전형 상태와 메모가 저장되었습니다.");
       await load({ clearMessage: false });
+      window.alert("저장되었습니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "전형 상태 저장에 실패했습니다.");
     } finally {

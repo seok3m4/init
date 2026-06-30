@@ -1,0 +1,99 @@
+{
+  "common": [
+    "^AGENTS\\.md$",
+    "^docs/05_agents/",
+    "^docs/04_implementation/(team-split-5dev-1pm|test-strategy|module-boundaries|task-split|milestones)\\.md$",
+    "^docs/04_implementation/ownership-map\\.json$",
+    "^docs/04_implementation/one-time-alignment/agent-[a-e]\\.md$",
+    "^docs/04_implementation/one-time-alignment/agent-pm\\.md$",
+    "^scripts/",
+    "^\\.github/",
+    "^\\.gitignore$",
+    "^\\.env\\.example$",
+    "^README\\.md$"
+  ],
+  "baselineSkeleton": [
+    "^backend/api/src/modules/(auth|company-recruiting|company-interview|company-profile|candidate|interview|report|ai)/\\.gitkeep$",
+    "^backend/common/src/(enums|dto|errors)/\\.gitkeep$",
+    "^frontend/src/features/company-profile/\\.gitkeep$",
+    "^frontend/package(-lock)?\\.json$",
+    "^frontend/(eslint\\.config\\.mjs|next-env\\.d\\.ts|next\\.config\\.(js|ts)|tsconfig\\.json)$",
+    "^backend/(api|common|worker)/package(-lock)?\\.json$",
+    "^backend/api/(jest\\.config\\.js|nest-cli\\.json|tsconfig(\\.build)?\\.json)$",
+    "^backend/common/tsconfig\\.json$",
+    "^backend/worker/tsconfig\\.json$"
+  ],
+  "shared": [
+    {
+      "name": "backend api bootstrap",
+      "patterns": [
+        "^backend/api/src/app\\.module\\.ts$",
+        "^backend/api/src/modules/app\\.module\\.ts$",
+        "^backend/api/src/main\\.ts$"
+      ],
+      "roles": ["A", "B", "C", "D", "E"]
+    },
+    {
+      "name": "company app shell",
+      "patterns": [
+        "^frontend/src/app/company/layout\\.tsx$"
+      ],
+      "roles": ["A", "B", "C"]
+    },
+    {
+      "name": "frontend api client",
+      "patterns": [
+        "^frontend/src/api/"
+      ],
+      "roles": ["A", "B", "D", "E"]
+    }
+  ],
+  "roles": {
+    "A": [
+      "^backend/common/",
+      "^backend/api/prisma/",
+      "^backend/api/src/modules/auth/",
+      "^backend/api/src/modules/health/",
+      "^backend/api/src/common/dev-auth/",
+      "^backend/api/src/common/response/",
+      "^backend/api/src/shared/",
+      "^backend/api/src/swagger/",
+      "^frontend/src/app/(login|signup|password/reset)/",
+      "^frontend/src/features/auth/",
+      "^infra/",
+      "^docs/03_contracts/",
+      "^docs/02_architecture/"
+    ],
+    "B": [
+      "^frontend/src/features/company-recruiting/",
+      "^frontend/src/app/(layout\\.tsx|page\\.tsx|company/recruitments/|company/applicants/|company/applications/)",
+      "^frontend/src/styles/",
+      "^frontend/public/logo-init\\.png$",
+      "^backend/api/src/modules/company-recruiting/"
+    ],
+    "C": [
+      "^frontend/src/features/company-interview-criteria/",
+      "^frontend/src/app/company/interviews/",
+      "^backend/api/src/modules/company-interview/"
+    ],
+    "D": [
+      "^frontend/src/features/candidate-application-interview/",
+      "^frontend/src/app/candidate/",
+      "^backend/api/src/modules/(candidate|interview)/"
+    ],
+    "E": [
+      "^frontend/src/features/ai-report/",
+      "^frontend/src/app/(reports|ai)/",
+      "^backend/worker/",
+      "^backend/api/src/modules/(report|ai)/",
+      "^backend/api/scripts/report-smoke\\.ts$",
+      "^docs/04_implementation/ai-golden/"
+    ],
+    "PM": [
+      "^docs/",
+      "^assets/",
+      "^frontend/src/features/landing/",
+      "^design\\.md$"
+    ]
+  }
+}

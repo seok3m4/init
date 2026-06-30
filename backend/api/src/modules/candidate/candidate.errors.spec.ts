@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { createCandidateErrorResponse } from "./candidate.errors";
-import { CandidateDomainError } from "./candidate.service";
+import { CandidateDomainError } from "./candidate.errors";
 
 const response = createCandidateErrorResponse(
   new CandidateDomainError("COMMON_VALIDATION_FAILED", "입력값을 확인해주세요.", 400, [

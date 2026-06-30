@@ -40,6 +40,7 @@ export type CreateCandidateInput = {
 export type CreateApplicationInput = {
   postingId: number;
   candidateId: number;
+  screeningMemo: string | null;
 };
 
 export type UpdateApplicationScreeningInput = {
@@ -50,6 +51,7 @@ export type UpdateApplicationScreeningInput = {
 export type CompanyRecruitingRepositoryPort = {
   createPosting(input: CreatePostingInput): Promise<RecruitmentRecord>;
   updatePosting(postingId: number, companyId: number, input: UpdatePostingInput): Promise<RecruitmentRecord | null>;
+  archivePosting(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
   listPostings(companyId: number, query: NormalizedListQuery): Promise<RecruitmentRecord[]>;
   countPostings(companyId: number, query: NormalizedListQuery): Promise<number>;
   findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
@@ -97,6 +99,23 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     const posting = await this.prisma.posting.update({
       where: { postingId: BigInt(postingId) },
       data: input,
+      include: { _count: { select: { applications: true } } },
+    });
+    return mapPosting(posting);
+  }
+
+  async archivePosting(postingId: number, companyId: number): Promise<RecruitmentRecord | null> {
+    const ownedPosting = await this.prisma.posting.findFirst({
+      where: { postingId: BigInt(postingId), companyId: BigInt(companyId) },
+      select: { postingId: true },
+    });
+    if (!ownedPosting) {
+      return null;
+    }
+
+    const posting = await this.prisma.posting.update({
+      where: { postingId: BigInt(postingId) },
+      data: { status: PostingStatus.ARCHIVED },
       include: { _count: { select: { applications: true } } },
     });
     return mapPosting(posting);
@@ -189,6 +208,7 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
         candidateId: BigInt(input.candidateId),
         applicationStatus: ApplicationStatus.SUBMITTED,
         screeningDecision: ScreeningDecision.UNDECIDED,
+        screeningMemo: input.screeningMemo,
       },
       include: applicantInclude,
     });
@@ -282,7 +302,7 @@ function buildPostingWhere(companyId: number, query: NormalizedListQuery): Prism
   const q = query.q?.trim();
   return {
     companyId: BigInt(companyId),
-    ...(query.status ? { status: query.status as PostingStatus } : {}),
+    ...(query.status ? { status: query.status as PostingStatus } : { status: { not: PostingStatus.ARCHIVED } }),
     ...(q
       ? {
           OR: [

@@ -119,9 +119,6 @@ export function RecruitmentCreatePage() {
                 <h2>JD 등록</h2>
                 <p>이번 저장은 텍스트 JD 기준입니다.</p>
               </div>
-              <button className="btn primary" type="submit" disabled={loading}>
-                다음
-              </button>
             </div>
 
             <div className="creation-flow">
@@ -150,6 +147,12 @@ export function RecruitmentCreatePage() {
               </label>
             </div>
           </section>
+
+          <div className="sticky-actions">
+            <button className="btn primary" type="submit" disabled={loading}>
+              다음
+            </button>
+          </div>
         </form>
     </section>
   );

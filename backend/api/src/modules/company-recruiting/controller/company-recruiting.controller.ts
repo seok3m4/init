@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -83,6 +84,19 @@ export class CompanyRecruitingController {
     @Body() dto: UpdateRecruitmentDto,
   ) {
     const data = await this.companyRecruitingService.updateRecruitment(request.currentUser, recruitmentId, dto);
+    return ok(request, data);
+  }
+
+  @Delete("recruitments/:recruitmentId")
+  @ApiOperationId("API-084")
+  @ApiOperation({ summary: "공고 삭제/보관" })
+  @ApiParamId("recruitmentId", "삭제할 채용 공고 ID")
+  @ApiEnvelopeResponse(RecruitmentResponseDto)
+  async deleteRecruitment(
+    @Req() request: CompanyRequest,
+    @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
+  ) {
+    const data = await this.companyRecruitingService.deleteRecruitment(request.currentUser, recruitmentId);
     return ok(request, data);
   }
 

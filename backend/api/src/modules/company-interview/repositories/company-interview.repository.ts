@@ -49,6 +49,7 @@ export interface CompanyInterviewRepository {
     postingId: number,
     content: string,
   ): Promise<QuestionRecord | undefined>;
+  listTags(): Promise<CriterionTagRecord[]>;
   findTag(tagId: number): Promise<CriterionTagRecord | undefined>;
   getTimePolicy(postingId: number): Promise<TimePolicyRecord>;
   replaceCriteria(
