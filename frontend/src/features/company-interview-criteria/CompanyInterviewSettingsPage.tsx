@@ -737,6 +737,15 @@ function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {
   }));
 }
 
+function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
+  return [...criteria]
+    .sort((left, right) => toNumber(left.sortOrder) - toNumber(right.sortOrder))
+    .map((criterion, index) => ({
+      ...criterion,
+      sortOrder: String(index + 1),
+    }));
+}
+
 function toTimePolicyDraft(settings: InterviewSettings): TimePolicyDraft {
   return {
     preparationTimeSec: String(settings.timePolicy.preparationTimeSec),
