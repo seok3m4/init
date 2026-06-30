@@ -1137,9 +1137,9 @@ td input {
 }
 
 .glass-page .posting {
-  grid-template-columns: 40px minmax(0, 1fr) 64px 84px auto;
-  gap: 16px;
-  padding: 11px 14px;
+  grid-template-columns: 44px minmax(0, 1fr) minmax(150px, 210px) auto;
+  gap: 18px;
+  padding: 12px 16px;
   align-items: center;
 }
 
@@ -1204,6 +1204,111 @@ td input {
   color: var(--brand-strong);
   background: var(--brand-soft);
   border-radius: 999px;
+}
+
+/* posting row: title+status, meta+D-day, applicant-volume bar */
+.posting-info {
+  min-width: 0;
+}
+
+.posting-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.posting-title-row h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.posting .dday {
+  color: var(--ink-700);
+  font-weight: 700;
+}
+
+.posting-progress {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.posting-progress .progress {
+  height: 7px;
+  border-radius: 999px;
+  background: #e4e7ef;
+  overflow: hidden;
+}
+
+.posting-progress .progress i {
+  display: block;
+  height: 100%;
+  background: var(--brand-grad);
+  border-radius: 999px;
+}
+
+.posting-progress span {
+  font-size: 12px;
+  color: var(--ink-300);
+}
+
+/* KPI summary row (4 cards, one highlighted) */
+.glass-page .kpi-summary {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.glass-page .kpi.primary {
+  background: var(--brand-grad);
+  border-color: transparent;
+}
+
+.glass-page .kpi.primary span {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.glass-page .kpi.primary strong {
+  color: #fff;
+}
+
+.glass-page .kpi strong small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-400);
+}
+
+.glass-page .kpi strong small.kpi-dday {
+  color: #e24b4a;
+}
+
+.glass-page .kpi.primary strong small {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.kpi-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--ink-400);
+  background: var(--surface-soft);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+@media (max-width: 1024px) {
+  .glass-page .kpi-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* glass density: status/KPI cards smaller, tables tighter (B pages) */
