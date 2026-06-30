@@ -52,6 +52,7 @@ import {
   requiredInterviewConsents,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
+  toRuntimeQuestionSpeechText,
   toSaveInterviewAnswerRequest,
   toSaveInterviewConsentRequest,
   toStartMockInterviewRequest,
@@ -1262,6 +1263,8 @@ function InterviewRuntimePanel({
   const [recordedFileName, setRecordedFileName] = useState("");
   const [setupCompleted, setSetupCompleted] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
+  const [questionSpeechSupported, setQuestionSpeechSupported] = useState(true);
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Set<number>>(() => new Set());
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -1272,6 +1275,8 @@ function InterviewRuntimePanel({
   const recordingStartedAtRef = useRef(0);
   const submitAfterRecordingStopRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
+  const autoSpokenQuestionRef = useRef<number | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const videoAttachRunRef = useRef(0);
   const hasAnswerFile = Boolean(answer.videoFile || answer.audioFile || answer.videoFileId || answer.audioFileId);
   const canSubmitAnswer = Boolean(currentQuestion && hasAnswerFile && answer.durationSeconds > 0 && !recording);
@@ -1279,6 +1284,63 @@ function InterviewRuntimePanel({
     currentQuestion &&
       (answeredQuestionIds.has(currentQuestion.questionId) ||
         data?.questions.questions.some((question) => question.questionId === currentQuestion.questionId && question.answered)),
+  );
+
+  const stopQuestionSpeech = useCallback(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    speechUtteranceRef.current = null;
+  }, []);
+
+  const speakCurrentQuestion = useCallback(
+    (source: "auto" | "manual") => {
+      if (!currentQuestion) {
+        setQuestionSpeechStatus("현재 질문을 불러올 수 없습니다.");
+        return;
+      }
+
+      if (!isQuestionSpeechSupported()) {
+        setQuestionSpeechSupported(false);
+        setQuestionSpeechStatus("이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+        if (source === "manual") {
+          setMessage("이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+        }
+        return;
+      }
+
+      const text = toRuntimeQuestionSpeechText(currentQuestion);
+      if (!text.trim()) {
+        setQuestionSpeechStatus("재생할 질문 음성이 없습니다.");
+        return;
+      }
+
+      stopQuestionSpeech();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const koreanVoice = findKoreanSpeechVoice(window.speechSynthesis.getVoices());
+      utterance.lang = "ko-KR";
+      utterance.rate = 0.95;
+      utterance.pitch = 1;
+      if (koreanVoice) utterance.voice = koreanVoice;
+      utterance.onstart = () => {
+        setQuestionSpeechStatus(source === "manual" ? "질문 음성을 다시 재생 중입니다." : "질문 음성을 재생 중입니다.");
+      };
+      utterance.onend = () => {
+        if (speechUtteranceRef.current !== utterance) return;
+        speechUtteranceRef.current = null;
+        setQuestionSpeechStatus("질문 음성 재생 완료");
+      };
+      utterance.onerror = () => {
+        if (speechUtteranceRef.current !== utterance) return;
+        speechUtteranceRef.current = null;
+        setQuestionSpeechStatus("질문 음성을 재생할 수 없습니다.");
+      };
+
+      speechUtteranceRef.current = utterance;
+      setQuestionSpeechSupported(true);
+      setQuestionSpeechStatus("질문 음성 재생 준비 중입니다.");
+      window.speechSynthesis.speak(utterance);
+    },
+    [currentQuestion, stopQuestionSpeech],
   );
 
   const attachRuntimeVideoRef = useCallback((node: HTMLVideoElement | null) => {
@@ -1320,12 +1382,13 @@ function InterviewRuntimePanel({
       if (recorderRef.current?.state === "recording") {
         recorderRef.current.stop();
       }
+      stopQuestionSpeech();
       stopMicrophoneMeter();
       stopMediaStream(streamRef.current);
     };
     // Camera/device probing is intentionally run once when the runtime panel mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopQuestionSpeech]);
 
   useEffect(() => {
     if (!data) return;
@@ -1342,6 +1405,24 @@ function InterviewRuntimePanel({
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
     attachRuntimeVideoRef(videoRef.current);
   }, [attachRuntimeVideoRef, setupCompleted]);
+
+  useEffect(() => {
+    const supported = isQuestionSpeechSupported();
+    setQuestionSpeechSupported(supported);
+    setQuestionSpeechStatus(supported ? "질문 음성 대기" : "이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+  }, []);
+
+  useEffect(() => {
+    if (!setupCompleted || !currentQuestion || currentQuestionAnswered) {
+      stopQuestionSpeech();
+      return;
+    }
+    if (autoSpokenQuestionRef.current === currentQuestion.questionId) return;
+    stopQuestionSpeech();
+    autoSpokenQuestionRef.current = currentQuestion.questionId;
+    const timer = window.setTimeout(() => speakCurrentQuestion("auto"), 250);
+    return () => window.clearTimeout(timer);
+  }, [currentQuestion, currentQuestionAnswered, setupCompleted, speakCurrentQuestion, stopQuestionSpeech]);
 
   useEffect(() => {
     if (!data || !setupCompleted || !cameraReady || !microphoneReady || !currentQuestion || currentQuestionAnswered) return;
@@ -1592,7 +1673,7 @@ function InterviewRuntimePanel({
   }
 
   function handleReplayPrompt() {
-    setMessage("질문 음성을 다시 재생했습니다.");
+    speakCurrentQuestion("manual");
   }
 
   async function submitAnswerRequest(request: SaveInterviewAnswerRequest, question = currentQuestion) {
@@ -1665,8 +1746,10 @@ function InterviewRuntimePanel({
       await (mode === "mock"
         ? api.moveMockNextQuestion(data.runtime.sessionId)
         : api.moveRecruitingNextQuestion(data.runtime.sessionId));
+      stopQuestionSpeech();
       setAnswer(defaultInterviewAnswerFormState);
       setRecordedFileName("");
+      setQuestionSpeechStatus("다음 질문 음성 대기");
       autoRecordingQuestionRef.current = null;
       refresh();
     } catch (submitError) {
@@ -1685,6 +1768,7 @@ function InterviewRuntimePanel({
       const result = await (mode === "mock"
         ? api.completeMockInterview(data.runtime.sessionId)
         : api.completeRecruitingInterview(data.runtime.sessionId));
+      stopQuestionSpeech();
       setMessage(`면접이 완료되었습니다. ${result.data.answeredCount}/${result.data.totalQuestions} 답변 제출`);
       if (mode === "recruiting" && data.runtime.applicationId) {
         router.push(candidateApplicationInterviewRoutes.applicationReport(data.runtime.applicationId));
@@ -1821,6 +1905,9 @@ function InterviewRuntimePanel({
                     : "자막이 꺼져 있습니다. 질문 음성을 듣고 답변해주세요."
                   : "현재 질문을 불러올 수 없습니다."}
               </div>
+              <div className={`question-voice-status ${questionSpeechSupported ? "" : "unsupported"}`} aria-live="polite">
+                {questionSpeechStatus}
+              </div>
             </section>
 
             <section className="iv-grid">
@@ -1860,7 +1947,7 @@ function InterviewRuntimePanel({
 
             <form className="candidate-runtime-form candidate-runtime-form--compact" onSubmit={handleSaveAnswer}>
               <div className="toolbar candidate-interview-controls">
-                <button className="btn" type="button" onClick={handleReplayPrompt}>
+                <button className="btn" type="button" disabled={busy || !currentQuestion} onClick={handleReplayPrompt}>
                   질문 음성 다시 듣기
                 </button>
                 <button
@@ -2299,6 +2386,18 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
       <p className="description-box">{report.candidateMessage}</p>
       {report.summary ? <p className="description-box">{report.summary}</p> : null}
     </div>
+  );
+}
+
+function isQuestionSpeechSupported(): boolean {
+  return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+}
+
+function findKoreanSpeechVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  return (
+    voices.find((voice) => voice.lang.toLowerCase() === "ko-kr") ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("ko")) ??
+    voices.find((voice) => voice.default)
   );
 }
 
