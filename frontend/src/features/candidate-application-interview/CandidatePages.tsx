@@ -452,18 +452,8 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
       if (!guide.consentCompleted) {
         await getCandidateApi().saveInterviewConsent(applicationId, toSaveInterviewConsentRequest(consentState));
       }
-      if (!guide.deviceCheckCompleted) {
-        await getCandidateApi().saveDeviceCheck(
-          guide.sessionId,
-          toDeviceCheckRequest({
-            cameraGranted: true,
-            microphoneGranted: true,
-            networkStable: true,
-          }),
-        );
-      }
-      await getCandidateApi().startInterview(applicationId);
-      router.push(candidateApplicationInterviewRoutes.interview(applicationId));
+      setStep("device");
+      setMessage("동의가 저장되었습니다. 카메라와 마이크를 점검해주세요.");
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
     } finally {
