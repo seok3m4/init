@@ -40,11 +40,29 @@
 }
 
 :global(.candidate-app .gnb-panel) {
+  position: absolute;
   top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 6px;
   min-width: 220px;
   padding: 10px;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line-soft);
   border-radius: 14px;
+  opacity: 0;
   box-shadow: 0 16px 40px rgba(20, 18, 45, 0.12);
+  transform: translateY(-4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+:global(.candidate-app .gnb-item:hover > .gnb-panel),
+:global(.candidate-app .gnb-item:focus-within > .gnb-panel) {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 :global(.candidate-app .gnb-panel::before) {
@@ -57,10 +75,22 @@
 }
 
 :global(.candidate-app .gnb-panel a) {
+  display: flex;
+  align-items: center;
   min-height: 40px;
+  padding: 0 12px;
+  color: var(--ink-700);
   font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
   border-radius: 10px;
+}
+
+:global(.candidate-app .gnb-panel a:hover),
+:global(.candidate-app .gnb-panel a:focus-visible),
+:global(.candidate-app .gnb-panel a.active) {
+  color: var(--brand-strong);
+  background: var(--surface-soft);
 }
 
 :global(.candidate-app .gnb-caret) {
