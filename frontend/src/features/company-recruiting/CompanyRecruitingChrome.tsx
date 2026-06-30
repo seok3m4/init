@@ -48,7 +48,54 @@ export function CompanyNav({ active }: { active: CompanyNavSection }) {
   );
 }
 
+type CrumbItem = {
+  label: string;
+  href?: string;
+};
+
+export function Breadcrumb({ items }: { items: CrumbItem[] }) {
+  return (
+    <nav className="crumb" aria-label="현재 위치">
+      {items.map((item, index) => (
+        <span className="crumb-segment" key={`${item.label}-${index}`}>
+          {item.href ? (
+            <Link href={item.href}>{item.label}</Link>
+          ) : (
+            <span aria-current="page">{item.label}</span>
+          )}
+          {index < items.length - 1 ? (
+            <span className="crumb-sep" aria-hidden="true">
+              /
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+const SUCCESS_STATUSES = new Set(["OPEN", "PASS", "COMPLETED", "DONE", "GENERATED", "SENT", "DELIVERED"]);
+const WARNING_STATUSES = new Set(["CLOSING_SOON", "HOLD", "IN_PROGRESS", "GENERATING", "PENDING", "REQUESTED"]);
+const DANGER_STATUSES = new Set(["FAIL", "CLOSED", "FAILED", "REJECTED"]);
+const NEUTRAL_STATUSES = new Set(["DRAFT", "ARCHIVED", "UNDECIDED", "NONE_OR_GENERATING"]);
+
+const STATUS_LABELS: Record<string, string> = {
+  OPEN: "모집중",
+  DRAFT: "작성중",
+  CLOSING_SOON: "마감임박",
+  CLOSED: "마감",
+  ARCHIVED: "보관",
+};
+
 export function StatusBadge({ value }: { value: string }) {
-  const tone = value === "OPEN" ? "success" : value === "DRAFT" ? "neutral" : "warning";
-  return <span className={`badge ${tone}`}>{value}</span>;
+  const tone = SUCCESS_STATUSES.has(value)
+    ? "success"
+    : DANGER_STATUSES.has(value)
+      ? "danger"
+      : WARNING_STATUSES.has(value)
+        ? "warning"
+        : NEUTRAL_STATUSES.has(value)
+          ? "neutral"
+          : "info";
+  return <span className={`badge ${tone}`}>{STATUS_LABELS[value] ?? value}</span>;
 }

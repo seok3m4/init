@@ -111,7 +111,7 @@ $owned = @{
   C = @("^frontend/src/features/company-interview-criteria/", "^frontend/src/app/company/interviews/", "^backend/api/src/modules/company-interview/")
   D = @("^frontend/src/features/candidate-application-interview/", "^frontend/src/app/candidate/", "^backend/api/src/modules/(candidate|interview)/")
   E = @("^frontend/src/features/ai-report/", "^backend/worker/", "^backend/api/src/modules/(report|ai)/", "^docs/04_implementation/ai-golden/")
-  PM = @("^docs/", "^assets/")
+  PM = @("^docs/", "^assets/", "^design\.md$")
 }
 
 $sharedBackend = @("^backend/api/src/modules/app\.module\.ts$", "^backend/api/src/main\.ts$")

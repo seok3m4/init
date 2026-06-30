@@ -73,7 +73,7 @@ role_pattern() {
       printf '%s\n' '(^frontend/src/features/ai-report/|^backend/worker/|^backend/api/src/modules/(report|ai)/|^docs/04_implementation/ai-golden/)'
       ;;
     PM)
-      printf '%s\n' '(^docs/|^assets/)'
+      printf '%s\n' '(^docs/|^assets/|^design\.md$)'
       ;;
   esac
 }
