@@ -1266,6 +1266,7 @@ function InterviewRuntimePanel({
   const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
   const [questionSpeechSupported, setQuestionSpeechSupported] = useState(true);
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Set<number>>(() => new Set());
+  const [replayedQuestionIds, setReplayedQuestionIds] = useState<Set<number>>(() => new Set());
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -1285,6 +1286,7 @@ function InterviewRuntimePanel({
       (answeredQuestionIds.has(currentQuestion.questionId) ||
         data?.questions.questions.some((question) => question.questionId === currentQuestion.questionId && question.answered)),
   );
+  const currentQuestionReplayUsed = Boolean(currentQuestion && replayedQuestionIds.has(currentQuestion.questionId));
 
   const stopQuestionSpeech = useCallback(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -1673,6 +1675,12 @@ function InterviewRuntimePanel({
   }
 
   function handleReplayPrompt() {
+    if (!currentQuestion || currentQuestionReplayUsed || !questionSpeechSupported) return;
+    setReplayedQuestionIds((current) => {
+      const next = new Set(current);
+      next.add(currentQuestion.questionId);
+      return next;
+    });
     speakCurrentQuestion("manual");
   }
 
@@ -1947,8 +1955,8 @@ function InterviewRuntimePanel({
 
             <form className="candidate-runtime-form candidate-runtime-form--compact" onSubmit={handleSaveAnswer}>
               <div className="toolbar candidate-interview-controls">
-                <button className="btn" type="button" disabled={busy || !currentQuestion} onClick={handleReplayPrompt}>
-                  질문 음성 다시 듣기
+                <button className="btn" type="button" disabled={busy || !currentQuestion || !questionSpeechSupported || currentQuestionReplayUsed} onClick={handleReplayPrompt}>
+                  {currentQuestionReplayUsed ? "다시 듣기 완료" : "질문 음성 다시 듣기"}
                 </button>
                 <button
                   className="btn primary"
