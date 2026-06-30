@@ -6,13 +6,13 @@ import { FormEvent, useState } from "react";
 
 import { createRecruitment } from "./api";
 import { CompanyFlowSteps, CompanyNav } from "./CompanyRecruitingChrome";
+import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
   title: string;
   jobRole: string;
   startsOn: string;
   endsOn: string;
-  status: "DRAFT" | "OPEN";
   jobDescription: string;
 };
 
@@ -21,7 +21,6 @@ const initialForm: FormState = {
   jobRole: "",
   startsOn: "",
   endsOn: "",
-  status: "OPEN",
   jobDescription: "",
 };
 
@@ -37,15 +36,15 @@ export function RecruitmentCreatePage() {
     setLoading(true);
     setMessage("");
     try {
-      await createRecruitment({
+      const result = await createRecruitment({
         title: form.title,
         jobRole: form.jobRole,
         startsOn: form.startsOn || undefined,
         endsOn: form.endsOn || undefined,
-        status: form.status,
+        status: "DRAFT",
         jobDescription: form.jobDescription || undefined,
       });
-      router.push("/company/recruitments");
+      router.push(buildInterviewSettingsHref(result.data.recruitmentId));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "공고 생성에 실패했습니다.");
     } finally {
@@ -65,7 +64,7 @@ export function RecruitmentCreatePage() {
           <div>
             <p className="eyebrow">CREATE RECRUITMENT</p>
             <h1>공고 생성</h1>
-            <p>공고 기본 정보와 JD를 등록합니다.</p>
+            <p>공고 기본 정보와 JD를 입력한 뒤 면접 설정으로 이어집니다.</p>
           </div>
           <Link className="btn secondary" href="/company/recruitments">
             공고 목록
@@ -111,13 +110,6 @@ export function RecruitmentCreatePage() {
                 채용 마감일
                 <input type="date" value={form.endsOn} onChange={(event) => updateField("endsOn", event.target.value)} />
               </label>
-              <label>
-                공개 상태
-                <select value={form.status} onChange={(event) => updateField("status", event.target.value as FormState["status"])}>
-                  <option value="OPEN">OPEN</option>
-                  <option value="DRAFT">DRAFT</option>
-                </select>
-              </label>
             </div>
           </section>
 
@@ -128,7 +120,7 @@ export function RecruitmentCreatePage() {
                 <p>파일 칸은 후속 업로드 연동 전 UI이며, 이번 저장은 텍스트 JD를 기준으로 처리합니다.</p>
               </div>
               <button className="btn primary" type="submit" disabled={loading}>
-                생성 완료
+                다음
               </button>
             </div>
 

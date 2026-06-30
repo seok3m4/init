@@ -47,6 +47,18 @@ export async function updateRecruitment(recruitmentId: number, input: UpdateRecr
   });
 }
 
+export async function publishRecruitment(recruitmentId: number) {
+  const current = await getRecruitment(recruitmentId);
+  return updateRecruitment(recruitmentId, {
+    title: current.data.title,
+    jobRole: current.data.jobRole,
+    startsOn: current.data.startsOn ?? undefined,
+    endsOn: current.data.endsOn ?? undefined,
+    status: "OPEN",
+    jobDescription: current.data.jobDescription ?? undefined,
+  });
+}
+
 export async function copyRecruitment(recruitmentId: number) {
   return request<Recruitment>(`/company/recruitments/${recruitmentId}/copy`, {
     method: "POST",

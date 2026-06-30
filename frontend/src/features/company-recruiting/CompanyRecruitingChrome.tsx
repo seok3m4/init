@@ -2,11 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 
 type CompanyNavSection = "postings" | "mypage";
-export type CompanyFlowStep = "list" | "create" | "dashboard" | "settings" | "applicants" | "evaluation";
+export type CompanyFlowStep = "list" | "create" | "interview" | "dashboard" | "settings" | "applicants" | "evaluation";
 
 const flowSteps: Array<{ key: CompanyFlowStep; label: string; description: string }> = [
   { key: "list", label: "공고 목록", description: "공고 선택" },
   { key: "create", label: "공고 생성", description: "JD 등록" },
+  { key: "interview", label: "면접 설정", description: "C 연결" },
   { key: "dashboard", label: "대시보드", description: "운영 현황" },
   { key: "settings", label: "공고 설정", description: "정보 수정" },
   { key: "applicants", label: "지원자 관리", description: "등록/초대" },

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
 import { CompanyFlowSteps, CompanyNav, StatusBadge } from "./CompanyRecruitingChrome";
+import { buildInterviewSettingsHref } from "./routes";
 import type { Applicant, Recruitment, ScreeningDecision } from "./types";
 
 type ScreeningDraft = {
@@ -233,8 +234,4 @@ function isCompleted(value: string) {
 
 function normalizeDecision(value: string): ScreeningDecision {
   return decisions.includes(value as ScreeningDecision) ? (value as ScreeningDecision) : "UNDECIDED";
-}
-
-export function buildInterviewSettingsHref(recruitmentId: number): `/company/interviews/settings?postingId=${number}` {
-  return `/company/interviews/settings?postingId=${recruitmentId}`;
 }

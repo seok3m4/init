@@ -291,7 +291,7 @@ a.gnb-link:hover {
 
 .flow-steps {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 22px;
 }
@@ -620,6 +620,46 @@ td span {
   font-size: 30px;
 }
 
+.setup-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.setup-card {
+  min-height: 150px;
+  padding: 18px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+}
+
+.setup-card strong {
+  display: block;
+  color: var(--ink-900);
+  font-size: 16px;
+}
+
+.setup-card p {
+  margin: 10px 0 18px;
+  color: var(--ink-400);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.setup-card span {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 0 10px;
+  color: #6a6878;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
 .score-summary p {
   margin: 8px 0 0;
   color: var(--ink-500);
@@ -781,7 +821,8 @@ tr:last-child td {
   .grid-2,
   .kpi-row,
   .posting,
-  .flow-steps {
+  .flow-steps,
+  .setup-card-grid {
     grid-template-columns: 1fr;
   }
 
