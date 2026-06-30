@@ -4,6 +4,7 @@ import { MODULE_METADATA } from "@nestjs/common/constants";
 import { CandidateModule } from "../candidate";
 import { InterviewController } from "./controller/interview.controller";
 import { InterviewModule } from "./interview.module";
+import { INTERVIEW_REPOSITORY } from "./repository/interview.repository";
 import { InterviewService } from "./service/interview.service";
 
 const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, InterviewModule) as unknown[];
@@ -14,6 +15,8 @@ const exportsMetadata = Reflect.getMetadata(MODULE_METADATA.EXPORTS, InterviewMo
 assert.ok(imports.includes(CandidateModule));
 assert.ok(controllers.includes(InterviewController));
 assert.ok(providers.includes(InterviewService));
+assert.ok(providers.some((provider) => typeof provider === "object" && provider !== null && Reflect.get(provider, "provide") === INTERVIEW_REPOSITORY));
+assert.ok(exportsMetadata.includes(INTERVIEW_REPOSITORY));
 assert.ok(exportsMetadata.includes(InterviewService));
 
 test("interview module metadata", () => {

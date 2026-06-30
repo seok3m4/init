@@ -6,6 +6,8 @@ import { CandidateModule } from "../candidate";
 import { InterviewModule } from "../interview";
 import { ReportController } from "./controller/report.controller";
 import { ReportsController } from "./controller/reports.controller";
+import { CANDIDATE_REPORT_REPOSITORY } from "./repository/candidate-report.repository";
+import { InMemoryCandidateReportRepository } from "./repository/in-memory-candidate-report.repository";
 import { InMemoryReportRepository } from "./repository/in-memory-report.repository";
 import { PrismaReportRepository } from "./repository/prisma-report.repository";
 import { REPORT_REPOSITORY } from "./repository/report.repository";
@@ -47,10 +49,21 @@ const repositoryProviders = usePrismaRepository
     },
     AiReportPipelineService,
     GuardrailService,
+    {
+      provide: CANDIDATE_REPORT_REPOSITORY,
+      useClass: InMemoryCandidateReportRepository,
+    },
     MockAiReportProvider,
     ReportService,
     ...repositoryProviders,
   ],
-  exports: [DevAuthAdapter, AiJobDispatcherService, GuardrailService, REPORT_REPOSITORY, ReportService],
+  exports: [
+    DevAuthAdapter,
+    AiJobDispatcherService,
+    GuardrailService,
+    CANDIDATE_REPORT_REPOSITORY,
+    REPORT_REPOSITORY,
+    ReportService,
+  ],
 })
 export class ReportModule {}

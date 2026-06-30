@@ -4,4 +4,6 @@ export * from "./interview.module";
 export * from "./interview.routes";
 export * from "./dto/interview.runtime.dto";
 export * from "./interview.runtime.types";
+export * from "./repository/in-memory-interview.repository";
+export * from "./repository/interview.repository";
 export * from "./service/interview.service";

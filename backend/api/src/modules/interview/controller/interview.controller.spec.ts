@@ -10,6 +10,7 @@ import {
 } from "../../candidate";
 import { InterviewController } from "./interview.controller";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "../interview.routes";
+import { InMemoryInterviewRepository } from "../repository/in-memory-interview.repository";
 import { InterviewService } from "../service/interview.service";
 
 type InterviewControllerRoute =
@@ -94,7 +95,8 @@ async function assertInterviewHttpError(
 async function runControllerRuntimeAssertions() {
   const repository = new InMemoryCandidateRepository();
   const candidateService = new CandidateService(repository);
-  const controller = new InterviewController(new InterviewService(candidateService));
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
 
   const mockStarted = await controller.startMockInterview(validCandidateRequest, {
     questionTypes: ["INTRO", "TECHNICAL"],

@@ -8,7 +8,12 @@ import {
   type FileAsset,
   type ReportStatus,
 } from "../../candidate";
-import { InterviewService, type InterviewAnswer, type RuntimeInterviewSession } from "../../interview";
+import {
+  INTERVIEW_REPOSITORY,
+  type InterviewAnswer,
+  type InterviewRepository,
+  type RuntimeInterviewSession,
+} from "../../interview";
 import {
   CandidateApplicationStatusView,
   CandidateMockInterviewHistoryItem,
@@ -20,27 +25,30 @@ import {
   CandidateReportFileReference,
   CandidateReportGenerationHandoff,
 } from "../candidate-report.types";
+import {
+  CANDIDATE_REPORT_REPOSITORY,
+  type CandidateReportRepository,
+} from "../repository/candidate-report.repository";
 
 @Injectable()
 export class ReportService {
-  private readonly mockReportStatuses = new Map<number, ReportStatus>();
-
   constructor(
     @Inject(CandidateService) private readonly candidateService: CandidateService,
-    @Inject(InterviewService) private readonly interviewService: InterviewService,
+    @Inject(INTERVIEW_REPOSITORY) private readonly interviewRepository: InterviewRepository,
+    @Inject(CANDIDATE_REPORT_REPOSITORY) private readonly candidateReportRepository: CandidateReportRepository,
   ) {}
 
   listMockReports(currentUser: CurrentCandidateUser): ApiListResponse<CandidateMockReportSummary> {
-    const items = this.interviewService
-      .listOwnedMockInterviewSessions(currentUser)
+    const items = this.interviewRepository
+      .listOwnedMockSessions(currentUser.candidateId)
       .map((session) => this.toMockReportSummary(session));
 
     return this.listEnvelope(items);
   }
 
   listMockInterviewHistory(currentUser: CurrentCandidateUser): ApiListResponse<CandidateMockInterviewHistoryItem> {
-    const items = this.interviewService
-      .listOwnedMockInterviewSessions(currentUser)
+    const items = this.interviewRepository
+      .listOwnedMockSessions(currentUser.candidateId)
       .map((session) => this.toMockHistoryItem(session));
 
     return this.listEnvelope(items);
@@ -71,7 +79,7 @@ export class ReportService {
       this.throwReportNotReady(reportId);
     }
 
-    const answeredCount = this.interviewService.listAnswersForSession(session.sessionId).length;
+    const answeredCount = this.interviewRepository.countAnswersBySession(session.sessionId);
     return this.envelope({
       reportId,
       sessionId: session.sessionId,
@@ -106,7 +114,7 @@ export class ReportService {
       this.throwReportNotReady(reportId);
     }
 
-    const answers = this.interviewService.listAnswersForSession(session.sessionId);
+    const answers = this.interviewRepository.listAnswersBySession(session.sessionId);
     const media = await Promise.all(answers.map((answer) => this.toMockReportMediaItem(answer, session, currentUser)));
     return this.envelope({
       reportId,
@@ -126,14 +134,14 @@ export class ReportService {
       this.throwReportNotReady(reportId);
     }
 
-    const answers = this.interviewService.listAnswersForSession(session.sessionId);
+    const answers = this.interviewRepository.listAnswersBySession(session.sessionId);
     if (answers.length === 0) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Report generation requires interview answers.", 409, [
         { field: "answers", reason: "answers are missing" },
       ]);
     }
 
-    this.mockReportStatuses.set(reportId, "GENERATING");
+    this.candidateReportRepository.saveMockReportStatus(reportId, "GENERATING");
     return this.envelope({
       accepted: true,
       processType: "REPORT_GENERATE",
@@ -234,7 +242,18 @@ export class ReportService {
     currentUser: CurrentCandidateUser,
   ): RuntimeInterviewSession {
     this.assertPositiveIntegerId(reportId, "reportId");
-    return this.interviewService.getOwnedMockInterviewSessionForReport(reportId, currentUser);
+    const session = this.interviewRepository.findMockSession(reportId);
+    if (!session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
+        { field: "reportId", reason: "mock interview report not found" },
+      ]);
+    }
+    if (session.candidateId !== currentUser.candidateId) {
+      throw new CandidateDomainError("COMMON_FORBIDDEN", "Interview session does not belong to current candidate.", 403, [
+        { field: "reportId", reason: "candidate owner mismatch" },
+      ]);
+    }
+    return session;
   }
 
   private toMockReportSummary(session: RuntimeInterviewSession): CandidateMockReportSummary {
@@ -259,7 +278,7 @@ export class ReportService {
       completedAt: session.completedAt,
       updatedAt: session.updatedAt,
       totalQuestions: session.questionIds.length,
-      answeredCount: this.interviewService.listAnswersForSession(session.sessionId).length,
+      answeredCount: this.interviewRepository.countAnswersBySession(session.sessionId),
     };
   }
 
@@ -268,7 +287,12 @@ export class ReportService {
     session: RuntimeInterviewSession,
     currentUser: CurrentCandidateUser,
   ): Promise<CandidateMockReportMediaItem> {
-    const question = this.interviewService.getQuestionSnapshot(answer.questionId);
+    const question = this.interviewRepository.findQuestion(answer.questionId);
+    if (!question) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview question was not found.", 404, [
+        { field: "questionId", reason: "question not found" },
+      ]);
+    }
     return {
       answerId: answer.answerId,
       questionId: answer.questionId,
@@ -300,7 +324,7 @@ export class ReportService {
   }
 
   private getMockReportStatus(session: RuntimeInterviewSession): ReportStatus {
-    const overriddenStatus = this.mockReportStatuses.get(session.sessionId);
+    const overriddenStatus = this.candidateReportRepository.findMockReportStatus(session.sessionId);
     if (overriddenStatus) {
       return overriddenStatus;
     }
