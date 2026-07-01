@@ -46,6 +46,13 @@
         "^frontend/src/api/"
       ],
       "roles": ["A", "B", "D", "E"]
+    },
+    {
+      "name": "candidate-facing interview report bridge",
+      "patterns": [
+        "^backend/api/src/modules/report/service/report\\.service\\.ts$"
+      ],
+      "roles": ["D", "E"]
     }
   ],
   "roles": {
