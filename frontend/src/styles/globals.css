@@ -162,6 +162,12 @@ a.gnb-link:focus-visible {
   border-color: #b9b6ec;
 }
 
+.icon-btn:disabled {
+  color: var(--ink-200);
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .avatar {
   display: grid;
   place-items: center;

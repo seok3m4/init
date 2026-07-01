@@ -96,3 +96,7 @@ export async function refreshAuthSession() {
 export async function fetchCurrentUser() {
   return apiFetch<AuthUser>("/auth/me");
 }
+
+export async function logoutAuthSession() {
+  return apiFetch<{ loggedOut: boolean }>("/auth/logout", { method: "POST" }, false);
+}

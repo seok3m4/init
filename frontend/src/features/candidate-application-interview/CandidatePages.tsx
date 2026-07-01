@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { DependencyList, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { getAccessToken } from "../../api/client";
+import { GnbAvatar, GnbLogoutButton } from "../auth/GnbAccountControls";
 import {
   CandidateApiError,
   type CandidateApplicationStatusView,
@@ -2175,12 +2176,13 @@ function CandidateNav({ active }: { active: CandidateNavSection }) {
           </div>
         </nav>
         <div className="gnb-right">
+          <GnbLogoutButton />
           <button className="icon-btn" aria-label="알림" type="button">
             <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
               <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
             </svg>
           </button>
-          <div className="avatar" aria-label="지원자 계정">JW</div>
+          <GnbAvatar accountLabel="지원자 계정" />
         </div>
       </div>
     </header>

@@ -1,5 +1,9 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+
+import { GnbAvatar, GnbLogoutButton } from "../auth/GnbAccountControls";
 
 type CompanyNavSection = "postings" | "mypage";
 
@@ -23,6 +27,7 @@ export function CompanyNav({ active }: { active?: CompanyNavSection }) {
           </div>
         </nav>
         <div className="gnb-right">
+          <GnbLogoutButton />
           <button className="icon-btn" type="button" aria-label="알림">
             <svg
               width="18"
@@ -39,9 +44,7 @@ export function CompanyNav({ active }: { active?: CompanyNavSection }) {
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </button>
-          <div className="avatar" aria-label="기업 계정">
-            김
-          </div>
+          <GnbAvatar accountLabel="기업 계정" />
         </div>
       </div>
     </header>
