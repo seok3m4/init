@@ -81,7 +81,10 @@ export { DEV_CANDIDATE_USER } from "../candidate.constants";
 export class CandidateService {
   constructor(@Inject(CANDIDATE_REPOSITORY) private readonly repository: CandidateRepository) {}
 
-  async listJobs(query: CandidateJobListQueryDto): Promise<ApiListResponse<CandidateJobSummary>> {
+  async listJobs(
+    query: CandidateJobListQueryDto,
+    currentUser?: CurrentCandidateUser,
+  ): Promise<ApiListResponse<CandidateJobSummary>> {
     const normalizedQuery = this.normalizeListQuery(query);
     const { page, limit } = normalizedQuery;
     const jobs = await this.repository.listJobs();
@@ -92,7 +95,9 @@ export class CandidateService {
 
     const pageMeta = this.createPageMeta(page, limit, filtered.length);
     const start = (page - 1) * limit;
-    const items = filtered.slice(start, start + limit).map((job) => this.toJobSummary(job));
+    const items = await Promise.all(
+      filtered.slice(start, start + limit).map((job) => this.toJobSummary(job, currentUser)),
+    );
 
     return this.listEnvelope(items, pageMeta);
   }
@@ -1180,7 +1185,11 @@ export class CandidateService {
     }
   }
 
-  private toJobSummary(job: CandidateJob): CandidateJobSummary {
+  private async toJobSummary(job: CandidateJob, currentUser?: CurrentCandidateUser): Promise<CandidateJobSummary> {
+    const alreadyApplied = currentUser
+      ? await this.repository.hasApplication(currentUser.candidateId, job.jobId)
+      : false;
+
     return {
       jobId: job.jobId,
       companyName: job.companyName,
@@ -1193,6 +1202,8 @@ export class CandidateService {
       postingStatus: job.postingStatus,
       startsOn: job.startsOn,
       endsOn: job.endsOn,
+      canApply: !alreadyApplied,
+      alreadyApplied,
     };
   }
 

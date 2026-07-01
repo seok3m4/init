@@ -672,6 +672,11 @@
   border-radius: 999px;
 }
 
+:global(.candidate-job-available.is-applied) {
+  color: #6e5bf6;
+  background: #f0edff;
+}
+
 :global(.candidate-jobcard__actions .candidate-job-detail-button) {
   display: inline-flex;
   align-items: center;
@@ -1229,6 +1234,13 @@
   min-width: 180px;
   min-height: 56px;
   margin-top: 4px;
+}
+
+:global(.candidate-application-start-button[aria-disabled="true"]) {
+  color: var(--ink-400);
+  pointer-events: none;
+  background: var(--surface-soft);
+  box-shadow: none;
 }
 
 :global(.note) {

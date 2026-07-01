@@ -272,6 +272,9 @@ export function CandidateApplicationsPage() {
   const selectedApplication =
     filteredApplications.find((application) => application.applicationId === selectedApplicationId) ??
     filteredApplications[0];
+  const selectedApplicationAction = selectedApplication
+    ? getSelectedApplicationAction(selectedApplication)
+    : undefined;
 
   return (
     <CandidatePageShell active="applications">
@@ -325,9 +328,15 @@ export function CandidateApplicationsPage() {
           <div className="candidate-selected-application__notice">
             AI 면접 방식, 유의사항, 답변 절차를 안내합니다.
           </div>
-          <Link className="btn primary lg candidate-application-start-button" href={getSelectedApplicationActionHref(selectedApplication)}>
-            {getSelectedApplicationActionLabel(selectedApplication)}
-          </Link>
+          {selectedApplicationAction?.href ? (
+            <Link className="btn primary lg candidate-application-start-button" href={selectedApplicationAction.href}>
+              {selectedApplicationAction.label}
+            </Link>
+          ) : (
+            <span aria-disabled="true" className="btn primary lg candidate-application-start-button">
+              {selectedApplicationAction?.label ?? "진행 불가"}
+            </span>
+          )}
         </section>
       ) : null}
     </CandidatePageShell>
@@ -2239,7 +2248,7 @@ function ApplicationsTable({
       <div className="candidate-applications-table__row candidate-applications-table__head">
         <span>회사</span>
         <span>채용공고</span>
-        <span>서류</span>
+        <span>지원</span>
         <span>면접</span>
         <span>리포트</span>
       </div>
@@ -2255,7 +2264,10 @@ function ApplicationsTable({
           <span>{application.companyName}</span>
           <span>{application.jobTitle}</span>
           <span>
-            <ApplicationStatusBadge label={formatCandidateDocumentStatusLabel(application.documentStatus)} tone="green" />
+            <ApplicationStatusBadge
+              label={formatCandidateApplicationStatusLabel(application.applicationStatus)}
+              tone={getCandidateApplicationStatusTone(application.applicationStatus)}
+            />
           </span>
           <span>
             <ApplicationStatusBadge
@@ -2284,15 +2296,23 @@ function renderCandidateReportStatus(status: CandidateApplicationSummary["report
   );
 }
 
-function formatCandidateDocumentStatusLabel(status: CandidateApplicationSummary["documentStatus"]): string {
+function formatCandidateApplicationStatusLabel(status: CandidateApplicationSummary["applicationStatus"]): string {
   const labels: Record<string, string> = {
-    NOT_SUBMITTED: "미제출",
-    SUBMITTED: "제출완료",
-    EXTRACTING: "추출중",
-    EXTRACTED: "제출완료",
-    FAILED: "확인필요",
+    DRAFT: "작성중",
+    SUBMITTED: "지원완료",
+    IN_REVIEW: "검토중",
+    INTERVIEW_WAITING: "면접대기",
+    INTERVIEW_DONE: "면접완료",
+    COMPLETED: "최종완료",
+    CANCELED: "지원취소",
   };
   return labels[status] ?? status;
+}
+
+function getCandidateApplicationStatusTone(status: CandidateApplicationSummary["applicationStatus"]): ApplicationBadgeTone {
+  if (status === "SUBMITTED" || status === "COMPLETED" || status === "INTERVIEW_DONE") return "green";
+  if (status === "CANCELED") return "neutral";
+  return "yellow";
 }
 
 function formatCandidateInterviewStatusLabel(status: CandidateApplicationSummary["interviewStatus"]): string {
@@ -2339,17 +2359,35 @@ function matchesCandidateApplicationStatusFilter(
   return application.reportStatus === "GENERATING" || application.reportStatus === "COMPLETED";
 }
 
-function getSelectedApplicationActionHref(application: CandidateApplicationSummary): string {
-  if (application.interviewStatus === "COMPLETED") {
-    return getCandidateApplicationReportHref(application);
+function getSelectedApplicationAction(application: CandidateApplicationSummary): { href?: string; label: string } {
+  if (application.applicationStatus === "CANCELED") {
+    return { label: "지원 취소됨" };
   }
-  return candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
-}
-
-function getSelectedApplicationActionLabel(application: CandidateApplicationSummary): string {
-  if (application.interviewStatus === "COMPLETED") return "결과 확인";
-  if (application.interviewStatus === "IN_PROGRESS") return "채용 AI 면접 재개";
-  return "채용 AI 면접 시작";
+  if (application.interviewStatus === "FAILED") {
+    return { label: "면접 확인 필요" };
+  }
+  if (application.interviewStatus === "COMPLETED") {
+    return {
+      href: getCandidateApplicationReportHref(application),
+      label: application.reportStatus === "COMPLETED" ? "결과 확인" : "분석 상태 확인",
+    };
+  }
+  if (application.interviewStatus === "IN_PROGRESS") {
+    return {
+      href: candidateApplicationInterviewRoutes.interviewGuide(application.applicationId),
+      label: "채용 AI 면접 재개",
+    };
+  }
+  if (application.canStartInterview || application.interviewStatus === "READY") {
+    return {
+      href: candidateApplicationInterviewRoutes.interviewGuide(application.applicationId),
+      label: "채용 AI 면접 시작",
+    };
+  }
+  return {
+    href: candidateApplicationInterviewRoutes.interviewGuide(application.applicationId),
+    label: "면접 준비하기",
+  };
 }
 
 function MockReportsTable({ reports }: { reports: CandidateMockReportSummary[] }) {

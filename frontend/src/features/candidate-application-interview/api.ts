@@ -89,6 +89,8 @@ export interface CandidateJobSummary {
   postingStatus: PostingStatus;
   startsOn: string;
   endsOn: string;
+  canApply: boolean;
+  alreadyApplied: boolean;
 }
 
 export interface CandidateJobDetail extends CandidateJobSummary {
@@ -99,8 +101,6 @@ export interface CandidateJobDetail extends CandidateJobSummary {
   jobDescription: string;
   techStacks: string[];
   createdAt: string;
-  canApply: boolean;
-  alreadyApplied: boolean;
 }
 
 export interface CandidateDocumentPolicy {

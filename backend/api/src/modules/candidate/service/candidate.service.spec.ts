@@ -401,6 +401,11 @@ async function run() {
   assert.equal(submittedJobDetail.data.alreadyApplied, true);
   assert.equal(submittedJobDetail.data.canApply, false);
 
+  const submittedJobList = await service.listJobs({ page: 1, limit: 20, sort: "createdAt", order: "desc" }, currentUser);
+  const submittedJobSummary = submittedJobList.data.items.find((job) => job.jobId === 1);
+  assert.equal(submittedJobSummary?.alreadyApplied, true);
+  assert.equal(submittedJobSummary?.canApply, false);
+
   const submittedApplyView = await service.getApplyView(1, currentUser);
   assert.equal(submittedApplyView.data.job.alreadyApplied, true);
   assert.equal(submittedApplyView.data.job.canApply, false);
@@ -416,6 +421,14 @@ async function run() {
   assert.equal(applicationList.data.items[0]?.deviceCheckCompleted, false);
   assert.equal(applicationList.data.items[0]?.canStartInterview, false);
   assert.equal(applicationList.data.items[0]?.sessionId, 1);
+
+  const otherCandidateUser = { userId: 2, candidateId: 2, userType: "CANDIDATE" as const };
+  const otherCandidateApplications = await service.listApplications(otherCandidateUser);
+  assert.equal(otherCandidateApplications.data.items.length, 0);
+  await assert.rejects(
+    () => service.getInterviewGuide(submitted.data.application.applicationId, otherCandidateUser),
+    (error) => error instanceof CandidateDomainError && error.code === "COMMON_FORBIDDEN",
+  );
 
   const guide = await service.getInterviewGuide(submitted.data.application.applicationId, currentUser);
   assert.equal(guide.data.applicationId, submitted.data.application.applicationId);

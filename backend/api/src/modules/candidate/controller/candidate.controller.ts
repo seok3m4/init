@@ -22,8 +22,8 @@ export class CandidateController {
   @Get(candidateApiRoutes.jobs)
   listJobs(@Req() request: CandidateRequest, @Query() query: CandidateJobListQueryDto) {
     return this.handle(() => {
-      resolveCurrentCandidate(request.currentUser);
-      return this.candidateService.listJobs(query);
+      const currentUser = resolveCurrentCandidate(request.currentUser);
+      return this.candidateService.listJobs(query, currentUser);
     });
   }
 

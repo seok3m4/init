@@ -84,6 +84,8 @@ export interface CandidateJobSummary {
   postingStatus: PostingStatus;
   startsOn: string;
   endsOn: string;
+  canApply: boolean;
+  alreadyApplied: boolean;
 }
 
 export interface CandidateJobDetail extends CandidateJob {
