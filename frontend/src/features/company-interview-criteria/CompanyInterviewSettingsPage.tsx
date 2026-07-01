@@ -9,6 +9,7 @@ import {
   getInterviewSettings,
   updateEvaluationCriteria,
   updateInterviewQuestion,
+  updateInterviewTimePolicy
 } from "./api";
 import type { InterviewSettings, QuestionType } from "./types";
 
@@ -30,6 +31,12 @@ type QuestionForm = {
   content: string;
 };
 
+type TimePolicyDraft = {
+  preparationTimeSec: string;
+  answerTimeSec: string;
+  retryAllowed: boolean;
+};
+
 const QUESTION_TYPE_OPTIONS: Array<{ value: QuestionType; label: string }> = [
   { value: "INTRO", label: "도입" },
   { value: "TECHNICAL", label: "기술" },
@@ -48,6 +55,7 @@ const initialQuestionForm: QuestionForm = {
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
   const [criteriaDrafts, setCriteriaDrafts] = useState<CriteriaDraft[]>([]);
+  const [timePolicyDraft, setTimePolicyDraft] = useState<TimePolicyDraft | null>(null);
   const [selectedTagId, setSelectedTagId] = useState("");
   const [questionForm, setQuestionForm] = useState<QuestionForm>(initialQuestionForm);
   const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
@@ -55,6 +63,8 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   const [loading, setLoading] = useState(false);
   const [criteriaSaving, setCriteriaSaving] = useState(false);
   const [criteriaError, setCriteriaError] = useState("");
+  const [timePolicySaving, setTimePolicySaving] = useState(false);
+  const [timePolicyError, setTimePolicyError] = useState("");
   const [questionSaving, setQuestionSaving] = useState(false);
   const [questionError, setQuestionError] = useState("");
 
@@ -62,11 +72,13 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     setLoading(true);
     setMessage("");
     setCriteriaError("");
+    setTimePolicyError("");
     setQuestionError("");
     try {
       const response = await getInterviewSettings(postingId);
       setSettings(response.data);
       setCriteriaDrafts(toCriteriaDrafts(response.data));
+      setTimePolicyDraft(toTimePolicyDraft(response.data));
       setSelectedTagId("");
       setEditingQuestionId(null);
       setQuestionForm({
@@ -93,6 +105,11 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     if (!settings) return false;
     return JSON.stringify(criteriaDrafts) !== JSON.stringify(toCriteriaDrafts(settings));
   }, [criteriaDrafts, settings]);
+
+  const hasTimePolicyChanges = useMemo(() => {
+    if (!settings || !timePolicyDraft) return false;
+    return JSON.stringify(timePolicyDraft) !== JSON.stringify(toTimePolicyDraft(settings));
+  }, [settings, timePolicyDraft]);
 
   const availableTagOptions = useMemo(() => {
     if (!settings) return [];
@@ -159,6 +176,17 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     setCriteriaDrafts(toCriteriaDrafts(settings));
   }
 
+  function updateTimePolicyDraft<K extends keyof TimePolicyDraft>(field: K, value: TimePolicyDraft[K]) {
+    setTimePolicyError("");
+    setTimePolicyDraft((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  function resetTimePolicyDraft() {
+    if (!settings) return;
+    setTimePolicyError("");
+    setTimePolicyDraft(toTimePolicyDraft(settings));
+  }
+
   async function handleCriteriaSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!settings) return;
@@ -208,6 +236,46 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       setCriteriaError(error instanceof Error ? error.message : "평가 기준 저장에 실패했습니다.");
     } finally {
       setCriteriaSaving(false);
+    }
+  }
+
+  async function handleTimePolicySave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!settings || !timePolicyDraft) return;
+
+    const validationMessage = validateTimePolicyDraft(timePolicyDraft);
+    if (validationMessage) {
+      setTimePolicyError(validationMessage);
+      return;
+    }
+
+    setTimePolicySaving(true);
+    setTimePolicyError("");
+    try {
+      const response = await updateInterviewTimePolicy({
+        postingId: settings.posting.postingId,
+        preparationTimeSec: toNumber(timePolicyDraft.preparationTimeSec),
+        answerTimeSec: toNumber(timePolicyDraft.answerTimeSec),
+        retryAllowed: timePolicyDraft.retryAllowed,
+      });
+
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              timePolicy: response.data.timePolicy,
+            }
+          : current,
+      );
+      setTimePolicyDraft({
+        preparationTimeSec: String(response.data.timePolicy.preparationTimeSec),
+        answerTimeSec: String(response.data.timePolicy.answerTimeSec),
+        retryAllowed: response.data.timePolicy.retryAllowed,
+      });
+    } catch (error) {
+      setTimePolicyError(error instanceof Error ? error.message : "면접 시간 정책 저장에 실패했습니다.");
+    } finally {
+      setTimePolicySaving(false);
     }
   }
 
@@ -351,6 +419,62 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 <Metric label="답변 시간" value={`${settings.timePolicy.answerTimeSec}초`} />
               </div>
             </section>
+
+            <form className="panel" onSubmit={handleTimePolicySave}>
+              <div className="panel-head">
+                <div>
+                  <h2>면접 시간 정책</h2>
+                  <p>준비 시간, 답변 시간, 재시도 허용 여부를 공고 기준으로 조정합니다.</p>
+                </div>
+                <div className="toolbar">
+                  <button className="btn secondary compact" type="button" disabled={!hasTimePolicyChanges || timePolicySaving} onClick={resetTimePolicyDraft}>
+                    되돌리기
+                  </button>
+                  <button className="btn primary compact" type="submit" disabled={!hasTimePolicyChanges || timePolicySaving}>
+                    {timePolicySaving ? "저장 중" : "시간 정책 저장"}
+                  </button>
+                </div>
+              </div>
+              {timePolicyError ? <p className="notice danger">{timePolicyError}</p> : null}
+              {timePolicyDraft ? (
+                <div className="grid-2">
+                  <label>
+                    준비 시간
+                    <input
+                      aria-label="준비 시간 초"
+                      inputMode="numeric"
+                      min={0}
+                      max={600}
+                      type="number"
+                      value={timePolicyDraft.preparationTimeSec}
+                      onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
+                    />
+                    <span className="field-hint">0~600초</span>
+                  </label>
+                  <label>
+                    답변 시간
+                    <input
+                      aria-label="답변 시간 초"
+                      inputMode="numeric"
+                      min={30}
+                      max={1800}
+                      type="number"
+                      value={timePolicyDraft.answerTimeSec}
+                      onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
+                    />
+                    <span className="field-hint">30~1800초, 준비 시간보다 길어야 합니다.</span>
+                  </label>
+                  <label>
+                    <input
+                      checked={timePolicyDraft.retryAllowed}
+                      type="checkbox"
+                      onChange={(event) => updateTimePolicyDraft("retryAllowed", event.target.checked)}
+                    />
+                    재시도 허용
+                  </label>
+                </div>
+              ) : null}
+            </form>
 
             <form className="panel" onSubmit={handleCriteriaSave}>
               <div className="panel-head">
@@ -613,13 +737,21 @@ function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {
   }));
 }
 
-function normalizeCriteriaOrder(criteria: CriteriaDraft[]) {
+function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
   return [...criteria]
     .sort((left, right) => toNumber(left.sortOrder) - toNumber(right.sortOrder))
     .map((criterion, index) => ({
       ...criterion,
       sortOrder: String(index + 1),
     }));
+}
+
+function toTimePolicyDraft(settings: InterviewSettings): TimePolicyDraft {
+  return {
+    preparationTimeSec: String(settings.timePolicy.preparationTimeSec),
+    answerTimeSec: String(settings.timePolicy.answerTimeSec),
+    retryAllowed: settings.timePolicy.retryAllowed,
+  };
 }
 
 function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
@@ -658,6 +790,23 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
 
   if (totalWeight <= 0 || totalWeight > 100) {
     return "배점 합계는 1부터 100 사이여야 합니다.";
+  }
+
+  return "";
+}
+
+function validateTimePolicyDraft(draft: TimePolicyDraft) {
+  const preparationTimeSec = toNumber(draft.preparationTimeSec);
+  const answerTimeSec = toNumber(draft.answerTimeSec);
+
+  if (!Number.isInteger(preparationTimeSec) || preparationTimeSec < 0 || preparationTimeSec > 600) {
+    return "준비 시간은 0부터 600 사이의 정수로 입력해주세요.";
+  }
+  if (!Number.isInteger(answerTimeSec) || answerTimeSec < 30 || answerTimeSec > 1800) {
+    return "답변 시간은 30부터 1800 사이의 정수로 입력해주세요.";
+  }
+  if (answerTimeSec <= preparationTimeSec) {
+    return "답변 시간은 준비 시간보다 길어야 합니다.";
   }
 
   return "";
