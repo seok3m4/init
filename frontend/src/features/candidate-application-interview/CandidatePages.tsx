@@ -2135,7 +2135,7 @@ function CandidateNav({ active }: { active: CandidateNavSection }) {
 
   return (
     <header className="gnb">
-      <div className="gnb-left">
+      <div className="gnb-inner">
         <Link className="brand" href={candidateApplicationInterviewRoutes.jobs}>
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
@@ -2174,14 +2174,14 @@ function CandidateNav({ active }: { active: CandidateNavSection }) {
             </Link>
           </div>
         </nav>
-      </div>
-      <div className="gnb-right">
-        <button className="icon-btn" aria-label="알림" type="button">
-          <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-          </svg>
-        </button>
-        <div className="avatar" aria-label="지원자 계정">JW</div>
+        <div className="gnb-right">
+          <button className="icon-btn" aria-label="알림" type="button">
+            <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+          </button>
+          <div className="avatar" aria-label="지원자 계정">JW</div>
+        </div>
       </div>
     </header>
   );
