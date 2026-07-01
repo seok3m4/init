@@ -50,6 +50,7 @@
     {
       "name": "candidate-facing interview report bridge",
       "patterns": [
+        "^backend/api/src/modules/report/report\\.module\\.ts$",
         "^backend/api/src/modules/report/service/report\\.service\\.ts$"
       ],
       "roles": ["D", "E"]
