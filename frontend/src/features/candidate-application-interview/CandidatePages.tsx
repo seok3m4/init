@@ -731,7 +731,7 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   const resource = useCandidateResource(load, [applicationId]);
   const runtimeStatus = resource.data?.runtime.status;
   const shouldRedirectToGuide =
-    (runtimeStatus !== undefined && !["READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
+    (runtimeStatus !== undefined && !["NOT_READY", "READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
     resource.error === "Interview has not been started.";
 
   useEffect(() => {
@@ -1261,7 +1261,7 @@ function InterviewRuntimePanel({
   const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordedFileName, setRecordedFileName] = useState("");
-  const [setupCompleted, setSetupCompleted] = useState(mode === "recruiting");
+  const [setupCompleted, setSetupCompleted] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
   const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
@@ -1278,7 +1278,6 @@ function InterviewRuntimePanel({
   const submitAfterRecordingStopRef = useRef(false);
   const autoAdvanceAfterAnswerSubmitRef = useRef(false);
   const startRuntimeAfterRefreshRef = useRef(false);
-  const autoEnterRecruitingRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
   const autoSpokenQuestionRef = useRef<number | null>(null);
   const timeExpiredQuestionRef = useRef<number | null>(null);
@@ -1420,16 +1419,6 @@ function InterviewRuntimePanel({
     setMessage("면접을 시작했습니다. 답변 녹화가 자동으로 진행됩니다.");
     autoRecordingQuestionRef.current = null;
   }, [data]);
-
-  useEffect(() => {
-    if (!data || mode !== "recruiting" || autoEnterRecruitingRef.current) return;
-    if (!["READY", "IN_PROGRESS"].includes(data.runtime.status)) return;
-    autoEnterRecruitingRef.current = true;
-    setSetupCompleted(true);
-    void handleEnterInterview();
-    // Recruiting interviews should enter the runtime directly; camera permission and the start API are chained once here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.runtime.sessionId, data?.runtime.status, mode]);
 
   useEffect(() => {
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
@@ -1921,7 +1910,7 @@ function InterviewRuntimePanel({
     void handleNextQuestion();
   }
 
-  const runtimeTitle = mode === "mock" ? "AI 모의면접 진행" : "채용 AI 면접 진행";
+  const runtimeTitle = mode === "recruiting" ? "채용 AI 면접 진행" : "AI 모의면접 진행";
   const statusThirdLine = mode === "mock" ? "꼬리질문 생성 가능" : "업로드 상태 정상";
   const answeredQuestionCount = data
     ? data.questions.questions.filter((question) => question.answered || answeredQuestionIds.has(question.questionId)).length

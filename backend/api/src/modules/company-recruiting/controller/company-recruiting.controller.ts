@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Param,
   ParseIntPipe,
   Patch,
@@ -34,7 +35,7 @@ type CompanyRequest = RequestLike & { currentUser: CurrentUser };
 @ApiErrorResponses()
 @Controller("company")
 export class CompanyRecruitingController {
-  constructor(private readonly companyRecruitingService: CompanyRecruitingService) {}
+  constructor(@Inject(CompanyRecruitingService) private readonly companyRecruitingService: CompanyRecruitingService) {}
 
   @Post("recruitments")
   @ApiOperationId("API-080")

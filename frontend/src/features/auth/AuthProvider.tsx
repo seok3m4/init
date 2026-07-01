@@ -3,9 +3,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { AUTH_SESSION_CLEARED_EVENT, AuthTokenResponse, AuthUser, fetchCurrentUser, setAccessToken } from "../../api/client";
+import { AUTH_SESSION_CLEARED_EVENT, AuthTokenResponse, AuthUser, fetchCurrentUser, getAccessToken, setAccessToken } from "../../api/client";
 import {
-  getRedirectForAuthenticatedPublicRoute,
   getRedirectForUnauthorizedRole,
   getRouteAccess,
   isAllowedUserType,
@@ -30,6 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let canceled = false;
 
     async function restoreSession() {
+      if (!getAccessToken()) {
+        setUser(null);
+        setStatus("unauthenticated");
+        return;
+      }
+
       try {
         const currentUser = await fetchCurrentUser();
         if (canceled) return;
@@ -105,11 +110,6 @@ function AuthRouteGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (routeAccess.kind === "public" && status === "authenticated" && user) {
-      router.replace(getRedirectForAuthenticatedPublicRoute(user.userType));
-      return;
-    }
-
     if (
       routeAccess.kind === "protected" &&
       status === "authenticated" &&
@@ -127,10 +127,6 @@ function AuthRouteGuard({ children }: { children: ReactNode }) {
   if (routeAccess.kind === "protected") {
     if (status !== "authenticated" || !user) return null;
     if (!isAllowedUserType(user.userType, routeAccess.allowedUserTypes)) return null;
-  }
-
-  if (routeAccess.kind === "public" && status === "authenticated") {
-    return null;
   }
 
   return children;

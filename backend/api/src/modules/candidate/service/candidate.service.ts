@@ -339,9 +339,9 @@ export class CandidateService {
   ): Promise<ApiResponse<CandidateInterviewRuntimeView>> {
     const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
     this.assertSessionNotExpired(session);
-    if (!["READY", "IN_PROGRESS"].includes(session.status)) {
+    if (!["NOT_READY", "READY", "IN_PROGRESS"].includes(session.status)) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview has not been started.", 409, [
-        { field: "interviewStatus", reason: "interview status must be READY or IN_PROGRESS" },
+        { field: "interviewStatus", reason: "interview status must be NOT_READY, READY or IN_PROGRESS" },
       ]);
     }
 
