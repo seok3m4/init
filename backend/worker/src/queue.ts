@@ -63,12 +63,14 @@ export class SqsAiJobQueue implements AiJobQueue {
 }
 
 export function createAiJobQueue(env: NodeJS.ProcessEnv = process.env): AiJobQueue {
-  if (env.AI_SQS_QUEUE_URL) {
+  const queueUrl = env.AI_SQS_QUEUE_URL ?? env.SQS_QUEUE_URL;
+  if (queueUrl) {
     return new SqsAiJobQueue(
       new SQSClient({
-        region: env.AWS_REGION ?? "ap-northeast-2"
+        region: env.AWS_REGION ?? "ap-northeast-2",
+        endpoint: env.AWS_ENDPOINT_URL,
       }),
-      env.AI_SQS_QUEUE_URL
+      queueUrl
     );
   }
 

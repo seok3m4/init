@@ -11,10 +11,10 @@ export interface WorkerEnv {
 
 export function loadWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
   return {
-    aiSqsQueueUrl: required(env, "AI_SQS_QUEUE_URL"),
+    aiSqsQueueUrl: requiredOneOf(env, ["AI_SQS_QUEUE_URL", "SQS_QUEUE_URL"]),
     awsRegion: required(env, "AWS_REGION"),
-    aiProviderApiKey: required(env, "AI_PROVIDER_API_KEY"),
-    s3BucketName: required(env, "S3_BUCKET_NAME"),
+    aiProviderApiKey: requiredOneOf(env, ["AI_PROVIDER_API_KEY", "OPENAI_API_KEY"]),
+    s3BucketName: requiredOneOf(env, ["S3_BUCKET_NAME", "S3_BUCKET"]),
     workerBatchSize: integer(env.WORKER_BATCH_SIZE, 1, 10, 1),
     workerPollIntervalMs: integer(env.WORKER_POLL_INTERVAL_MS, 100, 60_000, 1_000),
     workerRepositoryMode: repositoryMode(env.WORKER_REPOSITORY_MODE),
@@ -28,6 +28,16 @@ function required(env: NodeJS.ProcessEnv, name: string): string {
     throw new Error(`${name} is required.`);
   }
   return value;
+}
+
+function requiredOneOf(env: NodeJS.ProcessEnv, names: string[]): string {
+  for (const name of names) {
+    const value = env[name];
+    if (value?.trim()) {
+      return value;
+    }
+  }
+  throw new Error(`${names.join(" or ")} is required.`);
 }
 
 function optional(value: string | undefined): string | undefined {

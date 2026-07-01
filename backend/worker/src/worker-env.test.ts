@@ -10,12 +10,10 @@ const validEnv = {
 };
 
 test("loadWorkerEnv requires SQS, AWS, AI provider and S3 configuration", () => {
-  for (const name of Object.keys(validEnv)) {
-    const env = { ...validEnv };
-    delete env[name as keyof typeof env];
-
-    assert.throws(() => loadWorkerEnv(env), new RegExp(`${name} is required`));
-  }
+  assert.throws(() => loadWorkerEnv({ ...validEnv, AI_SQS_QUEUE_URL: "" }), /AI_SQS_QUEUE_URL or SQS_QUEUE_URL is required/);
+  assert.throws(() => loadWorkerEnv({ ...validEnv, AWS_REGION: "" }), /AWS_REGION is required/);
+  assert.throws(() => loadWorkerEnv({ ...validEnv, AI_PROVIDER_API_KEY: "" }), /AI_PROVIDER_API_KEY or OPENAI_API_KEY is required/);
+  assert.throws(() => loadWorkerEnv({ ...validEnv, S3_BUCKET_NAME: "" }), /S3_BUCKET_NAME or S3_BUCKET is required/);
 });
 
 test("loadWorkerEnv returns defaults for optional worker settings", () => {
@@ -29,6 +27,27 @@ test("loadWorkerEnv returns defaults for optional worker settings", () => {
     workerRepositoryMode: "memory",
     prismaClientModule: undefined
   });
+});
+
+test("loadWorkerEnv accepts legacy API env aliases", () => {
+  assert.deepEqual(
+    loadWorkerEnv({
+      SQS_QUEUE_URL: "http://localhost:4566/000000000000/init-ai-jobs",
+      AWS_REGION: "ap-northeast-2",
+      OPENAI_API_KEY: "local-openai-key",
+      S3_BUCKET: "init-local-assets"
+    }),
+    {
+      aiSqsQueueUrl: "http://localhost:4566/000000000000/init-ai-jobs",
+      awsRegion: "ap-northeast-2",
+      aiProviderApiKey: "local-openai-key",
+      s3BucketName: "init-local-assets",
+      workerBatchSize: 1,
+      workerPollIntervalMs: 1000,
+      workerRepositoryMode: "memory",
+      prismaClientModule: undefined
+    }
+  );
 });
 
 test("loadWorkerEnv validates bounded numeric worker settings", () => {
