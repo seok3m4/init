@@ -11,12 +11,14 @@ import { getAccessToken } from "../../api/client";
 import {
   CandidateApiError,
   type AiInterviewHandoffResponse,
+  type AiInterviewRequest,
   type CandidateApplicationStatusView,
   type CandidateApplicationSummary,
   type CandidateFileAsset,
   type CandidateInterviewRuntimeView,
   type CandidateJobQuery,
   type CandidateMockInterviewHistoryItem,
+  type CandidateReportGenerationHandoff,
   type CandidateMockReportFeedback,
   type CandidateMockReportMedia,
   type CandidateMockReportSummary,
@@ -115,6 +117,11 @@ type LastSavedAnswer = {
   audioS3Key?: string;
   videoFileId?: number;
   videoS3Key?: string;
+};
+type AiPipelineDebugState = {
+  processType: AiInterviewHandoffResponse["processType"];
+  requestPayload: Record<string, unknown>;
+  responsePayload: Record<string, unknown>;
 };
 type CandidateRecordingCacheEntry = {
   url: string;
@@ -973,6 +980,7 @@ export function CandidateMockReportsPage() {
 export function CandidateMockReportDetailPage({ reportId }: { reportId: number }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reportHandoff, setReportHandoff] = useState<CandidateReportGenerationHandoff>();
   const load = useCallback(async (): Promise<MockReportDetailData> => {
     const api = getCandidateApi();
     const [feedbackResult, mediaResult] = await Promise.allSettled([
@@ -993,6 +1001,7 @@ export function CandidateMockReportDetailPage({ reportId }: { reportId: number }
     setMessage("");
     try {
       const result = await getCandidateApi().requestMockReportGeneration(reportId);
+      setReportHandoff(result.data);
       setMessage(
         `리포트 생성 요청 준비 완료: reportId=${result.data.reportId}, sessionId=${result.data.sessionId}, answerIds=${result.data.answerIds.join(",") || "-"}, fileIds=${result.data.fileIds.join(",") || "-"}`,
       );
@@ -1024,6 +1033,22 @@ export function CandidateMockReportDetailPage({ reportId }: { reportId: number }
           </button>
         </div>
         {data?.feedback ? <MockFeedbackView feedback={data.feedback} /> : <p className="notice danger">{data?.feedbackError ?? "피드백을 불러오지 못했습니다."}</p>}
+      </section>
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <h2>E 리포트 생성 연결값</h2>
+            <p>리포트 생성 요청을 누르면 E 담당 AI 파이프라인에 전달할 참조값을 확인합니다.</p>
+          </div>
+        </div>
+        {reportHandoff ? (
+          <ReportGenerationHandoffView handoff={reportHandoff} />
+        ) : (
+          <div className="candidate-pipeline-card muted">
+            <strong>리포트 생성 요청 대기</strong>
+            <p>버튼을 누르면 reportId, sessionId, answerIds, fileIds가 포함된 공유용 payload가 표시됩니다.</p>
+          </div>
+        )}
       </section>
       <section className="panel">
         <div className="panel-head">
@@ -1306,6 +1331,7 @@ function InterviewRuntimePanel({
   const [busy, setBusy] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<LastSavedAnswer>();
   const [aiHandoff, setAiHandoff] = useState<AiInterviewHandoffResponse>();
+  const [aiPipelineDebug, setAiPipelineDebug] = useState<AiPipelineDebugState>();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
@@ -2065,14 +2091,14 @@ function InterviewRuntimePanel({
     setMessage("");
     try {
       const api = getCandidateApi();
-      const request = {
+      const request = compactPayload({
         answerId: lastAnswer.answerId,
         fileAssetId: lastAnswer.fileAssetId,
         audioFileId: lastAnswer.audioFileId,
         audioS3Key: lastAnswer.audioS3Key,
         previousQuestion: lastAnswer.questionText,
         transcript: lastAnswer.transcript,
-      };
+      }) as AiInterviewRequest;
       const result =
         processType === "STT"
           ? mode === "mock"
@@ -2082,6 +2108,11 @@ function InterviewRuntimePanel({
             ? await api.requestMockFollowUpQuestion(data.runtime.sessionId, request)
             : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, request);
       setAiHandoff(result.data);
+      setAiPipelineDebug({
+        processType: result.data.processType,
+        requestPayload: buildAiPipelineRequestPayload(data.runtime.sessionId, mode, processType, request),
+        responsePayload: buildAiPipelineResponsePayload(result.data, data.runtime.sessionId, lastAnswer),
+      });
       setMessage(
         `${formatProcessTypeLabel(result.data.processType)} 요청 준비 완료: sessionId=${result.data.sessionId ?? data.runtime.sessionId}, answerId=${result.data.answerId ?? lastAnswer.answerId}, fileAssetId=${result.data.fileAssetId ?? result.data.fileId ?? lastAnswer.fileAssetId ?? "-"}`,
       );
@@ -2382,6 +2413,18 @@ function InterviewRuntimePanel({
                     <p className="candidate-ai-handoff__result">
                       {formatProcessTypeLabel(aiHandoff.processType)} · {aiHandoff.callbackTopic ?? "-"} · fileAssetId {aiHandoff.fileAssetId ?? aiHandoff.fileId ?? "-"}
                     </p>
+                  ) : null}
+                  {aiPipelineDebug ? (
+                    <div className="candidate-ai-handoff__payloads">
+                      <PipelinePayloadPreview
+                        title={`${formatProcessTypeLabel(aiPipelineDebug.processType)} 요청 payload`}
+                        payload={aiPipelineDebug.requestPayload}
+                      />
+                      <PipelinePayloadPreview
+                        title={`${formatProcessTypeLabel(aiPipelineDebug.processType)} 응답 payload`}
+                        payload={aiPipelineDebug.responsePayload}
+                      />
+                    </div>
                   ) : null}
                 </div>
               </aside>
@@ -2868,6 +2911,105 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
       {report.summary ? <p className="description-box">{report.summary}</p> : null}
     </div>
   );
+}
+
+function ReportGenerationHandoffView({ handoff }: { handoff: CandidateReportGenerationHandoff }) {
+  const payload = buildReportGenerationSharePayload(handoff);
+
+  return (
+    <div className="candidate-pipeline-card">
+      <div className="candidate-pipeline-card__head">
+        <div>
+          <strong>REPORT_GENERATE 요청 준비 완료</strong>
+          <p>{handoff.callbackTopic}</p>
+        </div>
+        <StatusPill value={handoff.status} />
+      </div>
+      <dl className="candidate-feature__summary">
+        <Definition label="reportId" value={handoff.reportId} />
+        <Definition label="sessionId" value={handoff.sessionId} />
+        <Definition label="answerIds" value={formatIdList(handoff.answerIds)} />
+        <Definition label="fileIds" value={formatIdList(handoff.fileIds)} />
+      </dl>
+      <PipelinePayloadPreview title="E 리포트 생성 공유 payload" payload={payload} />
+    </div>
+  );
+}
+
+function PipelinePayloadPreview({ title, payload }: { title: string; payload: Record<string, unknown> }) {
+  return (
+    <div className="candidate-pipeline-payload">
+      <div className="candidate-pipeline-payload__title">{title}</div>
+      <pre>{formatJsonPayload(payload)}</pre>
+    </div>
+  );
+}
+
+function buildAiPipelineRequestPayload(
+  sessionId: number,
+  mode: RuntimeMode,
+  processType: AiInterviewHandoffResponse["processType"],
+  request: AiInterviewRequest,
+): Record<string, unknown> {
+  return compactPayload({
+    target: mode === "mock" ? "candidate.mock-interview" : "candidate.recruiting-interview",
+    processType,
+    sessionId,
+    answerId: request.answerId,
+    fileAssetId: request.fileAssetId,
+    audioFileId: request.audioFileId,
+    audioS3Key: request.audioS3Key,
+    previousQuestion: request.previousQuestion,
+    transcript: request.transcript,
+  });
+}
+
+function buildAiPipelineResponsePayload(
+  response: AiInterviewHandoffResponse,
+  sessionId: number,
+  lastAnswer: LastSavedAnswer,
+): Record<string, unknown> {
+  return compactPayload({
+    accepted: response.accepted,
+    processType: response.processType,
+    status: response.status,
+    callbackTopic: response.callbackTopic,
+    processLogId: response.processLogId,
+    inputRef: response.inputRef,
+    sessionId: response.sessionId ?? sessionId,
+    applicationId: response.applicationId,
+    answerId: response.answerId ?? lastAnswer.answerId,
+    questionId: response.questionId ?? lastAnswer.questionId,
+    fileAssetId: response.fileAssetId ?? response.fileId ?? lastAnswer.fileAssetId,
+    audioFileId: response.audioFileId ?? lastAnswer.audioFileId,
+    videoFileId: response.videoFileId ?? lastAnswer.videoFileId,
+  });
+}
+
+function buildReportGenerationSharePayload(handoff: CandidateReportGenerationHandoff): Record<string, unknown> {
+  return {
+    accepted: handoff.accepted,
+    processType: handoff.processType,
+    status: handoff.status,
+    callbackTopic: handoff.callbackTopic,
+    reportId: handoff.reportId,
+    sessionId: handoff.sessionId,
+    reportType: handoff.reportType,
+    answerIds: handoff.answerIds,
+    fileIds: handoff.fileIds,
+  };
+}
+
+function compactPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null));
+}
+
+function formatJsonPayload(payload: Record<string, unknown>): string {
+  return JSON.stringify(payload, null, 2);
+}
+
+function formatIdList(ids: number[]): string {
+  return ids.length ? ids.join(", ") : "-";
 }
 
 function RecruitingReportFallbackView({
