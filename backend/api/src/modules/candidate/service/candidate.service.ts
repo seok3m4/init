@@ -389,14 +389,17 @@ export class CandidateService {
     currentUser: CurrentCandidateUser,
   ): Promise<InterviewSession> {
     const { application, session } = await this.getOwnedRecruitingInterviewSession(sessionId, currentUser);
-    if (session.status !== "IN_PROGRESS") {
+    if (session.status !== "IN_PROGRESS" && session.status !== "COMPLETED") {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview cannot be completed from the current state.", 409, [
         { field: "interviewStatus", reason: `current status is ${session.status}` },
       ]);
     }
 
     const now = new Date().toISOString();
-    const completedSession = await this.repository.updateInterviewSessionStatus(session.sessionId, "COMPLETED", now);
+    const completedSession =
+      session.status === "COMPLETED"
+        ? session
+        : await this.repository.updateInterviewSessionStatus(session.sessionId, "COMPLETED", now);
     await this.repository.updateApplicationInterviewStatus(application.applicationId, "COMPLETED");
     await this.repository.updateApplicationReportStatus(application.applicationId, "GENERATING");
     return completedSession;

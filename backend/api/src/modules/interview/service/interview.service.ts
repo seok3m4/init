@@ -160,6 +160,19 @@ export class InterviewService {
 
   async completeRecruitingInterview(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
+    if (session.status === "COMPLETED") {
+      await this.candidateService.completeRecruitingInterviewSession(sessionId, currentUser);
+      const answeredCount = await this.countAnswers(session.sessionId);
+      return this.envelope({
+        sessionId: session.sessionId,
+        applicationId: session.applicationId,
+        interviewType: session.interviewType,
+        status: "COMPLETED",
+        completedAt: session.completedAt ?? new Date().toISOString(),
+        answeredCount,
+        totalQuestions: session.questionIds.length,
+      });
+    }
     const result = await this.completeRuntimeSession(session);
     await this.candidateService.completeRecruitingInterviewSession(sessionId, currentUser);
     return result;
@@ -296,6 +309,15 @@ export class InterviewService {
     this.assertInProgress(session);
     const previousQuestionId = this.currentQuestionId(session);
     if (!(await this.interviewRepository.findAnswer(session.sessionId, previousQuestionId))) {
+      const answeredCount = await this.countAnswers(session.sessionId);
+      if (session.currentQuestionIndex > 0 && answeredCount === session.currentQuestionIndex) {
+        return this.envelope({
+          sessionId: session.sessionId,
+          previousQuestionId: session.questionIds[session.currentQuestionIndex - 1],
+          currentQuestion: await this.toQuestionView(session, await this.currentQuestion(session), true),
+          isLastQuestion: session.currentQuestionIndex === session.questionIds.length - 1,
+        });
+      }
       throw new CandidateDomainError("COMMON_CONFLICT", "Current question must be answered before moving next.", 409, [
         { field: "questionId", reason: "current question answer is missing" },
       ]);
