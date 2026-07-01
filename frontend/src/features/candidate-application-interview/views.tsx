@@ -17,6 +17,7 @@ import {
   hasRequiredConsents,
   toSubmitApplicationRequest,
 } from "./view-model";
+import { JobDescriptionViewer } from "../company-recruiting/JobDescriptionViewer";
 
 export interface CandidateJobsViewProps {
   jobs: CandidateJobSummary[];
@@ -150,7 +151,7 @@ export function CandidateJobDetailView({ job }: CandidateJobDetailViewProps) {
           <section className="candidate-job-detail-card">
             <p className="panel-title">JD</p>
             <div className="candidate-job-detail-box">
-              <p>{job.jobDescription}</p>
+              <JobDescriptionViewer value={job.jobDescription} emptyMessage="등록된 JD가 없습니다." />
               <ul className="candidate-feature__tags">
                 {job.techStacks.map((techStack) => (
                   <li key={techStack}>{techStack}</li>

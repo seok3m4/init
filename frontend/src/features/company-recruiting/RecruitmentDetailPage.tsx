@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
 import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
+import { JobDescriptionViewer } from "./JobDescriptionViewer";
 import { buildInterviewSettingsHref } from "./routes";
 import {
   getScreeningAutosaveFieldState,
@@ -182,7 +183,10 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
                 <StatusBadge value={recruitment.status} />
               </div>
               <div className="description-box">
-                {recruitment.jobDescription || "등록된 JD가 없습니다. 면접 설정은 C 역할 영역에서 별도 연결합니다."}
+                <JobDescriptionViewer
+                  value={recruitment.jobDescription}
+                  emptyMessage="등록된 JD가 없습니다. 면접 설정은 C 역할 영역에서 별도 연결합니다."
+                />
               </div>
             </section>
 

@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 
 import { createRecruitment } from "./api";
 import { Breadcrumb } from "./CompanyRecruitingChrome";
+import { JobDescriptionEditor } from "./JobDescriptionEditor";
 import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
@@ -27,7 +28,6 @@ const initialForm: FormState = {
 export function RecruitmentCreatePage() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialForm);
-  const [jdFileName, setJdFileName] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -117,34 +117,17 @@ export function RecruitmentCreatePage() {
             <div className="panel-head">
               <div>
                 <h2>JD 등록</h2>
-                <p>이번 저장은 텍스트 JD 기준입니다.</p>
               </div>
             </div>
 
             <div className="creation-flow">
-              <label className="wide">
-                JD 직접 입력
-                <textarea
+              <div className="wide form-field">
+                <JobDescriptionEditor
                   value={form.jobDescription}
-                  onChange={(event) => updateField("jobDescription", event.target.value)}
-                  placeholder="담당 업무, 자격 요건, 우대 사항을 입력하세요."
+                  disabled={loading}
+                  onChange={(value) => updateField("jobDescription", value)}
                 />
-              </label>
-              <label className="wide">
-                JD 파일 (임시 UI)
-                <div className="upload-zone">
-                  <input
-                    accept=".txt,.pdf,.doc,.docx"
-                    type="file"
-                    onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
-                  />
-                  <span className="field-hint">
-                    {jdFileName
-                      ? `${jdFileName} 선택됨 · 파일 저장/파싱은 아직 연동 전입니다.`
-                      : "txt, pdf, doc, docx · 실제 업로드 저장은 후속 연동 예정인 임시 칸입니다."}
-                  </span>
-                </div>
-              </label>
+              </div>
             </div>
           </section>
 
