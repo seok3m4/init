@@ -58,6 +58,7 @@
       "^backend/api/src/common/response/",
       "^backend/api/src/shared/",
       "^backend/api/src/swagger/",
+      "^frontend/src/app/auth/google/callback/",
       "^frontend/src/app/(login|signup|password/reset)/",
       "^frontend/src/features/auth/",
       "^infra/",

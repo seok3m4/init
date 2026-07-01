@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
-import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiCookieAuth, ApiFoundResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Request, Response } from "express";
 import { isUserType, type CurrentUser } from "@init/common";
 import { ApiException } from "../../../shared/api-exception";
@@ -11,7 +11,6 @@ import {
   AuthTokenResponseDto,
   EmailCodeRequestDto,
   GoogleAuthorizationResponseDto,
-  GoogleCallbackQueryDto,
   GoogleLoginQueryDto,
   LoginDto,
   LogoutResponseDto,
@@ -48,16 +47,20 @@ export class AuthController {
   @ApiOperation({ summary: "지원자 전용 Google OAuth 로그인 URL 생성" })
   @ApiEnvelopeResponse(GoogleAuthorizationResponseDto)
   google(@Query() query: GoogleLoginQueryDto) {
-    return this.auth.googleLoginStart(this.parseUserType(query.userType));
+    return this.auth.googleLoginStart(this.parseUserType(query.userType ?? "CANDIDATE"));
   }
 
   @Get("google/callback")
   @ApiOperation({ summary: "Google OAuth callback 처리" })
-  @ApiEnvelopeResponse(AuthTokenResponseDto)
-  async googleCallback(@Query() query: GoogleCallbackQueryDto, @Res({ passthrough: true }) response: Response) {
-    const result = await this.auth.googleCallback(query.code, query.state);
+  @ApiFoundResponse({ description: "Redirects to frontend OAuth callback after Google OAuth succeeds." })
+  async googleCallback(
+    @Query("code") code: string | undefined,
+    @Query("state") state: string | undefined,
+    @Res() response: Response,
+  ) {
+    const result = await this.auth.googleCallback(code, state);
     this.setRefreshCookie(response, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    response.redirect(HttpStatus.FOUND, this.frontendGoogleCallbackUrl());
   }
 
   @Post("signup/candidate")
@@ -175,5 +178,9 @@ export class AuthController {
       sameSite: (process.env.AUTH_COOKIE_SAME_SITE ?? "lax") as "lax" | "strict" | "none",
       path: "/",
     });
+  }
+
+  private frontendGoogleCallbackUrl() {
+    return new URL("/auth/google/callback", process.env.FRONTEND_ORIGIN ?? "http://localhost:3000").toString();
   }
 }
