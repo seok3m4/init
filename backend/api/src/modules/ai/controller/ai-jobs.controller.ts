@@ -344,10 +344,10 @@ export class CompanyAiJobsController {
 @ApiBearerAuth("bearer")
 @ApiDevAuthHeaders()
 @ApiErrorResponses()
+@UseGuards(JwtAuthGuard)
 @Controller("ai/jobs")
 export class AiJobsStatusController {
   constructor(
-    @Inject(DevAuthAdapter) private readonly devAuthAdapter: DevAuthAdapter,
     @Inject(REPORT_REPOSITORY) private readonly repository: ReportRepository
   ) {}
 
@@ -356,8 +356,7 @@ export class AiJobsStatusController {
   @ApiOperation({ summary: "AI 작업 상태 조회" })
   @ApiParamId("processLogId", "AI process log ID")
   @ApiEnvelopeResponse(AiJobResponseDto)
-  async getStatus(@Param("processLogId") processLogIdParam: string, @Headers() headers: HeaderMap) {
-    this.devAuthAdapter.parse(headers);
+  async getStatus(@Param("processLogId") processLogIdParam: string) {
     const processLogId = this.parseId(processLogIdParam, "processLogId");
 
     try {

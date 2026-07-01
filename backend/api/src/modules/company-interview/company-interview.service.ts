@@ -14,6 +14,10 @@ import {
   UpdateInterviewQuestionDto,
 } from './dto/question-management.dto';
 import {
+  ConfirmQuestionSetDto,
+  QuestionSetResponseDto,
+} from './dto/question-set.dto';
+import {
   UpdateInterviewTimePolicyDto,
   UpdateInterviewTimePolicyResponseDto,
 } from './dto/time-policy.dto';
@@ -26,6 +30,7 @@ import {
 import {
   EvaluationCriterionRecord,
   QuestionRecord,
+  QuestionSetRecord,
 } from './company-interview.types';
 import {
   COMPANY_INTERVIEW_REPOSITORY,
@@ -118,7 +123,7 @@ export class CompanyInterviewService {
 
     // Contract keeps the exact total-weight policy pending. For now the C
     // module accepts 1..100 and reports the total without changing DB rules.
-    if (totalWeight <= 0 || totalWeight > 100) {
+    if (dto.criteria.length > 0 && (totalWeight <= 0 || totalWeight > 100)) {
       validationFailed('평가 기준 배점 합계를 확인해주세요.', [
         { field: 'criteria[].weight', reason: 'TOTAL_OUT_OF_RANGE' },
       ]);
@@ -246,6 +251,52 @@ export class CompanyInterviewService {
     };
   }
 
+  async confirmQuestionSet(
+    currentUser: CurrentUser,
+    dto: ConfirmQuestionSetDto,
+  ): Promise<QuestionSetResponseDto> {
+    this.assertCompanyUser(currentUser);
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const seenSortOrders = new Set<number>();
+    const seenQuestionIds = new Set<number>();
+
+    for (const item of dto.items) {
+      if (seenSortOrders.has(item.sortOrder)) {
+        validationFailed('질문 세트 순서를 확인해주세요.', [
+          { field: 'items[].sortOrder', reason: 'DUPLICATED' },
+        ]);
+      }
+      seenSortOrders.add(item.sortOrder);
+
+      if (seenQuestionIds.has(item.questionId)) {
+        validationFailed('질문 세트에 중복 질문이 있습니다.', [
+          { field: 'items[].questionId', reason: 'DUPLICATED' },
+        ]);
+      }
+      seenQuestionIds.add(item.questionId);
+
+      const question = await this.findOwnedQuestion(currentUser, item.questionId);
+      if (question.postingId !== posting.postingId) {
+        validationFailed('공고에 연결된 질문만 질문 세트에 포함할 수 있습니다.', [
+          { field: 'items[].questionId', reason: 'POSTING_MISMATCH' },
+        ]);
+      }
+
+      if (item.criterionId !== undefined && item.criterionId !== null) {
+        await this.findPostingCriterion(posting.postingId, item.criterionId);
+      }
+    }
+
+    const saved = await this.repository.confirmQuestionSet({
+      postingId: posting.postingId,
+      title: dto.title.trim() || '면접 질문 세트',
+      sourceProcessLogId: dto.sourceProcessLogId,
+      items: dto.items,
+    });
+
+    return this.mapQuestionSet(saved);
+  }
+
   private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
     this.assertCompanyUser(currentUser);
 
@@ -354,6 +405,22 @@ export class CompanyInterviewService {
       questionType: question.questionType,
       content: question.content,
       isActive: question.isActive,
+    };
+  }
+
+  private mapQuestionSet(questionSet: QuestionSetRecord): QuestionSetResponseDto {
+    return {
+      questionSetId: questionSet.questionSetId,
+      postingId: questionSet.postingId,
+      title: questionSet.title,
+      status: questionSet.status,
+      createdByProcessLogId: questionSet.createdByProcessLogId,
+      items: questionSet.items.map((item) => ({
+        questionSetItemId: item.questionSetItemId,
+        questionId: item.questionId,
+        criterionId: item.criterionId,
+        sortOrder: item.sortOrder,
+      })),
     };
   }
 }

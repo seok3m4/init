@@ -6,10 +6,12 @@ import {
   EvaluationCriterionRecord,
   PostingRecord,
   QuestionRecord,
+  QuestionSetRecord,
   TimePolicyRecord,
 } from '../company-interview.types';
 import {
   CompanyInterviewRepository,
+  ConfirmQuestionSetInput,
   UpdateTimePolicyInput,
   UpdateCriterionInput,
   UpdateQuestionInput,
@@ -232,6 +234,42 @@ export class PrismaCompanyInterviewRepository
       retryAllowed: input.retryAllowed,
     };
   }
+
+  async confirmQuestionSet(input: ConfirmQuestionSetInput): Promise<QuestionSetRecord> {
+    const questionSet = await this.prisma.$transaction(async (tx) => {
+      await (tx as any).interviewQuestionSet.updateMany({
+        where: { postingId: BigInt(input.postingId), status: 'ACTIVE' },
+        data: { status: 'DRAFT' },
+      });
+
+      return (tx as any).interviewQuestionSet.create({
+        data: {
+          postingId: BigInt(input.postingId),
+          title: input.title.trim(),
+          status: 'ACTIVE',
+          createdByProcessLogId:
+            input.sourceProcessLogId === undefined
+              ? undefined
+              : BigInt(input.sourceProcessLogId),
+          items: {
+            create: input.items
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((item) => ({
+                questionId: BigInt(item.questionId),
+                criterionId:
+                  item.criterionId === undefined || item.criterionId === null
+                    ? null
+                    : BigInt(item.criterionId),
+                sortOrder: item.sortOrder,
+              })),
+          },
+        },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+
+    return mapQuestionSet(questionSet);
+  }
 }
 
 function normalizeQuestionContent(content: string): string {
@@ -312,5 +350,36 @@ function mapQuestion(question: {
     questionType: question.questionType,
     content: question.content,
     isActive: question.isActive,
+  };
+}
+
+function mapQuestionSet(questionSet: {
+  questionSetId: bigint;
+  postingId: bigint;
+  title: string;
+  status: string;
+  createdByProcessLogId: bigint | null;
+  items: Array<{
+    questionSetItemId: bigint;
+    questionId: bigint;
+    criterionId: bigint | null;
+    sortOrder: number;
+  }>;
+}): QuestionSetRecord {
+  return {
+    questionSetId: Number(questionSet.questionSetId),
+    postingId: Number(questionSet.postingId),
+    title: questionSet.title,
+    status: questionSet.status,
+    createdByProcessLogId:
+      questionSet.createdByProcessLogId === null
+        ? null
+        : Number(questionSet.createdByProcessLogId),
+    items: questionSet.items.map((item) => ({
+      questionSetItemId: Number(item.questionSetItemId),
+      questionId: Number(item.questionId),
+      criterionId: item.criterionId === null ? null : Number(item.criterionId),
+      sortOrder: item.sortOrder,
+    })),
   };
 }

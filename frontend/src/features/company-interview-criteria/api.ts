@@ -1,6 +1,8 @@
 import type {
   ApiEnvelope,
   ApiErrorEnvelope,
+  ConfirmQuestionSetInput,
+  ConfirmQuestionSetResult,
   AiJobResult,
   CreateInterviewQuestionInput,
   CreateInterviewQuestionResult,
@@ -74,6 +76,13 @@ export async function generateInterviewQuestions(input: GenerateInterviewQuestio
 
 export async function generateQuestionSet(input: GenerateQuestionSetInput) {
   return request<AiJobResult>("/company/interviews/question-sets", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function confirmQuestionSet(input: ConfirmQuestionSetInput) {
+  return request<ConfirmQuestionSetResult>("/company/interviews/question-sets/confirm", {
     method: "POST",
     body: input,
   });

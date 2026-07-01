@@ -219,20 +219,21 @@ model CandidateProfile {
 }
 
 model Posting {
-  postingId      BigInt                @id @default(autoincrement()) @map("posting_id")
-  companyId      BigInt                @map("company_id")
-  title          String                @db.VarChar(200)
-  jobRole        String                @map("job_role") @db.VarChar(100)
-  jobDescription String?               @map("job_description")
-  startsOn       DateTime?             @map("starts_on") @db.Date
-  endsOn         DateTime?             @map("ends_on") @db.Date
-  status         PostingStatus         @default(DRAFT)
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
-  company        Company               @relation(fields: [companyId], references: [companyId])
+  postingId      BigInt                 @id @default(autoincrement()) @map("posting_id")
+  companyId      BigInt                 @map("company_id")
+  title          String                 @db.VarChar(200)
+  jobRole        String                 @map("job_role") @db.VarChar(100)
+  jobDescription String?                @map("job_description")
+  startsOn       DateTime?              @map("starts_on") @db.Date
+  endsOn         DateTime?              @map("ends_on") @db.Date
+  status         PostingStatus          @default(DRAFT)
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  company        Company                @relation(fields: [companyId], references: [companyId])
   criteria       EvaluationCriterion[]
   questions      Question[]
   applications   Application[]
+  questionSets   InterviewQuestionSet[]
 
   @@index([companyId, status])
   @@map("postings")
@@ -252,34 +253,66 @@ model CriterionTag {
 }
 
 model EvaluationCriterion {
-  criterionId  BigInt        @id @default(autoincrement()) @map("criterion_id")
-  postingId    BigInt        @map("posting_id")
-  tagId        BigInt        @map("tag_id")
-  weight       Int
-  passScore    Int?          @map("pass_score")
-  sortOrder    Int           @map("sort_order")
-  posting      Posting       @relation(fields: [postingId], references: [postingId])
-  tag          CriterionTag  @relation(fields: [tagId], references: [tagId])
-  questions    Question[]
-  reportScores ReportScore[]
+  criterionId      BigInt                     @id @default(autoincrement()) @map("criterion_id")
+  postingId        BigInt                     @map("posting_id")
+  tagId            BigInt                     @map("tag_id")
+  weight           Int
+  passScore        Int?                       @map("pass_score")
+  sortOrder        Int                        @map("sort_order")
+  posting          Posting                    @relation(fields: [postingId], references: [postingId])
+  tag              CriterionTag               @relation(fields: [tagId], references: [tagId])
+  questions        Question[]
+  reportScores     ReportScore[]
+  questionSetItems InterviewQuestionSetItem[]
 
   @@map("evaluation_criteria")
 }
 
 model Question {
-  questionId   BigInt               @id @default(autoincrement()) @map("question_id")
-  companyId    BigInt               @map("company_id")
-  postingId    BigInt?              @map("posting_id")
-  criterionId  BigInt?              @map("criterion_id")
-  questionType QuestionType         @map("question_type")
-  content      String
-  isActive     Boolean              @default(true) @map("is_active")
-  company      Company              @relation(fields: [companyId], references: [companyId])
-  posting      Posting?             @relation(fields: [postingId], references: [postingId])
-  criterion    EvaluationCriterion? @relation(fields: [criterionId], references: [criterionId])
-  answers      InterviewAnswer[]
+  questionId       BigInt                     @id @default(autoincrement()) @map("question_id")
+  companyId        BigInt                     @map("company_id")
+  postingId        BigInt?                    @map("posting_id")
+  criterionId      BigInt?                    @map("criterion_id")
+  questionType     QuestionType               @map("question_type")
+  content          String
+  isActive         Boolean                    @default(true) @map("is_active")
+  company          Company                    @relation(fields: [companyId], references: [companyId])
+  posting          Posting?                   @relation(fields: [postingId], references: [postingId])
+  criterion        EvaluationCriterion?       @relation(fields: [criterionId], references: [criterionId])
+  answers          InterviewAnswer[]
+  questionSetItems InterviewQuestionSetItem[]
 
   @@map("question_bank")
+}
+
+model InterviewQuestionSet {
+  questionSetId         BigInt                     @id @default(autoincrement()) @map("question_set_id")
+  postingId             BigInt                     @map("posting_id")
+  title                 String                     @db.VarChar(200)
+  status                String                     @default("DRAFT") @db.VarChar(30)
+  createdByProcessLogId BigInt?                    @map("created_by_process_log_id")
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+  posting               Posting                    @relation(fields: [postingId], references: [postingId])
+  createdByProcessLog   AiProcessLog?              @relation(fields: [createdByProcessLogId], references: [processLogId])
+  items                 InterviewQuestionSetItem[]
+
+  @@index([postingId, status], map: "idx_interview_question_sets_posting_status")
+  @@map("interview_question_sets")
+}
+
+model InterviewQuestionSetItem {
+  questionSetItemId BigInt               @id @default(autoincrement()) @map("question_set_item_id")
+  questionSetId     BigInt               @map("question_set_id")
+  questionId        BigInt               @map("question_id")
+  criterionId       BigInt?              @map("criterion_id")
+  sortOrder         Int                  @map("sort_order")
+  questionSet       InterviewQuestionSet @relation(fields: [questionSetId], references: [questionSetId])
+  question          Question             @relation(fields: [questionId], references: [questionId])
+  criterion         EvaluationCriterion? @relation(fields: [criterionId], references: [criterionId])
+
+  @@unique([questionSetId, sortOrder], map: "uq_interview_question_set_items_order")
+  @@map("interview_question_set_items")
 }
 
 model Application {
@@ -457,32 +490,33 @@ model Notification {
 }
 
 model AiProcessLog {
-  processLogId  BigInt            @id @default(autoincrement()) @map("process_log_id")
-  applicationId BigInt?           @map("application_id")
-  sessionId     BigInt?           @map("session_id")
-  processType   AiProcessType     @map("process_type")
-  status        AiProcessStatus   @default(PENDING)
-  inputRef      String?           @map("input_ref")
-  outputRef     String?           @map("output_ref")
-  failureCategory String?         @map("failure_category") @db.VarChar(40)
-  failureReason   String?         @map("failure_reason")
-  createdAt     DateTime          @default(now()) @map("created_at")
-  application   Application?      @relation(fields: [applicationId], references: [applicationId])
-  session       InterviewSession? @relation(fields: [sessionId], references: [sessionId])
-  guardrailLogs AiGuardrailLog[]
+  processLogId        BigInt                 @id @default(autoincrement()) @map("process_log_id")
+  applicationId       BigInt?                @map("application_id")
+  sessionId           BigInt?                @map("session_id")
+  processType         AiProcessType          @map("process_type")
+  status              AiProcessStatus        @default(PENDING)
+  inputRef            String?                @map("input_ref")
+  outputRef           String?                @map("output_ref")
+  failureCategory     String?                @map("failure_category") @db.VarChar(40)
+  failureReason       String?                @map("failure_reason")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  application         Application?           @relation(fields: [applicationId], references: [applicationId])
+  session             InterviewSession?      @relation(fields: [sessionId], references: [sessionId])
+  guardrailLogs       AiGuardrailLog[]
+  createdQuestionSets InterviewQuestionSet[]
 
   @@map("ai_process_logs")
 }
 
 model AiGuardrailLog {
-  guardrailLogId BigInt          @id @default(autoincrement()) @map("guardrail_log_id")
-  processLogId   BigInt          @map("process_log_id")
-  policyName     String          @map("policy_name") @db.VarChar(120)
-  result         GuardrailResult
-  reason         String?
-  failureCategory String?        @map("failure_category") @db.VarChar(40)
-  createdAt      DateTime        @default(now()) @map("created_at")
-  processLog     AiProcessLog    @relation(fields: [processLogId], references: [processLogId])
+  guardrailLogId  BigInt          @id @default(autoincrement()) @map("guardrail_log_id")
+  processLogId    BigInt          @map("process_log_id")
+  policyName      String          @map("policy_name") @db.VarChar(120)
+  result          GuardrailResult
+  reason          String?
+  failureCategory String?         @map("failure_category") @db.VarChar(40)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  processLog      AiProcessLog    @relation(fields: [processLogId], references: [processLogId])
 
   @@map("ai_guardrail_logs")
 }
@@ -504,8 +538,8 @@ model Embedding {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
+  @@unique([sourceType, sourceTextHash], name: "sourceTypeSourceTextHash")
   @@index([sourceType], map: "idx_embeddings_source_type")
   @@index([sourceTextHash], map: "idx_embeddings_source_hash")
-  @@unique([sourceType, sourceTextHash], name: "sourceTypeSourceTextHash")
   @@map("embeddings")
 }

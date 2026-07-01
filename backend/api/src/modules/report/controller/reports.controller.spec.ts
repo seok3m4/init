@@ -1,5 +1,6 @@
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import jwt from "jsonwebtoken";
 import request from "supertest";
 import { AppModule } from "../../app.module";
 import { ApiExceptionFilter } from "../../../shared/api-exception.filter";
@@ -451,6 +452,36 @@ describe("ReportsController", () => {
 
     const missing = await companyGet("/api/v1/ai/jobs/999999/status").expect(404);
     expect(missing.body.error.code).toBe("AI_PROCESS_NOT_FOUND");
+  });
+
+  it("allows bearer authenticated users to poll AI job status", async () => {
+    const response = await companyRequest("/api/v1/company/interviews/evaluation-criteria/suggest")
+      .send({
+        postingId: 2,
+        jobDescription: "Backend engineer with NestJS and PostgreSQL experience.",
+        talentProfile: "Pragmatic problem solver",
+        evaluationPolicy: "Prefer evidence-backed backend ownership."
+      })
+      .expect(202);
+
+    const accessToken = jwt.sign(
+      {
+        sub: 1,
+        userType: "COMPANY",
+        companyId: 1,
+        candidateId: null,
+        tokenType: "access"
+      },
+      process.env.JWT_SECRET ?? "local-dev-jwt-secret-change-me"
+    );
+
+    const statusResponse = await request(app.getHttpServer())
+      .get(`/api/v1/ai/jobs/${response.body.data.processLogId}/status`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(statusResponse.body.data.processLogId).toBe(response.body.data.processLogId);
+    expect(statusResponse.body.data.status).toBe("PENDING");
   });
 
   it("separates recruiting and mock report endpoint report types", async () => {

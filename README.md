@@ -59,8 +59,8 @@ docker compose -f infra/local/docker-compose.yml ps
 PostgreSQL  localhost:5432
 Redis       localhost:6379
 Mailpit     http://localhost:8025
-LocalStack  http://localhost:4566
-SQS Queue   http://localhost:4566/000000000000/init-ai-jobs
+LocalStack  http://localhost:14566
+SQS Queue   http://localhost:14566/000000000000/init-ai-jobs
 ```
 
 Mailpit은 개발용 메일함입니다. 회원가입이나 비밀번호 재설정 인증 메일은 실제 메일로 가지 않고 Mailpit 화면에서 확인합니다.
