@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { CurrentUser } from '@init/common';
 import {
   EvaluationCriterionResponseDto,
-  SuggestEvaluationCriterionDto,
   UpdateEvaluationCriterionDto,
 } from './dto/evaluation-criterion.dto';
 import {
@@ -73,24 +72,6 @@ export class CompanyInterviewService {
       })),
       timePolicy: await this.toTimePolicyDto(posting.postingId),
     };
-  }
-
-  async suggestEvaluationCriteria(
-    currentUser: CurrentUser,
-    dto: SuggestEvaluationCriterionDto,
-  ) {
-    await this.getOwnedPosting(currentUser, dto.postingId);
-
-    return this.repository.createPendingProcessLog({
-      postingId: dto.postingId,
-      inputRef: JSON.stringify({
-        postingId: dto.postingId,
-        jobRole: dto.jobRole,
-        jdText: dto.jdText,
-        companyFitText: dto.companyFitText,
-        requestedCount: dto.requestedCount,
-      }),
-    });
   }
 
   async updateEvaluationCriteria(

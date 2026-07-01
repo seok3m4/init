@@ -119,15 +119,14 @@ export class InMemoryCompanyInterviewRepository
   private timePolicies: TimePolicyRecord[] = [
     {
       postingId: 1,
-      preparationTimeSec: 60,
-      answerTimeSec: 180,
+      preparationTimeSec: 0,
+      answerTimeSec: 90,
       retryAllowed: false,
     },
   ];
 
   private nextCriterionId = 4;
   private nextQuestionId = 4;
-  private nextProcessLogId = 1_000;
 
   async findPosting(postingId: number): Promise<PostingRecord | undefined> {
     return this.postings.find((posting) => posting.postingId === postingId);
@@ -191,8 +190,8 @@ export class InMemoryCompanyInterviewRepository
     return (
       this.timePolicies.find((policy) => policy.postingId === postingId) ?? {
         postingId,
-        preparationTimeSec: 60,
-        answerTimeSec: 180,
+        preparationTimeSec: 0,
+        answerTimeSec: 90,
         retryAllowed: false,
       }
     );
@@ -308,12 +307,5 @@ export class InMemoryCompanyInterviewRepository
     ];
 
     return timePolicy;
-  }
-
-  async createPendingProcessLog(): Promise<{ processLogId: number; status: 'PENDING' }> {
-    return {
-      processLogId: this.nextProcessLogId++,
-      status: 'PENDING',
-    };
   }
 }

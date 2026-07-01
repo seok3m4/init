@@ -838,9 +838,11 @@ td input {
   width: 88px;
 }
 
-.criteria-cell-order input {
+.criteria-cell-order input,
+.criteria-cell-order select {
   width: 56px;
   min-width: 56px;
+  padding: 0 8px;
 }
 
 .criteria-cell-score input {

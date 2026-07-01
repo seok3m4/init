@@ -67,10 +67,6 @@ export type AiJobResult = {
 
 export type SuggestEvaluationCriteriaInput = {
   postingId: number;
-  jobRole?: string;
-  jdText?: string;
-  companyFitText?: string;
-  requestedCount?: number;
   jobDescription: string;
   talentProfile: string;
   evaluationPolicy: string;

@@ -8,36 +8,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { AiProcessStatus } from '../company-interview.types';
-
-export class SuggestEvaluationCriterionDto {
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  postingId!: number;
-
-  @IsOptional()
-  jobRole?: string;
-
-  @IsOptional()
-  jdText?: string;
-
-  @IsOptional()
-  companyFitText?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(20)
-  requestedCount?: number;
-}
-
-export class EvaluationCriterionSuggestionProcessResponseDto {
-  processLogId!: number;
-  status!: AiProcessStatus;
-}
-
 export class EvaluationCriterionItemDto {
   @IsOptional()
   @Type(() => Number)

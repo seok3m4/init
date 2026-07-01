@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AiProcessType, type QuestionType } from '@prisma/client';
+import type { QuestionType } from '@prisma/client';
 import { PrismaService } from '../../../shared/prisma.service';
 import {
   CriterionTagRecord,
@@ -11,7 +11,6 @@ import {
 import {
   CompanyInterviewRepository,
   UpdateTimePolicyInput,
-  PendingProcessLog,
   UpdateCriterionInput,
   UpdateQuestionInput,
 } from './company-interview.repository';
@@ -101,8 +100,8 @@ export class PrismaCompanyInterviewRepository
   async getTimePolicy(postingId: number): Promise<TimePolicyRecord> {
     return {
       postingId,
-      preparationTimeSec: 60,
-      answerTimeSec: 180,
+      preparationTimeSec: 0,
+      answerTimeSec: 90,
       retryAllowed: false,
     };
   }
@@ -231,23 +230,6 @@ export class PrismaCompanyInterviewRepository
       preparationTimeSec: input.preparationTimeSec,
       answerTimeSec: input.answerTimeSec,
       retryAllowed: input.retryAllowed,
-    };
-  }
-
-  async createPendingProcessLog(input?: {
-    postingId?: number;
-    inputRef?: string;
-  }): Promise<PendingProcessLog> {
-    const log = await this.prisma.aiProcessLog.create({
-      data: {
-        processType: AiProcessType.CRITERIA_SUGGEST,
-        status: 'PENDING',
-        inputRef: input?.inputRef ?? null,
-      },
-    });
-    return {
-      processLogId: Number(log.processLogId),
-      status: 'PENDING',
     };
   }
 }

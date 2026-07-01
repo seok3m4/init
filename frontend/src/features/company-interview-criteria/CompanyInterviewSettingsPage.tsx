@@ -36,9 +36,13 @@ type QuestionForm = {
 
 type TimePolicyDraft = {
   preparationTimeSec: string;
+  preparationTimeMode: string;
   answerTimeSec: string;
+  answerTimeMode: string;
   retryAllowed: boolean;
 };
+
+type TimePolicyField = "preparationTimeSec" | "answerTimeSec";
 
 type AiJobKind = "criteria" | "questions" | "questionSet";
 
@@ -71,6 +75,10 @@ const initialQuestionForm: QuestionForm = {
   questionType: "TECHNICAL",
   content: "",
 };
+
+const CUSTOM_TIME_OPTION = "custom";
+const PREPARATION_TIME_OPTIONS = ["0", "30", "60"];
+const ANSWER_TIME_OPTIONS = ["60", "90", "120"];
 
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
@@ -134,13 +142,23 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
   const hasTimePolicyChanges = useMemo(() => {
     if (!settings || !timePolicyDraft) return false;
-    return JSON.stringify(timePolicyDraft) !== JSON.stringify(toTimePolicyDraft(settings));
+    return JSON.stringify(toTimePolicyComparable(timePolicyDraft)) !== JSON.stringify(toTimePolicyComparable(toTimePolicyDraft(settings)));
   }, [settings, timePolicyDraft]);
 
   const availableTagOptions = useMemo(() => {
     if (!settings) return [];
     const selectedTagIds = new Set(criteriaDrafts.map((criterion) => criterion.tagId));
     return settings.availableTags.filter((tag) => !selectedTagIds.has(tag.tagId));
+  }, [criteriaDrafts, settings]);
+
+  const visibleQuestions = useMemo(() => {
+    if (!settings) return [];
+    const visibleCriterionIds = new Set(
+      criteriaDrafts
+        .map((criterion) => criterion.criterionId)
+        .filter((criterionId): criterionId is number => criterionId !== undefined),
+    );
+    return settings.questions.filter((question) => question.criterionId === null || visibleCriterionIds.has(question.criterionId));
   }, [criteriaDrafts, settings]);
 
   const questionSetPreview = useMemo(() => buildQuestionSetPreview(settings), [settings]);
@@ -188,7 +206,11 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     }
 
     setCriteriaError("");
-    setCriteriaDrafts((current) => current.filter((criterion) => criterion.draftId !== draftId));
+    const nextCriteriaDrafts = criteriaDrafts.filter((criterion) => criterion.draftId !== draftId);
+    setCriteriaDrafts(nextCriteriaDrafts);
+    if (criterion?.criterionId !== undefined && questionForm.criterionId === String(criterion.criterionId)) {
+      resetQuestionEditor(String(nextCriteriaDrafts.find((item) => item.criterionId !== undefined)?.criterionId ?? ""));
+    }
   }
 
   function updateCriteriaDraft(draftId: string, field: "weight" | "passScore" | "sortOrder", value: string) {
@@ -207,6 +229,20 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   function updateTimePolicyDraft<K extends keyof TimePolicyDraft>(field: K, value: TimePolicyDraft[K]) {
     setTimePolicyError("");
     setTimePolicyDraft((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  function updateTimePolicyPreset(field: TimePolicyField, value: string) {
+    setTimePolicyError("");
+    const modeField = field === "preparationTimeSec" ? "preparationTimeMode" : "answerTimeMode";
+    setTimePolicyDraft((current) =>
+      current
+        ? {
+            ...current,
+            [modeField]: value,
+            ...(value === CUSTOM_TIME_OPTION ? {} : { [field]: value }),
+          }
+        : current,
+    );
   }
 
   function resetTimePolicyDraft() {
@@ -416,10 +452,6 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       const jobDescription = buildJobDescription(settings);
       const response = await suggestEvaluationCriteria({
         postingId: settings.posting.postingId,
-        jobRole: settings.posting.title,
-        jdText: jobDescription,
-        companyFitText: "문제 해결력, 협업, 직무 적합성을 발표 시연 기준으로 확인합니다.",
-        requestedCount: Math.max(3, settings.criteria.length || 3),
         jobDescription,
         talentProfile: "문제 해결력과 협업 태도를 갖춘 지원자",
         evaluationPolicy: "평가 기준과 질문 뱅크를 기반으로 근거 중심 평가 항목을 추천합니다.",
@@ -533,7 +565,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 }}
               >
                 <Metric compact label="평가 기준" value={settings.criteria.length} />
-                <Metric compact label="질문" value={settings.questions.length} />
+                <Metric compact label="질문" value={visibleQuestions.length} />
                 <Metric compact label="준비 시간" value={`${settings.timePolicy.preparationTimeSec}초`} />
                 <Metric compact label="답변 시간" value={`${settings.timePolicy.answerTimeSec}초`} />
                 <Metric compact label="재시도" value={settings.timePolicy.retryAllowed ? "허용" : "미허용"} />
@@ -558,29 +590,55 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 >
                   <label style={{ gap: "6px" }}>
                     준비 시간
-                    <input
+                    <select
                       aria-label="준비 시간 초"
-                      inputMode="numeric"
-                      min={0}
-                      max={600}
                       style={{ minHeight: "40px" }}
-                      type="number"
-                      value={timePolicyDraft.preparationTimeSec}
-                      onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
-                    />
+                      value={timePolicyDraft.preparationTimeMode}
+                      onChange={(event) => updateTimePolicyPreset("preparationTimeSec", event.target.value)}
+                    >
+                      <option value="0">0초</option>
+                      <option value="30">30초</option>
+                      <option value="60">60초</option>
+                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
+                    </select>
+                    {timePolicyDraft.preparationTimeMode === CUSTOM_TIME_OPTION ? (
+                      <input
+                        aria-label="준비 시간 직접 입력"
+                        inputMode="numeric"
+                        maxLength={3}
+                        placeholder="초 단위"
+                        style={{ minHeight: "40px" }}
+                        type="text"
+                        value={timePolicyDraft.preparationTimeSec}
+                        onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
+                      />
+                    ) : null}
                   </label>
                   <label style={{ gap: "6px" }}>
                     답변 시간
-                    <input
+                    <select
                       aria-label="답변 시간 초"
-                      inputMode="numeric"
-                      min={30}
-                      max={1800}
                       style={{ minHeight: "40px" }}
-                      type="number"
-                      value={timePolicyDraft.answerTimeSec}
-                      onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
-                    />
+                      value={timePolicyDraft.answerTimeMode}
+                      onChange={(event) => updateTimePolicyPreset("answerTimeSec", event.target.value)}
+                    >
+                      <option value="60">60초</option>
+                      <option value="90">90초</option>
+                      <option value="120">120초</option>
+                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
+                    </select>
+                    {timePolicyDraft.answerTimeMode === CUSTOM_TIME_OPTION ? (
+                      <input
+                        aria-label="답변 시간 직접 입력"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="초 단위"
+                        style={{ minHeight: "40px" }}
+                        type="text"
+                        value={timePolicyDraft.answerTimeSec}
+                        onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
+                      />
+                    ) : null}
                   </label>
                   <label
                     style={{
@@ -776,14 +834,17 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                     {criteriaDrafts.map((criterion) => (
                       <tr key={criterion.draftId}>
                         <td className="criteria-cell-order">
-                          <input
+                          <select
                             aria-label={`${criterion.tagName} 순서`}
-                            inputMode="numeric"
-                            min={1}
-                            type="number"
                             value={criterion.sortOrder}
                             onChange={(event) => updateCriteriaDraft(criterion.draftId, "sortOrder", event.target.value)}
-                          />
+                          >
+                            {criteriaDrafts.map((_, index) => (
+                              <option key={index + 1} value={index + 1}>
+                                {index + 1}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td>{criterion.tagName}</td>
                         <td>{criterion.category}</td>
@@ -893,7 +954,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 </div>
               </form>
               <div className="posting-list question-list">
-                {settings.questions.map((question) => (
+                {visibleQuestions.map((question) => (
                   <article className="posting" key={question.questionId}>
                     <div className="logo-chip">{question.questionType}</div>
                     <div>
@@ -911,7 +972,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                     </div>
                   </article>
                 ))}
-                {settings.questions.length === 0 ? (
+                {visibleQuestions.length === 0 ? (
                   <div className="empty">등록된 질문이 없습니다.</div>
                 ) : null}
               </div>
@@ -1070,9 +1131,23 @@ function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
 function toTimePolicyDraft(settings: InterviewSettings): TimePolicyDraft {
   return {
     preparationTimeSec: String(settings.timePolicy.preparationTimeSec),
+    preparationTimeMode: getTimePolicyMode(String(settings.timePolicy.preparationTimeSec), PREPARATION_TIME_OPTIONS),
     answerTimeSec: String(settings.timePolicy.answerTimeSec),
+    answerTimeMode: getTimePolicyMode(String(settings.timePolicy.answerTimeSec), ANSWER_TIME_OPTIONS),
     retryAllowed: settings.timePolicy.retryAllowed,
   };
+}
+
+function toTimePolicyComparable(draft: TimePolicyDraft) {
+  return {
+    preparationTimeSec: draft.preparationTimeSec,
+    answerTimeSec: draft.answerTimeSec,
+    retryAllowed: draft.retryAllowed,
+  };
+}
+
+function getTimePolicyMode(value: string, options: string[]) {
+  return options.includes(value.trim()) ? value.trim() : CUSTOM_TIME_OPTION;
 }
 
 function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
@@ -1089,6 +1164,9 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
 
     if (!Number.isInteger(sortOrder) || sortOrder < 1) {
       return "평가 기준 순서는 1 이상의 정수로 입력해주세요.";
+    }
+    if (sortOrder > criteria.length) {
+      return "평가 기준 순서는 현재 평가 기준 개수를 넘을 수 없습니다.";
     }
     if (sortOrders.has(sortOrder)) {
       return "평가 기준 순서가 중복되었습니다.";
@@ -1117,6 +1195,13 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
 }
 
 function validateTimePolicyDraft(draft: TimePolicyDraft) {
+  if (draft.preparationTimeSec.trim() === "") {
+    return "준비 시간을 입력해주세요.";
+  }
+  if (draft.answerTimeSec.trim() === "") {
+    return "답변 시간을 입력해주세요.";
+  }
+
   const preparationTimeSec = toNumber(draft.preparationTimeSec);
   const answerTimeSec = toNumber(draft.answerTimeSec);
 

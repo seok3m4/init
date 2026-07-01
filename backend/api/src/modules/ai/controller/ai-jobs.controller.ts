@@ -42,6 +42,7 @@ type CandidateAiRequest = {
     candidateId?: number | null;
   };
 };
+type CompanyAiRequest = CandidateAiRequest;
 
 @ApiTags("Candidate AI Jobs")
 @ApiBearerAuth("bearer")
@@ -234,6 +235,7 @@ export class CandidateAiJobsController {
 @ApiBearerAuth("bearer")
 @ApiDevAuthHeaders()
 @ApiErrorResponses()
+@UseGuards(JwtAuthGuard)
 @Controller("company/interviews")
 export class CompanyAiJobsController {
   constructor(
@@ -246,13 +248,13 @@ export class CompanyAiJobsController {
   @ApiOperationId("API-035")
   @ApiOperation({ summary: "AI 평가 역량 태그 추천 작업 생성" })
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async suggestCriteria(@Headers() headers: HeaderMap, @Body() body: CriteriaSuggestRequestDto) {
+  async suggestCriteria(@Req() request: CompanyAiRequest, @Body() body: CriteriaSuggestRequestDto) {
     this.requirePositive(body.postingId, "postingId");
     this.requireText(body.jobDescription, "jobDescription");
     this.requireText(body.talentProfile, "talentProfile");
     this.requireText(body.evaluationPolicy, "evaluationPolicy");
 
-    return this.dispatchCompanyJob("CRITERIA_SUGGEST", "CRITERIA_SUGGEST", headers, body);
+    return this.dispatchCompanyJob("CRITERIA_SUGGEST", "CRITERIA_SUGGEST", request, body);
   }
 
   @Post("questions/generate")
@@ -260,12 +262,12 @@ export class CompanyAiJobsController {
   @ApiOperationId("API-038")
   @ApiOperation({ summary: "JD 기반 직무 질문 생성 작업 생성" })
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async generateQuestions(@Headers() headers: HeaderMap, @Body() body: QuestionGenerateRequestDto) {
+  async generateQuestions(@Req() request: CompanyAiRequest, @Body() body: QuestionGenerateRequestDto) {
     this.requirePositive(body.postingId, "postingId");
     this.requireText(body.jobDescription, "jobDescription");
     this.requirePositive(body.questionCount, "questionCount");
 
-    return this.dispatchCompanyJob("QUESTION_GENERATE", "RECRUITING_QUESTION_GENERATE", headers, body);
+    return this.dispatchCompanyJob("QUESTION_GENERATE", "RECRUITING_QUESTION_GENERATE", request, body);
   }
 
   @Post("question-sets")
@@ -273,17 +275,17 @@ export class CompanyAiJobsController {
   @ApiOperationId("API-039")
   @ApiOperation({ summary: "면접 질문 목록 구성 작업 생성" })
   @ApiEnvelopeResponse(AiJobResponseDto, 202)
-  async generateQuestionSet(@Headers() headers: HeaderMap, @Body() body: QuestionSetGenerateRequestDto) {
+  async generateQuestionSet(@Req() request: CompanyAiRequest, @Body() body: QuestionSetGenerateRequestDto) {
     this.requirePositive(body.postingId, "postingId");
     this.requirePositive(body.questionCount, "questionCount");
     this.requireNonEmptyArray(body.criteria, "criteria");
     this.requireNonEmptyArray(body.questionTypes, "questionTypes");
 
-    return this.dispatchCompanyJob("QUESTION_SET_GENERATE", "QUESTION_SET_GENERATE", headers, body);
+    return this.dispatchCompanyJob("QUESTION_SET_GENERATE", "QUESTION_SET_GENERATE", request, body);
   }
 
-  private async dispatchCompanyJob(processType: AiProcessType, kind: string, headers: HeaderMap, body: object) {
-    const currentUser = this.company(headers);
+  private async dispatchCompanyJob(processType: AiProcessType, kind: string, request: CompanyAiRequest, body: object) {
+    const currentUser = this.company(request);
 
     return this.dispatcher.dispatch({
       processType,
@@ -299,8 +301,15 @@ export class CompanyAiJobsController {
     });
   }
 
-  private company(headers: HeaderMap): CurrentUser {
-    const currentUser = this.devAuthAdapter.parse(headers);
+  private company(request: CompanyAiRequest): CurrentUser {
+    const currentUser = request.currentUser
+      ? {
+          userId: request.currentUser.userId,
+          userType: request.currentUser.userType,
+          companyId: request.currentUser.companyId ?? undefined,
+          candidateId: request.currentUser.candidateId ?? undefined,
+        }
+      : this.devAuthAdapter.parse(request.headers);
     this.devAuthAdapter.assertCompany(currentUser);
     return currentUser;
   }
