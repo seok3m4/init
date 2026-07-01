@@ -548,7 +548,7 @@ export class InterviewService {
   }
 
   private assertReadyOrInProgress(session: RuntimeInterviewSession): void {
-    if (!["READY", "IN_PROGRESS"].includes(session.status)) {
+    if (!["NOT_READY", "READY", "IN_PROGRESS"].includes(session.status)) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview is not ready.", 409, [
         { field: "interviewStatus", reason: `current status is ${session.status}` },
       ]);

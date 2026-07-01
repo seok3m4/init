@@ -443,6 +443,10 @@ async function run() {
   assert.equal(consentSaved.data.canStart, false);
   assert.equal(consentSaved.data.consents.some((consent) => consent.consentType === "AI_INTERVIEW_RECORDING"), true);
 
+  const pendingRuntime = await service.getInterviewRuntime(submitted.data.application.applicationId, currentUser);
+  assert.equal(pendingRuntime.data.status, "NOT_READY");
+  assert.equal(pendingRuntime.data.canRecord, false);
+
   await assert.rejects(
     () => service.startInterview(submitted.data.application.applicationId, currentUser),
     (error) => error instanceof CandidateDomainError && error.code === "COMMON_CONFLICT",

@@ -194,7 +194,7 @@ function TermsModal({ userType, onClose }: { userType: UserType; onClose: () => 
 export function LoginForm() {
   const router = useRouter();
   const { completeLogin } = useAuth();
-  const [userType, setUserType] = useState<UserType>("COMPANY");
+  const [userType, setUserType] = useState<UserType>("CANDIDATE");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");

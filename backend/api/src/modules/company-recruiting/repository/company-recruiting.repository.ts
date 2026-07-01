@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import {
   ApplicationStatus,
   AuthProvider,
@@ -74,7 +74,7 @@ export type CompanyRecruitingRepositoryPort = {
 
 @Injectable()
 export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepositoryPort {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async createPosting(input: CreatePostingInput): Promise<RecruitmentRecord> {
     const posting = await this.prisma.posting.create({

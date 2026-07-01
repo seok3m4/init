@@ -74,7 +74,11 @@ export interface InterviewAnswerFormState {
   durationSeconds: number;
 }
 
-export const requiredApplicationConsents: ConsentType[] = ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"];
+export const requiredApplicationConsents: ConsentType[] = [
+  "PRIVACY_COLLECTION",
+  "AI_DOCUMENT_ANALYSIS",
+  "AI_INTERVIEW_RECORDING",
+];
 export const requiredInterviewConsents: ConsentType[] = [
   "PRIVACY_COLLECTION",
   "AI_DOCUMENT_ANALYSIS",

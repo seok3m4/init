@@ -220,6 +220,17 @@ async function runControllerRuntimeAssertions() {
     DEV_CANDIDATE_USER,
   );
 
+  const pendingRuntime = await controller.getInterviewRuntime(
+    validCandidateRequest,
+    String(submitted.application.applicationId),
+  );
+  assert.equal(pendingRuntime.data.status, "NOT_READY");
+  assert.equal(pendingRuntime.data.canRecord, false);
+
+  const pendingQuestions = await controller.listRecruitingQuestions(validCandidateRequest, String(session.sessionId));
+  assert.equal(pendingQuestions.data.interviewType, "RECRUITING");
+  assert.equal(pendingQuestions.data.questions.length, 4);
+
   const deviceCheck = await controller.saveDeviceCheck(validCandidateRequest, String(session.sessionId), {
     cameraGranted: true,
     microphoneGranted: true,

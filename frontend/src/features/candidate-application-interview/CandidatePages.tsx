@@ -359,6 +359,9 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
   const guide = data?.data;
   const guideInterviewAlreadyInProgress = guide?.interviewSessionStatus === "IN_PROGRESS";
   const guidePrimaryActionLabel = guideInterviewAlreadyInProgress ? "면접 재개" : "면접 시작";
+  const guideRequiredConsentCompleted = guide
+    ? guide.requiredConsentTypes.every((consentType) => consentState.consentTypes.includes(consentType))
+    : false;
 
   useEffect(() => {
     void refreshGuideCameraDevices();
@@ -372,7 +375,7 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
 
   useEffect(() => {
     if (guide) {
-      setConsentState({ consentTypes: guide.requiredConsentTypes });
+      setConsentState({ ...defaultInterviewConsentState });
       setDeviceState({
         cameraGranted: guide.deviceCheckCompleted,
         microphoneGranted: guide.deviceCheckCompleted,
@@ -619,7 +622,12 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
                   ))}
                 </div>
                 <div className="toolbar candidate-submit-toolbar">
-                  <button className="btn primary" type="button" disabled={busy} onClick={() => void handleGuideNext()}>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={busy || !guideRequiredConsentCompleted}
+                    onClick={() => void handleGuideNext()}
+                  >
                     다음
                   </button>
                 </div>
@@ -731,7 +739,7 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   const resource = useCandidateResource(load, [applicationId]);
   const runtimeStatus = resource.data?.runtime.status;
   const shouldRedirectToGuide =
-    (runtimeStatus !== undefined && !["READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
+    (runtimeStatus !== undefined && !["NOT_READY", "READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
     resource.error === "Interview has not been started.";
 
   useEffect(() => {
@@ -1261,7 +1269,7 @@ function InterviewRuntimePanel({
   const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordedFileName, setRecordedFileName] = useState("");
-  const [setupCompleted, setSetupCompleted] = useState(mode === "recruiting");
+  const [setupCompleted, setSetupCompleted] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
   const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
@@ -1278,7 +1286,6 @@ function InterviewRuntimePanel({
   const submitAfterRecordingStopRef = useRef(false);
   const autoAdvanceAfterAnswerSubmitRef = useRef(false);
   const startRuntimeAfterRefreshRef = useRef(false);
-  const autoEnterRecruitingRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
   const autoSpokenQuestionRef = useRef<number | null>(null);
   const timeExpiredQuestionRef = useRef<number | null>(null);
@@ -1420,16 +1427,6 @@ function InterviewRuntimePanel({
     setMessage("면접을 시작했습니다. 답변 녹화가 자동으로 진행됩니다.");
     autoRecordingQuestionRef.current = null;
   }, [data]);
-
-  useEffect(() => {
-    if (!data || mode !== "recruiting" || autoEnterRecruitingRef.current) return;
-    if (!["READY", "IN_PROGRESS"].includes(data.runtime.status)) return;
-    autoEnterRecruitingRef.current = true;
-    setSetupCompleted(true);
-    void handleEnterInterview();
-    // Recruiting interviews should enter the runtime directly; camera permission and the start API are chained once here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.runtime.sessionId, data?.runtime.status, mode]);
 
   useEffect(() => {
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
@@ -1921,7 +1918,7 @@ function InterviewRuntimePanel({
     void handleNextQuestion();
   }
 
-  const runtimeTitle = mode === "mock" ? "AI 모의면접 진행" : "채용 AI 면접 진행";
+  const runtimeTitle = mode === "recruiting" ? "채용 AI 면접 진행" : "AI 모의면접 진행";
   const statusThirdLine = mode === "mock" ? "꼬리질문 생성 가능" : "업로드 상태 정상";
   const answeredQuestionCount = data
     ? data.questions.questions.filter((question) => question.answered || answeredQuestionIds.has(question.questionId)).length
@@ -2138,7 +2135,7 @@ function CandidateNav({ active }: { active: CandidateNavSection }) {
 
   return (
     <header className="gnb">
-      <div className="gnb-left">
+      <div className="gnb-inner">
         <Link className="brand" href={candidateApplicationInterviewRoutes.jobs}>
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
@@ -2177,14 +2174,14 @@ function CandidateNav({ active }: { active: CandidateNavSection }) {
             </Link>
           </div>
         </nav>
-      </div>
-      <div className="gnb-right">
-        <button className="icon-btn" aria-label="알림" type="button">
-          <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-          </svg>
-        </button>
-        <div className="avatar" aria-label="지원자 계정">JW</div>
+        <div className="gnb-right">
+          <button className="icon-btn" aria-label="알림" type="button">
+            <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+          </button>
+          <div className="avatar" aria-label="지원자 계정">JW</div>
+        </div>
       </div>
     </header>
   );
