@@ -359,6 +359,9 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
   const guide = data?.data;
   const guideInterviewAlreadyInProgress = guide?.interviewSessionStatus === "IN_PROGRESS";
   const guidePrimaryActionLabel = guideInterviewAlreadyInProgress ? "면접 재개" : "면접 시작";
+  const guideRequiredConsentCompleted = guide
+    ? guide.requiredConsentTypes.every((consentType) => consentState.consentTypes.includes(consentType))
+    : false;
 
   useEffect(() => {
     void refreshGuideCameraDevices();
@@ -372,7 +375,7 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
 
   useEffect(() => {
     if (guide) {
-      setConsentState({ consentTypes: guide.requiredConsentTypes });
+      setConsentState({ ...defaultInterviewConsentState });
       setDeviceState({
         cameraGranted: guide.deviceCheckCompleted,
         microphoneGranted: guide.deviceCheckCompleted,
@@ -619,7 +622,12 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
                   ))}
                 </div>
                 <div className="toolbar candidate-submit-toolbar">
-                  <button className="btn primary" type="button" disabled={busy} onClick={() => void handleGuideNext()}>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={busy || !guideRequiredConsentCompleted}
+                    onClick={() => void handleGuideNext()}
+                  >
                     다음
                   </button>
                 </div>
