@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../../shared/prisma.service";
 
@@ -21,7 +21,7 @@ type CreateGoogleCandidateInput = {
 
 @Injectable()
 export class AuthRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   findUserByEmail(email: string) {
     return this.prisma.user.findUnique({ where: { email } });

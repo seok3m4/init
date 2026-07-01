@@ -58,7 +58,7 @@ export function ApplicantEvaluationPage({ applicantId }: { applicantId: number }
   const report = evaluation?.report ?? null;
 
   return (
-    <section className="app-page">
+    <section className="app-page glass-page">
         <div className="page-head">
           <div>
             <Breadcrumb

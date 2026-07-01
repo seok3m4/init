@@ -62,7 +62,7 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
   const isOpen = recruitment?.status === "OPEN";
 
   return (
-    <section className="app-page">
+    <section className="app-page glass-page">
         <div className="page-head">
           <div>
             <Breadcrumb

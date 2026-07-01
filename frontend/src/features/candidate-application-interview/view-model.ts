@@ -13,6 +13,7 @@ import type {
   PortfolioLinkType,
   ReportStatus,
   RuntimeFileAssetRequest,
+  RuntimeQuestionView,
   SaveInterviewConsentRequest,
   SaveInterviewAnswerRequest,
   StartMockInterviewRequest,
@@ -326,6 +327,16 @@ export function toSaveInterviewAnswerRequest(state: InterviewAnswerFormState): S
     audioFile: state.audioFile,
     durationSeconds: state.durationSeconds,
   };
+}
+
+export function toRuntimeQuestionSpeechText(question: Pick<RuntimeQuestionView, "content" | "audioPrompt">): string {
+  const content = question.content?.trim();
+  if (content) return content;
+
+  const audioPrompt = question.audioPrompt?.trim();
+  if (!audioPrompt) return "질문을 준비 중입니다.";
+  if (audioPrompt.startsWith("audio://")) return "음성 질문을 듣고 답변해주세요.";
+  return audioPrompt;
 }
 
 export function toUploadResumeRequest(state: CandidateResumeUploadState): UploadResumeRequest {

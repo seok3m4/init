@@ -141,7 +141,7 @@ export class InterviewService {
     const session = this.syncCurrentQuestionToFirstUnanswered(
       await this.getRecruitingRuntimeSession(sessionId, currentUser),
     );
-    this.assertInProgress(session);
+    this.assertReadyOrInProgress(session);
     return this.envelope(this.toQuestionList(session));
   }
 
@@ -542,6 +542,14 @@ export class InterviewService {
   private assertInProgress(session: RuntimeInterviewSession): void {
     if (session.status !== "IN_PROGRESS") {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview is not in progress.", 409, [
+        { field: "interviewStatus", reason: `current status is ${session.status}` },
+      ]);
+    }
+  }
+
+  private assertReadyOrInProgress(session: RuntimeInterviewSession): void {
+    if (!["READY", "IN_PROGRESS"].includes(session.status)) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview is not ready.", 409, [
         { field: "interviewStatus", reason: `current status is ${session.status}` },
       ]);
     }

@@ -52,6 +52,7 @@ import {
   requiredInterviewConsents,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
+  toRuntimeQuestionSpeechText,
   toSaveInterviewAnswerRequest,
   toSaveInterviewConsentRequest,
   toStartMockInterviewRequest,
@@ -61,6 +62,7 @@ import { CandidateApplicationView, CandidateJobDetailView, CandidateJobsView } f
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 const DEMO_CANDIDATE_ID = 1;
+const INTERVIEW_QUESTION_TIME_LIMIT_SECONDS = 90;
 const questionTypeOptions: QuestionType[] = ["INTRO", "TECHNICAL", "EXPERIENCE", "SITUATION", "CLOSING"];
 
 type CandidateNavSection = "jobs" | "applications" | "interview" | "reports" | "mypage";
@@ -452,8 +454,7 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
       if (!guide.consentCompleted) {
         await getCandidateApi().saveInterviewConsent(applicationId, toSaveInterviewConsentRequest(consentState));
       }
-      setStep("device");
-      setMessage("동의가 저장되었습니다. 카메라와 마이크를 점검해주세요.");
+      router.push(candidateApplicationInterviewRoutes.interview(applicationId));
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
     } finally {
@@ -730,7 +731,7 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   const resource = useCandidateResource(load, [applicationId]);
   const runtimeStatus = resource.data?.runtime.status;
   const shouldRedirectToGuide =
-    (runtimeStatus !== undefined && runtimeStatus !== "IN_PROGRESS") ||
+    (runtimeStatus !== undefined && !["READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
     resource.error === "Interview has not been started.";
 
   useEffect(() => {
@@ -741,7 +742,7 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   if (shouldRedirectToGuide) {
     return (
       <CandidatePageShell active="applications">
-        <StatusNotice loading message="면접 안내와 장치 점검 화면으로 이동합니다." />
+        <StatusNotice loading message="면접 안내 화면으로 이동합니다." />
       </CandidatePageShell>
     );
   }
@@ -1260,9 +1261,13 @@ function InterviewRuntimePanel({
   const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordedFileName, setRecordedFileName] = useState("");
-  const [setupCompleted, setSetupCompleted] = useState(false);
+  const [setupCompleted, setSetupCompleted] = useState(mode === "recruiting");
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [remainingSeconds, setRemainingSeconds] = useState(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
+  const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
+  const [questionSpeechSupported, setQuestionSpeechSupported] = useState(true);
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Set<number>>(() => new Set());
+  const [replayedQuestionIds, setReplayedQuestionIds] = useState<Set<number>>(() => new Set());
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -1271,7 +1276,13 @@ function InterviewRuntimePanel({
   const recordingChunksRef = useRef<BlobPart[]>([]);
   const recordingStartedAtRef = useRef(0);
   const submitAfterRecordingStopRef = useRef(false);
+  const autoAdvanceAfterAnswerSubmitRef = useRef(false);
+  const startRuntimeAfterRefreshRef = useRef(false);
+  const autoEnterRecruitingRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
+  const autoSpokenQuestionRef = useRef<number | null>(null);
+  const timeExpiredQuestionRef = useRef<number | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const videoAttachRunRef = useRef(0);
   const hasAnswerFile = Boolean(answer.videoFile || answer.audioFile || answer.videoFileId || answer.audioFileId);
   const canSubmitAnswer = Boolean(currentQuestion && hasAnswerFile && answer.durationSeconds > 0 && !recording);
@@ -1279,6 +1290,64 @@ function InterviewRuntimePanel({
     currentQuestion &&
       (answeredQuestionIds.has(currentQuestion.questionId) ||
         data?.questions.questions.some((question) => question.questionId === currentQuestion.questionId && question.answered)),
+  );
+  const currentQuestionReplayUsed = Boolean(currentQuestion && replayedQuestionIds.has(currentQuestion.questionId));
+
+  const stopQuestionSpeech = useCallback(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    speechUtteranceRef.current = null;
+  }, []);
+
+  const speakCurrentQuestion = useCallback(
+    (source: "auto" | "manual") => {
+      if (!currentQuestion) {
+        setQuestionSpeechStatus("현재 질문을 불러올 수 없습니다.");
+        return;
+      }
+
+      if (!isQuestionSpeechSupported()) {
+        setQuestionSpeechSupported(false);
+        setQuestionSpeechStatus("이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+        if (source === "manual") {
+          setMessage("이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+        }
+        return;
+      }
+
+      const text = toRuntimeQuestionSpeechText(currentQuestion);
+      if (!text.trim()) {
+        setQuestionSpeechStatus("재생할 질문 음성이 없습니다.");
+        return;
+      }
+
+      stopQuestionSpeech();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const koreanVoice = findKoreanSpeechVoice(window.speechSynthesis.getVoices());
+      utterance.lang = "ko-KR";
+      utterance.rate = 0.95;
+      utterance.pitch = 1;
+      if (koreanVoice) utterance.voice = koreanVoice;
+      utterance.onstart = () => {
+        setQuestionSpeechStatus(source === "manual" ? "질문 음성을 다시 재생 중입니다." : "질문 음성을 재생 중입니다.");
+      };
+      utterance.onend = () => {
+        if (speechUtteranceRef.current !== utterance) return;
+        speechUtteranceRef.current = null;
+        setQuestionSpeechStatus("질문 음성 재생 완료");
+      };
+      utterance.onerror = () => {
+        if (speechUtteranceRef.current !== utterance) return;
+        speechUtteranceRef.current = null;
+        setQuestionSpeechStatus("질문 음성을 재생할 수 없습니다.");
+      };
+
+      speechUtteranceRef.current = utterance;
+      setQuestionSpeechSupported(true);
+      setQuestionSpeechStatus("질문 음성 재생 준비 중입니다.");
+      window.speechSynthesis.speak(utterance);
+    },
+    [currentQuestion, stopQuestionSpeech],
   );
 
   const attachRuntimeVideoRef = useCallback((node: HTMLVideoElement | null) => {
@@ -1299,18 +1368,23 @@ function InterviewRuntimePanel({
       } catch (previewError) {
         if (videoRef.current !== node || videoAttachRunRef.current !== attachRun) return;
         setCameraReady(false);
-        setSetupCompleted(false);
+        if (mode !== "recruiting") {
+          setSetupCompleted(false);
+        }
         setCameraPreviewStatus(`카메라 연결 실패: ${formatMediaError(previewError)}`);
         setMessage(formatMediaError(previewError));
       }
     })();
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (currentQuestion) {
       setAnswer((current) => ({ ...current, questionId: currentQuestion.questionId }));
       setRecordedFileName("");
       submitAfterRecordingStopRef.current = false;
+      autoAdvanceAfterAnswerSubmitRef.current = false;
+      timeExpiredQuestionRef.current = null;
+      setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
     }
   }, [currentQuestion]);
 
@@ -1320,12 +1394,13 @@ function InterviewRuntimePanel({
       if (recorderRef.current?.state === "recording") {
         recorderRef.current.stop();
       }
+      stopQuestionSpeech();
       stopMicrophoneMeter();
       stopMediaStream(streamRef.current);
     };
     // Camera/device probing is intentionally run once when the runtime panel mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopQuestionSpeech]);
 
   useEffect(() => {
     if (!data) return;
@@ -1339,9 +1414,62 @@ function InterviewRuntimePanel({
   }, [data]);
 
   useEffect(() => {
+    if (!data || data.runtime.status !== "IN_PROGRESS" || !startRuntimeAfterRefreshRef.current) return;
+    startRuntimeAfterRefreshRef.current = false;
+    setSetupCompleted(true);
+    setMessage("면접을 시작했습니다. 답변 녹화가 자동으로 진행됩니다.");
+    autoRecordingQuestionRef.current = null;
+  }, [data]);
+
+  useEffect(() => {
+    if (!data || mode !== "recruiting" || autoEnterRecruitingRef.current) return;
+    if (!["READY", "IN_PROGRESS"].includes(data.runtime.status)) return;
+    autoEnterRecruitingRef.current = true;
+    setSetupCompleted(true);
+    void handleEnterInterview();
+    // Recruiting interviews should enter the runtime directly; camera permission and the start API are chained once here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.runtime.sessionId, data?.runtime.status, mode]);
+
+  useEffect(() => {
     if (!setupCompleted || !streamRef.current || !videoRef.current) return;
     attachRuntimeVideoRef(videoRef.current);
   }, [attachRuntimeVideoRef, setupCompleted]);
+
+  useEffect(() => {
+    const supported = isQuestionSpeechSupported();
+    setQuestionSpeechSupported(supported);
+    setQuestionSpeechStatus(supported ? "질문 음성 대기" : "이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+  }, [mode]);
+
+  useEffect(() => {
+    if (!setupCompleted || !currentQuestion || currentQuestionAnswered) {
+      stopQuestionSpeech();
+      return;
+    }
+    if (autoSpokenQuestionRef.current === currentQuestion.questionId) return;
+    stopQuestionSpeech();
+    autoSpokenQuestionRef.current = currentQuestion.questionId;
+    const timer = window.setTimeout(() => speakCurrentQuestion("auto"), 250);
+    return () => window.clearTimeout(timer);
+  }, [currentQuestion, currentQuestionAnswered, setupCompleted, speakCurrentQuestion, stopQuestionSpeech]);
+
+  useEffect(() => {
+    if (!setupCompleted || !currentQuestion || currentQuestionAnswered || busy) return;
+    const intervalId = window.setInterval(() => {
+      setRemainingSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [busy, currentQuestion, currentQuestionAnswered, setupCompleted]);
+
+  useEffect(() => {
+    if (remainingSeconds > 0 || !setupCompleted || !currentQuestion || currentQuestionAnswered || busy) return;
+    if (timeExpiredQuestionRef.current === currentQuestion.questionId) return;
+    timeExpiredQuestionRef.current = currentQuestion.questionId;
+    void handleQuestionTimeExpired();
+    // The timeout action intentionally reads the latest runtime state when the counter reaches zero.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, currentQuestion, currentQuestionAnswered, remainingSeconds, setupCompleted]);
 
   useEffect(() => {
     if (!data || !setupCompleted || !cameraReady || !microphoneReady || !currentQuestion || currentQuestionAnswered) return;
@@ -1469,6 +1597,7 @@ function InterviewRuntimePanel({
   }
 
   async function handleEnterInterview() {
+    if (!data) return;
     if (!streamRef.current || !cameraReady || !microphoneReady) {
       await handleEnableCamera();
     }
@@ -1478,6 +1607,37 @@ function InterviewRuntimePanel({
     const hasLiveAudio = stream?.getAudioTracks().some((track) => track.readyState === "live") ?? false;
     if (!hasLiveVideo || !hasLiveAudio) {
       setMessage("카메라와 마이크 점검을 완료한 뒤 면접을 시작해주세요.");
+      return;
+    }
+
+    if (mode === "recruiting" && data.runtime.status !== "IN_PROGRESS") {
+      if (!data.runtime.applicationId) {
+        setMessage("지원서 정보를 확인할 수 없습니다.");
+        return;
+      }
+
+      setBusy(true);
+      setMessage("");
+      try {
+        const api = getCandidateApi();
+        await api.saveDeviceCheck(
+          data.runtime.sessionId,
+          toDeviceCheckRequest({
+            cameraGranted: true,
+            microphoneGranted: true,
+            networkStable: navigator.onLine,
+          }),
+        );
+        await api.startInterview(data.runtime.applicationId);
+        startRuntimeAfterRefreshRef.current = true;
+        setMessage("장치 점검이 완료되었습니다. 면접 화면으로 이동합니다.");
+        refresh();
+      } catch (submitError) {
+        startRuntimeAfterRefreshRef.current = false;
+        setMessage(toErrorMessage(submitError));
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 
@@ -1592,7 +1752,13 @@ function InterviewRuntimePanel({
   }
 
   function handleReplayPrompt() {
-    setMessage("질문 음성을 다시 재생했습니다.");
+    if (!currentQuestion || currentQuestionReplayUsed || !questionSpeechSupported) return;
+    setReplayedQuestionIds((current) => {
+      const next = new Set(current);
+      next.add(currentQuestion.questionId);
+      return next;
+    });
+    speakCurrentQuestion("manual");
   }
 
   async function submitAnswerRequest(request: SaveInterviewAnswerRequest, question = currentQuestion) {
@@ -1619,8 +1785,14 @@ function InterviewRuntimePanel({
         next.add(request.questionId);
         return next;
       });
+      const shouldAutoAdvance = autoAdvanceAfterAnswerSubmitRef.current;
+      autoAdvanceAfterAnswerSubmitRef.current = false;
       setMessage(`답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다.`);
+      if (shouldAutoAdvance) {
+        await advanceAfterTimedAnswer(question);
+      }
     } catch (submitError) {
+      autoAdvanceAfterAnswerSubmitRef.current = false;
       setMessage(toErrorMessage(submitError));
     } finally {
       setBusy(false);
@@ -1656,6 +1828,44 @@ function InterviewRuntimePanel({
     setMessage("답변 녹화가 아직 준비되지 않았습니다.");
   }
 
+  async function handleQuestionTimeExpired() {
+    if (!data || !currentQuestion || currentQuestionAnswered) return;
+    setMessage("답변 시간이 종료되어 현재 답변을 자동 제출합니다.");
+    autoAdvanceAfterAnswerSubmitRef.current = true;
+
+    const recorder = recorderRef.current;
+    if (recorder?.state === "recording") {
+      submitAfterRecordingStopRef.current = true;
+      handleStopRecording();
+      return;
+    }
+
+    if (canSubmitAnswer) {
+      await submitAnswerRequest(toSaveInterviewAnswerRequest(answer));
+      return;
+    }
+
+    autoAdvanceAfterAnswerSubmitRef.current = false;
+    setMessage("답변 시간이 종료됐지만 제출할 녹화 파일이 아직 준비되지 않았습니다. 답변 완료를 눌러 제출해주세요.");
+  }
+
+  async function advanceAfterTimedAnswer(question = currentQuestion) {
+    if (!data) return;
+    const questionIndex = question
+      ? data.questions.questions.findIndex((candidateQuestion) => candidateQuestion.questionId === question.questionId)
+      : -1;
+    const isLastQuestion = questionIndex >= 0
+      ? questionIndex >= data.runtime.totalQuestions - 1
+      : answeredQuestionCount + 1 >= data.runtime.totalQuestions;
+
+    if (isLastQuestion) {
+      await handleComplete();
+      return;
+    }
+
+    await handleNextQuestion();
+  }
+
   async function handleNextQuestion() {
     if (!data) return;
     setBusy(true);
@@ -1665,8 +1875,12 @@ function InterviewRuntimePanel({
       await (mode === "mock"
         ? api.moveMockNextQuestion(data.runtime.sessionId)
         : api.moveRecruitingNextQuestion(data.runtime.sessionId));
+      stopQuestionSpeech();
       setAnswer(defaultInterviewAnswerFormState);
       setRecordedFileName("");
+      setQuestionSpeechStatus("다음 질문 음성 대기");
+      setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
+      timeExpiredQuestionRef.current = null;
       autoRecordingQuestionRef.current = null;
       refresh();
     } catch (submitError) {
@@ -1685,6 +1899,7 @@ function InterviewRuntimePanel({
       const result = await (mode === "mock"
         ? api.completeMockInterview(data.runtime.sessionId)
         : api.completeRecruitingInterview(data.runtime.sessionId));
+      stopQuestionSpeech();
       setMessage(`면접이 완료되었습니다. ${result.data.answeredCount}/${result.data.totalQuestions} 답변 제출`);
       if (mode === "recruiting" && data.runtime.applicationId) {
         router.push(candidateApplicationInterviewRoutes.applicationReport(data.runtime.applicationId));
@@ -1721,6 +1936,8 @@ function InterviewRuntimePanel({
     : 0;
   const canMoveNextQuestion = Boolean(data && currentQuestionAnswered && answeredQuestionCount < data.runtime.totalQuestions);
   const canCompleteInterview = Boolean(data && answeredQuestionCount === data.runtime.totalQuestions && !recording);
+  const formattedRemainingTime = formatInterviewCountdown(remainingSeconds);
+  const timerDanger = remainingSeconds <= 10;
 
   return (
     <main className="candidate-interview-app">
@@ -1729,7 +1946,6 @@ function InterviewRuntimePanel({
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
         <span className="center">{runtimeTitle}</span>
-        <span className="timer" aria-label="남은 시간">01:30</span>
       </header>
 
       <section className="iv-body">
@@ -1812,14 +2028,25 @@ function InterviewRuntimePanel({
         {data && setupCompleted ? (
           <>
             <section className="q-card">
-              {mode === "recruiting" ? <div className="qm">채용 AI 면접</div> : null}
-              <div className="qn">질문 {questionNumber} / {data.runtime.totalQuestions}</div>
+              <div className="q-card-head">
+                <div>
+                  {mode === "recruiting" ? <div className="qm">채용 AI 면접</div> : null}
+                  <div className="qn">질문 {questionNumber} / {data.runtime.totalQuestions}</div>
+                </div>
+                <div className={`question-timer ${timerDanger ? "danger" : ""}`} aria-label={`남은 시간 ${formattedRemainingTime}`}>
+                  <span>남은 시간</span>
+                  <strong>{formattedRemainingTime}</strong>
+                </div>
+              </div>
               <div className="qt">
                 {currentQuestion
                   ? subtitlesEnabled
                     ? formatRuntimeQuestionPrompt(currentQuestion, true)
                     : "자막이 꺼져 있습니다. 질문 음성을 듣고 답변해주세요."
                   : "현재 질문을 불러올 수 없습니다."}
+              </div>
+              <div className={`question-voice-status ${questionSpeechSupported ? "" : "unsupported"}`} aria-live="polite">
+                {questionSpeechStatus}
               </div>
             </section>
 
@@ -1860,8 +2087,8 @@ function InterviewRuntimePanel({
 
             <form className="candidate-runtime-form candidate-runtime-form--compact" onSubmit={handleSaveAnswer}>
               <div className="toolbar candidate-interview-controls">
-                <button className="btn" type="button" onClick={handleReplayPrompt}>
-                  질문 음성 다시 듣기
+                <button className="btn" type="button" disabled={busy || !currentQuestion || !questionSpeechSupported || currentQuestionReplayUsed} onClick={handleReplayPrompt}>
+                  {currentQuestionReplayUsed ? "다시 듣기 완료" : "질문 음성 다시 듣기"}
                 </button>
                 <button
                   className="btn primary"
@@ -2302,6 +2529,25 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
   );
 }
 
+function formatInterviewCountdown(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const restSeconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+}
+
+function isQuestionSpeechSupported(): boolean {
+  return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+}
+
+function findKoreanSpeechVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  return (
+    voices.find((voice) => voice.lang.toLowerCase() === "ko-kr") ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("ko")) ??
+    voices.find((voice) => voice.default)
+  );
+}
+
 function formatRuntimeQuestionPrompt(question: RuntimeQuestionView, showText: boolean): string {
   if (showText && question.content) return question.content;
   return formatAudioPrompt(question.audioPrompt);
@@ -2520,7 +2766,8 @@ function toRecruitingRuntimeSession(
 ): RuntimePageSession {
   const currentQuestion =
     questions.questions.find((question) => question.current) ??
-    questions.questions.find((question) => question.questionId === questions.currentQuestionId);
+    questions.questions.find((question) => question.questionId === questions.currentQuestionId) ??
+    questions.questions.find((question) => !question.answered);
 
   return {
     sessionId: runtime.sessionId,

@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions } from "jsonwebtoken";
 import { randomInt } from "crypto";
@@ -27,10 +27,10 @@ type SignupCompanyInput = SignupCandidateInput & {
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly authRepository: AuthRepository,
-    private readonly codeStore: VerificationCodeStore,
-    private readonly mailer: MailService,
-    private readonly jwtGuard: JwtAuthGuard,
+    @Inject(AuthRepository) private readonly authRepository: AuthRepository,
+    @Inject(VerificationCodeStore) private readonly codeStore: VerificationCodeStore,
+    @Inject(MailService) private readonly mailer: MailService,
+    @Inject(JwtAuthGuard) private readonly jwtGuard: JwtAuthGuard,
   ) {}
 
   async login(input: { email: string; password: string; userType: UserType }): Promise<TokenPair & { refreshToken: string }> {

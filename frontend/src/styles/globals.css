@@ -11,8 +11,8 @@
   --ink-400: #6a6878;
   --ink-300: #807e8e;
   --ink-200: #a7a4b8;
-  --bg: #f6f5fb;
-  --surface-soft: #f6f5fd;
+  --bg: #e9f1fb;
+  --surface-soft: #eef3f9;
   --line: #e5e3f0;
   --line-soft: #ecebf3;
   --r-input: 11px;
@@ -26,9 +26,13 @@
   box-sizing: border-box;
 }
 
-body {
+html body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(1100px 700px at 85% -8%, rgba(150, 190, 245, 0.1), transparent 64%),
+    radial-gradient(900px 600px at 0% 8%, rgba(186, 210, 248, 0.07), transparent 62%),
+    linear-gradient(160deg, #f6f9fe 0%, #fafcff 55%, #ffffff 100%);
+  background-attachment: fixed;
   color: var(--ink-800);
   font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -67,10 +71,10 @@ textarea {
   height: 62px;
   margin: 0 auto;
   padding: 0 14px 0 24px;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: saturate(150%) blur(18px);
   -webkit-backdrop-filter: saturate(150%) blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--line-soft);
   border-radius: 20px;
   box-shadow: 0 16px 40px rgba(40, 40, 90, 0.12);
 }
@@ -225,6 +229,13 @@ a.gnb-link:focus-visible {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.list-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .page-head h1 {
@@ -467,6 +478,13 @@ textarea:focus {
   display: flex;
   justify-content: flex-end;
   padding: 12px 0;
+}
+
+/* form action row — sits naturally at end of the form, right-aligned */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .empty,
@@ -1017,19 +1035,21 @@ td input {
 }
 
 .glass-page .panel {
-  background: linear-gradient(160deg, rgba(228, 230, 249, 0.72), rgba(238, 242, 250, 0.6));
-  backdrop-filter: saturate(160%) blur(20px);
-  -webkit-backdrop-filter: saturate(160%) blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: saturate(180%) blur(22px);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 22px;
   box-shadow:
     0 1px 2px rgba(20, 18, 45, 0.04),
-    0 14px 36px rgba(40, 40, 90, 0.1);
+    0 14px 36px rgba(40, 40, 90, 0.08);
 }
 
 .glass-page .posting {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 18px;
   box-shadow:
     0 1px 2px rgba(20, 18, 45, 0.03),
@@ -1039,7 +1059,7 @@ td input {
 
 .glass-page .posting:hover {
   transform: translateY(-2px);
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.88);
   border-color: #ffffff;
   box-shadow:
     0 2px 4px rgba(20, 18, 45, 0.05),
@@ -1054,17 +1074,19 @@ td input {
   -webkit-backdrop-filter: blur(6px);
 }
 
-.glass-page .btn.secondary {
-  color: #1f1d2b;
-  background: rgba(120, 120, 140, 0.14);
-  border-color: transparent;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+.app-shell .glass-page .btn.secondary {
+  color: var(--ink-500);
+  background: transparent;
+  border: 1px solid var(--line);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
-.glass-page .btn.secondary:hover {
-  background: rgba(120, 120, 140, 0.2);
-  border-color: transparent;
+.app-shell .glass-page .btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: #d8d6ec;
+  color: var(--ink-700);
 }
 
 .glass-page .empty {
@@ -1078,35 +1100,39 @@ td input {
   box-shadow: 0 8px 18px rgba(91, 110, 246, 0.3);
 }
 
-/* trial: Apple-style action buttons (공고 목록 only) */
-.glass-page .btn {
-  min-height: 44px;
-  padding: 0 20px;
-  border-radius: 16px;
-  font-size: 13px;
+/* trial: button hierarchy + density (공고 목록 only)
+   NOTE: .app-shell prefix needed to win over global.css `.app-shell .btn` (pill, 44px). */
+.app-shell .glass-page .btn {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.01em;
   transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 
-.glass-page .btn:active {
+.app-shell .glass-page .btn:active {
   transform: scale(0.97);
 }
 
-.glass-page .btn.primary {
+/* primary stays the only loud button */
+.app-shell .glass-page .btn.primary {
+  color: #fff;
   background: var(--brand-strong);
-  box-shadow: 0 6px 16px rgba(91, 87, 242, 0.32);
+  box-shadow: 0 4px 12px rgba(91, 87, 242, 0.26);
 }
 
-.glass-page .btn.primary:hover {
+.app-shell .glass-page .btn.primary:hover {
   opacity: 1;
   background: #6a64f4;
 }
 
 .glass-page input,
 .glass-page select {
-  min-height: 44px;
-  border-radius: 16px;
+  min-height: 36px;
+  border-radius: 12px;
 }
 
 /* Apple-style status chip with leading dot (공고 목록 only) */
@@ -1128,6 +1154,253 @@ td input {
   height: 7px;
   border-radius: 50%;
   background: currentColor;
+}
+
+/* trial: tighter density for repeat-work users (공고 목록 only) */
+.glass-page.app-page {
+  padding: 22px 28px 36px;
+}
+
+.glass-page .page-head {
+  margin-bottom: 16px;
+}
+
+.glass-page .panel {
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.glass-page .panel-head {
+  margin-bottom: 12px;
+}
+
+.glass-page .posting-list {
+  gap: 8px;
+}
+
+.glass-page .posting {
+  grid-template-columns: 44px minmax(0, 1fr) minmax(150px, 210px) auto;
+  gap: 18px;
+  padding: 12px 16px;
+  align-items: center;
+}
+
+.glass-page .logo-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+/* info cell — truncate long titles/meta instead of wrapping */
+.glass-page .posting > div:nth-child(2) {
+  min-width: 0;
+}
+
+.glass-page .posting h3 {
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glass-page .posting p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glass-page .metric {
+  min-width: 0;
+  text-align: right;
+}
+
+.glass-page .metric span {
+  font-size: 11px;
+}
+
+.glass-page .metric strong {
+  font-size: 18px;
+}
+
+.glass-page .badge {
+  justify-self: start;
+}
+
+/* count pill next to section title */
+.glass-page .panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-radius: 999px;
+}
+
+/* posting row: title+status, meta+D-day, applicant-volume bar */
+.posting-info {
+  min-width: 0;
+}
+
+.posting-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.posting-title-row h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.posting .dday {
+  color: var(--ink-700);
+  font-weight: 700;
+}
+
+.posting-progress {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.posting-progress .progress {
+  height: 7px;
+  border-radius: 999px;
+  background: #e4e7ef;
+  overflow: hidden;
+}
+
+.posting-progress .progress i {
+  display: block;
+  height: 100%;
+  background: var(--brand-grad);
+  border-radius: 999px;
+}
+
+.posting-progress span {
+  font-size: 12px;
+  color: var(--ink-300);
+}
+
+/* KPI summary row (4 cards, one highlighted) */
+.glass-page .kpi-summary {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.glass-page .kpi.primary {
+  background: var(--brand-grad);
+  border-color: transparent;
+}
+
+.glass-page .kpi.primary span {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.glass-page .kpi.primary strong {
+  color: #fff;
+}
+
+.glass-page .kpi strong small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-400);
+}
+
+.glass-page .kpi strong small.kpi-dday {
+  color: #e24b4a;
+}
+
+.glass-page .kpi.primary strong small {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.kpi-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--ink-400);
+  background: var(--surface-soft);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+@media (max-width: 1024px) {
+  .glass-page .kpi-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* glass density: status/KPI cards smaller, tables tighter (B pages) */
+.glass-page .kpi-row {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.glass-page .kpi {
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.glass-page .kpi span {
+  font-size: 12px;
+}
+
+.glass-page .kpi strong {
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.glass-page .table-wrap {
+  background: #fff;
+}
+
+.glass-page th {
+  padding: 10px 12px;
+}
+
+.glass-page td {
+  height: 44px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.glass-page .detail-stack {
+  gap: 12px;
+}
+
+.glass-page .score-summary {
+  padding: 14px 16px;
+}
+
+.glass-page .score-summary strong {
+  font-size: 24px;
+}
+
+.glass-page .setup-card {
+  min-height: 0;
 }
 
 @media (max-width: 760px) {
@@ -1177,8 +1450,13 @@ td input {
   .grid-2,
   .kpi-row,
   .posting,
-  .setup-card-grid {
+  .setup-card-grid,
+  .glass-page .posting {
     grid-template-columns: 1fr;
+  }
+
+  .glass-page .metric {
+    text-align: left;
   }
 
   .posting {

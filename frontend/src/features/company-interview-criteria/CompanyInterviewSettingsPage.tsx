@@ -664,6 +664,62 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
               )}
             </section>
 
+            <form className="panel" onSubmit={handleTimePolicySave}>
+              <div className="panel-head">
+                <div>
+                  <h2>면접 시간 정책</h2>
+                  <p>준비 시간, 답변 시간, 재시도 허용 여부를 공고 기준으로 조정합니다.</p>
+                </div>
+                <div className="toolbar">
+                  <button className="btn secondary compact" type="button" disabled={!hasTimePolicyChanges || timePolicySaving} onClick={resetTimePolicyDraft}>
+                    되돌리기
+                  </button>
+                  <button className="btn primary compact" type="submit" disabled={!hasTimePolicyChanges || timePolicySaving}>
+                    {timePolicySaving ? "저장 중" : "시간 정책 저장"}
+                  </button>
+                </div>
+              </div>
+              {timePolicyError ? <p className="notice danger">{timePolicyError}</p> : null}
+              {timePolicyDraft ? (
+                <div className="grid-2">
+                  <label>
+                    준비 시간
+                    <input
+                      aria-label="준비 시간 초"
+                      inputMode="numeric"
+                      min={0}
+                      max={600}
+                      type="number"
+                      value={timePolicyDraft.preparationTimeSec}
+                      onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
+                    />
+                    <span className="field-hint">0~600초</span>
+                  </label>
+                  <label>
+                    답변 시간
+                    <input
+                      aria-label="답변 시간 초"
+                      inputMode="numeric"
+                      min={30}
+                      max={1800}
+                      type="number"
+                      value={timePolicyDraft.answerTimeSec}
+                      onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
+                    />
+                    <span className="field-hint">30~1800초, 준비 시간보다 길어야 합니다.</span>
+                  </label>
+                  <label>
+                    <input
+                      checked={timePolicyDraft.retryAllowed}
+                      type="checkbox"
+                      onChange={(event) => updateTimePolicyDraft("retryAllowed", event.target.checked)}
+                    />
+                    재시도 허용
+                  </label>
+                </div>
+              ) : null}
+            </form>
+
             <form className="panel" onSubmit={handleCriteriaSave}>
               <div className="panel-head">
                 <div>
@@ -1002,7 +1058,7 @@ function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {
   }));
 }
 
-function normalizeCriteriaOrder(criteria: CriteriaDraft[]) {
+function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
   return [...criteria]
     .sort((left, right) => toNumber(left.sortOrder) - toNumber(right.sortOrder))
     .map((criterion, index) => ({
