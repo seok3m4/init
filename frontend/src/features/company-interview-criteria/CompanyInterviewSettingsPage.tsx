@@ -173,19 +173,22 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     }
 
     setCriteriaError("");
-    setCriteriaDrafts((current) => [
-      ...current,
-      {
-        draftId: `new-${tag.tagId}`,
-        tagId: tag.tagId,
-        tagName: tag.tagName,
-        category: tag.category,
-        description: tag.description,
-        weight: "10",
-        passScore: "",
-        sortOrder: String(current.length + 1),
-      },
-    ]);
+    setCriteriaDrafts((current) => {
+      const normalizedCriteria = normalizeCriteriaOrder(current);
+      return [
+        ...normalizedCriteria,
+        {
+          draftId: `new-${tag.tagId}`,
+          tagId: tag.tagId,
+          tagName: tag.tagName,
+          category: tag.category,
+          description: tag.description,
+          weight: "10",
+          passScore: "",
+          sortOrder: String(normalizedCriteria.length + 1),
+        },
+      ];
+    });
     setSelectedTagId("");
   }
 
@@ -206,7 +209,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     }
 
     setCriteriaError("");
-    const nextCriteriaDrafts = criteriaDrafts.filter((criterion) => criterion.draftId !== draftId);
+    const nextCriteriaDrafts = normalizeCriteriaOrder(criteriaDrafts.filter((criterion) => criterion.draftId !== draftId));
     setCriteriaDrafts(nextCriteriaDrafts);
     if (criterion?.criterionId !== undefined && questionForm.criterionId === String(criterion.criterionId)) {
       resetQuestionEditor(String(nextCriteriaDrafts.find((item) => item.criterionId !== undefined)?.criterionId ?? ""));
@@ -583,16 +586,18 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                    gridTemplateColumns: "160px 160px max-content minmax(160px, 1fr)",
                     alignItems: "end",
-                    gap: "12px",
+                    columnGap: "12px",
+                    rowGap: "12px",
+                    overflowX: "auto",
                   }}
                 >
-                  <label style={{ gap: "6px" }}>
+                  <label style={{ gap: "6px", minWidth: 0 }}>
                     준비 시간
                     <select
                       aria-label="준비 시간 초"
-                      style={{ minHeight: "40px" }}
+                      style={{ minHeight: "40px", width: "100%" }}
                       value={timePolicyDraft.preparationTimeMode}
                       onChange={(event) => updateTimePolicyPreset("preparationTimeSec", event.target.value)}
                     >
@@ -607,18 +612,18 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                         inputMode="numeric"
                         maxLength={3}
                         placeholder="초 단위"
-                        style={{ minHeight: "40px" }}
+                        style={{ minHeight: "40px", width: "100%" }}
                         type="text"
                         value={timePolicyDraft.preparationTimeSec}
                         onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
                       />
                     ) : null}
                   </label>
-                  <label style={{ gap: "6px" }}>
+                  <label style={{ gap: "6px", minWidth: 0 }}>
                     답변 시간
                     <select
                       aria-label="답변 시간 초"
-                      style={{ minHeight: "40px" }}
+                      style={{ minHeight: "40px", width: "100%" }}
                       value={timePolicyDraft.answerTimeMode}
                       onChange={(event) => updateTimePolicyPreset("answerTimeSec", event.target.value)}
                     >
@@ -633,7 +638,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                         inputMode="numeric"
                         maxLength={4}
                         placeholder="초 단위"
-                        style={{ minHeight: "40px" }}
+                        style={{ minHeight: "40px", width: "100%" }}
                         type="text"
                         value={timePolicyDraft.answerTimeSec}
                         onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
@@ -721,62 +726,6 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 <div className="empty">등록된 AI 요청이 없습니다.</div>
               )}
             </section>
-
-            <form className="panel" onSubmit={handleTimePolicySave}>
-              <div className="panel-head">
-                <div>
-                  <h2>면접 시간 정책</h2>
-                  <p>준비 시간, 답변 시간, 재시도 허용 여부를 공고 기준으로 조정합니다.</p>
-                </div>
-                <div className="toolbar">
-                  <button className="btn secondary compact" type="button" disabled={!hasTimePolicyChanges || timePolicySaving} onClick={resetTimePolicyDraft}>
-                    되돌리기
-                  </button>
-                  <button className="btn primary compact" type="submit" disabled={!hasTimePolicyChanges || timePolicySaving}>
-                    {timePolicySaving ? "저장 중" : "시간 정책 저장"}
-                  </button>
-                </div>
-              </div>
-              {timePolicyError ? <p className="notice danger">{timePolicyError}</p> : null}
-              {timePolicyDraft ? (
-                <div className="grid-2">
-                  <label>
-                    준비 시간
-                    <input
-                      aria-label="준비 시간 초"
-                      inputMode="numeric"
-                      min={0}
-                      max={600}
-                      type="number"
-                      value={timePolicyDraft.preparationTimeSec}
-                      onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
-                    />
-                    <span className="field-hint">0~600초</span>
-                  </label>
-                  <label>
-                    답변 시간
-                    <input
-                      aria-label="답변 시간 초"
-                      inputMode="numeric"
-                      min={30}
-                      max={1800}
-                      type="number"
-                      value={timePolicyDraft.answerTimeSec}
-                      onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
-                    />
-                    <span className="field-hint">30~1800초, 준비 시간보다 길어야 합니다.</span>
-                  </label>
-                  <label>
-                    <input
-                      checked={timePolicyDraft.retryAllowed}
-                      type="checkbox"
-                      onChange={(event) => updateTimePolicyDraft("retryAllowed", event.target.checked)}
-                    />
-                    재시도 허용
-                  </label>
-                </div>
-              ) : null}
-            </form>
 
             <form className="panel" onSubmit={handleCriteriaSave}>
               <div className="panel-head">
