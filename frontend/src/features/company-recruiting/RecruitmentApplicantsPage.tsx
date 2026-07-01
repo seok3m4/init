@@ -1,11 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
-import { createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
+import { bulkCreateApplicants, createApplicant, getRecruitment, inviteApplicant, listRecruitmentApplicants } from "./api";
 import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
-import type { Applicant, Recruitment } from "./types";
+import {
+  buildApplicantRowsFromCsvSource,
+  inferApplicantCsvMapping,
+  parseApplicantCsvSource,
+  type ApplicantCsvColumnMapping,
+  type ApplicantCsvField,
+  type CsvApplicantParseFailure,
+  type ParsedApplicantCsvSource,
+} from "./csv-applicants";
+import type { Applicant, BulkApplicantRegistrationResult, BulkCreateApplicantRowInput, Recruitment } from "./types";
 
 type FormState = {
   name: string;
@@ -33,18 +42,33 @@ const initialInvitation: InvitationState = {
   message: "안녕하세요. 채용 AI 면접 응시 안내드립니다.",
 };
 
+const csvFieldConfigs: Array<{ key: ApplicantCsvField; label: string }> = [
+  { key: "name", label: "이름" },
+  { key: "email", label: "이메일" },
+  { key: "jobRole", label: "지원 직무" },
+  { key: "phone", label: "연락처" },
+];
+
 export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: number }) {
   const [recruitment, setRecruitment] = useState<Recruitment | null>(null);
   const [items, setItems] = useState<Applicant[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
   const [invitation, setInvitation] = useState<InvitationState>(initialInvitation);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvSource, setCsvSource] = useState<ParsedApplicantCsvSource | null>(null);
+  const [csvMapping, setCsvMapping] = useState<ApplicantCsvColumnMapping>({});
+  const [csvRows, setCsvRows] = useState<BulkCreateApplicantRowInput[]>([]);
+  const [csvParseFailures, setCsvParseFailures] = useState<CsvApplicantParseFailure[]>([]);
+  const [csvResult, setCsvResult] = useState<BulkApplicantRegistrationResult | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedApplicantIds, setSelectedApplicantIds] = useState<Record<number, boolean>>({});
   const [invitedApplicants, setInvitedApplicants] = useState<Record<number, string>>({});
   const [q, setQ] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const csvFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async (search: string, options: { clearMessage?: boolean } = {}) => {
     setLoading(true);
@@ -88,6 +112,58 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
       await load("", { clearMessage: false });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "지원자 등록에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCsvFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    setCsvResult(null);
+    setCsvRows([]);
+    setCsvParseFailures([]);
+    setCsvFileName(file?.name ?? "");
+    setMessage("");
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const source = parseApplicantCsvSource(await file.text());
+      const mapping = inferApplicantCsvMapping(source.headers);
+      const parsed = buildApplicantRowsFromCsvSource(source, mapping);
+      setCsvSource(source);
+      setCsvMapping(mapping);
+      setCsvRows(parsed.rows);
+      setCsvParseFailures(parsed.failures);
+    } catch {
+      setCsvSource(null);
+      setCsvMapping({});
+      setCsvParseFailures([{ rowNumber: 1, reason: "EMPTY_FILE", message: "CSV 파일을 읽지 못했습니다." }]);
+    }
+  }
+
+  async function handleCsvUpload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (csvRows.length === 0) {
+      setMessage("업로드할 수 있는 CSV 행이 없습니다.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const result = await bulkCreateApplicants({ recruitmentId, applicants: csvRows });
+      setCsvResult(result.data);
+      if (result.data.summary.successCount > 0) {
+        setMessage(`${result.data.summary.successCount}명이 등록되었습니다.`);
+        await load(q, { clearMessage: false });
+      } else {
+        setMessage("등록된 지원자가 없습니다. 실패 행을 확인해주세요.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "CSV 업로드에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -141,6 +217,55 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     setSelectedApplicantIds((current) => ({ ...current, [applicationId]: checked }));
   }
 
+  function closeCsvModal() {
+    setCsvOpen(false);
+    setCsvFileName("");
+    setCsvSource(null);
+    setCsvMapping({});
+    setCsvRows([]);
+    setCsvParseFailures([]);
+    setCsvResult(null);
+    if (csvFileInputRef.current) {
+      csvFileInputRef.current.value = "";
+    }
+  }
+
+  function openCsvFileDialog() {
+    if (csvFileInputRef.current) {
+      csvFileInputRef.current.value = "";
+      csvFileInputRef.current.click();
+    }
+  }
+
+  function updateCsvMapping(field: ApplicantCsvField, header: string) {
+    if (!csvSource) {
+      return;
+    }
+    const nextMapping = {
+      ...csvMapping,
+      [field]: header || undefined,
+    };
+    if (!header) {
+      delete nextMapping[field];
+    }
+    const parsed = buildApplicantRowsFromCsvSource(csvSource, nextMapping);
+    setCsvMapping(nextMapping);
+    setCsvRows(parsed.rows);
+    setCsvParseFailures(parsed.failures);
+    setCsvResult(null);
+    setMessage("");
+  }
+
+  function downloadCsvTemplate() {
+    const template = "\uFEFF이름,이메일,지원직무,연락처\n김지원,candidate@example.com,Backend,010-0000-0000\n";
+    const url = URL.createObjectURL(new Blob([template], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "applicants-template.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="app-page glass-page">
         <div className="page-head">
@@ -165,6 +290,16 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
               }}
             >
               지원자 직접 등록
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                setMessage("");
+                setCsvOpen(true);
+              }}
+            >
+              CSV 업로드
             </button>
             <button
               className="btn primary"
@@ -286,6 +421,133 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
           </div>
         ) : null}
 
+        {csvOpen ? (
+          <div className="modal-backdrop" role="presentation">
+            <form className="modal wide-modal" onSubmit={handleCsvUpload} role="dialog" aria-modal="true" aria-labelledby="csv-applicant-title">
+              <div className="modal-head">
+                <div>
+                  <h2 id="csv-applicant-title">CSV 업로드</h2>
+                  <p>name,email,jobRole,phone 또는 한글 헤더로 최대 200명을 등록합니다.</p>
+                </div>
+                <button className="btn secondary compact" type="button" onClick={closeCsvModal}>
+                  닫기
+                </button>
+              </div>
+              {message ? <p className="notice">{message}</p> : null}
+
+              <div className="file-drop">
+                <div>
+                  <span>CSV 파일 선택</span>
+                  <strong>{csvFileName || "선택된 파일 없음"}</strong>
+                </div>
+                <div className="file-actions">
+                  <button className="btn secondary compact" type="button" onClick={downloadCsvTemplate}>
+                    템플릿 다운로드
+                  </button>
+                  <button className="btn secondary compact" type="button" onClick={openCsvFileDialog}>
+                    파일 선택
+                  </button>
+                </div>
+                <input ref={csvFileInputRef} accept=".csv,text/csv" type="file" onChange={handleCsvFileChange} />
+              </div>
+
+              {csvSource?.headers.length ? (
+                <div className="csv-mapping">
+                  <div>
+                    <h3>컬럼 매핑</h3>
+                    <p>기업 CSV 양식의 각 컬럼이 어떤 지원자 정보인지 지정합니다.</p>
+                  </div>
+                  <div className="csv-mapping-grid">
+                    {csvFieldConfigs.map((field) => (
+                      <label key={field.key}>
+                        {field.label}
+                        <select value={csvMapping[field.key] ?? ""} onChange={(event) => updateCsvMapping(field.key, event.target.value)}>
+                          <option value="">선택</option>
+                          {csvSource.headers.map((header) => (
+                            <option key={`${field.key}-${header}`} value={header}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="csv-summary-grid">
+                <div>
+                  <span>파싱된 행</span>
+                  <strong>{csvRows.length}</strong>
+                </div>
+                <div>
+                  <span>등록 성공</span>
+                  <strong>{csvResult?.summary.successCount ?? "-"}</strong>
+                </div>
+                <div>
+                  <span>등록 실패</span>
+                  <strong>{(csvResult?.summary.failedCount ?? 0) + csvParseFailures.length || "-"}</strong>
+                </div>
+              </div>
+
+              {csvRows.length > 0 ? (
+                <div className="csv-preview">
+                  <h3>업로드 예정</h3>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>행</th>
+                          <th>이름</th>
+                          <th>이메일</th>
+                          <th>직무</th>
+                          <th>연락처</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvRows.slice(0, 5).map((row) => (
+                          <tr key={`${row.rowNumber}-${row.email}`}>
+                            <td>{row.rowNumber}</td>
+                            <td>{row.name || "-"}</td>
+                            <td>{row.email || "-"}</td>
+                            <td>{row.jobRole || "-"}</td>
+                            <td>{row.phone || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {csvRows.length > 5 ? <p className="subtle-text">외 {csvRows.length - 5}행은 업로드 시 함께 처리됩니다.</p> : null}
+                </div>
+              ) : null}
+
+              {csvParseFailures.length > 0 || csvResult?.failures.length ? (
+                <div className="csv-failures">
+                  <h3>실패 행</h3>
+                  <ul>
+                    {[...csvParseFailures, ...(csvResult?.failures ?? [])].map((failure) => (
+                      <li key={`${failure.rowNumber}-${failure.reason}-${failure.field ?? "row"}`}>
+                        <strong>{failure.rowNumber}행</strong>
+                        <span>{formatCsvFailure(failure)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {csvResult?.successes.length ? (
+                <p className="notice">성공한 행: {csvResult.successes.map((success) => `${success.rowNumber}행`).join(", ")}</p>
+              ) : null}
+
+              <div className="modal-actions">
+                <button className="btn primary" type="submit" disabled={loading || csvRows.length === 0}>
+                  업로드
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
         {inviteOpen ? (
           <div className="modal-backdrop" role="presentation">
             <form className="modal wide-modal" onSubmit={handleInvite} role="dialog" aria-modal="true" aria-labelledby="invite-applicant-title">
@@ -357,4 +619,9 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
         ) : null}
     </section>
   );
+}
+
+function formatCsvFailure(failure: CsvApplicantParseFailure | BulkApplicantRegistrationResult["failures"][number]) {
+  const field = failure.field ? ` (${failure.field})` : "";
+  return `${failure.message}${field}`;
 }

@@ -154,6 +154,63 @@ export class InvitationResponseDto {
   temporary!: boolean;
 }
 
+export class BulkApplicantRegistrationSummaryDto {
+  @ApiProperty({ example: 5 })
+  totalRows!: number;
+
+  @ApiProperty({ example: 3 })
+  successCount!: number;
+
+  @ApiProperty({ example: 2 })
+  failedCount!: number;
+}
+
+export class BulkApplicantRegistrationSuccessDto {
+  @ApiProperty({ example: 2 })
+  rowNumber!: number;
+
+  @ApiProperty({ type: ApplicantResponseDto })
+  applicant!: ApplicantResponseDto;
+}
+
+export class BulkApplicantRegistrationFailureDto {
+  @ApiProperty({ example: 4 })
+  rowNumber!: number;
+
+  @ApiPropertyOptional({ example: "candidate@example.com" })
+  email?: string;
+
+  @ApiPropertyOptional({ example: "email" })
+  field?: string;
+
+  @ApiProperty({
+    enum: [
+      "MISSING_REQUIRED_FIELD",
+      "INVALID_NAME",
+      "INVALID_EMAIL",
+      "DUPLICATED_IN_CSV",
+      "DUPLICATED_IN_RECRUITMENT",
+      "ROW_CREATE_FAILED",
+    ],
+    example: "DUPLICATED_IN_RECRUITMENT",
+  })
+  reason!: string;
+
+  @ApiProperty({ example: "같은 공고에 이미 등록된 이메일입니다." })
+  message!: string;
+}
+
+export class BulkApplicantRegistrationResponseDto {
+  @ApiProperty({ type: BulkApplicantRegistrationSummaryDto })
+  summary!: BulkApplicantRegistrationSummaryDto;
+
+  @ApiProperty({ type: [BulkApplicantRegistrationSuccessDto] })
+  successes!: BulkApplicantRegistrationSuccessDto[];
+
+  @ApiProperty({ type: [BulkApplicantRegistrationFailureDto] })
+  failures!: BulkApplicantRegistrationFailureDto[];
+}
+
 export class ApplicantEvaluationResponseDto {
   @ApiProperty({ type: ApplicantResponseDto })
   applicant!: ApplicantResponseDto;

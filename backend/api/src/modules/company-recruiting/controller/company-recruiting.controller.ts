@@ -19,7 +19,14 @@ import { ok, okList, type RequestLike } from "../../../shared/response-envelope"
 import { ApiEnvelopeResponse, ApiErrorResponses, ApiListEnvelopeResponse, ApiOperationId, ApiParamId } from "../../../swagger/swagger.decorators";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { CompanyRecruitingService } from "../service/company-recruiting.service";
-import { ApplicantEvaluationResponseDto, ApplicantResponseDto, InvitationResponseDto, RecruitmentResponseDto } from "../dto/company-recruiting-response.dto";
+import {
+  ApplicantEvaluationResponseDto,
+  ApplicantResponseDto,
+  BulkApplicantRegistrationResponseDto,
+  InvitationResponseDto,
+  RecruitmentResponseDto,
+} from "../dto/company-recruiting-response.dto";
+import { BulkCreateApplicantsDto } from "../dto/bulk-create-applicants.dto";
 import { CreateApplicantDto } from "../dto/create-applicant.dto";
 import { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
 import { InviteApplicantDto } from "../dto/invite-applicant.dto";
@@ -137,6 +144,18 @@ export class CompanyRecruitingController {
     @Body() dto: CreateApplicantDto,
   ) {
     const data = await this.companyRecruitingService.registerApplicant(request.currentUser, dto);
+    return ok(request, data);
+  }
+
+  @Post("applicants/bulk")
+  @ApiOperationId("API-085")
+  @ApiOperation({ summary: "지원자 CSV 일괄 등록" })
+  @ApiEnvelopeResponse(BulkApplicantRegistrationResponseDto)
+  async bulkRegisterApplicants(
+    @Req() request: CompanyRequest,
+    @Body() dto: BulkCreateApplicantsDto,
+  ) {
+    const data = await this.companyRecruitingService.bulkRegisterApplicants(request.currentUser, dto);
     return ok(request, data);
   }
 
