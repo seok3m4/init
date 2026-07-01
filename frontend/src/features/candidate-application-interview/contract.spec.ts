@@ -24,6 +24,7 @@ import {
   isCandidateFacingMockFeedbackSafe,
   isCandidateInterviewStartEnabled,
   isCandidateRecruitingReportLimited,
+  toRuntimeQuestionSpeechText,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
   toSaveInterviewAnswerRequest,
@@ -99,6 +100,15 @@ const answerRequest: SaveInterviewAnswerRequest = toSaveInterviewAnswerRequest({
     sizeBytes: 1024,
   },
   durationSeconds: 30,
+});
+
+const questionSpeechText = toRuntimeQuestionSpeechText({
+  content: "최근 프로젝트에서 가장 어려웠던 기술적 문제는 무엇이었나요?",
+  audioPrompt: "audio://candidate/mock-question/1",
+});
+
+const audioPromptSpeechText = toRuntimeQuestionSpeechText({
+  audioPrompt: "자기소개를 1분 안에 들려주세요.",
 });
 
 const applicationSummary: CandidateApplicationSummary = {
@@ -253,6 +263,8 @@ void interviewConsentRequest;
 void deviceCheckRequest;
 void startMockRequest;
 void answerRequest;
+void questionSpeechText;
+void audioPromptSpeechText;
 void applicationSummary;
 void mockReport;
 void mockFeedback;
