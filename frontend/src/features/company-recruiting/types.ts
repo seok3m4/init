@@ -97,6 +97,46 @@ export type CreateApplicantInput = {
   phone?: string;
 };
 
+export type BulkCreateApplicantRowInput = {
+  rowNumber: number;
+  name: string;
+  email: string;
+  jobRole: string;
+  phone?: string;
+};
+
+export type BulkCreateApplicantsInput = {
+  recruitmentId: number;
+  applicants: BulkCreateApplicantRowInput[];
+};
+
+export type BulkApplicantRegistrationFailure = {
+  rowNumber: number;
+  email?: string;
+  field?: string;
+  reason:
+    | "MISSING_REQUIRED_FIELD"
+    | "INVALID_NAME"
+    | "INVALID_EMAIL"
+    | "DUPLICATED_IN_CSV"
+    | "DUPLICATED_IN_RECRUITMENT"
+    | "ROW_CREATE_FAILED";
+  message: string;
+};
+
+export type BulkApplicantRegistrationResult = {
+  summary: {
+    totalRows: number;
+    successCount: number;
+    failedCount: number;
+  };
+  successes: Array<{
+    rowNumber: number;
+    applicant: Applicant;
+  }>;
+  failures: BulkApplicantRegistrationFailure[];
+};
+
 export type InviteApplicantInput = {
   applicantId: number;
   availableFrom: string;

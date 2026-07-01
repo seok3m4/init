@@ -976,6 +976,238 @@ td input {
   justify-content: space-between;
 }
 
+.file-drop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+}
+
+.file-drop span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-400);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.file-drop strong {
+  color: var(--ink-900);
+  font-size: 14px;
+}
+
+.file-drop input[type="file"] {
+  display: none;
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.csv-mapping {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.csv-mapping h3 {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.csv-mapping p {
+  margin: 4px 0 0;
+  color: var(--ink-300);
+  font-size: 12.5px;
+}
+
+.csv-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.csv-mapping-grid label {
+  min-width: 0;
+}
+
+.csv-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.upload-progress {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.upload-progress div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload-progress strong {
+  color: var(--ink-900);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.upload-progress span {
+  color: var(--ink-400);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.upload-progress progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  accent-color: var(--primary);
+  border: 0;
+  border-radius: 999px;
+}
+
+.csv-summary-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.csv-summary-grid span {
+  color: var(--ink-400);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.csv-summary-grid strong {
+  color: var(--ink-900);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.csv-preview,
+.csv-failures {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.csv-preview h3,
+.csv-failures h3 {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.csv-failures ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.csv-failures li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  color: #8f2a2a;
+  background: #fff5f5;
+  border: 1px solid #ffd7d7;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.csv-failures li strong {
+  flex: 0 0 auto;
+  color: #b33737;
+}
+
+.subtle-text {
+  margin: 0;
+  color: var(--ink-300);
+  font-size: 12px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.pagination-summary {
+  color: var(--ink-400);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  color: var(--ink-500);
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.page-button:hover:not(:disabled),
+.page-button.active {
+  color: var(--primary);
+  background: #f5f4ff;
+  border-color: rgba(101, 94, 255, 0.28);
+}
+
+.page-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .confirm-box {
   display: grid;
   gap: 6px;
@@ -1458,6 +1690,8 @@ td input {
   .grid-2,
   .kpi-row,
   .posting,
+  .csv-mapping-grid,
+  .csv-summary-grid,
   .setup-card-grid,
   .glass-page .posting {
     grid-template-columns: 1fr;
@@ -1479,6 +1713,16 @@ td input {
   .toolbar input,
   .toolbar select {
     width: 100%;
+  }
+
+  .pagination,
+  .upload-progress div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pagination-actions {
+    justify-content: flex-start;
   }
 
   .posting-actions {

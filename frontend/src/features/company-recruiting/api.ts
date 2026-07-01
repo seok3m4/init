@@ -3,6 +3,8 @@ import type {
   ApiErrorEnvelope,
   Applicant,
   ApplicantEvaluation,
+  BulkApplicantRegistrationResult,
+  BulkCreateApplicantsInput,
   CreateApplicantInput,
   CreateRecruitmentInput,
   InvitationResult,
@@ -78,6 +80,13 @@ export async function listRecruitmentApplicants(recruitmentId: number, query: Li
 
 export async function createApplicant(input: CreateApplicantInput) {
   return request<Applicant>("/company/applicants", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function bulkCreateApplicants(input: BulkCreateApplicantsInput) {
+  return request<BulkApplicantRegistrationResult>("/company/applicants/bulk", {
     method: "POST",
     body: input,
   });
