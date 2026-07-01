@@ -1681,16 +1681,16 @@
 }
 
 :global(.candidate-runtime-form) {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-}
-
-:global(.candidate-runtime-form--compact) {
-  justify-items: start;
 }
 
 :global(.candidate-interview-controls) {
   gap: 10px;
+  justify-content: flex-start;
 }
 
 :global(.candidate-interview-controls .btn),
@@ -1716,6 +1716,17 @@
   color: #fff;
   background: var(--brand-grad);
   border-color: transparent;
+}
+
+:global(.candidate-interview-complete-action) {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+:global(.candidate-interview-complete-action .btn) {
+  min-width: 132px;
 }
 
 :global(.candidate-runtime-subactions) {
