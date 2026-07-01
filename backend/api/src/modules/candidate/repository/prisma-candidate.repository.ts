@@ -11,6 +11,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { PrismaService } from "../../../shared/prisma.service";
+import { CandidateDomainError } from "../candidate.errors";
 import {
   type Application,
   type ApplicationDocument,
@@ -38,6 +39,11 @@ export class PrismaCandidateRepository implements CandidateRepository {
 
   async listJobs(): Promise<CandidateJob[]> {
     const postings = await this.prisma.posting.findMany({
+      where: {
+        status: {
+          in: [PrismaPostingStatus.OPEN, PrismaPostingStatus.CLOSING_SOON],
+        },
+      },
       include: { company: true },
       orderBy: { createdAt: "desc" },
     });
@@ -205,7 +211,8 @@ export class PrismaCandidateRepository implements CandidateRepository {
     portfolioUrl?: string;
     consentTypes: ConsentRecord["consentType"][];
   }): Promise<ApplicationSubmissionResult> {
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       const application = await tx.application.create({
         data: {
@@ -293,7 +300,13 @@ export class PrismaCandidateRepository implements CandidateRepository {
         consents: consents.map((consent) => this.toConsentRecord(consent)),
         portfolioLink,
       };
-    });
+      });
+    } catch (error) {
+      if (isPrismaUniqueConstraintError(error)) {
+        throw new CandidateDomainError("APPLICATION_ALREADY_SUBMITTED", "이미 지원한 채용공고입니다.", 409);
+      }
+      throw error;
+    }
   }
 
   async createFileAsset(input: Omit<FileAsset, "fileId" | "createdAt" | "status">): Promise<FileAsset> {
@@ -427,4 +440,8 @@ export class PrismaCandidateRepository implements CandidateRepository {
   private toDateOnly(value: Date): string {
     return value.toISOString().slice(0, 10);
   }
+}
+
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
