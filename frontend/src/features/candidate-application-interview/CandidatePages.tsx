@@ -10,6 +10,7 @@ import { DependencyList, FormEvent, ReactNode, useCallback, useEffect, useRef, u
 import { getAccessToken } from "../../api/client";
 import {
   CandidateApiError,
+  type AiInterviewHandoffResponse,
   type CandidateApplicationStatusView,
   type CandidateApplicationSummary,
   type CandidateFileAsset,
@@ -106,8 +107,10 @@ type ApplicationReportData = {
 };
 type LastSavedAnswer = {
   answerId: number;
+  questionId: number;
   questionText: string;
   transcript: string;
+  fileAssetId?: number;
   audioFileId?: number;
   audioS3Key?: string;
   videoFileId?: number;
@@ -990,7 +993,9 @@ export function CandidateMockReportDetailPage({ reportId }: { reportId: number }
     setMessage("");
     try {
       const result = await getCandidateApi().requestMockReportGeneration(reportId);
-      setMessage(`리포트 생성 요청이 접수되었습니다. 요청 상태: ${formatProcessTypeLabel(result.data.processType)}`);
+      setMessage(
+        `리포트 생성 요청 준비 완료: reportId=${result.data.reportId}, sessionId=${result.data.sessionId}, answerIds=${result.data.answerIds.join(",") || "-"}, fileIds=${result.data.fileIds.join(",") || "-"}`,
+      );
       refresh();
     } catch (generateError) {
       setMessage(toErrorMessage(generateError));
@@ -1296,6 +1301,7 @@ function InterviewRuntimePanel({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<LastSavedAnswer>();
+  const [aiHandoff, setAiHandoff] = useState<AiInterviewHandoffResponse>();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
@@ -1974,15 +1980,19 @@ function InterviewRuntimePanel({
         mode === "mock"
           ? await api.saveMockAnswer(data.runtime.sessionId, request)
           : await api.saveRecruitingAnswer(data.runtime.sessionId, request);
+      const answerFileAssetId = result.data.audioFile?.fileId ?? result.data.answer.audioFileId ?? result.data.videoFile?.fileId ?? result.data.answer.videoFileId;
       setLastAnswer({
         answerId: result.data.answer.answerId,
+        questionId: result.data.answer.questionId,
         questionText: question?.content ?? question?.audioPrompt ?? "이전 질문",
         transcript: `${formatQuestionTypeLabel(question?.questionType)} 답변 파일이 저장되었습니다.`,
+        fileAssetId: answerFileAssetId,
         audioFileId: result.data.audioFile?.fileId ?? result.data.answer.audioFileId,
         audioS3Key: result.data.audioFile?.storageKey,
         videoFileId: result.data.videoFile?.fileId ?? result.data.answer.videoFileId,
         videoS3Key: result.data.videoFile?.storageKey,
       });
+      setAiHandoff(undefined);
       setAnsweredQuestionIds((current) => {
         const next = new Set(current);
         next.add(request.questionId);
@@ -2039,6 +2049,43 @@ function InterviewRuntimePanel({
     }
 
     setMessage("답변 녹화가 아직 준비되지 않았습니다.");
+  }
+
+  async function handleRequestAiPipeline(processType: "STT" | "FOLLOW_UP") {
+    if (!data || !lastAnswer) {
+      setMessage("AI 처리로 넘길 저장된 답변이 아직 없습니다.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const api = getCandidateApi();
+      const request = {
+        answerId: lastAnswer.answerId,
+        fileAssetId: lastAnswer.fileAssetId,
+        audioFileId: lastAnswer.audioFileId,
+        audioS3Key: lastAnswer.audioS3Key,
+        previousQuestion: lastAnswer.questionText,
+        transcript: lastAnswer.transcript,
+      };
+      const result =
+        processType === "STT"
+          ? mode === "mock"
+            ? await api.requestMockStt(data.runtime.sessionId, request)
+            : await api.requestRecruitingStt(data.runtime.sessionId, request)
+          : mode === "mock"
+            ? await api.requestMockFollowUpQuestion(data.runtime.sessionId, request)
+            : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, request);
+      setAiHandoff(result.data);
+      setMessage(
+        `${formatProcessTypeLabel(result.data.processType)} 요청 준비 완료: sessionId=${result.data.sessionId ?? data.runtime.sessionId}, answerId=${result.data.answerId ?? lastAnswer.answerId}, fileAssetId=${result.data.fileAssetId ?? result.data.fileId ?? lastAnswer.fileAssetId ?? "-"}`,
+      );
+    } catch (submitError) {
+      setMessage(toErrorMessage(submitError));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleQuestionTimeExpired() {
@@ -2298,6 +2345,41 @@ function InterviewRuntimePanel({
                   <Definition label="진행" value={`${answeredQuestionCount}/${data.runtime.totalQuestions}`} />
                   <Definition label="상태" value={<StatusPill value={data.runtime.status} />} />
                 </dl>
+                <div className="candidate-ai-handoff">
+                  <div className="candidate-ai-handoff__head">
+                    <p>E AI 연결값</p>
+                    <span>{lastAnswer ? "답변 저장됨" : "답변 대기"}</span>
+                  </div>
+                  <dl>
+                    <Definition label="sessionId" value={data.runtime.sessionId} />
+                    <Definition label="answerId" value={lastAnswer?.answerId ?? "-"} />
+                    <Definition label="fileAssetId" value={lastAnswer?.fileAssetId ?? "-"} />
+                    <Definition label="questionId" value={lastAnswer?.questionId ?? currentQuestion?.questionId ?? "-"} />
+                  </dl>
+                  <div className="candidate-ai-handoff__actions">
+                    <button
+                      className="btn secondary compact"
+                      type="button"
+                      disabled={busy || !lastAnswer}
+                      onClick={() => void handleRequestAiPipeline("STT")}
+                    >
+                      STT 연결 확인
+                    </button>
+                    <button
+                      className="btn secondary compact"
+                      type="button"
+                      disabled={busy || !lastAnswer}
+                      onClick={() => void handleRequestAiPipeline("FOLLOW_UP")}
+                    >
+                      꼬리질문 연결 확인
+                    </button>
+                  </div>
+                  {aiHandoff ? (
+                    <p className="candidate-ai-handoff__result">
+                      {formatProcessTypeLabel(aiHandoff.processType)} · {aiHandoff.callbackTopic ?? "-"} · fileAssetId {aiHandoff.fileAssetId ?? aiHandoff.fileId ?? "-"}
+                    </p>
+                  ) : null}
+                </div>
               </aside>
             </section>
 

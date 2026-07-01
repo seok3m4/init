@@ -375,6 +375,7 @@ export interface CompleteInterviewResponse {
 
 export interface AiInterviewRequest {
   answerId?: number;
+  fileAssetId?: number;
   audioFileId?: number;
   audioS3Key?: string;
   previousQuestion?: string;
@@ -395,6 +396,7 @@ export interface AiInterviewHandoffResponse {
   answerId?: number;
   questionId?: number;
   fileId?: number;
+  fileAssetId?: number;
   videoFileId?: number;
   audioFileId?: number;
   callbackTopic?: string;

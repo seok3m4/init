@@ -359,6 +359,7 @@ export class InterviewService {
       answerId: answer.answerId,
       questionId: answer.questionId,
       fileId,
+      fileAssetId: fileId,
       videoFileId: answer.videoFileId,
       audioFileId: answer.audioFileId,
       callbackTopic:
@@ -376,7 +377,14 @@ export class InterviewService {
         { field: "answerId", reason: "answerId must be a positive integer" },
       ]);
     }
+    const rawFileAssetId = requestBody.fileAssetId;
+    if (rawFileAssetId !== undefined && !this.isPositiveInteger(rawFileAssetId)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "fileAssetId is invalid.", 400, [
+        { field: "fileAssetId", reason: "fileAssetId must be a positive integer" },
+      ]);
+    }
     const answerId = rawAnswerId as number | undefined;
+    const fileAssetId = rawFileAssetId as number | undefined;
 
     const answer = answerId
       ? this.interviewRepository.findAnswerById(session.sessionId, answerId)
@@ -384,6 +392,11 @@ export class InterviewService {
     if (!answer) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview answer was not found.", 404, [
         { field: "answerId", reason: "answer not found for session" },
+      ]);
+    }
+    if (fileAssetId && answer.audioFileId !== fileAssetId && answer.videoFileId !== fileAssetId) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "File asset does not belong to the selected interview answer.", 409, [
+        { field: "fileAssetId", reason: "file asset id must match the answer audioFileId or videoFileId" },
       ]);
     }
     return answer;
