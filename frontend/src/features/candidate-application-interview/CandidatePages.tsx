@@ -1094,7 +1094,11 @@ export function CandidateApplicationReportPage({ applicationId }: { applicationI
             <p>기업용 상세 점수, 평가 근거, 내부 메모는 노출하지 않습니다.</p>
           </div>
         </div>
-        {data?.report ? <RecruitingReportView report={data.report} /> : <p className="notice">{data?.reportError ?? "리포트가 아직 준비되지 않았습니다."}</p>}
+        {data?.report ? (
+          <RecruitingReportView report={data.report} />
+        ) : (
+          <RecruitingReportFallbackView status={data?.status} reportError={data?.reportError} />
+        )}
       </section>
       <Link className="btn primary" href={candidateApplicationInterviewRoutes.applications}>지원현황으로 돌아가기</Link>
     </CandidatePageShell>
@@ -2864,6 +2868,103 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
       {report.summary ? <p className="description-box">{report.summary}</p> : null}
     </div>
   );
+}
+
+function RecruitingReportFallbackView({
+  status,
+  reportError,
+}: {
+  status?: CandidateApplicationStatusView;
+  reportError?: string;
+}) {
+  const view = getRecruitingReportFallbackView(status, reportError);
+
+  return (
+    <div className="candidate-report-state">
+      <div className={`candidate-report-state__badge ${view.tone}`}>{view.badge}</div>
+      <div>
+        <h3>{view.title}</h3>
+        <p>{view.description}</p>
+      </div>
+      {status ? (
+        <dl className="candidate-report-state__meta">
+          <Definition label="면접 상태" value={<StatusPill value={status.interviewStatus} />} />
+          <Definition label="리포트 상태" value={<StatusPill value={status.reportStatus} />} />
+          <Definition label="세션 ID" value={status.sessionId} />
+          <Definition label="지원서 ID" value={status.applicationId} />
+        </dl>
+      ) : null}
+      {view.helper ? <p className="candidate-report-state__helper">{view.helper}</p> : null}
+    </div>
+  );
+}
+
+function getRecruitingReportFallbackView(
+  status?: CandidateApplicationStatusView,
+  reportError?: string,
+): {
+  badge: string;
+  title: string;
+  description: string;
+  helper?: string;
+  tone: "waiting" | "progress" | "blocked";
+} {
+  if (!status) {
+    return {
+      badge: "확인 필요",
+      title: "결과 상태를 불러오지 못했습니다.",
+      description: reportError ?? "지원서 상태를 다시 불러온 뒤 결과를 확인해주세요.",
+      tone: "blocked",
+    };
+  }
+
+  if (status.interviewStatus !== "COMPLETED") {
+    return {
+      badge: "면접 진행 전",
+      title: "면접 완료 후 결과가 생성됩니다.",
+      description: "채용 AI 면접을 끝까지 제출하면 분석 요청 상태로 전환됩니다.",
+      helper: reportError,
+      tone: "waiting",
+    };
+  }
+
+  if (status.reportStatus === "PENDING") {
+    return {
+      badge: "분석 대기",
+      title: "면접 답변은 제출됐고 분석 대기 중입니다.",
+      description: "E AI 리포트 파이프라인이 연결되면 이 지원서의 답변 파일을 기준으로 리포트 생성이 시작됩니다.",
+      helper: reportError,
+      tone: "waiting",
+    };
+  }
+
+  if (status.reportStatus === "GENERATING") {
+    return {
+      badge: "생성 중",
+      title: "면접 분석이 진행 중입니다.",
+      description: "지원자 화면에는 공개 가능한 제한 결과만 표시됩니다. 기업용 상세 점수와 내부 메모는 노출하지 않습니다.",
+      helper: "잠시 후 새로고침하면 생성 상태를 다시 확인할 수 있습니다.",
+      tone: "progress",
+    };
+  }
+
+  if (status.reportStatus === "FAILED") {
+    return {
+      badge: "조회 불가",
+      title: "리포트를 준비하지 못했습니다.",
+      description: "분석 처리에 실패했거나 결과를 표시할 수 없는 상태입니다.",
+      helper: reportError ?? "팀 통합 후 AI 리포트 처리 상태를 다시 확인해주세요.",
+      tone: "blocked",
+    };
+  }
+
+  return {
+    badge: "확인 필요",
+    title: "결과를 불러오는 중 문제가 발생했습니다.",
+    description: "리포트 상태는 완료로 보이지만 결과 응답을 받지 못했습니다.",
+    helper: reportError,
+    tone: "blocked",
+  };
 }
 
 function formatInterviewCountdown(seconds: number): string {
