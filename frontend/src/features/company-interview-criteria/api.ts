@@ -79,6 +79,10 @@ export async function generateQuestionSet(input: GenerateQuestionSetInput) {
   });
 }
 
+export async function getAiJobStatus(processLogId: number) {
+  return request<AiJobResult>(`/ai/jobs/${processLogId}/status`);
+}
+
 async function request<T>(
   path: string,
   options: {

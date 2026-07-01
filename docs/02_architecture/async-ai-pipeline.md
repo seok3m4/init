@@ -64,6 +64,8 @@ sequenceDiagram
 
 - 장기 작업 생성 API는 `202 Accepted`와 `processLogId`를 반환한다.
 - 화면은 `GET /ai/jobs/{processLogId}/status`로 `PENDING`, `RUNNING`, `COMPLETED`, `FAILED` 상태와 `output`, `failure`를 조회한다.
+- 사용자 화면은 AI 상태를 한글로 표시한다. `PENDING=대기 중`, `RUNNING=처리 중`, `COMPLETED=완료`, `FAILED=실패`를 기본 라벨로 사용한다.
 - `FAILED` 상태는 `failure.category`, `failure.reason`, `failure.retryable`을 포함한다.
 - worker의 `finalSave`는 guardrail `PASS` 또는 `REGENERATED` 이후에만 실행된다.
 - `BLOCKED` 결과는 최종 저장 없이 `ai_guardrail_logs`와 `ai_process_logs.status=FAILED`로 기록한다.
+- C 화면에서 소비하는 AI draft output은 자동 저장하지 않는다. 평가 기준 추천은 `criteriaSuggestions`, JD 질문 생성은 `questionCandidates`, 질문 세트 구성은 `questionSetPreview`를 미리보기로 표시하고 사용자가 선택한 항목만 기존 C 저장 API로 반영한다.

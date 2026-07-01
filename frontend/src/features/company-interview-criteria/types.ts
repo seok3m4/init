@@ -57,12 +57,64 @@ export type EvaluationCriteriaResult = {
   totalWeight: number;
 };
 
+export type AiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export type CriteriaSuggestionCandidate = {
+  title: string;
+  description: string;
+  weight: number;
+  order: number;
+  suggestionReason: string;
+  tagId?: number;
+  category?: string;
+};
+
+export type GeneratedQuestionCandidate = {
+  content: string;
+  category: string;
+  difficulty: "EASY" | "MEDIUM" | "HARD" | string;
+  criterionId?: number;
+  criterionTitle?: string;
+  expectedKeywords: string[];
+  suggestionReason: string;
+  questionType?: QuestionType;
+};
+
+export type GeneratedQuestionSetCandidate = {
+  criterionId?: number;
+  criterionTitle: string;
+  questions: GeneratedQuestionCandidate[];
+};
+
+export type AiJobOutput = {
+  kind?: string;
+  sourceProcessLogId?: number;
+  reviewRequired?: boolean;
+  reviewStatus?: string;
+  postingId?: number;
+  criteriaSuggestions?: CriteriaSuggestionCandidate[];
+  questionCandidates?: GeneratedQuestionCandidate[];
+  questionSetPreview?: GeneratedQuestionSetCandidate[];
+  items?: string[];
+  guardrail?: {
+    result?: string;
+    reason?: string | null;
+  };
+};
+
 export type AiJobResult = {
   processLogId: number;
   processType?: string;
-  status: string;
+  status: AiProcessStatus;
   queued?: boolean;
   inputRef?: string;
+  outputRef?: string;
+  output?: AiJobOutput;
+  failure?: {
+    category: string;
+    reason: string;
+    retryable: boolean;
+  };
 };
 
 export type SuggestEvaluationCriteriaInput = {
