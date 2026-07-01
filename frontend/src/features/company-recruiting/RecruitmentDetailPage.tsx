@@ -128,7 +128,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const completionRate = applicants.length === 0 ? 0 : Math.round((completedInterviews / applicants.length) * 100);
 
   return (
-    <section className="app-page">
+    <section className="app-page glass-page">
         <div className="page-head">
           <div>
             <Breadcrumb
