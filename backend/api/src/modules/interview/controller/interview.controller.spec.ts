@@ -136,11 +136,13 @@ async function runControllerRuntimeAssertions() {
 
   const mockStt = await controller.requestMockStt(validCandidateRequest, String(mockStarted.data.sessionId), {
     answerId: firstMockAnswer.data.answer.answerId,
+    fileAssetId: firstMockAnswer.data.answer.videoFileId,
   });
   assert.equal(mockStt.data.accepted, true);
   assert.equal(mockStt.data.processType, "STT");
   assert.equal(mockStt.data.answerId, firstMockAnswer.data.answer.answerId);
   assert.equal(mockStt.data.fileId, firstMockAnswer.data.answer.videoFileId);
+  assert.equal(mockStt.data.fileAssetId, firstMockAnswer.data.answer.videoFileId);
 
   const mockFollowUp = await controller.requestMockFollowUpQuestion(
     validCandidateRequest,
@@ -276,10 +278,13 @@ async function runControllerRuntimeAssertions() {
     if (index === 0) {
       const stt = await controller.requestRecruitingStt(validCandidateRequest, String(session.sessionId), {
         answerId: answer.data.answer.answerId,
+        fileAssetId: answer.data.answer.videoFileId,
       });
       assert.equal(stt.data.sessionId, session.sessionId);
       assert.equal(stt.data.applicationId, submitted.application.applicationId);
       assert.equal(stt.data.processType, "STT");
+      assert.equal(stt.data.answerId, answer.data.answer.answerId);
+      assert.equal(stt.data.fileAssetId, answer.data.answer.videoFileId);
     }
 
     if (index < recruitingQuestions.data.questions.length - 1) {

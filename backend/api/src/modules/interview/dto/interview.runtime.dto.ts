@@ -66,4 +66,9 @@ export class AiInterviewRequestDto {
   @IsInt()
   @IsPositive()
   answerId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  fileAssetId?: number;
 }

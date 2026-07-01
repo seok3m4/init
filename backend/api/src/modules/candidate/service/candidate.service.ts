@@ -81,7 +81,10 @@ export { DEV_CANDIDATE_USER } from "../candidate.constants";
 export class CandidateService {
   constructor(@Inject(CANDIDATE_REPOSITORY) private readonly repository: CandidateRepository) {}
 
-  async listJobs(query: CandidateJobListQueryDto): Promise<ApiListResponse<CandidateJobSummary>> {
+  async listJobs(
+    query: CandidateJobListQueryDto,
+    currentUser?: CurrentCandidateUser,
+  ): Promise<ApiListResponse<CandidateJobSummary>> {
     const normalizedQuery = this.normalizeListQuery(query);
     const { page, limit } = normalizedQuery;
     const jobs = await this.repository.listJobs();
@@ -92,7 +95,9 @@ export class CandidateService {
 
     const pageMeta = this.createPageMeta(page, limit, filtered.length);
     const start = (page - 1) * limit;
-    const items = filtered.slice(start, start + limit).map((job) => this.toJobSummary(job));
+    const items = await Promise.all(
+      filtered.slice(start, start + limit).map((job) => this.toJobSummary(job, currentUser)),
+    );
 
     return this.listEnvelope(items, pageMeta);
   }
@@ -339,9 +344,9 @@ export class CandidateService {
   ): Promise<ApiResponse<CandidateInterviewRuntimeView>> {
     const { application, session } = await this.getOwnedApplicationWithSession(applicationId, currentUser);
     this.assertSessionNotExpired(session);
-    if (!["NOT_READY", "READY", "IN_PROGRESS"].includes(session.status)) {
+    if (!["NOT_READY", "READY", "IN_PROGRESS", "COMPLETED"].includes(session.status)) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview has not been started.", 409, [
-        { field: "interviewStatus", reason: "interview status must be NOT_READY, READY or IN_PROGRESS" },
+        { field: "interviewStatus", reason: "interview status must be NOT_READY, READY, IN_PROGRESS or COMPLETED" },
       ]);
     }
 
@@ -384,14 +389,17 @@ export class CandidateService {
     currentUser: CurrentCandidateUser,
   ): Promise<InterviewSession> {
     const { application, session } = await this.getOwnedRecruitingInterviewSession(sessionId, currentUser);
-    if (session.status !== "IN_PROGRESS") {
+    if (session.status !== "IN_PROGRESS" && session.status !== "COMPLETED") {
       throw new CandidateDomainError("COMMON_CONFLICT", "Interview cannot be completed from the current state.", 409, [
         { field: "interviewStatus", reason: `current status is ${session.status}` },
       ]);
     }
 
     const now = new Date().toISOString();
-    const completedSession = await this.repository.updateInterviewSessionStatus(session.sessionId, "COMPLETED", now);
+    const completedSession =
+      session.status === "COMPLETED"
+        ? session
+        : await this.repository.updateInterviewSessionStatus(session.sessionId, "COMPLETED", now);
     await this.repository.updateApplicationInterviewStatus(application.applicationId, "COMPLETED");
     await this.repository.updateApplicationReportStatus(application.applicationId, "GENERATING");
     return completedSession;
@@ -1180,7 +1188,11 @@ export class CandidateService {
     }
   }
 
-  private toJobSummary(job: CandidateJob): CandidateJobSummary {
+  private async toJobSummary(job: CandidateJob, currentUser?: CurrentCandidateUser): Promise<CandidateJobSummary> {
+    const alreadyApplied = currentUser
+      ? await this.repository.hasApplication(currentUser.candidateId, job.jobId)
+      : false;
+
     return {
       jobId: job.jobId,
       companyName: job.companyName,
@@ -1193,6 +1205,8 @@ export class CandidateService {
       postingStatus: job.postingStatus,
       startsOn: job.startsOn,
       endsOn: job.endsOn,
+      canApply: !alreadyApplied,
+      alreadyApplied,
     };
   }
 

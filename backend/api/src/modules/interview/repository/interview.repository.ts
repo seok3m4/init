@@ -2,6 +2,8 @@ import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from
 
 export const INTERVIEW_REPOSITORY = Symbol("INTERVIEW_REPOSITORY");
 
+export type MaybePromise<T> = T | Promise<T>;
+
 export interface CreateMockInterviewSessionInput {
   candidateId: number;
   showQuestionText: boolean;
@@ -26,18 +28,18 @@ export interface InterviewQuestionFilter {
 }
 
 export interface InterviewRepository {
-  listQuestions(filter?: InterviewQuestionFilter): InterviewQuestion[];
-  findQuestion(questionId: number): InterviewQuestion | undefined;
-  listOwnedMockSessions(candidateId: number): RuntimeInterviewSession[];
-  findMockSession(sessionId: number): RuntimeInterviewSession | undefined;
-  createMockSession(input: CreateMockInterviewSessionInput): RuntimeInterviewSession;
-  findRecruitingRuntimeSession(sessionId: number): RuntimeInterviewSession | undefined;
-  saveRecruitingRuntimeSession(session: RuntimeInterviewSession): RuntimeInterviewSession;
-  saveRuntimeSession(session: RuntimeInterviewSession): RuntimeInterviewSession;
-  listAnswersBySession(sessionId: number): InterviewAnswer[];
-  countAnswersBySession(sessionId: number): number;
-  findAnswer(sessionId: number, questionId: number): InterviewAnswer | undefined;
-  findAnswerById(sessionId: number, answerId: number): InterviewAnswer | undefined;
-  findLatestAnswer(sessionId: number): InterviewAnswer | undefined;
-  createAnswer(input: CreateInterviewAnswerInput): InterviewAnswer;
+  listQuestions(filter?: InterviewQuestionFilter): MaybePromise<InterviewQuestion[]>;
+  findQuestion(questionId: number): MaybePromise<InterviewQuestion | undefined>;
+  listOwnedMockSessions(candidateId: number): MaybePromise<RuntimeInterviewSession[]>;
+  findMockSession(sessionId: number): MaybePromise<RuntimeInterviewSession | undefined>;
+  createMockSession(input: CreateMockInterviewSessionInput): MaybePromise<RuntimeInterviewSession>;
+  findRecruitingRuntimeSession(sessionId: number): MaybePromise<RuntimeInterviewSession | undefined>;
+  saveRecruitingRuntimeSession(session: RuntimeInterviewSession): MaybePromise<RuntimeInterviewSession>;
+  saveRuntimeSession(session: RuntimeInterviewSession): MaybePromise<RuntimeInterviewSession>;
+  listAnswersBySession(sessionId: number): MaybePromise<InterviewAnswer[]>;
+  countAnswersBySession(sessionId: number): MaybePromise<number>;
+  findAnswer(sessionId: number, questionId: number): MaybePromise<InterviewAnswer | undefined>;
+  findAnswerById(sessionId: number, answerId: number): MaybePromise<InterviewAnswer | undefined>;
+  findLatestAnswer(sessionId: number): MaybePromise<InterviewAnswer | undefined>;
+  createAnswer(input: CreateInterviewAnswerInput): MaybePromise<InterviewAnswer>;
 }

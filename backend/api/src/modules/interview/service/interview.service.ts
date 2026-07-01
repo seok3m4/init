@@ -32,7 +32,7 @@ export class InterviewService {
     @Inject(INTERVIEW_REPOSITORY) private readonly interviewRepository: InterviewRepository,
   ) {}
 
-  listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): RuntimeInterviewSession[] {
+  async listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): Promise<RuntimeInterviewSession[]> {
     return this.interviewRepository.listOwnedMockSessions(currentUser.candidateId);
   }
 
@@ -54,9 +54,9 @@ export class InterviewService {
   ): Promise<{ data: StartMockInterviewResult; meta: { traceId: string; timestamp: string } }> {
     const requestBody = this.toRequestBody(dto, "mockInterview");
     const showQuestionText = requestBody.showQuestionText === true;
-    const questionIds = this.selectMockQuestionIds(dto);
+    const questionIds = await this.selectMockQuestionIds(dto);
     const now = new Date().toISOString();
-    const session = this.interviewRepository.createMockSession({
+    const session = await this.interviewRepository.createMockSession({
       candidateId: currentUser.candidateId,
       showQuestionText,
       questionIds,
@@ -65,24 +65,27 @@ export class InterviewService {
     });
 
     return this.envelope({
-      ...this.toRuntimeView(session, "mock"),
+      ...(await this.toRuntimeView(session, "mock")),
       startedAt: now,
     });
   }
 
   async listMockInterviewHistory(currentUser: CurrentCandidateUser) {
-    const items = this.listOwnedMockInterviewSessions(currentUser).map((session) => ({
-      sessionId: session.sessionId,
-      reportId: session.sessionId,
-      interviewType: "MOCK" as const,
-      status: session.status,
-      reportStatus: session.status === "COMPLETED" ? ("COMPLETED" as const) : ("PENDING" as const),
-      startedAt: session.startedAt,
-      completedAt: session.completedAt,
-      updatedAt: session.updatedAt,
-      totalQuestions: session.questionIds.length,
-      answeredCount: this.countAnswers(session.sessionId),
-    }));
+    const sessions = await this.listOwnedMockInterviewSessions(currentUser);
+    const items = await Promise.all(
+      sessions.map(async (session) => ({
+        sessionId: session.sessionId,
+        reportId: session.sessionId,
+        interviewType: "MOCK" as const,
+        status: session.status,
+        reportStatus: session.status === "COMPLETED" ? ("COMPLETED" as const) : ("PENDING" as const),
+        startedAt: session.startedAt,
+        completedAt: session.completedAt,
+        updatedAt: session.updatedAt,
+        totalQuestions: session.questionIds.length,
+        answeredCount: await this.countAnswers(session.sessionId),
+      })),
+    );
 
     return {
       data: { items },
@@ -101,48 +104,48 @@ export class InterviewService {
   }
 
   async getMockRuntime(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
     this.assertInProgress(session);
-    return this.envelope(this.toRuntimeView(session, "mock"));
+    return this.envelope(await this.toRuntimeView(session, "mock"));
   }
 
   async listMockQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.syncCurrentQuestionToFirstUnanswered(this.getOwnedMockSession(sessionId, currentUser));
+    const session = await this.syncCurrentQuestionToFirstUnanswered(await this.getOwnedMockSession(sessionId, currentUser));
     this.assertInProgress(session);
-    return this.envelope(this.toQuestionList(session));
+    return this.envelope(await this.toQuestionList(session));
   }
 
   async saveMockAnswer(sessionId: number, dto: SaveInterviewAnswerDto, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
     return this.saveAnswer(session, dto, currentUser);
   }
 
   async moveMockNextQuestion(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
     return this.moveNextQuestion(session);
   }
 
   async completeMockInterview(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
     return this.completeRuntimeSession(session);
   }
 
   async requestMockStt(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "STT");
   }
 
   async requestMockFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
-    const session = this.getOwnedMockSession(sessionId, currentUser);
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "FOLLOW_UP");
   }
 
   async listRecruitingQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
-    const session = this.syncCurrentQuestionToFirstUnanswered(
+    const session = await this.syncCurrentQuestionToFirstUnanswered(
       await this.getRecruitingRuntimeSession(sessionId, currentUser),
     );
     this.assertReadyOrInProgress(session);
-    return this.envelope(this.toQuestionList(session));
+    return this.envelope(await this.toQuestionList(session));
   }
 
   async saveRecruitingAnswer(sessionId: number, dto: SaveInterviewAnswerDto, currentUser: CurrentCandidateUser) {
@@ -157,6 +160,19 @@ export class InterviewService {
 
   async completeRecruitingInterview(sessionId: number, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
+    if (session.status === "COMPLETED") {
+      await this.candidateService.completeRecruitingInterviewSession(sessionId, currentUser);
+      const answeredCount = await this.countAnswers(session.sessionId);
+      return this.envelope({
+        sessionId: session.sessionId,
+        applicationId: session.applicationId,
+        interviewType: session.interviewType,
+        status: "COMPLETED",
+        completedAt: session.completedAt ?? new Date().toISOString(),
+        answeredCount,
+        totalQuestions: session.questionIds.length,
+      });
+    }
     const result = await this.completeRuntimeSession(session);
     await this.candidateService.completeRecruitingInterviewSession(sessionId, currentUser);
     return result;
@@ -180,9 +196,9 @@ export class InterviewService {
       sessionId,
       currentUser,
     );
-    let runtimeSession = this.interviewRepository.findRecruitingRuntimeSession(session.sessionId);
+    let runtimeSession = await this.interviewRepository.findRecruitingRuntimeSession(session.sessionId);
     if (!runtimeSession) {
-      runtimeSession = this.createRecruitingRuntimeSession(application.applicationId, application.postingId, session);
+      runtimeSession = await this.createRecruitingRuntimeSession(application.applicationId, application.postingId, session);
     }
 
     runtimeSession.status = session.status;
@@ -192,11 +208,11 @@ export class InterviewService {
     return this.interviewRepository.saveRecruitingRuntimeSession(runtimeSession);
   }
 
-  private createRecruitingRuntimeSession(
+  private async createRecruitingRuntimeSession(
     applicationId: number,
     postingId: number,
     session: InterviewSession,
-  ): RuntimeInterviewSession {
+  ): Promise<RuntimeInterviewSession> {
     return {
       sessionId: session.sessionId,
       applicationId,
@@ -205,16 +221,16 @@ export class InterviewService {
       status: session.status,
       showQuestionText: session.showQuestionText,
       currentQuestionIndex: 0,
-      questionIds: this.selectRecruitingQuestionIds(postingId),
+      questionIds: await this.selectRecruitingQuestionIds(postingId),
       startedAt: session.startedAt,
       completedAt: session.completedAt,
       updatedAt: session.updatedAt,
     };
   }
 
-  private getOwnedMockSession(sessionId: number, currentUser: CurrentCandidateUser): RuntimeInterviewSession {
+  private async getOwnedMockSession(sessionId: number, currentUser: CurrentCandidateUser): Promise<RuntimeInterviewSession> {
     this.assertPositiveIntegerId(sessionId, "sessionId");
-    const session = this.interviewRepository.findMockSession(sessionId);
+    const session = await this.interviewRepository.findMockSession(sessionId);
     if (!session) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
         { field: "sessionId", reason: "mock interview session not found" },
@@ -233,7 +249,7 @@ export class InterviewService {
     dto: SaveInterviewAnswerDto,
     currentUser: CurrentCandidateUser,
   ): Promise<{ data: SaveInterviewAnswerResult; meta: { traceId: string; timestamp: string } }> {
-    session = this.syncCurrentQuestionToFirstUnanswered(session);
+    session = await this.syncCurrentQuestionToFirstUnanswered(session);
     this.assertInProgress(session);
     const requestBody = this.assertAnswerRequest(dto);
     const currentQuestionId = this.currentQuestionId(session);
@@ -242,7 +258,7 @@ export class InterviewService {
         { field: "questionId", reason: `current question is ${currentQuestionId}` },
       ]);
     }
-    if (this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId)) {
+    if (await this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId)) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Current question has already been answered.", 409, [
         { field: "questionId", reason: "question already answered" },
       ]);
@@ -267,7 +283,7 @@ export class InterviewService {
     }
 
     const submittedAt = new Date().toISOString();
-    const answer = this.interviewRepository.createAnswer({
+    const answer = await this.interviewRepository.createAnswer({
       sessionId: session.sessionId,
       questionId: requestBody.questionId,
       videoFileId: videoFile?.fileId,
@@ -276,7 +292,7 @@ export class InterviewService {
       submittedAt,
     });
     session.updatedAt = submittedAt;
-    this.interviewRepository.saveRuntimeSession(session);
+    await this.interviewRepository.saveRuntimeSession(session);
 
     return this.envelope({
       sessionId: session.sessionId,
@@ -287,12 +303,21 @@ export class InterviewService {
     });
   }
 
-  private moveNextQuestion(
+  private async moveNextQuestion(
     session: RuntimeInterviewSession,
-  ): { data: NextInterviewQuestionResult; meta: { traceId: string; timestamp: string } } {
+  ): Promise<{ data: NextInterviewQuestionResult; meta: { traceId: string; timestamp: string } }> {
     this.assertInProgress(session);
     const previousQuestionId = this.currentQuestionId(session);
-    if (!this.interviewRepository.findAnswer(session.sessionId, previousQuestionId)) {
+    if (!(await this.interviewRepository.findAnswer(session.sessionId, previousQuestionId))) {
+      const answeredCount = await this.countAnswers(session.sessionId);
+      if (session.currentQuestionIndex > 0 && answeredCount === session.currentQuestionIndex) {
+        return this.envelope({
+          sessionId: session.sessionId,
+          previousQuestionId: session.questionIds[session.currentQuestionIndex - 1],
+          currentQuestion: await this.toQuestionView(session, await this.currentQuestion(session), true),
+          isLastQuestion: session.currentQuestionIndex === session.questionIds.length - 1,
+        });
+      }
       throw new CandidateDomainError("COMMON_CONFLICT", "Current question must be answered before moving next.", 409, [
         { field: "questionId", reason: "current question answer is missing" },
       ]);
@@ -305,11 +330,11 @@ export class InterviewService {
 
     session.currentQuestionIndex += 1;
     session.updatedAt = new Date().toISOString();
-    const updatedSession = this.interviewRepository.saveRuntimeSession(session);
+    const updatedSession = await this.interviewRepository.saveRuntimeSession(session);
     return this.envelope({
       sessionId: updatedSession.sessionId,
       previousQuestionId,
-      currentQuestion: this.toQuestionView(updatedSession, this.currentQuestion(updatedSession), true),
+      currentQuestion: await this.toQuestionView(updatedSession, await this.currentQuestion(updatedSession), true),
       isLastQuestion: updatedSession.currentQuestionIndex === updatedSession.questionIds.length - 1,
     });
   }
@@ -318,7 +343,7 @@ export class InterviewService {
     session: RuntimeInterviewSession,
   ): Promise<{ data: CompleteInterviewResult; meta: { traceId: string; timestamp: string } }> {
     this.assertInProgress(session);
-    const answeredCount = this.countAnswers(session.sessionId);
+    const answeredCount = await this.countAnswers(session.sessionId);
     if (answeredCount !== session.questionIds.length) {
       throw new CandidateDomainError("COMMON_CONFLICT", "All required questions must be answered.", 409, [
         { field: "answers", reason: `${answeredCount}/${session.questionIds.length} questions answered` },
@@ -329,7 +354,7 @@ export class InterviewService {
     session.status = "COMPLETED";
     session.completedAt = completedAt;
     session.updatedAt = completedAt;
-    const updatedSession = this.interviewRepository.saveRuntimeSession(session);
+    const updatedSession = await this.interviewRepository.saveRuntimeSession(session);
 
     return this.envelope({
       sessionId: updatedSession.sessionId,
@@ -342,13 +367,13 @@ export class InterviewService {
     });
   }
 
-  private createAiHandoff(
+  private async createAiHandoff(
     session: RuntimeInterviewSession,
     dto: AiInterviewRequestDto,
     processType: "STT" | "FOLLOW_UP",
-  ): { data: AiHandoffResult; meta: { traceId: string; timestamp: string } } {
+  ): Promise<{ data: AiHandoffResult; meta: { traceId: string; timestamp: string } }> {
     this.assertNotCompleted(session);
-    const answer = this.resolveAnswerForAi(session, dto);
+    const answer = await this.resolveAnswerForAi(session, dto);
     const fileId = answer.audioFileId ?? answer.videoFileId;
     return this.envelope({
       accepted: true,
@@ -359,6 +384,7 @@ export class InterviewService {
       answerId: answer.answerId,
       questionId: answer.questionId,
       fileId,
+      fileAssetId: fileId,
       videoFileId: answer.videoFileId,
       audioFileId: answer.audioFileId,
       callbackTopic:
@@ -368,7 +394,7 @@ export class InterviewService {
     });
   }
 
-  private resolveAnswerForAi(session: RuntimeInterviewSession, dto: AiInterviewRequestDto): InterviewAnswer {
+  private async resolveAnswerForAi(session: RuntimeInterviewSession, dto: AiInterviewRequestDto): Promise<InterviewAnswer> {
     const requestBody = this.toRequestBody(dto ?? {}, "aiRequest");
     const rawAnswerId = requestBody.answerId;
     if (rawAnswerId !== undefined && !this.isPositiveInteger(rawAnswerId)) {
@@ -376,14 +402,26 @@ export class InterviewService {
         { field: "answerId", reason: "answerId must be a positive integer" },
       ]);
     }
+    const rawFileAssetId = requestBody.fileAssetId;
+    if (rawFileAssetId !== undefined && !this.isPositiveInteger(rawFileAssetId)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "fileAssetId is invalid.", 400, [
+        { field: "fileAssetId", reason: "fileAssetId must be a positive integer" },
+      ]);
+    }
     const answerId = rawAnswerId as number | undefined;
+    const fileAssetId = rawFileAssetId as number | undefined;
 
     const answer = answerId
-      ? this.interviewRepository.findAnswerById(session.sessionId, answerId)
-      : this.interviewRepository.findLatestAnswer(session.sessionId);
+      ? await this.interviewRepository.findAnswerById(session.sessionId, answerId)
+      : await this.interviewRepository.findLatestAnswer(session.sessionId);
     if (!answer) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview answer was not found.", 404, [
         { field: "answerId", reason: "answer not found for session" },
+      ]);
+    }
+    if (fileAssetId && answer.audioFileId !== fileAssetId && answer.videoFileId !== fileAssetId) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "File asset does not belong to the selected interview answer.", 409, [
+        { field: "fileAssetId", reason: "file asset id must match the answer audioFileId or videoFileId" },
       ]);
     }
     return answer;
@@ -409,7 +447,7 @@ export class InterviewService {
     return undefined;
   }
 
-  private toRuntimeView(session: RuntimeInterviewSession, routeKind: "mock" | "recruiting"): InterviewRuntimeView {
+  private async toRuntimeView(session: RuntimeInterviewSession, routeKind: "mock" | "recruiting"): Promise<InterviewRuntimeView> {
     return {
       sessionId: session.sessionId,
       applicationId: session.applicationId,
@@ -417,9 +455,9 @@ export class InterviewService {
       status: session.status,
       showQuestionText: session.showQuestionText,
       currentQuestion:
-        session.status === "IN_PROGRESS" ? this.toQuestionView(session, this.currentQuestion(session), true) : undefined,
+        session.status === "IN_PROGRESS" ? await this.toQuestionView(session, await this.currentQuestion(session), true) : undefined,
       totalQuestions: session.questionIds.length,
-      answeredCount: this.countAnswers(session.sessionId),
+      answeredCount: await this.countAnswers(session.sessionId),
       canRecord: session.status === "IN_PROGRESS",
       nextQuestionEndpoint:
         routeKind === "mock"
@@ -432,35 +470,37 @@ export class InterviewService {
     };
   }
 
-  private toQuestionList(session: RuntimeInterviewSession): InterviewQuestionListResult {
+  private async toQuestionList(session: RuntimeInterviewSession): Promise<InterviewQuestionListResult> {
     return {
       sessionId: session.sessionId,
       interviewType: session.interviewType,
       showQuestionText: session.showQuestionText,
       currentQuestionId: session.status === "IN_PROGRESS" ? this.currentQuestionId(session) : undefined,
-      questions: session.questionIds.map((questionId, index) =>
-        this.toQuestionView(session, this.requiredQuestion(questionId), index === session.currentQuestionIndex),
+      questions: await Promise.all(
+        session.questionIds.map(async (questionId, index) =>
+          this.toQuestionView(session, await this.requiredQuestion(questionId), index === session.currentQuestionIndex),
+        ),
       ),
     };
   }
 
-  private toQuestionView(
+  private async toQuestionView(
     session: RuntimeInterviewSession,
     question: InterviewQuestion,
     current: boolean,
-  ): InterviewQuestionView {
+  ): Promise<InterviewQuestionView> {
     return {
       questionId: question.questionId,
       questionType: question.questionType,
       sortOrder: question.sortOrder,
       content: session.showQuestionText ? question.content : undefined,
       audioPrompt: `audio://interview-questions/${question.questionId}`,
-      answered: Boolean(this.interviewRepository.findAnswer(session.sessionId, question.questionId)),
+      answered: Boolean(await this.interviewRepository.findAnswer(session.sessionId, question.questionId)),
       current,
     };
   }
 
-  private selectMockQuestionIds(dto: StartMockInterviewDto): number[] {
+  private async selectMockQuestionIds(dto: StartMockInterviewDto): Promise<number[]> {
     const requestBody = this.toRequestBody(dto, "mockInterview");
     const requestedTypes = Array.isArray(requestBody.questionTypes)
       ? requestBody.questionTypes
@@ -471,18 +511,18 @@ export class InterviewService {
       ]);
     }
 
-    const questions = this.interviewRepository.listQuestions({
+    const questions = await this.interviewRepository.listQuestions({
       interviewType: "MOCK",
       questionTypes: requestedTypes,
     });
     if (questions.length === 0) {
-      return this.interviewRepository.listQuestions({ interviewType: "MOCK" }).map((question) => question.questionId);
+      return (await this.interviewRepository.listQuestions({ interviewType: "MOCK" })).map((question) => question.questionId);
     }
     return questions.map((question) => question.questionId);
   }
 
-  private selectRecruitingQuestionIds(postingId: number): number[] {
-    const questions = this.interviewRepository.listQuestions({
+  private async selectRecruitingQuestionIds(postingId: number): Promise<number[]> {
+    const questions = await this.interviewRepository.listQuestions({
       interviewType: "RECRUITING",
       postingId,
     });
@@ -491,7 +531,7 @@ export class InterviewService {
     }
 
     const fallbackBySortOrder = new Map<number, InterviewQuestion>();
-    this.interviewRepository.listQuestions({ interviewType: "RECRUITING" }).forEach((question) => {
+    (await this.interviewRepository.listQuestions({ interviewType: "RECRUITING" })).forEach((question) => {
       if (!fallbackBySortOrder.has(question.sortOrder)) {
         fallbackBySortOrder.set(question.sortOrder, question);
       }
@@ -563,7 +603,7 @@ export class InterviewService {
     }
   }
 
-  private currentQuestion(session: RuntimeInterviewSession): InterviewQuestion {
+  private async currentQuestion(session: RuntimeInterviewSession): Promise<InterviewQuestion> {
     return this.requiredQuestion(this.currentQuestionId(session));
   }
 
@@ -575,14 +615,15 @@ export class InterviewService {
     return questionId;
   }
 
-  private syncCurrentQuestionToFirstUnanswered(session: RuntimeInterviewSession): RuntimeInterviewSession {
+  private async syncCurrentQuestionToFirstUnanswered(session: RuntimeInterviewSession): Promise<RuntimeInterviewSession> {
     if (session.status !== "IN_PROGRESS") {
       return session;
     }
 
-    const firstUnansweredIndex = session.questionIds.findIndex(
-      (questionId) => !this.interviewRepository.findAnswer(session.sessionId, questionId),
+    const answers = await Promise.all(
+      session.questionIds.map((questionId) => this.interviewRepository.findAnswer(session.sessionId, questionId)),
     );
+    const firstUnansweredIndex = answers.findIndex((answer) => !answer);
     if (firstUnansweredIndex < 0 || firstUnansweredIndex === session.currentQuestionIndex) {
       return session;
     }
@@ -592,8 +633,8 @@ export class InterviewService {
     return this.interviewRepository.saveRuntimeSession(session);
   }
 
-  private requiredQuestion(questionId: number): InterviewQuestion {
-    const question = this.interviewRepository.findQuestion(questionId);
+  private async requiredQuestion(questionId: number): Promise<InterviewQuestion> {
+    const question = await this.interviewRepository.findQuestion(questionId);
     if (!question) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview question was not found.", 404, [
         { field: "questionId", reason: "question not found" },
@@ -602,7 +643,7 @@ export class InterviewService {
     return question;
   }
 
-  private countAnswers(sessionId: number): number {
+  private async countAnswers(sessionId: number): Promise<number> {
     return this.interviewRepository.countAnswersBySession(sessionId);
   }
 

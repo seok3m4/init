@@ -38,27 +38,25 @@ export class ReportService {
     @Inject(CANDIDATE_REPORT_REPOSITORY) private readonly candidateReportRepository: CandidateReportRepository,
   ) {}
 
-  listMockReports(currentUser: CurrentCandidateUser): ApiListResponse<CandidateMockReportSummary> {
-    const items = this.interviewRepository
-      .listOwnedMockSessions(currentUser.candidateId)
-      .map((session) => this.toMockReportSummary(session));
+  async listMockReports(currentUser: CurrentCandidateUser): Promise<ApiListResponse<CandidateMockReportSummary>> {
+    const sessions = await this.interviewRepository.listOwnedMockSessions(currentUser.candidateId);
+    const items = await Promise.all(sessions.map((session) => this.toMockReportSummary(session)));
 
     return this.listEnvelope(items);
   }
 
-  listMockInterviewHistory(currentUser: CurrentCandidateUser): ApiListResponse<CandidateMockInterviewHistoryItem> {
-    const items = this.interviewRepository
-      .listOwnedMockSessions(currentUser.candidateId)
-      .map((session) => this.toMockHistoryItem(session));
+  async listMockInterviewHistory(currentUser: CurrentCandidateUser): Promise<ApiListResponse<CandidateMockInterviewHistoryItem>> {
+    const sessions = await this.interviewRepository.listOwnedMockSessions(currentUser.candidateId);
+    const items = await Promise.all(sessions.map((session) => this.toMockHistoryItem(session)));
 
     return this.listEnvelope(items);
   }
 
-  getMockReportFeedback(
+  async getMockReportFeedback(
     reportId: number,
     currentUser: CurrentCandidateUser,
-  ): ApiResponse<CandidateMockReportFeedback> {
-    const session = this.getOwnedMockReportSession(reportId, currentUser);
+  ): Promise<ApiResponse<CandidateMockReportFeedback>> {
+    const session = await this.getOwnedMockReportSession(reportId, currentUser);
     const status = this.getMockReportStatus(session);
 
     if (status === "GENERATING") {
@@ -79,7 +77,7 @@ export class ReportService {
       this.throwReportNotReady(reportId);
     }
 
-    const answeredCount = this.interviewRepository.countAnswersBySession(session.sessionId);
+    const answeredCount = await this.interviewRepository.countAnswersBySession(session.sessionId);
     return this.envelope({
       reportId,
       sessionId: session.sessionId,
@@ -108,13 +106,13 @@ export class ReportService {
     reportId: number,
     currentUser: CurrentCandidateUser,
   ): Promise<ApiResponse<CandidateMockReportMedia>> {
-    const session = this.getOwnedMockReportSession(reportId, currentUser);
+    const session = await this.getOwnedMockReportSession(reportId, currentUser);
     const status = this.getMockReportStatus(session);
     if (session.status !== "COMPLETED") {
       this.throwReportNotReady(reportId);
     }
 
-    const answers = this.interviewRepository.listAnswersBySession(session.sessionId);
+    const answers = await this.interviewRepository.listAnswersBySession(session.sessionId);
     const media = await Promise.all(answers.map((answer) => this.toMockReportMediaItem(answer, session, currentUser)));
     return this.envelope({
       reportId,
@@ -125,16 +123,16 @@ export class ReportService {
     });
   }
 
-  requestMockReportGeneration(
+  async requestMockReportGeneration(
     reportId: number,
     currentUser: CurrentCandidateUser,
-  ): ApiResponse<CandidateReportGenerationHandoff> {
-    const session = this.getOwnedMockReportSession(reportId, currentUser);
+  ): Promise<ApiResponse<CandidateReportGenerationHandoff>> {
+    const session = await this.getOwnedMockReportSession(reportId, currentUser);
     if (session.status !== "COMPLETED") {
       this.throwReportNotReady(reportId);
     }
 
-    const answers = this.interviewRepository.listAnswersBySession(session.sessionId);
+    const answers = await this.interviewRepository.listAnswersBySession(session.sessionId);
     if (answers.length === 0) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Report generation requires interview answers.", 409, [
         { field: "answers", reason: "answers are missing" },
@@ -237,12 +235,12 @@ export class ReportService {
     });
   }
 
-  private getOwnedMockReportSession(
+  private async getOwnedMockReportSession(
     reportId: number,
     currentUser: CurrentCandidateUser,
-  ): RuntimeInterviewSession {
+  ): Promise<RuntimeInterviewSession> {
     this.assertPositiveIntegerId(reportId, "reportId");
-    const session = this.interviewRepository.findMockSession(reportId);
+    const session = await this.interviewRepository.findMockSession(reportId);
     if (!session) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
         { field: "reportId", reason: "mock interview report not found" },
@@ -256,10 +254,10 @@ export class ReportService {
     return session;
   }
 
-  private toMockReportSummary(session: RuntimeInterviewSession): CandidateMockReportSummary {
+  private async toMockReportSummary(session: RuntimeInterviewSession): Promise<CandidateMockReportSummary> {
     const reportId = session.sessionId;
     return {
-      ...this.toMockHistoryItem(session),
+      ...(await this.toMockHistoryItem(session)),
       reportType: "MOCK_INTERVIEW_REPORT",
       feedbackEndpoint: `/api/v1/candidate/mock-interview/reports/${reportId}/feedback`,
       mediaEndpoint: `/api/v1/candidate/mock-interview/reports/${reportId}/media`,
@@ -267,7 +265,7 @@ export class ReportService {
     };
   }
 
-  private toMockHistoryItem(session: RuntimeInterviewSession): CandidateMockInterviewHistoryItem {
+  private async toMockHistoryItem(session: RuntimeInterviewSession): Promise<CandidateMockInterviewHistoryItem> {
     return {
       sessionId: session.sessionId,
       reportId: session.sessionId,
@@ -278,7 +276,7 @@ export class ReportService {
       completedAt: session.completedAt,
       updatedAt: session.updatedAt,
       totalQuestions: session.questionIds.length,
-      answeredCount: this.interviewRepository.countAnswersBySession(session.sessionId),
+      answeredCount: await this.interviewRepository.countAnswersBySession(session.sessionId),
     };
   }
 
@@ -287,7 +285,7 @@ export class ReportService {
     session: RuntimeInterviewSession,
     currentUser: CurrentCandidateUser,
   ): Promise<CandidateMockReportMediaItem> {
-    const question = this.interviewRepository.findQuestion(answer.questionId);
+    const question = await this.interviewRepository.findQuestion(answer.questionId);
     if (!question) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview question was not found.", 404, [
         { field: "questionId", reason: "question not found" },

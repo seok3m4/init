@@ -23,10 +23,10 @@ const usePrismaRepository = process.env.NODE_ENV !== "test" && Boolean(process.e
 const repositoryProviders = usePrismaRepository
   ? [
       PrismaService,
-      PrismaReportRepository,
       {
         provide: REPORT_REPOSITORY,
-        useExisting: PrismaReportRepository,
+        inject: [PrismaService],
+        useFactory: (prisma: PrismaService) => new PrismaReportRepository(prisma),
       },
     ]
   : [

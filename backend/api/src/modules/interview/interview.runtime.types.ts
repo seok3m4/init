@@ -107,6 +107,7 @@ export interface AiHandoffResult {
   answerId: number;
   questionId: number;
   fileId?: number;
+  fileAssetId?: number;
   videoFileId?: number;
   audioFileId?: number;
   callbackTopic: string;

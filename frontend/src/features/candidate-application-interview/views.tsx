@@ -103,7 +103,9 @@ export function CandidateJobsView({ jobs, query, totalItems, onQueryChange }: Ca
             </div>
             <p className="candidate-jobcard__line">{job.title} · {displayLocation(job.location)} · {statusLabel[job.postingStatus]}</p>
             <div className="candidate-jobcard__actions">
-              <span className="candidate-job-available">지원 가능</span>
+              <span className={`candidate-job-available${job.alreadyApplied ? " is-applied" : ""}`}>
+                {job.alreadyApplied ? "지원 완료" : "지원 가능"}
+              </span>
               <a className="candidate-job-detail-button" href={candidateApplicationInterviewRoutes.jobDetail(job.jobId)}>
                 상세 보기
               </a>
@@ -360,7 +362,7 @@ export function CandidateApplicationView({
           <a className="candidate-apply-cancel" href={candidateApplicationInterviewRoutes.jobs}>지원 취소</a>
         </div>
         <button className="candidate-apply-button candidate-apply-button--primary" disabled={!canSubmit} type="submit">
-          지원서 제출
+          {job.alreadyApplied ? "이미 지원 완료" : "지원서 제출"}
         </button>
       </footer>
     </form>

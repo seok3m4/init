@@ -89,6 +89,8 @@ export interface CandidateJobSummary {
   postingStatus: PostingStatus;
   startsOn: string;
   endsOn: string;
+  canApply: boolean;
+  alreadyApplied: boolean;
 }
 
 export interface CandidateJobDetail extends CandidateJobSummary {
@@ -99,8 +101,6 @@ export interface CandidateJobDetail extends CandidateJobSummary {
   jobDescription: string;
   techStacks: string[];
   createdAt: string;
-  canApply: boolean;
-  alreadyApplied: boolean;
 }
 
 export interface CandidateDocumentPolicy {
@@ -375,6 +375,7 @@ export interface CompleteInterviewResponse {
 
 export interface AiInterviewRequest {
   answerId?: number;
+  fileAssetId?: number;
   audioFileId?: number;
   audioS3Key?: string;
   previousQuestion?: string;
@@ -395,6 +396,7 @@ export interface AiInterviewHandoffResponse {
   answerId?: number;
   questionId?: number;
   fileId?: number;
+  fileAssetId?: number;
   videoFileId?: number;
   audioFileId?: number;
   callbackTopic?: string;

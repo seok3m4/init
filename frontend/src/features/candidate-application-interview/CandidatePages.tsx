@@ -11,12 +11,15 @@ import { getAccessToken } from "../../api/client";
 import { GnbAvatar, GnbLogoutButton } from "../auth/GnbAccountControls";
 import {
   CandidateApiError,
+  type AiInterviewHandoffResponse,
+  type AiInterviewRequest,
   type CandidateApplicationStatusView,
   type CandidateApplicationSummary,
   type CandidateFileAsset,
   type CandidateInterviewRuntimeView,
   type CandidateJobQuery,
   type CandidateMockInterviewHistoryItem,
+  type CandidateReportGenerationHandoff,
   type CandidateMockReportFeedback,
   type CandidateMockReportMedia,
   type CandidateMockReportSummary,
@@ -107,12 +110,19 @@ type ApplicationReportData = {
 };
 type LastSavedAnswer = {
   answerId: number;
+  questionId: number;
   questionText: string;
   transcript: string;
+  fileAssetId?: number;
   audioFileId?: number;
   audioS3Key?: string;
   videoFileId?: number;
   videoS3Key?: string;
+};
+type AiPipelineDebugState = {
+  processType: AiInterviewHandoffResponse["processType"];
+  requestPayload: Record<string, unknown>;
+  responsePayload: Record<string, unknown>;
 };
 type CandidateRecordingCacheEntry = {
   url: string;
@@ -273,6 +283,9 @@ export function CandidateApplicationsPage() {
   const selectedApplication =
     filteredApplications.find((application) => application.applicationId === selectedApplicationId) ??
     filteredApplications[0];
+  const selectedApplicationAction = selectedApplication
+    ? getSelectedApplicationAction(selectedApplication)
+    : undefined;
 
   return (
     <CandidatePageShell active="applications">
@@ -326,9 +339,15 @@ export function CandidateApplicationsPage() {
           <div className="candidate-selected-application__notice">
             AI 면접 방식, 유의사항, 답변 절차를 안내합니다.
           </div>
-          <Link className="btn primary lg candidate-application-start-button" href={getSelectedApplicationActionHref(selectedApplication)}>
-            {getSelectedApplicationActionLabel(selectedApplication)}
-          </Link>
+          {selectedApplicationAction?.href ? (
+            <Link className="btn primary lg candidate-application-start-button" href={selectedApplicationAction.href}>
+              {selectedApplicationAction.label}
+            </Link>
+          ) : (
+            <span aria-disabled="true" className="btn primary lg candidate-application-start-button">
+              {selectedApplicationAction?.label ?? "진행 불가"}
+            </span>
+          )}
         </section>
       ) : null}
     </CandidatePageShell>
@@ -458,7 +477,8 @@ export function CandidateInterviewGuidePage({ applicationId }: { applicationId: 
       if (!guide.consentCompleted) {
         await getCandidateApi().saveInterviewConsent(applicationId, toSaveInterviewConsentRequest(consentState));
       }
-      router.push(candidateApplicationInterviewRoutes.interview(applicationId));
+      setStep("device");
+      setMessage("동의가 저장되었습니다. 카메라와 마이크를 점검해주세요.");
     } catch (submitError) {
       setMessage(toErrorMessage(submitError));
     } finally {
@@ -731,6 +751,20 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   const load = useCallback(async (): Promise<RuntimePageData> => {
     const api = getCandidateApi();
     const runtimeResult = await api.getInterviewRuntime(applicationId);
+    if (runtimeResult.data.status !== "IN_PROGRESS") {
+      const emptyQuestions: RuntimeQuestionListResponse = {
+        sessionId: runtimeResult.data.sessionId,
+        interviewType: runtimeResult.data.interviewType,
+        showQuestionText: runtimeResult.data.showQuestionText,
+        questions: [],
+      };
+
+      return {
+        runtime: toRecruitingRuntimeSession(runtimeResult.data, emptyQuestions),
+        questions: emptyQuestions,
+      };
+    }
+
     const questionsResult = await api.listRecruitingQuestions(runtimeResult.data.sessionId);
     return {
       runtime: toRecruitingRuntimeSession(runtimeResult.data, questionsResult.data),
@@ -739,14 +773,28 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   }, [applicationId]);
   const resource = useCandidateResource(load, [applicationId]);
   const runtimeStatus = resource.data?.runtime.status;
+  const shouldRedirectToReport = runtimeStatus === "COMPLETED";
   const shouldRedirectToGuide =
-    (runtimeStatus !== undefined && !["NOT_READY", "READY", "IN_PROGRESS"].includes(runtimeStatus)) ||
+    (runtimeStatus !== undefined && runtimeStatus !== "IN_PROGRESS" && runtimeStatus !== "COMPLETED") ||
     resource.error === "Interview has not been started.";
+
+  useEffect(() => {
+    if (!shouldRedirectToReport) return;
+    router.replace(candidateApplicationInterviewRoutes.applicationReport(applicationId));
+  }, [applicationId, router, shouldRedirectToReport]);
 
   useEffect(() => {
     if (!shouldRedirectToGuide) return;
     router.replace(candidateApplicationInterviewRoutes.interviewGuide(applicationId));
   }, [applicationId, router, shouldRedirectToGuide]);
+
+  if (shouldRedirectToReport) {
+    return (
+      <CandidatePageShell active="applications">
+        <StatusNotice loading message="면접 결과 화면으로 이동합니다." />
+      </CandidatePageShell>
+    );
+  }
 
   if (shouldRedirectToGuide) {
     return (
@@ -933,6 +981,7 @@ export function CandidateMockReportsPage() {
 export function CandidateMockReportDetailPage({ reportId }: { reportId: number }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reportHandoff, setReportHandoff] = useState<CandidateReportGenerationHandoff>();
   const load = useCallback(async (): Promise<MockReportDetailData> => {
     const api = getCandidateApi();
     const [feedbackResult, mediaResult] = await Promise.allSettled([
@@ -953,7 +1002,10 @@ export function CandidateMockReportDetailPage({ reportId }: { reportId: number }
     setMessage("");
     try {
       const result = await getCandidateApi().requestMockReportGeneration(reportId);
-      setMessage(`리포트 생성 요청이 접수되었습니다. 요청 상태: ${formatProcessTypeLabel(result.data.processType)}`);
+      setReportHandoff(result.data);
+      setMessage(
+        `리포트 생성 요청 준비 완료: reportId=${result.data.reportId}, sessionId=${result.data.sessionId}, answerIds=${result.data.answerIds.join(",") || "-"}, fileIds=${result.data.fileIds.join(",") || "-"}`,
+      );
       refresh();
     } catch (generateError) {
       setMessage(toErrorMessage(generateError));
@@ -982,6 +1034,22 @@ export function CandidateMockReportDetailPage({ reportId }: { reportId: number }
           </button>
         </div>
         {data?.feedback ? <MockFeedbackView feedback={data.feedback} /> : <p className="notice danger">{data?.feedbackError ?? "피드백을 불러오지 못했습니다."}</p>}
+      </section>
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <h2>E 리포트 생성 연결값</h2>
+            <p>리포트 생성 요청을 누르면 E 담당 AI 파이프라인에 전달할 참조값을 확인합니다.</p>
+          </div>
+        </div>
+        {reportHandoff ? (
+          <ReportGenerationHandoffView handoff={reportHandoff} />
+        ) : (
+          <div className="candidate-pipeline-card muted">
+            <strong>리포트 생성 요청 대기</strong>
+            <p>버튼을 누르면 reportId, sessionId, answerIds, fileIds가 포함된 공유용 payload가 표시됩니다.</p>
+          </div>
+        )}
       </section>
       <section className="panel">
         <div className="panel-head">
@@ -1052,7 +1120,11 @@ export function CandidateApplicationReportPage({ applicationId }: { applicationI
             <p>기업용 상세 점수, 평가 근거, 내부 메모는 노출하지 않습니다.</p>
           </div>
         </div>
-        {data?.report ? <RecruitingReportView report={data.report} /> : <p className="notice">{data?.reportError ?? "리포트가 아직 준비되지 않았습니다."}</p>}
+        {data?.report ? (
+          <RecruitingReportView report={data.report} />
+        ) : (
+          <RecruitingReportFallbackView status={data?.status} reportError={data?.reportError} />
+        )}
       </section>
       <Link className="btn primary" href={candidateApplicationInterviewRoutes.applications}>지원현황으로 돌아가기</Link>
     </CandidatePageShell>
@@ -1259,6 +1331,8 @@ function InterviewRuntimePanel({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<LastSavedAnswer>();
+  const [aiHandoff, setAiHandoff] = useState<AiInterviewHandoffResponse>();
+  const [aiPipelineDebug, setAiPipelineDebug] = useState<AiPipelineDebugState>();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
@@ -1273,7 +1347,10 @@ function InterviewRuntimePanel({
   const [setupCompleted, setSetupCompleted] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
-  const [questionSpeechStatus, setQuestionSpeechStatus] = useState("질문 음성 대기");
+  const [introCompleted, setIntroCompleted] = useState(false);
+  const [questionSpeechCompleted, setQuestionSpeechCompleted] = useState(false);
+  const [questionSpeechPlaying, setQuestionSpeechPlaying] = useState(false);
+  const [questionSpeechStatus, setQuestionSpeechStatus] = useState("AI 안내 대기");
   const [questionSpeechSupported, setQuestionSpeechSupported] = useState(true);
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Set<number>>(() => new Set());
   const [replayedQuestionIds, setReplayedQuestionIds] = useState<Set<number>>(() => new Set());
@@ -1289,6 +1366,7 @@ function InterviewRuntimePanel({
   const startRuntimeAfterRefreshRef = useRef(false);
   const autoRecordingQuestionRef = useRef<number | null>(null);
   const autoSpokenQuestionRef = useRef<number | null>(null);
+  const introSpokenSessionRef = useRef<number | null>(null);
   const timeExpiredQuestionRef = useRef<number | null>(null);
   const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const videoAttachRunRef = useRef(0);
@@ -1305,18 +1383,73 @@ function InterviewRuntimePanel({
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     speechUtteranceRef.current = null;
+    setQuestionSpeechPlaying(false);
   }, []);
+
+  const speakInterviewIntro = useCallback(() => {
+    if (!data) return;
+    if (introSpokenSessionRef.current === data.runtime.sessionId) {
+      setIntroCompleted(true);
+      return;
+    }
+
+    if (!isQuestionSpeechSupported()) {
+      setQuestionSpeechSupported(false);
+      setIntroCompleted(true);
+      setQuestionSpeechStatus("이 브라우저에서는 AI 음성 안내를 지원하지 않아 질문으로 바로 이동합니다.");
+      return;
+    }
+
+    stopQuestionSpeech();
+    const text =
+      mode === "recruiting"
+        ? "안녕하세요. 지금부터 채용 AI 면접을 시작하겠습니다. 질문 안내가 끝난 뒤 답변 시간이 시작됩니다."
+        : "안녕하세요. 지금부터 AI 모의면접을 시작하겠습니다. 질문 안내가 끝난 뒤 답변 시간이 시작됩니다.";
+    const utterance = new SpeechSynthesisUtterance(text);
+    const koreanVoice = findKoreanSpeechVoice(window.speechSynthesis.getVoices());
+    utterance.lang = "ko-KR";
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    if (koreanVoice) utterance.voice = koreanVoice;
+    utterance.onstart = () => {
+      setQuestionSpeechPlaying(true);
+      setQuestionSpeechStatus("AI 안내를 재생 중입니다.");
+    };
+    utterance.onend = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      introSpokenSessionRef.current = data.runtime.sessionId;
+      setQuestionSpeechPlaying(false);
+      setIntroCompleted(true);
+      setQuestionSpeechStatus("AI 안내 완료. 질문 음성을 준비합니다.");
+    };
+    utterance.onerror = () => {
+      if (speechUtteranceRef.current !== utterance) return;
+      speechUtteranceRef.current = null;
+      introSpokenSessionRef.current = data.runtime.sessionId;
+      setQuestionSpeechPlaying(false);
+      setIntroCompleted(true);
+      setQuestionSpeechStatus("AI 안내를 재생할 수 없어 질문 음성으로 이동합니다.");
+    };
+
+    speechUtteranceRef.current = utterance;
+    setQuestionSpeechSupported(true);
+    setQuestionSpeechStatus("AI 안내 재생 준비 중입니다.");
+    window.speechSynthesis.speak(utterance);
+  }, [data, mode, stopQuestionSpeech]);
 
   const speakCurrentQuestion = useCallback(
     (source: "auto" | "manual") => {
       if (!currentQuestion) {
         setQuestionSpeechStatus("현재 질문을 불러올 수 없습니다.");
+        setQuestionSpeechCompleted(true);
         return;
       }
 
       if (!isQuestionSpeechSupported()) {
         setQuestionSpeechSupported(false);
         setQuestionSpeechStatus("이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+        setQuestionSpeechCompleted(true);
         if (source === "manual") {
           setMessage("이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
         }
@@ -1326,10 +1459,12 @@ function InterviewRuntimePanel({
       const text = toRuntimeQuestionSpeechText(currentQuestion);
       if (!text.trim()) {
         setQuestionSpeechStatus("재생할 질문 음성이 없습니다.");
+        setQuestionSpeechCompleted(true);
         return;
       }
 
       stopQuestionSpeech();
+      setQuestionSpeechCompleted(false);
       const utterance = new SpeechSynthesisUtterance(text);
       const koreanVoice = findKoreanSpeechVoice(window.speechSynthesis.getVoices());
       utterance.lang = "ko-KR";
@@ -1337,16 +1472,21 @@ function InterviewRuntimePanel({
       utterance.pitch = 1;
       if (koreanVoice) utterance.voice = koreanVoice;
       utterance.onstart = () => {
+        setQuestionSpeechPlaying(true);
         setQuestionSpeechStatus(source === "manual" ? "질문 음성을 다시 재생 중입니다." : "질문 음성을 재생 중입니다.");
       };
       utterance.onend = () => {
         if (speechUtteranceRef.current !== utterance) return;
         speechUtteranceRef.current = null;
+        setQuestionSpeechPlaying(false);
+        setQuestionSpeechCompleted(true);
         setQuestionSpeechStatus("질문 음성 재생 완료");
       };
       utterance.onerror = () => {
         if (speechUtteranceRef.current !== utterance) return;
         speechUtteranceRef.current = null;
+        setQuestionSpeechPlaying(false);
+        setQuestionSpeechCompleted(true);
         setQuestionSpeechStatus("질문 음성을 재생할 수 없습니다.");
       };
 
@@ -1392,6 +1532,8 @@ function InterviewRuntimePanel({
       submitAfterRecordingStopRef.current = false;
       autoAdvanceAfterAnswerSubmitRef.current = false;
       timeExpiredQuestionRef.current = null;
+      setQuestionSpeechCompleted(false);
+      setQuestionSpeechPlaying(false);
       setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
     }
   }, [currentQuestion]);
@@ -1425,7 +1567,9 @@ function InterviewRuntimePanel({
     if (!data || data.runtime.status !== "IN_PROGRESS" || !startRuntimeAfterRefreshRef.current) return;
     startRuntimeAfterRefreshRef.current = false;
     setSetupCompleted(true);
-    setMessage("면접을 시작했습니다. 답변 녹화가 자동으로 진행됩니다.");
+    setIntroCompleted(false);
+    setQuestionSpeechCompleted(false);
+    setMessage("면접을 시작했습니다. AI 안내 후 답변 녹화가 자동으로 진행됩니다.");
     autoRecordingQuestionRef.current = null;
   }, [data]);
 
@@ -1435,42 +1579,128 @@ function InterviewRuntimePanel({
   }, [attachRuntimeVideoRef, setupCompleted]);
 
   useEffect(() => {
+    if (!data || mode !== "recruiting" || data.runtime.status !== "IN_PROGRESS" || setupCompleted) return;
+    setSetupCompleted(true);
+    setIntroCompleted(false);
+    setQuestionSpeechCompleted(false);
+    setMessage("채용 AI 면접 화면으로 이동했습니다. 카메라와 마이크를 연결하는 중입니다.");
+    autoRecordingQuestionRef.current = null;
+  }, [data, mode, setupCompleted]);
+
+  useEffect(() => {
     const supported = isQuestionSpeechSupported();
     setQuestionSpeechSupported(supported);
-    setQuestionSpeechStatus(supported ? "질문 음성 대기" : "이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
+    setQuestionSpeechStatus(supported ? "AI 안내 대기" : "이 브라우저에서는 질문 음성 안내를 지원하지 않습니다.");
   }, [mode]);
+
+  useEffect(() => {
+    if (
+      !data ||
+      !setupCompleted ||
+      data.runtime.status !== "IN_PROGRESS" ||
+      !cameraReady ||
+      !microphoneReady ||
+      !currentQuestion ||
+      currentQuestionAnswered
+    ) {
+      return;
+    }
+    if (introCompleted) return;
+    const timer = window.setTimeout(() => speakInterviewIntro(), 250);
+    return () => window.clearTimeout(timer);
+  }, [
+    cameraReady,
+    currentQuestion,
+    currentQuestionAnswered,
+    data,
+    introCompleted,
+    microphoneReady,
+    setupCompleted,
+    speakInterviewIntro,
+  ]);
 
   useEffect(() => {
     if (!setupCompleted || !currentQuestion || currentQuestionAnswered) {
       stopQuestionSpeech();
       return;
     }
+    if (!introCompleted) return;
     if (autoSpokenQuestionRef.current === currentQuestion.questionId) return;
     stopQuestionSpeech();
     autoSpokenQuestionRef.current = currentQuestion.questionId;
     const timer = window.setTimeout(() => speakCurrentQuestion("auto"), 250);
     return () => window.clearTimeout(timer);
-  }, [currentQuestion, currentQuestionAnswered, setupCompleted, speakCurrentQuestion, stopQuestionSpeech]);
+  }, [currentQuestion, currentQuestionAnswered, introCompleted, setupCompleted, speakCurrentQuestion, stopQuestionSpeech]);
 
   useEffect(() => {
-    if (!setupCompleted || !currentQuestion || currentQuestionAnswered || busy) return;
+    if (
+      !setupCompleted ||
+      !introCompleted ||
+      !questionSpeechCompleted ||
+      questionSpeechPlaying ||
+      !currentQuestion ||
+      currentQuestionAnswered ||
+      busy
+    ) {
+      return;
+    }
     const intervalId = window.setInterval(() => {
       setRemainingSeconds((current) => Math.max(0, current - 1));
     }, 1000);
     return () => window.clearInterval(intervalId);
-  }, [busy, currentQuestion, currentQuestionAnswered, setupCompleted]);
+  }, [
+    busy,
+    currentQuestion,
+    currentQuestionAnswered,
+    introCompleted,
+    questionSpeechCompleted,
+    questionSpeechPlaying,
+    setupCompleted,
+  ]);
 
   useEffect(() => {
-    if (remainingSeconds > 0 || !setupCompleted || !currentQuestion || currentQuestionAnswered || busy) return;
+    if (
+      remainingSeconds > 0 ||
+      !setupCompleted ||
+      !introCompleted ||
+      !questionSpeechCompleted ||
+      questionSpeechPlaying ||
+      !currentQuestion ||
+      currentQuestionAnswered ||
+      busy
+    ) {
+      return;
+    }
     if (timeExpiredQuestionRef.current === currentQuestion.questionId) return;
     timeExpiredQuestionRef.current = currentQuestion.questionId;
     void handleQuestionTimeExpired();
     // The timeout action intentionally reads the latest runtime state when the counter reaches zero.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, currentQuestion, currentQuestionAnswered, remainingSeconds, setupCompleted]);
+  }, [
+    busy,
+    currentQuestion,
+    currentQuestionAnswered,
+    introCompleted,
+    questionSpeechCompleted,
+    questionSpeechPlaying,
+    remainingSeconds,
+    setupCompleted,
+  ]);
 
   useEffect(() => {
-    if (!data || !setupCompleted || !cameraReady || !microphoneReady || !currentQuestion || currentQuestionAnswered) return;
+    if (
+      !data ||
+      !setupCompleted ||
+      !introCompleted ||
+      !questionSpeechCompleted ||
+      questionSpeechPlaying ||
+      !cameraReady ||
+      !microphoneReady ||
+      !currentQuestion ||
+      currentQuestionAnswered
+    ) {
+      return;
+    }
     if (recording || answer.videoFile || answer.audioFile) return;
     if (autoRecordingQuestionRef.current === currentQuestion.questionId) return;
     autoRecordingQuestionRef.current = currentQuestion.questionId;
@@ -1482,6 +1712,9 @@ function InterviewRuntimePanel({
     setupCompleted,
     cameraReady,
     microphoneReady,
+    introCompleted,
+    questionSpeechCompleted,
+    questionSpeechPlaying,
     currentQuestion?.questionId,
     currentQuestionAnswered,
     recording,
@@ -1594,6 +1827,16 @@ function InterviewRuntimePanel({
     }
   }
 
+  useEffect(() => {
+    if (!data || data.runtime.status !== "IN_PROGRESS" || !setupCompleted || streamRef.current || cameraReady || microphoneReady) {
+      return;
+    }
+
+    void handleEnableCamera();
+    // Runtime camera binding should run once after the interview screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.runtime.sessionId, setupCompleted]);
+
   async function handleEnterInterview() {
     if (!data) return;
     if (!streamRef.current || !cameraReady || !microphoneReady) {
@@ -1640,11 +1883,10 @@ function InterviewRuntimePanel({
     }
 
     setSetupCompleted(true);
-    setMessage("면접이 시작되었습니다. 답변 녹화가 자동으로 진행됩니다.");
-    if (currentQuestion) {
-      autoRecordingQuestionRef.current = null;
-      window.setTimeout(() => void handleStartRecording(), 0);
-    }
+    setIntroCompleted(false);
+    setQuestionSpeechCompleted(false);
+    setMessage("면접이 시작되었습니다. AI 안내 후 답변 녹화가 자동으로 진행됩니다.");
+    autoRecordingQuestionRef.current = null;
   }
 
   async function handleStartRecording() {
@@ -1769,15 +2011,19 @@ function InterviewRuntimePanel({
         mode === "mock"
           ? await api.saveMockAnswer(data.runtime.sessionId, request)
           : await api.saveRecruitingAnswer(data.runtime.sessionId, request);
+      const answerFileAssetId = result.data.audioFile?.fileId ?? result.data.answer.audioFileId ?? result.data.videoFile?.fileId ?? result.data.answer.videoFileId;
       setLastAnswer({
         answerId: result.data.answer.answerId,
+        questionId: result.data.answer.questionId,
         questionText: question?.content ?? question?.audioPrompt ?? "이전 질문",
         transcript: `${formatQuestionTypeLabel(question?.questionType)} 답변 파일이 저장되었습니다.`,
+        fileAssetId: answerFileAssetId,
         audioFileId: result.data.audioFile?.fileId ?? result.data.answer.audioFileId,
         audioS3Key: result.data.audioFile?.storageKey,
         videoFileId: result.data.videoFile?.fileId ?? result.data.answer.videoFileId,
         videoS3Key: result.data.videoFile?.storageKey,
       });
+      setAiHandoff(undefined);
       setAnsweredQuestionIds((current) => {
         const next = new Set(current);
         next.add(request.questionId);
@@ -1785,7 +2031,17 @@ function InterviewRuntimePanel({
       });
       const shouldAutoAdvance = autoAdvanceAfterAnswerSubmitRef.current;
       autoAdvanceAfterAnswerSubmitRef.current = false;
-      setMessage(`답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다.`);
+      const questionIndex = question
+        ? data.questions.questions.findIndex((candidateQuestion) => candidateQuestion.questionId === question.questionId)
+        : -1;
+      const isLastSavedQuestion = questionIndex >= 0
+        ? questionIndex >= data.runtime.totalQuestions - 1
+        : result.data.nextQuestionAvailable === false;
+      setMessage(
+        isLastSavedQuestion
+          ? `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요.`
+          : `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 다음 질문 버튼으로 이동해주세요.`,
+      );
       if (shouldAutoAdvance) {
         await advanceAfterTimedAnswer(question);
       }
@@ -1826,6 +2082,48 @@ function InterviewRuntimePanel({
     setMessage("답변 녹화가 아직 준비되지 않았습니다.");
   }
 
+  async function handleRequestAiPipeline(processType: "STT" | "FOLLOW_UP") {
+    if (!data || !lastAnswer) {
+      setMessage("AI 처리로 넘길 저장된 답변이 아직 없습니다.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const api = getCandidateApi();
+      const request = compactPayload({
+        answerId: lastAnswer.answerId,
+        fileAssetId: lastAnswer.fileAssetId,
+        audioFileId: lastAnswer.audioFileId,
+        audioS3Key: lastAnswer.audioS3Key,
+        previousQuestion: lastAnswer.questionText,
+        transcript: lastAnswer.transcript,
+      }) as AiInterviewRequest;
+      const result =
+        processType === "STT"
+          ? mode === "mock"
+            ? await api.requestMockStt(data.runtime.sessionId, request)
+            : await api.requestRecruitingStt(data.runtime.sessionId, request)
+          : mode === "mock"
+            ? await api.requestMockFollowUpQuestion(data.runtime.sessionId, request)
+            : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, request);
+      setAiHandoff(result.data);
+      setAiPipelineDebug({
+        processType: result.data.processType,
+        requestPayload: buildAiPipelineRequestPayload(data.runtime.sessionId, mode, processType, request),
+        responsePayload: buildAiPipelineResponsePayload(result.data, data.runtime.sessionId, lastAnswer),
+      });
+      setMessage(
+        `${formatProcessTypeLabel(result.data.processType)} 요청 준비 완료: sessionId=${result.data.sessionId ?? data.runtime.sessionId}, answerId=${result.data.answerId ?? lastAnswer.answerId}, fileAssetId=${result.data.fileAssetId ?? result.data.fileId ?? lastAnswer.fileAssetId ?? "-"}`,
+      );
+    } catch (submitError) {
+      setMessage(toErrorMessage(submitError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleQuestionTimeExpired() {
     if (!data || !currentQuestion || currentQuestionAnswered) return;
     setMessage("답변 시간이 종료되어 현재 답변을 자동 제출합니다.");
@@ -1857,7 +2155,7 @@ function InterviewRuntimePanel({
       : answeredQuestionCount + 1 >= data.runtime.totalQuestions;
 
     if (isLastQuestion) {
-      await handleComplete();
+      setMessage("마지막 답변이 저장되었습니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요.");
       return;
     }
 
@@ -1877,6 +2175,8 @@ function InterviewRuntimePanel({
       setAnswer(defaultInterviewAnswerFormState);
       setRecordedFileName("");
       setQuestionSpeechStatus("다음 질문 음성 대기");
+      setQuestionSpeechCompleted(false);
+      setQuestionSpeechPlaying(false);
       setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
       timeExpiredQuestionRef.current = null;
       autoRecordingQuestionRef.current = null;
@@ -1911,14 +2211,6 @@ function InterviewRuntimePanel({
     }
   }
 
-  function handleNextOrComplete() {
-    if (canCompleteInterview) {
-      void handleComplete();
-      return;
-    }
-    void handleNextQuestion();
-  }
-
   const runtimeTitle = mode === "recruiting" ? "채용 AI 면접 진행" : "AI 모의면접 진행";
   const statusThirdLine = mode === "mock" ? "꼬리질문 생성 가능" : "업로드 상태 정상";
   const answeredQuestionCount = data
@@ -1932,8 +2224,17 @@ function InterviewRuntimePanel({
       ? currentQuestionIndex + 1
       : Math.min(answeredQuestionCount + 1, data.runtime.totalQuestions || 1)
     : 0;
-  const canMoveNextQuestion = Boolean(data && currentQuestionAnswered && answeredQuestionCount < data.runtime.totalQuestions);
-  const canCompleteInterview = Boolean(data && answeredQuestionCount === data.runtime.totalQuestions && !recording);
+  const isCurrentQuestionLast = Boolean(
+    data && currentQuestionIndex >= 0 && currentQuestionIndex >= data.runtime.totalQuestions - 1,
+  );
+  const canMoveNextQuestion = Boolean(data && currentQuestionAnswered && !isCurrentQuestionLast && !recording);
+  const canCompleteInterview = Boolean(
+    data &&
+      currentQuestionAnswered &&
+      isCurrentQuestionLast &&
+      answeredQuestionCount >= data.runtime.totalQuestions &&
+      !recording,
+  );
   const formattedRemainingTime = formatInterviewCountdown(remainingSeconds);
   const timerDanger = remainingSeconds <= 10;
 
@@ -1948,7 +2249,7 @@ function InterviewRuntimePanel({
 
       <section className="iv-body">
         <StatusNotice loading={loading || busy} error={error} message={message} />
-        {data && !setupCompleted ? (
+        {data && !setupCompleted && mode === "mock" ? (
           <section className="candidate-device-setup">
             <div className="candidate-device-setup__head">
               <div>
@@ -2080,10 +2381,57 @@ function InterviewRuntimePanel({
                   <Definition label="진행" value={`${answeredQuestionCount}/${data.runtime.totalQuestions}`} />
                   <Definition label="상태" value={<StatusPill value={data.runtime.status} />} />
                 </dl>
+                <div className="candidate-ai-handoff">
+                  <div className="candidate-ai-handoff__head">
+                    <p>E AI 연결값</p>
+                    <span>{lastAnswer ? "답변 저장됨" : "답변 대기"}</span>
+                  </div>
+                  <dl>
+                    <Definition label="sessionId" value={data.runtime.sessionId} />
+                    <Definition label="answerId" value={lastAnswer?.answerId ?? "-"} />
+                    <Definition label="fileAssetId" value={lastAnswer?.fileAssetId ?? "-"} />
+                    <Definition label="questionId" value={lastAnswer?.questionId ?? currentQuestion?.questionId ?? "-"} />
+                  </dl>
+                  <div className="candidate-ai-handoff__actions">
+                    <button
+                      className="btn secondary compact"
+                      type="button"
+                      disabled={busy || !lastAnswer}
+                      onClick={() => void handleRequestAiPipeline("STT")}
+                    >
+                      STT 연결 확인
+                    </button>
+                    <button
+                      className="btn secondary compact"
+                      type="button"
+                      disabled={busy || !lastAnswer}
+                      onClick={() => void handleRequestAiPipeline("FOLLOW_UP")}
+                    >
+                      꼬리질문 연결 확인
+                    </button>
+                  </div>
+                  {aiHandoff ? (
+                    <p className="candidate-ai-handoff__result">
+                      {formatProcessTypeLabel(aiHandoff.processType)} · {aiHandoff.callbackTopic ?? "-"} · fileAssetId {aiHandoff.fileAssetId ?? aiHandoff.fileId ?? "-"}
+                    </p>
+                  ) : null}
+                  {aiPipelineDebug ? (
+                    <div className="candidate-ai-handoff__payloads">
+                      <PipelinePayloadPreview
+                        title={`${formatProcessTypeLabel(aiPipelineDebug.processType)} 요청 payload`}
+                        payload={aiPipelineDebug.requestPayload}
+                      />
+                      <PipelinePayloadPreview
+                        title={`${formatProcessTypeLabel(aiPipelineDebug.processType)} 응답 payload`}
+                        payload={aiPipelineDebug.responsePayload}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </aside>
             </section>
 
-            <form className="candidate-runtime-form candidate-runtime-form--compact" onSubmit={handleSaveAnswer}>
+            <form className="candidate-runtime-form" onSubmit={handleSaveAnswer}>
               <div className="toolbar candidate-interview-controls">
                 <button className="btn" type="button" disabled={busy || !currentQuestion || !questionSpeechSupported || currentQuestionReplayUsed} onClick={handleReplayPrompt}>
                   {currentQuestionReplayUsed ? "다시 듣기 완료" : "질문 음성 다시 듣기"}
@@ -2099,10 +2447,10 @@ function InterviewRuntimePanel({
                 <button
                   className="btn"
                   type="button"
-                  disabled={busy || recording || !(canMoveNextQuestion || canCompleteInterview)}
-                  onClick={handleNextOrComplete}
+                  disabled={busy || recording || !canMoveNextQuestion}
+                  onClick={() => void handleNextQuestion()}
                 >
-                  {canCompleteInterview ? "면접 완료" : "다음 질문"}
+                  다음 질문
                 </button>
                 <button
                   className={`subtitle-toggle ${subtitlesEnabled ? "on" : ""}`}
@@ -2111,6 +2459,16 @@ function InterviewRuntimePanel({
                   onClick={() => setSubtitlesEnabled((current) => !current)}
                 >
                   {subtitlesEnabled ? "자막 ON" : "자막 OFF"}
+                </button>
+              </div>
+              <div className="candidate-interview-complete-action">
+                <button
+                  className="btn primary lg"
+                  type="button"
+                  disabled={busy || recording || !canCompleteInterview}
+                  onClick={() => void handleComplete()}
+                >
+                  면접 완료
                 </button>
               </div>
             </form>
@@ -2241,7 +2599,7 @@ function ApplicationsTable({
       <div className="candidate-applications-table__row candidate-applications-table__head">
         <span>회사</span>
         <span>채용공고</span>
-        <span>서류</span>
+        <span>지원</span>
         <span>면접</span>
         <span>리포트</span>
       </div>
@@ -2257,7 +2615,10 @@ function ApplicationsTable({
           <span>{application.companyName}</span>
           <span>{application.jobTitle}</span>
           <span>
-            <ApplicationStatusBadge label={formatCandidateDocumentStatusLabel(application.documentStatus)} tone="green" />
+            <ApplicationStatusBadge
+              label={formatCandidateApplicationStatusLabel(application.applicationStatus)}
+              tone={getCandidateApplicationStatusTone(application.applicationStatus)}
+            />
           </span>
           <span>
             <ApplicationStatusBadge
@@ -2286,15 +2647,23 @@ function renderCandidateReportStatus(status: CandidateApplicationSummary["report
   );
 }
 
-function formatCandidateDocumentStatusLabel(status: CandidateApplicationSummary["documentStatus"]): string {
+function formatCandidateApplicationStatusLabel(status: CandidateApplicationSummary["applicationStatus"]): string {
   const labels: Record<string, string> = {
-    NOT_SUBMITTED: "미제출",
-    SUBMITTED: "제출완료",
-    EXTRACTING: "추출중",
-    EXTRACTED: "제출완료",
-    FAILED: "확인필요",
+    DRAFT: "작성중",
+    SUBMITTED: "지원완료",
+    IN_REVIEW: "검토중",
+    INTERVIEW_WAITING: "면접대기",
+    INTERVIEW_DONE: "면접완료",
+    COMPLETED: "최종완료",
+    CANCELED: "지원취소",
   };
   return labels[status] ?? status;
+}
+
+function getCandidateApplicationStatusTone(status: CandidateApplicationSummary["applicationStatus"]): ApplicationBadgeTone {
+  if (status === "SUBMITTED" || status === "COMPLETED" || status === "INTERVIEW_DONE") return "green";
+  if (status === "CANCELED") return "neutral";
+  return "yellow";
 }
 
 function formatCandidateInterviewStatusLabel(status: CandidateApplicationSummary["interviewStatus"]): string {
@@ -2341,17 +2710,35 @@ function matchesCandidateApplicationStatusFilter(
   return application.reportStatus === "GENERATING" || application.reportStatus === "COMPLETED";
 }
 
-function getSelectedApplicationActionHref(application: CandidateApplicationSummary): string {
-  if (application.interviewStatus === "COMPLETED") {
-    return getCandidateApplicationReportHref(application);
+function getSelectedApplicationAction(application: CandidateApplicationSummary): { href?: string; label: string } {
+  if (application.applicationStatus === "CANCELED") {
+    return { label: "지원 취소됨" };
   }
-  return candidateApplicationInterviewRoutes.interviewGuide(application.applicationId);
-}
-
-function getSelectedApplicationActionLabel(application: CandidateApplicationSummary): string {
-  if (application.interviewStatus === "COMPLETED") return "결과 확인";
-  if (application.interviewStatus === "IN_PROGRESS") return "채용 AI 면접 재개";
-  return "채용 AI 면접 시작";
+  if (application.interviewStatus === "FAILED") {
+    return { label: "면접 확인 필요" };
+  }
+  if (application.interviewStatus === "COMPLETED") {
+    return {
+      href: getCandidateApplicationReportHref(application),
+      label: application.reportStatus === "COMPLETED" ? "결과 확인" : "분석 상태 확인",
+    };
+  }
+  if (application.interviewStatus === "IN_PROGRESS") {
+    return {
+      href: candidateApplicationInterviewRoutes.interviewGuide(application.applicationId),
+      label: "채용 AI 면접 재개",
+    };
+  }
+  if (application.canStartInterview || application.interviewStatus === "READY") {
+    return {
+      href: candidateApplicationInterviewRoutes.interviewGuide(application.applicationId),
+      label: "채용 AI 면접 시작",
+    };
+  }
+  return {
+    href: candidateApplicationInterviewRoutes.interviewGuide(application.applicationId),
+    label: "면접 준비하기",
+  };
 }
 
 function MockReportsTable({ reports }: { reports: CandidateMockReportSummary[] }) {
@@ -2526,6 +2913,202 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
       {report.summary ? <p className="description-box">{report.summary}</p> : null}
     </div>
   );
+}
+
+function ReportGenerationHandoffView({ handoff }: { handoff: CandidateReportGenerationHandoff }) {
+  const payload = buildReportGenerationSharePayload(handoff);
+
+  return (
+    <div className="candidate-pipeline-card">
+      <div className="candidate-pipeline-card__head">
+        <div>
+          <strong>REPORT_GENERATE 요청 준비 완료</strong>
+          <p>{handoff.callbackTopic}</p>
+        </div>
+        <StatusPill value={handoff.status} />
+      </div>
+      <dl className="candidate-feature__summary">
+        <Definition label="reportId" value={handoff.reportId} />
+        <Definition label="sessionId" value={handoff.sessionId} />
+        <Definition label="answerIds" value={formatIdList(handoff.answerIds)} />
+        <Definition label="fileIds" value={formatIdList(handoff.fileIds)} />
+      </dl>
+      <PipelinePayloadPreview title="E 리포트 생성 공유 payload" payload={payload} />
+    </div>
+  );
+}
+
+function PipelinePayloadPreview({ title, payload }: { title: string; payload: Record<string, unknown> }) {
+  return (
+    <div className="candidate-pipeline-payload">
+      <div className="candidate-pipeline-payload__title">{title}</div>
+      <pre>{formatJsonPayload(payload)}</pre>
+    </div>
+  );
+}
+
+function buildAiPipelineRequestPayload(
+  sessionId: number,
+  mode: RuntimeMode,
+  processType: AiInterviewHandoffResponse["processType"],
+  request: AiInterviewRequest,
+): Record<string, unknown> {
+  return compactPayload({
+    target: mode === "mock" ? "candidate.mock-interview" : "candidate.recruiting-interview",
+    processType,
+    sessionId,
+    answerId: request.answerId,
+    fileAssetId: request.fileAssetId,
+    audioFileId: request.audioFileId,
+    audioS3Key: request.audioS3Key,
+    previousQuestion: request.previousQuestion,
+    transcript: request.transcript,
+  });
+}
+
+function buildAiPipelineResponsePayload(
+  response: AiInterviewHandoffResponse,
+  sessionId: number,
+  lastAnswer: LastSavedAnswer,
+): Record<string, unknown> {
+  return compactPayload({
+    accepted: response.accepted,
+    processType: response.processType,
+    status: response.status,
+    callbackTopic: response.callbackTopic,
+    processLogId: response.processLogId,
+    inputRef: response.inputRef,
+    sessionId: response.sessionId ?? sessionId,
+    applicationId: response.applicationId,
+    answerId: response.answerId ?? lastAnswer.answerId,
+    questionId: response.questionId ?? lastAnswer.questionId,
+    fileAssetId: response.fileAssetId ?? response.fileId ?? lastAnswer.fileAssetId,
+    audioFileId: response.audioFileId ?? lastAnswer.audioFileId,
+    videoFileId: response.videoFileId ?? lastAnswer.videoFileId,
+  });
+}
+
+function buildReportGenerationSharePayload(handoff: CandidateReportGenerationHandoff): Record<string, unknown> {
+  return {
+    accepted: handoff.accepted,
+    processType: handoff.processType,
+    status: handoff.status,
+    callbackTopic: handoff.callbackTopic,
+    reportId: handoff.reportId,
+    sessionId: handoff.sessionId,
+    reportType: handoff.reportType,
+    answerIds: handoff.answerIds,
+    fileIds: handoff.fileIds,
+  };
+}
+
+function compactPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null));
+}
+
+function formatJsonPayload(payload: Record<string, unknown>): string {
+  return JSON.stringify(payload, null, 2);
+}
+
+function formatIdList(ids: number[]): string {
+  return ids.length ? ids.join(", ") : "-";
+}
+
+function RecruitingReportFallbackView({
+  status,
+  reportError,
+}: {
+  status?: CandidateApplicationStatusView;
+  reportError?: string;
+}) {
+  const view = getRecruitingReportFallbackView(status, reportError);
+
+  return (
+    <div className="candidate-report-state">
+      <div className={`candidate-report-state__badge ${view.tone}`}>{view.badge}</div>
+      <div>
+        <h3>{view.title}</h3>
+        <p>{view.description}</p>
+      </div>
+      {status ? (
+        <dl className="candidate-report-state__meta">
+          <Definition label="면접 상태" value={<StatusPill value={status.interviewStatus} />} />
+          <Definition label="리포트 상태" value={<StatusPill value={status.reportStatus} />} />
+          <Definition label="세션 ID" value={status.sessionId} />
+          <Definition label="지원서 ID" value={status.applicationId} />
+        </dl>
+      ) : null}
+      {view.helper ? <p className="candidate-report-state__helper">{view.helper}</p> : null}
+    </div>
+  );
+}
+
+function getRecruitingReportFallbackView(
+  status?: CandidateApplicationStatusView,
+  reportError?: string,
+): {
+  badge: string;
+  title: string;
+  description: string;
+  helper?: string;
+  tone: "waiting" | "progress" | "blocked";
+} {
+  if (!status) {
+    return {
+      badge: "확인 필요",
+      title: "결과 상태를 불러오지 못했습니다.",
+      description: reportError ?? "지원서 상태를 다시 불러온 뒤 결과를 확인해주세요.",
+      tone: "blocked",
+    };
+  }
+
+  if (status.interviewStatus !== "COMPLETED") {
+    return {
+      badge: "면접 진행 전",
+      title: "면접 완료 후 결과가 생성됩니다.",
+      description: "채용 AI 면접을 끝까지 제출하면 분석 요청 상태로 전환됩니다.",
+      helper: reportError,
+      tone: "waiting",
+    };
+  }
+
+  if (status.reportStatus === "PENDING") {
+    return {
+      badge: "분석 대기",
+      title: "면접 답변은 제출됐고 분석 대기 중입니다.",
+      description: "E AI 리포트 파이프라인이 연결되면 이 지원서의 답변 파일을 기준으로 리포트 생성이 시작됩니다.",
+      helper: reportError,
+      tone: "waiting",
+    };
+  }
+
+  if (status.reportStatus === "GENERATING") {
+    return {
+      badge: "생성 중",
+      title: "면접 분석이 진행 중입니다.",
+      description: "지원자 화면에는 공개 가능한 제한 결과만 표시됩니다. 기업용 상세 점수와 내부 메모는 노출하지 않습니다.",
+      helper: "잠시 후 새로고침하면 생성 상태를 다시 확인할 수 있습니다.",
+      tone: "progress",
+    };
+  }
+
+  if (status.reportStatus === "FAILED") {
+    return {
+      badge: "조회 불가",
+      title: "리포트를 준비하지 못했습니다.",
+      description: "분석 처리에 실패했거나 결과를 표시할 수 없는 상태입니다.",
+      helper: reportError ?? "팀 통합 후 AI 리포트 처리 상태를 다시 확인해주세요.",
+      tone: "blocked",
+    };
+  }
+
+  return {
+    badge: "확인 필요",
+    title: "결과를 불러오는 중 문제가 발생했습니다.",
+    description: "리포트 상태는 완료로 보이지만 결과 응답을 받지 못했습니다.",
+    helper: reportError,
+    tone: "blocked",
+  };
 }
 
 function formatInterviewCountdown(seconds: number): string {
@@ -3026,6 +3609,7 @@ function formatDateTime(value?: string) {
 function toErrorMessage(error: unknown): string {
   if (error instanceof CandidateApiError) {
     if (error.status === 401) return "로그인 후 이용해주세요. 지원자 계정으로 로그인하면 본인 지원현황과 면접 세션만 표시됩니다.";
+    if (error.body?.error.code === "REPORT_NOT_READY") return "면접 분석이 아직 준비 중입니다. 잠시 후 다시 확인해주세요.";
     return error.body?.error.message ?? error.message;
   }
   return error instanceof Error ? error.message : "요청 처리 중 오류가 발생했습니다.";
