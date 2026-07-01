@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
 import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
+import { PublicApplicationLinkCard } from "./PublicApplicationLinkCard";
 import { buildInterviewSettingsHref } from "./routes";
 import {
   getScreeningAutosaveFieldState,
@@ -170,6 +171,8 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
                 <strong>{reportCompleted}건</strong>
               </div>
             </section>
+
+            <PublicApplicationLinkCard recruitment={recruitment} />
 
             <section className="panel">
               <div className="panel-head">

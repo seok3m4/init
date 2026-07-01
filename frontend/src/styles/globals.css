@@ -512,6 +512,61 @@ textarea:focus {
   white-space: pre-line;
 }
 
+.public-link-panel {
+  border-color: #dedaff;
+}
+
+.public-link-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 11px;
+  color: var(--ink-300);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+}
+
+.public-link-status.is-open {
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-color: #d7d2ff;
+}
+
+.public-link-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.public-link-box input {
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--ink-700);
+  font-size: 13px;
+  font-weight: 650;
+  background: #fafafe;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.public-link-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.public-link-helper {
+  margin: 10px 0 0;
+  color: var(--ink-300);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 /* JD file drop — temporary UI boundary, real upload wired later */
 .upload-zone {
   display: grid;
@@ -1713,6 +1768,15 @@ td input {
   .toolbar input,
   .toolbar select {
     width: 100%;
+  }
+
+  .public-link-box {
+    grid-template-columns: 1fr;
+  }
+
+  .public-link-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .pagination,
