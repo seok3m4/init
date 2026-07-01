@@ -1,9 +1,9 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
+import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { AUTH_SESSION_CLEARED_EVENT, AuthTokenResponse, AuthUser, fetchCurrentUser, getAccessToken, setAccessToken } from "../../api/client";
+import { AUTH_SESSION_CLEARED_EVENT, AuthTokenResponse, AuthUser, fetchCurrentUser, getAccessToken, logoutAuthSession, setAccessToken } from "../../api/client";
 import {
   getRedirectForUnauthorizedRole,
   getRouteAccess,
@@ -17,6 +17,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   completeLogin: (session: AuthTokenResponse) => void;
   clearSession: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -24,6 +25,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
+
+  const clearSession = useCallback(() => {
+    setAccessToken(null);
+    setUser(null);
+    setStatus("unauthenticated");
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutAuthSession();
+    } catch {
+      // Server cookie cleanup is best-effort; local auth state must still be cleared.
+    } finally {
+      clearSession();
+    }
+  }, [clearSession]);
 
   useEffect(() => {
     let canceled = false;
@@ -75,12 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus("authenticated");
       },
       clearSession: () => {
-        setAccessToken(null);
-        setUser(null);
-        setStatus("unauthenticated");
+        clearSession();
       },
+      logout,
     }),
-    [status, user],
+    [clearSession, logout, status, user],
   );
 
   return (
