@@ -19,11 +19,6 @@ export type UpdateCriterionInput = {
   sortOrder: number;
 };
 
-export type PendingProcessLog = {
-  processLogId: number;
-  status: 'PENDING';
-};
-
 export type CreateQuestionInput = {
   companyId: number;
   postingId: number;
@@ -69,8 +64,4 @@ export interface CompanyInterviewRepository {
     postingId: number,
     input: UpdateTimePolicyInput,
   ): Promise<TimePolicyRecord>;
-  createPendingProcessLog(input?: {
-    postingId?: number;
-    inputRef?: string;
-  }): Promise<PendingProcessLog>;
 }

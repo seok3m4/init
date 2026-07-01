@@ -3,8 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -18,10 +16,7 @@ import { ok, type RequestLike } from '../../shared/response-envelope';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CompanyInterviewService } from './company-interview.service';
 import { InterviewSettingsQueryDto } from './dto/interview-settings.dto';
-import {
-  SuggestEvaluationCriterionDto,
-  UpdateEvaluationCriterionDto,
-} from './dto/evaluation-criterion.dto';
+import { UpdateEvaluationCriterionDto } from './dto/evaluation-criterion.dto';
 import {
   CreateInterviewQuestionDto,
   UpdateInterviewQuestionDto,
@@ -41,19 +36,6 @@ export class CompanyInterviewController {
     @Query() query: InterviewSettingsQueryDto,
   ) {
     const data = await this.service.getSettings(request.currentUser, query);
-    return ok(request, data);
-  }
-
-  @Post('evaluation-criteria/suggest')
-  @HttpCode(HttpStatus.ACCEPTED)
-  async suggestEvaluationCriteria(
-    @Req() request: CompanyRequest,
-    @Body() body: SuggestEvaluationCriterionDto,
-  ) {
-    const data = await this.service.suggestEvaluationCriteria(
-      request.currentUser,
-      body,
-    );
     return ok(request, data);
   }
 

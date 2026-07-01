@@ -6,12 +6,15 @@ import { StatusBadge } from "../company-recruiting/CompanyRecruitingChrome";
 import {
   createInterviewQuestion,
   deleteInterviewQuestion,
+  generateInterviewQuestions,
+  generateQuestionSet,
   getInterviewSettings,
+  suggestEvaluationCriteria,
   updateEvaluationCriteria,
   updateInterviewQuestion,
-  updateInterviewTimePolicy
+  updateInterviewTimePolicy,
 } from "./api";
-import type { InterviewSettings, QuestionType } from "./types";
+import type { AiJobResult, InterviewSettings, QuestionType } from "./types";
 
 type CriteriaDraft = {
   draftId: string;
@@ -33,8 +36,29 @@ type QuestionForm = {
 
 type TimePolicyDraft = {
   preparationTimeSec: string;
+  preparationTimeMode: string;
   answerTimeSec: string;
+  answerTimeMode: string;
   retryAllowed: boolean;
+};
+
+type TimePolicyField = "preparationTimeSec" | "answerTimeSec";
+
+type AiJobKind = "criteria" | "questions" | "questionSet";
+
+type AiJobNotice = {
+  kind: AiJobKind;
+  label: string;
+  processLogId: number;
+  status: string;
+};
+
+type QuestionSetPreviewItem = {
+  criterionId: number;
+  criterionLabel: string;
+  questionId: number | null;
+  questionType: QuestionType | null;
+  content: string;
 };
 
 const QUESTION_TYPE_OPTIONS: Array<{ value: QuestionType; label: string }> = [
@@ -52,6 +76,10 @@ const initialQuestionForm: QuestionForm = {
   content: "",
 };
 
+const CUSTOM_TIME_OPTION = "custom";
+const PREPARATION_TIME_OPTIONS = ["0", "30", "60"];
+const ANSWER_TIME_OPTIONS = ["60", "90", "120"];
+
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
   const [criteriaDrafts, setCriteriaDrafts] = useState<CriteriaDraft[]>([]);
@@ -67,6 +95,10 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   const [timePolicyError, setTimePolicyError] = useState("");
   const [questionSaving, setQuestionSaving] = useState(false);
   const [questionError, setQuestionError] = useState("");
+  const [aiJobSubmitting, setAiJobSubmitting] = useState<AiJobKind | null>(null);
+  const [aiJobError, setAiJobError] = useState("");
+  const [aiJobNotices, setAiJobNotices] = useState<AiJobNotice[]>([]);
+  const [showQuestionSetPreview, setShowQuestionSetPreview] = useState(false);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -74,6 +106,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     setCriteriaError("");
     setTimePolicyError("");
     setQuestionError("");
+    setAiJobError("");
     try {
       const response = await getInterviewSettings(postingId);
       setSettings(response.data);
@@ -81,6 +114,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       setTimePolicyDraft(toTimePolicyDraft(response.data));
       setSelectedTagId("");
       setEditingQuestionId(null);
+      setShowQuestionSetPreview(false);
       setQuestionForm({
         ...initialQuestionForm,
         criterionId: String(response.data.criteria[0]?.criterionId ?? ""),
@@ -108,7 +142,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
   const hasTimePolicyChanges = useMemo(() => {
     if (!settings || !timePolicyDraft) return false;
-    return JSON.stringify(timePolicyDraft) !== JSON.stringify(toTimePolicyDraft(settings));
+    return JSON.stringify(toTimePolicyComparable(timePolicyDraft)) !== JSON.stringify(toTimePolicyComparable(toTimePolicyDraft(settings)));
   }, [settings, timePolicyDraft]);
 
   const availableTagOptions = useMemo(() => {
@@ -116,6 +150,18 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     const selectedTagIds = new Set(criteriaDrafts.map((criterion) => criterion.tagId));
     return settings.availableTags.filter((tag) => !selectedTagIds.has(tag.tagId));
   }, [criteriaDrafts, settings]);
+
+  const visibleQuestions = useMemo(() => {
+    if (!settings) return [];
+    const visibleCriterionIds = new Set(
+      criteriaDrafts
+        .map((criterion) => criterion.criterionId)
+        .filter((criterionId): criterionId is number => criterionId !== undefined),
+    );
+    return settings.questions.filter((question) => question.criterionId === null || visibleCriterionIds.has(question.criterionId));
+  }, [criteriaDrafts, settings]);
+
+  const questionSetPreview = useMemo(() => buildQuestionSetPreview(settings), [settings]);
 
   function addCriteriaDraft() {
     if (!settings || selectedTagId === "") return;
@@ -127,19 +173,22 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     }
 
     setCriteriaError("");
-    setCriteriaDrafts((current) => [
-      ...current,
-      {
-        draftId: `new-${tag.tagId}`,
-        tagId: tag.tagId,
-        tagName: tag.tagName,
-        category: tag.category,
-        description: tag.description,
-        weight: "10",
-        passScore: "",
-        sortOrder: String(current.length + 1),
-      },
-    ]);
+    setCriteriaDrafts((current) => {
+      const normalizedCriteria = normalizeCriteriaOrder(current);
+      return [
+        ...normalizedCriteria,
+        {
+          draftId: `new-${tag.tagId}`,
+          tagId: tag.tagId,
+          tagName: tag.tagName,
+          category: tag.category,
+          description: tag.description,
+          weight: "10",
+          passScore: "",
+          sortOrder: String(normalizedCriteria.length + 1),
+        },
+      ];
+    });
     setSelectedTagId("");
   }
 
@@ -160,7 +209,11 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     }
 
     setCriteriaError("");
-    setCriteriaDrafts((current) => current.filter((criterion) => criterion.draftId !== draftId));
+    const nextCriteriaDrafts = normalizeCriteriaOrder(criteriaDrafts.filter((criterion) => criterion.draftId !== draftId));
+    setCriteriaDrafts(nextCriteriaDrafts);
+    if (criterion?.criterionId !== undefined && questionForm.criterionId === String(criterion.criterionId)) {
+      resetQuestionEditor(String(nextCriteriaDrafts.find((item) => item.criterionId !== undefined)?.criterionId ?? ""));
+    }
   }
 
   function updateCriteriaDraft(draftId: string, field: "weight" | "passScore" | "sortOrder", value: string) {
@@ -179,6 +232,20 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   function updateTimePolicyDraft<K extends keyof TimePolicyDraft>(field: K, value: TimePolicyDraft[K]) {
     setTimePolicyError("");
     setTimePolicyDraft((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  function updateTimePolicyPreset(field: TimePolicyField, value: string) {
+    setTimePolicyError("");
+    const modeField = field === "preparationTimeSec" ? "preparationTimeMode" : "answerTimeMode";
+    setTimePolicyDraft((current) =>
+      current
+        ? {
+            ...current,
+            [modeField]: value,
+            ...(value === CUSTOM_TIME_OPTION ? {} : { [field]: value }),
+          }
+        : current,
+    );
   }
 
   function resetTimePolicyDraft() {
@@ -267,11 +334,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
             }
           : current,
       );
-      setTimePolicyDraft({
-        preparationTimeSec: String(response.data.timePolicy.preparationTimeSec),
-        answerTimeSec: String(response.data.timePolicy.answerTimeSec),
-        retryAllowed: response.data.timePolicy.retryAllowed,
-      });
+      setTimePolicyDraft(toTimePolicyDraft({ ...settings, timePolicy: response.data.timePolicy }));
     } catch (error) {
       setTimePolicyError(error instanceof Error ? error.message : "면접 시간 정책 저장에 실패했습니다.");
     } finally {
@@ -383,6 +446,90 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     }
   }
 
+  async function handleSuggestCriteria() {
+    if (!settings) return;
+
+    setAiJobSubmitting("criteria");
+    setAiJobError("");
+    try {
+      const jobDescription = buildJobDescription(settings);
+      const response = await suggestEvaluationCriteria({
+        postingId: settings.posting.postingId,
+        jobDescription,
+        talentProfile: "문제 해결력과 협업 태도를 갖춘 지원자",
+        evaluationPolicy: "평가 기준과 질문 뱅크를 기반으로 근거 중심 평가 항목을 추천합니다.",
+      });
+      rememberAiJob("criteria", "AI 평가 기준 추천", response.data);
+    } catch (error) {
+      setAiJobError(error instanceof Error ? error.message : "AI 평가 기준 추천 요청에 실패했습니다.");
+    } finally {
+      setAiJobSubmitting(null);
+    }
+  }
+
+  async function handleGenerateQuestions() {
+    if (!settings) return;
+
+    setAiJobSubmitting("questions");
+    setAiJobError("");
+    try {
+      const response = await generateInterviewQuestions({
+        postingId: settings.posting.postingId,
+        jobDescription: buildJobDescription(settings),
+        questionCount: Math.max(3, settings.criteria.length || 3),
+      });
+      rememberAiJob("questions", "JD 기반 질문 생성", response.data);
+    } catch (error) {
+      setAiJobError(error instanceof Error ? error.message : "JD 기반 질문 생성 요청에 실패했습니다.");
+    } finally {
+      setAiJobSubmitting(null);
+    }
+  }
+
+  async function handleGenerateQuestionSet() {
+    if (!settings) return;
+
+    setShowQuestionSetPreview(true);
+
+    if (settings.criteria.length === 0 || settings.questions.length === 0) {
+      setAiJobError("질문 세트를 구성하려면 평가 기준과 질문 뱅크가 필요합니다.");
+      return;
+    }
+
+    setAiJobSubmitting("questionSet");
+    setAiJobError("");
+    try {
+      const questionTypes = uniqueQuestionTypes(settings.questions);
+      const response = await generateQuestionSet({
+        postingId: settings.posting.postingId,
+        questionCount: Math.max(1, questionSetPreview.filter((item) => item.questionId !== null).length),
+        criteria: settings.criteria.map((criterion) => ({
+          criterionId: criterion.criterionId,
+          name: criterion.tagName,
+          weight: criterion.weight,
+        })),
+        questionTypes: questionTypes.length > 0 ? questionTypes : ["TECHNICAL"],
+      });
+      rememberAiJob("questionSet", "면접 질문 세트 구성", response.data);
+    } catch (error) {
+      setAiJobError(error instanceof Error ? error.message : "질문 세트 구성 요청에 실패했습니다.");
+    } finally {
+      setAiJobSubmitting(null);
+    }
+  }
+
+  function rememberAiJob(kind: AiJobKind, label: string, result: AiJobResult) {
+    setAiJobNotices((current) => [
+      {
+        kind,
+        label,
+        processLogId: result.processLogId,
+        status: result.status,
+      },
+      ...current.filter((item) => item.kind !== kind),
+    ]);
+  }
+
   return (
     <section className="app-page">
         <div className="page-head">
@@ -412,69 +559,173 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 </div>
                 <StatusBadge value={settings.posting.status} />
               </div>
-              <div className="kpi-row">
-                <Metric label="평가 기준" value={settings.criteria.length} />
-                <Metric label="질문" value={settings.questions.length} />
-                <Metric label="준비 시간" value={`${settings.timePolicy.preparationTimeSec}초`} />
-                <Metric label="답변 시간" value={`${settings.timePolicy.answerTimeSec}초`} />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                  gap: "12px",
+                  marginTop: "12px",
+                }}
+              >
+                <Metric compact label="평가 기준" value={settings.criteria.length} />
+                <Metric compact label="질문" value={visibleQuestions.length} />
+                <Metric compact label="준비 시간" value={`${settings.timePolicy.preparationTimeSec}초`} />
+                <Metric compact label="답변 시간" value={`${settings.timePolicy.answerTimeSec}초`} />
+                <Metric compact label="재시도" value={settings.timePolicy.retryAllowed ? "허용" : "미허용"} />
               </div>
             </section>
 
-            <form className="panel" onSubmit={handleTimePolicySave}>
-              <div className="panel-head">
+            <form className="panel" style={{ padding: "18px 24px" }} onSubmit={handleTimePolicySave}>
+              <div className="panel-head" style={{ alignItems: "center", marginBottom: "12px" }}>
                 <div>
                   <h2>면접 시간 정책</h2>
-                  <p>준비 시간, 답변 시간, 재시도 허용 여부를 공고 기준으로 조정합니다.</p>
-                </div>
-                <div className="toolbar">
-                  <button className="btn secondary compact" type="button" disabled={!hasTimePolicyChanges || timePolicySaving} onClick={resetTimePolicyDraft}>
-                    되돌리기
-                  </button>
-                  <button className="btn primary compact" type="submit" disabled={!hasTimePolicyChanges || timePolicySaving}>
-                    {timePolicySaving ? "저장 중" : "시간 정책 저장"}
-                  </button>
                 </div>
               </div>
               {timePolicyError ? <p className="notice danger">{timePolicyError}</p> : null}
               {timePolicyDraft ? (
-                <div className="grid-2">
-                  <label>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "160px 160px max-content minmax(160px, 1fr)",
+                    alignItems: "end",
+                    columnGap: "12px",
+                    rowGap: "12px",
+                    overflowX: "auto",
+                  }}
+                >
+                  <label style={{ gap: "6px", minWidth: 0 }}>
                     준비 시간
-                    <input
+                    <select
                       aria-label="준비 시간 초"
-                      inputMode="numeric"
-                      min={0}
-                      max={600}
-                      type="number"
-                      value={timePolicyDraft.preparationTimeSec}
-                      onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
-                    />
-                    <span className="field-hint">0~600초</span>
+                      style={{ minHeight: "40px", width: "100%" }}
+                      value={timePolicyDraft.preparationTimeMode}
+                      onChange={(event) => updateTimePolicyPreset("preparationTimeSec", event.target.value)}
+                    >
+                      <option value="0">0초</option>
+                      <option value="30">30초</option>
+                      <option value="60">60초</option>
+                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
+                    </select>
+                    {timePolicyDraft.preparationTimeMode === CUSTOM_TIME_OPTION ? (
+                      <input
+                        aria-label="준비 시간 직접 입력"
+                        inputMode="numeric"
+                        maxLength={3}
+                        placeholder="초 단위"
+                        style={{ minHeight: "40px", width: "100%" }}
+                        type="text"
+                        value={timePolicyDraft.preparationTimeSec}
+                        onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
+                      />
+                    ) : null}
                   </label>
-                  <label>
+                  <label style={{ gap: "6px", minWidth: 0 }}>
                     답변 시간
-                    <input
+                    <select
                       aria-label="답변 시간 초"
-                      inputMode="numeric"
-                      min={30}
-                      max={1800}
-                      type="number"
-                      value={timePolicyDraft.answerTimeSec}
-                      onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
-                    />
-                    <span className="field-hint">30~1800초, 준비 시간보다 길어야 합니다.</span>
+                      style={{ minHeight: "40px", width: "100%" }}
+                      value={timePolicyDraft.answerTimeMode}
+                      onChange={(event) => updateTimePolicyPreset("answerTimeSec", event.target.value)}
+                    >
+                      <option value="60">60초</option>
+                      <option value="90">90초</option>
+                      <option value="120">120초</option>
+                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
+                    </select>
+                    {timePolicyDraft.answerTimeMode === CUSTOM_TIME_OPTION ? (
+                      <input
+                        aria-label="답변 시간 직접 입력"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="초 단위"
+                        style={{ minHeight: "40px", width: "100%" }}
+                        type="text"
+                        value={timePolicyDraft.answerTimeSec}
+                        onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
+                      />
+                    ) : null}
                   </label>
-                  <label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      minHeight: "40px",
+                      padding: "0 4px 0 2px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     <input
                       checked={timePolicyDraft.retryAllowed}
+                      style={{ width: "18px", minWidth: "18px", minHeight: "18px" }}
                       type="checkbox"
                       onChange={(event) => updateTimePolicyDraft("retryAllowed", event.target.checked)}
                     />
-                    재시도 허용
+                    <span>재시도 허용</span>
                   </label>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                    <button className="btn secondary compact" type="button" disabled={!hasTimePolicyChanges || timePolicySaving} onClick={resetTimePolicyDraft}>
+                      되돌리기
+                    </button>
+                    <button className="btn primary compact" type="submit" disabled={!hasTimePolicyChanges || timePolicySaving}>
+                      {timePolicySaving ? "저장 중" : "저장"}
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </form>
+
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>AI 요청 상태</h2>
+                  <p>평가 기준 추천, JD 기반 질문 생성, 질문 세트 구성을 요청합니다.</p>
+                </div>
+                <div className="toolbar">
+                  <button
+                    className="btn secondary compact"
+                    type="button"
+                    disabled={aiJobSubmitting !== null}
+                    onClick={() => void handleSuggestCriteria()}
+                  >
+                    {aiJobSubmitting === "criteria" ? "요청 중" : "평가 기준 추천"}
+                  </button>
+                  <button
+                    className="btn secondary compact"
+                    type="button"
+                    disabled={aiJobSubmitting !== null}
+                    onClick={() => void handleGenerateQuestions()}
+                  >
+                    {aiJobSubmitting === "questions" ? "요청 중" : "JD 질문 생성"}
+                  </button>
+                  <button
+                    className="btn primary compact"
+                    type="button"
+                    disabled={aiJobSubmitting !== null}
+                    onClick={() => void handleGenerateQuestionSet()}
+                  >
+                    {aiJobSubmitting === "questionSet" ? "요청 중" : "질문 세트 구성"}
+                  </button>
+                </div>
+              </div>
+              {aiJobError ? <p className="notice danger">{aiJobError}</p> : null}
+              {aiJobNotices.length > 0 ? (
+                <div className="posting-list">
+                  {aiJobNotices.map((notice) => (
+                    <article className="posting" key={notice.kind}>
+                      <div className="logo-chip">AI</div>
+                      <div>
+                        <h3>{notice.label}</h3>
+                        <p>processLogId {notice.processLogId}</p>
+                      </div>
+                      <StatusBadge value={notice.status} />
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty">등록된 AI 요청이 없습니다.</div>
+              )}
+            </section>
 
             <form className="panel" onSubmit={handleCriteriaSave}>
               <div className="panel-head">
@@ -532,14 +783,17 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                     {criteriaDrafts.map((criterion) => (
                       <tr key={criterion.draftId}>
                         <td className="criteria-cell-order">
-                          <input
+                          <select
                             aria-label={`${criterion.tagName} 순서`}
-                            inputMode="numeric"
-                            min={1}
-                            type="number"
                             value={criterion.sortOrder}
                             onChange={(event) => updateCriteriaDraft(criterion.draftId, "sortOrder", event.target.value)}
-                          />
+                          >
+                            {criteriaDrafts.map((_, index) => (
+                              <option key={index + 1} value={index + 1}>
+                                {index + 1}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td>{criterion.tagName}</td>
                         <td>{criterion.category}</td>
@@ -649,7 +903,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 </div>
               </form>
               <div className="posting-list question-list">
-                {settings.questions.map((question) => (
+                {visibleQuestions.map((question) => (
                   <article className="posting" key={question.questionId}>
                     <div className="logo-chip">{question.questionType}</div>
                     <div>
@@ -667,15 +921,78 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                     </div>
                   </article>
                 ))}
-                {settings.questions.length === 0 ? (
+                {visibleQuestions.length === 0 ? (
                   <div className="empty">등록된 질문이 없습니다.</div>
                 ) : null}
               </div>
+              {showQuestionSetPreview ? (
+                <>
+                  <div className="panel-head">
+                    <div>
+                      <h2>면접 질문 세트 미리보기</h2>
+                      <p>평가 기준별 첫 번째 활성 질문을 기준으로 구성합니다.</p>
+                    </div>
+                  </div>
+                  <div className="posting-list question-list">
+                    {questionSetPreview.map((item) => (
+                      <article className="posting" key={item.criterionId}>
+                        <div className="logo-chip">{item.questionType ?? "NONE"}</div>
+                        <div>
+                          <h3>{item.content}</h3>
+                          <p>{item.criterionLabel}</p>
+                        </div>
+                        <StatusBadge value={item.questionId === null ? "READY" : "SELECTED"} />
+                      </article>
+                    ))}
+                    {questionSetPreview.length === 0 ? (
+                      <div className="empty">미리보기할 평가 기준이 없습니다.</div>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
             </section>
           </>
         )}
     </section>
   );
+}
+
+function buildJobDescription(settings: InterviewSettings) {
+  const criteriaText =
+    settings.criteria.length > 0
+      ? settings.criteria.map((criterion) => `${criterion.tagName}(${criterion.category})`).join(", ")
+      : "등록된 평가 기준 없음";
+  const questionText =
+    settings.questions.length > 0
+      ? settings.questions
+          .slice(0, 5)
+          .map((question) => question.content)
+          .join(" / ")
+      : "등록된 질문 없음";
+
+  return `공고명: ${settings.posting.title}\n평가 기준: ${criteriaText}\n질문 뱅크: ${questionText}`;
+}
+
+function uniqueQuestionTypes(questions: InterviewSettings["questions"]) {
+  return Array.from(new Set(questions.map((question) => question.questionType)));
+}
+
+function buildQuestionSetPreview(settings: InterviewSettings | null): QuestionSetPreviewItem[] {
+  if (!settings) return [];
+
+  return [...settings.criteria]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((criterion) => {
+      const question = settings.questions.find((item) => item.criterionId === criterion.criterionId && item.isActive);
+
+      return {
+        criterionId: criterion.criterionId,
+        criterionLabel: `${criterion.tagName} · ${criterion.category}`,
+        questionId: question?.questionId ?? null,
+        questionType: question?.questionType ?? null,
+        content: question?.content ?? "연결된 활성 질문이 없습니다.",
+      };
+    });
 }
 
 function validateQuestionForm(
@@ -714,9 +1031,23 @@ function normalizeText(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function Metric({ label, value }: { label: string; value: number | string }) {
+function Metric({ label, value, compact = false }: { label: string; value: number | string; compact?: boolean }) {
   return (
-    <div className="metric">
+    <div
+      className="metric"
+      style={
+        compact
+          ? {
+              minWidth: 0,
+              padding: "10px 12px",
+              textAlign: "center",
+              background: "var(--surface-soft)",
+              border: "1px solid var(--line-soft)",
+              borderRadius: "12px",
+            }
+          : undefined
+      }
+    >
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -749,9 +1080,23 @@ function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
 function toTimePolicyDraft(settings: InterviewSettings): TimePolicyDraft {
   return {
     preparationTimeSec: String(settings.timePolicy.preparationTimeSec),
+    preparationTimeMode: getTimePolicyMode(String(settings.timePolicy.preparationTimeSec), PREPARATION_TIME_OPTIONS),
     answerTimeSec: String(settings.timePolicy.answerTimeSec),
+    answerTimeMode: getTimePolicyMode(String(settings.timePolicy.answerTimeSec), ANSWER_TIME_OPTIONS),
     retryAllowed: settings.timePolicy.retryAllowed,
   };
+}
+
+function toTimePolicyComparable(draft: TimePolicyDraft) {
+  return {
+    preparationTimeSec: draft.preparationTimeSec,
+    answerTimeSec: draft.answerTimeSec,
+    retryAllowed: draft.retryAllowed,
+  };
+}
+
+function getTimePolicyMode(value: string, options: string[]) {
+  return options.includes(value.trim()) ? value.trim() : CUSTOM_TIME_OPTION;
 }
 
 function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
@@ -768,6 +1113,9 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
 
     if (!Number.isInteger(sortOrder) || sortOrder < 1) {
       return "평가 기준 순서는 1 이상의 정수로 입력해주세요.";
+    }
+    if (sortOrder > criteria.length) {
+      return "평가 기준 순서는 현재 평가 기준 개수를 넘을 수 없습니다.";
     }
     if (sortOrders.has(sortOrder)) {
       return "평가 기준 순서가 중복되었습니다.";
@@ -796,6 +1144,13 @@ function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
 }
 
 function validateTimePolicyDraft(draft: TimePolicyDraft) {
+  if (draft.preparationTimeSec.trim() === "") {
+    return "준비 시간을 입력해주세요.";
+  }
+  if (draft.answerTimeSec.trim() === "") {
+    return "답변 시간을 입력해주세요.";
+  }
+
   const preparationTimeSec = toNumber(draft.preparationTimeSec);
   const answerTimeSec = toNumber(draft.answerTimeSec);
 

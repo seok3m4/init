@@ -1,10 +1,14 @@
 import type {
   ApiEnvelope,
   ApiErrorEnvelope,
+  AiJobResult,
   CreateInterviewQuestionInput,
   CreateInterviewQuestionResult,
   EvaluationCriteriaResult,
+  GenerateInterviewQuestionsInput,
+  GenerateQuestionSetInput,
   InterviewSettings,
+  SuggestEvaluationCriteriaInput,
   UpdateInterviewQuestionInput,
   UpdateEvaluationCriteriaInput,
   UpdateInterviewTimePolicyInput,
@@ -23,6 +27,13 @@ export async function getInterviewSettings(postingId?: number) {
 export async function updateEvaluationCriteria(input: UpdateEvaluationCriteriaInput) {
   return request<EvaluationCriteriaResult>("/company/interviews/evaluation-criteria", {
     method: "PATCH",
+    body: input,
+  });
+}
+
+export async function suggestEvaluationCriteria(input: SuggestEvaluationCriteriaInput) {
+  return request<AiJobResult>("/company/interviews/evaluation-criteria/suggest", {
+    method: "POST",
     body: input,
   });
 }
@@ -50,6 +61,20 @@ export async function deleteInterviewQuestion(questionId: number) {
 export async function updateInterviewTimePolicy(input: UpdateInterviewTimePolicyInput) {
   return request<UpdateInterviewTimePolicyResult>("/company/interviews/time-policy", {
     method: "PATCH",
+    body: input,
+  });
+}
+
+export async function generateInterviewQuestions(input: GenerateInterviewQuestionsInput) {
+  return request<AiJobResult>("/company/interviews/questions/generate", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function generateQuestionSet(input: GenerateQuestionSetInput) {
+  return request<AiJobResult>("/company/interviews/question-sets", {
+    method: "POST",
     body: input,
   });
 }

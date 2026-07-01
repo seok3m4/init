@@ -78,19 +78,11 @@ describe('CompanyInterviewService', () => {
     );
   });
 
-  it('returns pending process status for criteria suggestions', async () => {
-    const suggest = await createService().suggestEvaluationCriteria(companyUser, {
-      postingId: 1,
-    });
-
-    assert.equal(suggest.status, 'PENDING');
-  });
-
   it('returns the default time policy', async () => {
     const timePolicy = (await createService().getSettings(companyUser, {})).timePolicy;
  
-    assert.equal(timePolicy.preparationTimeSec, 60);
-    assert.equal(timePolicy.answerTimeSec, 180);
+    assert.equal(timePolicy.preparationTimeSec, 0);
+    assert.equal(timePolicy.answerTimeSec, 90);
   });
 
   it('creates an interview question and rejects duplicate content', async () => {

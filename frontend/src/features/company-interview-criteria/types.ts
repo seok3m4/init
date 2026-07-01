@@ -57,6 +57,21 @@ export type EvaluationCriteriaResult = {
   totalWeight: number;
 };
 
+export type AiJobResult = {
+  processLogId: number;
+  processType?: string;
+  status: string;
+  queued?: boolean;
+  inputRef?: string;
+};
+
+export type SuggestEvaluationCriteriaInput = {
+  postingId: number;
+  jobDescription: string;
+  talentProfile: string;
+  evaluationPolicy: string;
+};
+
 export type CreateInterviewQuestionInput = {
   postingId: number;
   criterionId: number;
@@ -92,6 +107,23 @@ export type UpdateInterviewTimePolicyInput = {
 export type UpdateInterviewTimePolicyResult = {
   postingId: number;
   timePolicy: InterviewSettings["timePolicy"];
+};
+
+export type GenerateInterviewQuestionsInput = {
+  postingId: number;
+  jobDescription: string;
+  questionCount: number;
+};
+
+export type GenerateQuestionSetInput = {
+  postingId: number;
+  questionCount: number;
+  criteria: Array<{
+    criterionId: number;
+    name: string;
+    weight?: number;
+  }>;
+  questionTypes: string[];
 };
 
 export type ApiEnvelope<T> = {
