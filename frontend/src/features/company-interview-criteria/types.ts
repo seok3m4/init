@@ -66,10 +66,13 @@ export type CriteriaSuggestionCandidate = {
   order: number;
   suggestionReason: string;
   tagId?: number;
+  tagName?: string;
   category?: string;
+  confidence?: number;
 };
 
 export type GeneratedQuestionCandidate = {
+  questionId?: number;
   content: string;
   category: string;
   difficulty: "EASY" | "MEDIUM" | "HARD" | string;
@@ -176,6 +179,31 @@ export type GenerateQuestionSetInput = {
     weight?: number;
   }>;
   questionTypes: string[];
+};
+
+export type ConfirmQuestionSetInput = {
+  postingId: number;
+  title: string;
+  sourceProcessLogId?: number;
+  items: Array<{
+    questionId: number;
+    criterionId?: number | null;
+    sortOrder: number;
+  }>;
+};
+
+export type ConfirmQuestionSetResult = {
+  questionSetId: number;
+  postingId: number;
+  title: string;
+  status: string;
+  createdByProcessLogId: number | null;
+  items: Array<{
+    questionSetItemId: number;
+    questionId: number;
+    criterionId: number | null;
+    sortOrder: number;
+  }>;
 };
 
 export type ApiEnvelope<T> = {

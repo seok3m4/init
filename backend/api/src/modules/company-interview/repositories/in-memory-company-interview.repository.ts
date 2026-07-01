@@ -4,10 +4,12 @@ import {
   EvaluationCriterionRecord,
   PostingRecord,
   QuestionRecord,
+  QuestionSetRecord,
   TimePolicyRecord,
 } from '../company-interview.types';
 import {
   CompanyInterviewRepository,
+  ConfirmQuestionSetInput,
   CreateQuestionInput,
   UpdateCriterionInput,
   UpdateQuestionInput,
@@ -127,6 +129,9 @@ export class InMemoryCompanyInterviewRepository
 
   private nextCriterionId = 4;
   private nextQuestionId = 4;
+  private nextQuestionSetId = 1;
+  private nextQuestionSetItemId = 1;
+  private questionSets: QuestionSetRecord[] = [];
 
   async findPosting(postingId: number): Promise<PostingRecord | undefined> {
     return this.postings.find((posting) => posting.postingId === postingId);
@@ -307,5 +312,32 @@ export class InMemoryCompanyInterviewRepository
     ];
 
     return timePolicy;
+  }
+
+  async confirmQuestionSet(input: ConfirmQuestionSetInput): Promise<QuestionSetRecord> {
+    this.questionSets = this.questionSets.map((questionSet) =>
+      questionSet.postingId === input.postingId && questionSet.status === 'ACTIVE'
+        ? { ...questionSet, status: 'DRAFT' }
+        : questionSet,
+    );
+
+    const questionSet: QuestionSetRecord = {
+      questionSetId: this.nextQuestionSetId++,
+      postingId: input.postingId,
+      title: input.title.trim(),
+      status: 'ACTIVE',
+      createdByProcessLogId: input.sourceProcessLogId ?? null,
+      items: input.items
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => ({
+          questionSetItemId: this.nextQuestionSetItemId++,
+          questionId: item.questionId,
+          criterionId: item.criterionId ?? null,
+          sortOrder: item.sortOrder,
+        })),
+    };
+
+    this.questionSets = [...this.questionSets, questionSet];
+    return questionSet;
   }
 }

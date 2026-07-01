@@ -68,3 +68,19 @@ export type TimePolicyRecord = {
   answerTimeSec: number;
   retryAllowed: boolean;
 };
+
+export type QuestionSetItemRecord = {
+  questionSetItemId: number;
+  questionId: number;
+  criterionId: number | null;
+  sortOrder: number;
+};
+
+export type QuestionSetRecord = {
+  questionSetId: number;
+  postingId: number;
+  title: string;
+  status: string;
+  createdByProcessLogId: number | null;
+  items: QuestionSetItemRecord[];
+};

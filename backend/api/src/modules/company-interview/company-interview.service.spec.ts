@@ -78,6 +78,21 @@ describe('CompanyInterviewService', () => {
     );
   });
 
+  it('allows removing every evaluation criterion from a posting', async () => {
+    const service = createService();
+    const criteriaResult = await service.updateEvaluationCriteria(companyUser, {
+      postingId: 1,
+      criteria: [],
+    });
+
+    assert.equal(criteriaResult.totalWeight, 0);
+    assert.equal(criteriaResult.criteria.length, 0);
+
+    const settings = await service.getSettings(companyUser, { postingId: 1 });
+    assert.equal(settings.criteria.length, 0);
+    assert.equal(settings.questions.length, 0);
+  });
+
   it('returns the default time policy', async () => {
     const timePolicy = (await createService().getSettings(companyUser, {})).timePolicy;
  
@@ -146,6 +161,38 @@ describe('CompanyInterviewService', () => {
     assert.equal(settings.criteria.length, 1);
     assert.equal(settings.questions.length, 1);
     assert.equal(settings.questions[0].criterionId, 1);
+  });
+
+  it('confirms an active interview question set from existing question bank items', async () => {
+    const service = createService();
+    const result = await service.confirmQuestionSet(companyUser, {
+      postingId: 1,
+      title: 'AI 추천 질문 세트',
+      sourceProcessLogId: 123,
+      items: [
+        { questionId: 1, criterionId: 1, sortOrder: 1 },
+        { questionId: 2, criterionId: 2, sortOrder: 2 },
+      ],
+    });
+
+    assert.equal(result.postingId, 1);
+    assert.equal(result.status, 'ACTIVE');
+    assert.equal(result.createdByProcessLogId, 123);
+    assert.equal(result.items.length, 2);
+    assert.equal(result.items[0].questionId, 1);
+  });
+
+  it('rejects duplicate questions in a confirmed question set', async () => {
+    await assertBadRequest(() =>
+      createService().confirmQuestionSet(companyUser, {
+        postingId: 1,
+        title: '중복 질문 세트',
+        items: [
+          { questionId: 1, criterionId: 1, sortOrder: 1 },
+          { questionId: 1, criterionId: 1, sortOrder: 2 },
+        ],
+      }),
+    );
   });
 
   it('updates the interview time policy and validates runtime bounds', async () => {

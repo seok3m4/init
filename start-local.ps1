@@ -32,7 +32,7 @@ Local URLs:
   API       http://localhost:3001
   Swagger   http://localhost:3001/api-docs
   Mailpit   http://localhost:8025
-  LocalStack http://localhost:4566
+  LocalStack http://localhost:14566
 '@
 }
 
@@ -174,5 +174,5 @@ Write-Host '[local] Requested services have been started.'
 Write-Host '[local] Frontend: http://localhost:3000/login'
 Write-Host '[local] API:      http://localhost:3001'
 Write-Host '[local] Mailpit:  http://localhost:8025'
-Write-Host '[local] LocalStack: http://localhost:4566'
+Write-Host '[local] LocalStack: http://localhost:14566'
 Write-Host '[local] Worker:   backend/worker npm run start:dev'

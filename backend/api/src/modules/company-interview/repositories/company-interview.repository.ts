@@ -3,6 +3,7 @@ import {
   EvaluationCriterionRecord,
   PostingRecord,
   QuestionRecord,
+  QuestionSetRecord,
   QuestionType,
   TimePolicyRecord,
 } from '../company-interview.types';
@@ -39,6 +40,17 @@ export type UpdateTimePolicyInput = {
   retryAllowed: boolean;
 };
 
+export type ConfirmQuestionSetInput = {
+  postingId: number;
+  title: string;
+  sourceProcessLogId?: number;
+  items: Array<{
+    questionId: number;
+    criterionId?: number | null;
+    sortOrder: number;
+  }>;
+};
+
 export interface CompanyInterviewRepository {
   findPosting(postingId: number): Promise<PostingRecord | undefined>;
   findDefaultPosting(companyId: number): Promise<PostingRecord | undefined>;
@@ -64,4 +76,5 @@ export interface CompanyInterviewRepository {
     postingId: number,
     input: UpdateTimePolicyInput,
   ): Promise<TimePolicyRecord>;
+  confirmQuestionSet(input: ConfirmQuestionSetInput): Promise<QuestionSetRecord>;
 }

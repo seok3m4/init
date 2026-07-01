@@ -21,6 +21,7 @@ import {
   CreateInterviewQuestionDto,
   UpdateInterviewQuestionDto,
 } from './dto/question-management.dto';
+import { ConfirmQuestionSetDto } from './dto/question-set.dto';
 import { UpdateInterviewTimePolicyDto } from './dto/time-policy.dto';
 
 type CompanyRequest = RequestLike & { currentUser: CurrentUser };
@@ -89,6 +90,15 @@ export class CompanyInterviewController {
     @Body() body: UpdateInterviewTimePolicyDto,
   ) {
     const data = await this.service.updateTimePolicy(request.currentUser, body);
+    return ok(request, data);
+  }
+
+  @Post('question-sets/confirm')
+  async confirmQuestionSet(
+    @Req() request: CompanyRequest,
+    @Body() body: ConfirmQuestionSetDto,
+  ) {
+    const data = await this.service.confirmQuestionSet(request.currentUser, body);
     return ok(request, data);
   }
 }

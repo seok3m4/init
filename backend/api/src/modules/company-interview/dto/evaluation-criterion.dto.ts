@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize,
   IsArray,
   IsInt,
   IsOptional,
@@ -46,7 +45,6 @@ export class UpdateEvaluationCriterionDto {
   postingId!: number;
 
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => EvaluationCriterionItemDto)
   criteria!: EvaluationCriterionItemDto[];
