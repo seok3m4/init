@@ -8,13 +8,23 @@ import {
   deleteInterviewQuestion,
   generateInterviewQuestions,
   generateQuestionSet,
+  getAiJobStatus,
   getInterviewSettings,
   suggestEvaluationCriteria,
   updateEvaluationCriteria,
   updateInterviewQuestion,
   updateInterviewTimePolicy,
 } from "./api";
-import type { AiJobResult, InterviewSettings, QuestionType } from "./types";
+import type {
+  AiJobOutput,
+  AiJobResult,
+  AiProcessStatus,
+  CriteriaSuggestionCandidate,
+  GeneratedQuestionCandidate,
+  GeneratedQuestionSetCandidate,
+  InterviewSettings,
+  QuestionType,
+} from "./types";
 
 type CriteriaDraft = {
   draftId: string;
@@ -50,7 +60,9 @@ type AiJobNotice = {
   kind: AiJobKind;
   label: string;
   processLogId: number;
-  status: string;
+  status: AiProcessStatus;
+  output?: AiJobOutput;
+  failure?: AiJobResult["failure"];
 };
 
 type QuestionSetPreviewItem = {
@@ -79,6 +91,12 @@ const initialQuestionForm: QuestionForm = {
 const CUSTOM_TIME_OPTION = "custom";
 const PREPARATION_TIME_OPTIONS = ["0", "30", "60"];
 const ANSWER_TIME_OPTIONS = ["60", "90", "120"];
+const AI_STATUS_LABELS: Record<AiProcessStatus, string> = {
+  PENDING: "대기 중",
+  RUNNING: "처리 중",
+  COMPLETED: "완료",
+  FAILED: "실패",
+};
 
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
@@ -129,6 +147,63 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    const activeJobs = aiJobNotices.filter((notice) => !isTerminalAiStatus(notice.status));
+    if (activeJobs.length === 0) return undefined;
+
+    let canceled = false;
+    const poll = async () => {
+      const results: Array<{ kind: AiJobKind; data: AiJobResult } | { kind: AiJobKind; error: string }> = await Promise.all(
+        activeJobs.map(async (notice) => {
+          try {
+            const response = await getAiJobStatus(notice.processLogId);
+            return { kind: notice.kind, data: response.data };
+          } catch (error) {
+            return {
+              kind: notice.kind,
+              error: error instanceof Error ? error.message : "AI 작업 상태를 조회하지 못했습니다.",
+            };
+          }
+        }),
+      );
+
+      if (canceled) return;
+
+      setAiJobNotices((current) => {
+        let changed = false;
+        const next = current.map((notice) => {
+          const result = results.find((item) => item.kind === notice.kind);
+          if (!result || !("data" in result)) return notice;
+
+          const output = normalizeAiJobOutput(result.data.output);
+          if (notice.status !== result.data.status || notice.output !== output || notice.failure !== result.data.failure) {
+            changed = true;
+          }
+          return {
+            ...notice,
+            status: result.data.status,
+            output,
+            failure: result.data.failure,
+          };
+        });
+        return changed ? next : current;
+      });
+
+      const failed = results.find((item) => "error" in item);
+      if (failed && "error" in failed) {
+        setAiJobError(failed.error ?? "AI 작업 상태를 조회하지 못했습니다.");
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), 3000);
+
+    return () => {
+      canceled = true;
+      window.clearInterval(timer);
+    };
+  }, [aiJobNotices]);
 
   const criteriaTotalWeight = useMemo(
     () => criteriaDrafts.reduce((sum, criterion) => sum + toNumber(criterion.weight), 0),
@@ -525,9 +600,83 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
         label,
         processLogId: result.processLogId,
         status: result.status,
+        output: normalizeAiJobOutput(result.output),
+        failure: result.failure,
       },
       ...current.filter((item) => item.kind !== kind),
     ]);
+  }
+
+  function applyCriteriaSuggestion(candidate: CriteriaSuggestionCandidate) {
+    if (!settings) return;
+
+    const matchedTag = findSuggestionTag(settings, criteriaDrafts, candidate);
+    if (!matchedTag) {
+      setCriteriaError("이 추천안과 연결할 수 있는 평가 태그가 없습니다. 평가 태그를 먼저 추가해주세요.");
+      return;
+    }
+
+    setCriteriaError("");
+    setCriteriaDrafts((current) => {
+      if (current.some((criterion) => criterion.tagId === matchedTag.tagId)) {
+        return current;
+      }
+      const normalizedCriteria = normalizeCriteriaOrder(current);
+      return [
+        ...normalizedCriteria,
+        {
+          draftId: `ai-${matchedTag.tagId}-${Date.now()}`,
+          tagId: matchedTag.tagId,
+          tagName: matchedTag.tagName,
+          category: matchedTag.category,
+          description: matchedTag.description ?? candidate.description,
+          weight: String(candidate.weight || 10),
+          passScore: "",
+          sortOrder: String(normalizedCriteria.length + 1),
+        },
+      ];
+    });
+  }
+
+  async function applyQuestionCandidate(candidate: GeneratedQuestionCandidate) {
+    if (!settings) return;
+
+    const criterionId = findCandidateCriterionId(settings, candidate);
+    if (!criterionId) {
+      setQuestionError("연결할 평가 기준 선택 필요");
+      return;
+    }
+
+    const content = candidate.content.trim();
+    const validationMessage = validateQuestionForm(settings, criterionId, content, null);
+    if (validationMessage) {
+      setQuestionError(validationMessage);
+      return;
+    }
+
+    setQuestionSaving(true);
+    setQuestionError("");
+    try {
+      const response = await createInterviewQuestion({
+        postingId: settings.posting.postingId,
+        criterionId,
+        questionType: normalizeQuestionType(candidate.questionType),
+        content,
+      });
+
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              questions: [...current.questions, response.data.question],
+            }
+          : current,
+      );
+    } catch (error) {
+      setQuestionError(error instanceof Error ? error.message : "질문 후보 저장에 실패했습니다.");
+    } finally {
+      setQuestionSaving(false);
+    }
   }
 
   return (
@@ -712,13 +861,28 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
               {aiJobNotices.length > 0 ? (
                 <div className="posting-list">
                   {aiJobNotices.map((notice) => (
-                    <article className="posting" key={notice.kind}>
+                    <article className="posting" key={notice.kind} style={{ alignItems: "start" }}>
                       <div className="logo-chip">AI</div>
-                      <div>
-                        <h3>{notice.label}</h3>
-                        <p>processLogId {notice.processLogId}</p>
+                      <div style={{ display: "grid", gap: "10px" }}>
+                        <div>
+                          <h3>{notice.label}</h3>
+                          <p>
+                            작업 ID {notice.processLogId}
+                            {notice.failure?.reason ? ` · ${notice.failure.reason}` : ""}
+                          </p>
+                        </div>
+                        {notice.status === "COMPLETED" ? (
+                          <AiJobPreview
+                            notice={notice}
+                            settings={settings}
+                            criteriaDrafts={criteriaDrafts}
+                            questionSaving={questionSaving}
+                            onApplyCriteria={applyCriteriaSuggestion}
+                            onApplyQuestion={(candidate) => void applyQuestionCandidate(candidate)}
+                          />
+                        ) : null}
                       </div>
-                      <StatusBadge value={notice.status} />
+                      <AiStatusBadge status={notice.status} />
                     </article>
                   ))}
                 </div>
@@ -1052,6 +1216,199 @@ function Metric({ label, value, compact = false }: { label: string; value: numbe
       <strong>{value}</strong>
     </div>
   );
+}
+
+function AiStatusBadge({ status }: { status: AiProcessStatus }) {
+  const tone = status === "COMPLETED" ? "success" : status === "FAILED" ? "danger" : status === "RUNNING" ? "info" : "warning";
+  return <span className={`badge ${tone}`}>{AI_STATUS_LABELS[status]}</span>;
+}
+
+function AiJobPreview({
+  notice,
+  settings,
+  criteriaDrafts,
+  questionSaving,
+  onApplyCriteria,
+  onApplyQuestion,
+}: {
+  notice: AiJobNotice;
+  settings: InterviewSettings;
+  criteriaDrafts: CriteriaDraft[];
+  questionSaving: boolean;
+  onApplyCriteria: (candidate: CriteriaSuggestionCandidate) => void;
+  onApplyQuestion: (candidate: GeneratedQuestionCandidate) => void;
+}) {
+  const criteriaSuggestions = getCriteriaSuggestions(notice.output);
+  const questionCandidates = getQuestionCandidates(notice.output);
+  const questionSetPreview = getGeneratedQuestionSetPreview(notice.output);
+
+  if (notice.kind === "criteria") {
+    return (
+      <div className="posting-list">
+        {criteriaSuggestions.map((candidate, index) => {
+          const matchedTag = findSuggestionTag(settings, criteriaDrafts, candidate);
+          return (
+            <div className="posting" key={`${candidate.title}-${index}`}>
+              <div className="logo-chip">{candidate.order || index + 1}</div>
+              <div>
+                <h3>{candidate.title}</h3>
+                <p>{candidate.description}</p>
+                <p>{candidate.suggestionReason}</p>
+              </div>
+              <span className="badge info">배점 {candidate.weight}</span>
+              <button className="btn secondary compact" type="button" disabled={!matchedTag} onClick={() => onApplyCriteria(candidate)}>
+                {matchedTag ? "적용" : "연결 태그 없음"}
+              </button>
+            </div>
+          );
+        })}
+        {criteriaSuggestions.length === 0 ? <div className="empty">표시할 평가 기준 추천 결과가 없습니다.</div> : null}
+      </div>
+    );
+  }
+
+  if (notice.kind === "questions") {
+    return (
+      <div className="posting-list">
+        {questionCandidates.map((candidate, index) => {
+          const criterionId = findCandidateCriterionId(settings, candidate);
+          return (
+            <div className="posting" key={`${candidate.content}-${index}`}>
+              <div className="logo-chip">{normalizeQuestionType(candidate.questionType)}</div>
+              <div>
+                <h3>{candidate.content}</h3>
+                <p>{criterionId ? getCriterionLabel(settings, criterionId) : "연결할 평가 기준 선택 필요"}</p>
+                <p>
+                  {candidate.category} · {candidate.difficulty} · {candidate.suggestionReason}
+                </p>
+              </div>
+              <button className="btn secondary compact" type="button" disabled={!criterionId || questionSaving} onClick={() => onApplyQuestion(candidate)}>
+                {criterionId ? "질문 저장" : "기준 선택 필요"}
+              </button>
+            </div>
+          );
+        })}
+        {questionCandidates.length === 0 ? <div className="empty">표시할 질문 생성 결과가 없습니다.</div> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="posting-list">
+      {questionSetPreview.map((group, index) => (
+        <div className="posting" key={`${group.criterionTitle}-${index}`}>
+          <div className="logo-chip">{group.questions.length}</div>
+          <div>
+            <h3>{group.criterionTitle}</h3>
+            <p>{group.questions.map((question) => question.content).join(" / ")}</p>
+          </div>
+          <span className="badge info">미리보기</span>
+        </div>
+      ))}
+      {questionSetPreview.length === 0 ? <div className="empty">표시할 질문 세트 결과가 없습니다.</div> : null}
+    </div>
+  );
+}
+
+function isTerminalAiStatus(status: AiProcessStatus) {
+  return status === "COMPLETED" || status === "FAILED";
+}
+
+function normalizeAiJobOutput(output: unknown): AiJobOutput | undefined {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return undefined;
+  }
+  return output as AiJobOutput;
+}
+
+function getCriteriaSuggestions(output?: AiJobOutput): CriteriaSuggestionCandidate[] {
+  if (Array.isArray(output?.criteriaSuggestions)) {
+    return output.criteriaSuggestions;
+  }
+
+  return (output?.items ?? []).map((item, index) => ({
+    title: item,
+    description: "AI가 추천한 평가 기준 후보입니다.",
+    weight: 10,
+    order: index + 1,
+    suggestionReason: "AI 생성 결과 검토가 필요합니다.",
+  }));
+}
+
+function getQuestionCandidates(output?: AiJobOutput): GeneratedQuestionCandidate[] {
+  if (Array.isArray(output?.questionCandidates)) {
+    return output.questionCandidates;
+  }
+
+  return (output?.items ?? []).map((item) => ({
+    content: item,
+    category: "AI_GENERATED",
+    difficulty: "MEDIUM",
+    criterionTitle: "",
+    expectedKeywords: [],
+    suggestionReason: "AI 생성 결과 검토가 필요합니다.",
+    questionType: "TECHNICAL",
+  }));
+}
+
+function getGeneratedQuestionSetPreview(output?: AiJobOutput): GeneratedQuestionSetCandidate[] {
+  if (Array.isArray(output?.questionSetPreview)) {
+    return output.questionSetPreview;
+  }
+
+  const questions = getQuestionCandidates(output);
+  if (questions.length === 0) return [];
+
+  return [
+    {
+      criterionTitle: "AI 질문 세트",
+      questions,
+    },
+  ];
+}
+
+function findSuggestionTag(
+  settings: InterviewSettings,
+  criteriaDrafts: CriteriaDraft[],
+  candidate: CriteriaSuggestionCandidate,
+) {
+  const selectedTagIds = new Set(criteriaDrafts.map((criterion) => criterion.tagId));
+  const availableTags = settings.availableTags.filter((tag) => !selectedTagIds.has(tag.tagId));
+  if (candidate.tagId) {
+    const exact = availableTags.find((tag) => tag.tagId === candidate.tagId);
+    if (exact) return exact;
+  }
+
+  const normalizedTitle = normalizeText(candidate.title);
+  const normalizedCategory = normalizeText(candidate.category ?? "");
+  return (
+    availableTags.find((tag) => normalizeText(tag.tagName) === normalizedTitle) ??
+    availableTags.find((tag) => normalizedTitle.includes(normalizeText(tag.tagName))) ??
+    availableTags.find((tag) => normalizedCategory !== "" && normalizeText(tag.category) === normalizedCategory) ??
+    availableTags[0]
+  );
+}
+
+function findCandidateCriterionId(settings: InterviewSettings, candidate: GeneratedQuestionCandidate) {
+  if (candidate.criterionId && settings.criteria.some((criterion) => criterion.criterionId === candidate.criterionId)) {
+    return candidate.criterionId;
+  }
+
+  const normalizedTitle = normalizeText(candidate.criterionTitle ?? "");
+  if (!normalizedTitle) {
+    return settings.criteria[0]?.criterionId;
+  }
+
+  return (
+    settings.criteria.find((criterion) => normalizeText(criterion.tagName) === normalizedTitle)?.criterionId ??
+    settings.criteria.find((criterion) => normalizedTitle.includes(normalizeText(criterion.tagName)))?.criterionId ??
+    settings.criteria.find((criterion) => normalizeText(criterion.category) === normalizedTitle)?.criterionId ??
+    settings.criteria[0]?.criterionId
+  );
+}
+
+function normalizeQuestionType(value: string | undefined): QuestionType {
+  return QUESTION_TYPE_OPTIONS.some((option) => option.value === value) ? (value as QuestionType) : "TECHNICAL";
 }
 
 function toCriteriaDrafts(settings: InterviewSettings): CriteriaDraft[] {

@@ -150,16 +150,39 @@ export class MockAiTaskHandler implements AiTaskHandler {
     const jobDescription = requiredText(payload.jobDescription, "jobDescription");
     const talentProfile = requiredText(payload.talentProfile, "talentProfile");
     const evaluationPolicy = requiredText(payload.evaluationPolicy, "evaluationPolicy");
-    const items = [
-      `Problem solving from ${shorten(jobDescription)}`,
-      `Talent fit: ${shorten(talentProfile)}`,
-      `Evaluation policy alignment: ${shorten(evaluationPolicy)}`
+    const criteriaSuggestions = [
+      {
+        title: "문제 해결력",
+        description: `JD 맥락: ${shorten(jobDescription)}`,
+        weight: 40,
+        order: 1,
+        suggestionReason: "직무 요구사항에서 문제 분석과 해결 역량 검증이 필요합니다.",
+        category: "직무 역량"
+      },
+      {
+        title: "조직 적합도",
+        description: `인재상 맥락: ${shorten(talentProfile)}`,
+        weight: 30,
+        order: 2,
+        suggestionReason: "팀 협업 방식과 인재상 부합 여부를 확인해야 합니다.",
+        category: "태도"
+      },
+      {
+        title: "근거 기반 판단",
+        description: `평가 정책: ${shorten(evaluationPolicy)}`,
+        weight: 30,
+        order: 3,
+        suggestionReason: "평가 정책에 맞춰 답변 근거와 의사결정 과정을 확인합니다.",
+        category: "커뮤니케이션"
+      }
     ];
+    const items = criteriaSuggestions.map((candidate) => candidate.title);
 
     return this.generatedDraft("CRITERIA_SUGGEST", items, {
       sourceProcessLogId: processLogId,
       postingId,
-      targetTables: ["criterion_tags", "evaluation_criteria"]
+      targetTables: ["criterion_tags", "evaluation_criteria"],
+      criteriaSuggestions
     });
   }
 
@@ -345,11 +368,21 @@ export class MockAiTaskHandler implements AiTaskHandler {
         ? `Mock interview practice question ${index + 1}`
         : `Recruiting interview question ${index + 1}: ${shorten(requiredText(payload.jobDescription, "jobDescription"))}`
     );
+    const questionCandidates = items.map((content, index) => ({
+      content,
+      category: kind.startsWith("MOCK") ? "모의면접" : "채용면접",
+      difficulty: index % 3 === 0 ? "MEDIUM" as const : "HARD" as const,
+      criterionTitle: "",
+      expectedKeywords: ["경험", "근거", "성과"],
+      suggestionReason: "JD와 평가 기준을 기준으로 검증 가능한 답변을 유도합니다.",
+      questionType: index % 2 === 0 ? "TECHNICAL" : "EXPERIENCE"
+    }));
 
     return this.generatedDraft(kind, items, {
       sourceProcessLogId: processLogId,
       postingId,
-      targetTables: ["question_bank"]
+      targetTables: ["question_bank"],
+      questionCandidates
     });
   }
 
@@ -363,11 +396,32 @@ export class MockAiTaskHandler implements AiTaskHandler {
       const questionType = questionTypes[index % questionTypes.length];
       return `${questionType} question ${index + 1} for ${criterion.name}`;
     });
+    const questionCandidates = items.map((content, index) => {
+      const criterion = criteria[index % criteria.length];
+      const questionType = questionTypes[index % questionTypes.length];
+      return {
+        content,
+        category: "질문 세트",
+        difficulty: "MEDIUM" as const,
+        criterionId: criterion.criterionId,
+        criterionTitle: criterion.name,
+        expectedKeywords: ["상황", "행동", "결과"],
+        suggestionReason: "평가 기준별 질문 세트 구성을 위해 선택된 후보입니다.",
+        questionType
+      };
+    });
+    const questionSetPreview = criteria.map((criterion) => ({
+      criterionId: criterion.criterionId,
+      criterionTitle: criterion.name,
+      questions: questionCandidates.filter((question) => question.criterionId === criterion.criterionId)
+    }));
 
     return this.generatedDraft("QUESTION_SET_GENERATE", items, {
       sourceProcessLogId: processLogId,
       postingId,
-      targetTables: ["question_bank"]
+      targetTables: ["question_bank"],
+      questionCandidates,
+      questionSetPreview
     });
   }
 
@@ -412,6 +466,9 @@ export class MockAiTaskHandler implements AiTaskHandler {
       sourceProcessLogId: number;
       targetTables: GeneratedDraftRecord["targetTables"];
       postingId?: number;
+      criteriaSuggestions?: GeneratedDraftRecord["criteriaSuggestions"];
+      questionCandidates?: GeneratedDraftRecord["questionCandidates"];
+      questionSetPreview?: GeneratedDraftRecord["questionSetPreview"];
     }
   ): AiTaskResult {
     const guardrail = this.validateMockPolicy(kind.startsWith("MOCK") ? "MOCK" : "RECRUITING", items.join("\n"));
@@ -419,6 +476,9 @@ export class MockAiTaskHandler implements AiTaskHandler {
       kind,
       sourceProcessLogId: options.sourceProcessLogId,
       items,
+      criteriaSuggestions: options.criteriaSuggestions,
+      questionCandidates: options.questionCandidates,
+      questionSetPreview: options.questionSetPreview,
       reviewRequired: true as const,
       reviewStatus: "PENDING_REVIEW" as const,
       targetTables: options.targetTables,

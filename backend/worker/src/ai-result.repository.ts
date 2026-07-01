@@ -36,6 +36,38 @@ export interface GeneratedDraftRecord {
   kind: string;
   sourceProcessLogId: number;
   items: string[];
+  criteriaSuggestions?: Array<{
+    title: string;
+    description: string;
+    weight: number;
+    order: number;
+    suggestionReason: string;
+    category?: string;
+  }>;
+  questionCandidates?: Array<{
+    content: string;
+    category: string;
+    difficulty: "EASY" | "MEDIUM" | "HARD";
+    criterionId?: number;
+    criterionTitle?: string;
+    expectedKeywords: string[];
+    suggestionReason: string;
+    questionType?: string;
+  }>;
+  questionSetPreview?: Array<{
+    criterionId?: number;
+    criterionTitle: string;
+    questions: Array<{
+      content: string;
+      category: string;
+      difficulty: "EASY" | "MEDIUM" | "HARD";
+      criterionId?: number;
+      criterionTitle?: string;
+      expectedKeywords: string[];
+      suggestionReason: string;
+      questionType?: string;
+    }>;
+  }>;
   reviewRequired: true;
   reviewStatus: "PENDING_REVIEW";
   targetTables: Array<"criterion_tags" | "evaluation_criteria" | "question_bank">;

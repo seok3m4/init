@@ -385,6 +385,11 @@ test("criteria suggestion uses JD, talent profile and evaluation policy", async 
 
   const output = JSON.parse(repository.get(28).outputRef ?? "{}") as {
     items?: string[];
+    criteriaSuggestions?: Array<{
+      title?: string;
+      description?: string;
+      suggestionReason?: string;
+    }>;
     sourceProcessLogId?: number;
     reviewRequired?: boolean;
     reviewStatus?: string;
@@ -397,8 +402,9 @@ test("criteria suggestion uses JD, talent profile and evaluation policy", async 
   assert.deepEqual(output.targetTables, ["criterion_tags", "evaluation_criteria"]);
   assert.equal(output.postingId, 2);
   assert.deepEqual(output.items, results.generatedDrafts[0].items);
-  assert.match(output.items?.join("\n") ?? "", /Pragmatic problem solver/);
-  assert.match(output.items?.join("\n") ?? "", /Evidence-backed backend ownership/);
+  assert.equal(output.criteriaSuggestions?.length, 3);
+  assert.match(output.criteriaSuggestions?.map((item) => item.description).join("\n") ?? "", /Pragmatic problem solver/);
+  assert.match(output.criteriaSuggestions?.map((item) => item.description).join("\n") ?? "", /Evidence-backed backend ownership/);
 });
 
 test("question set generation reflects criteria and question type conditions", async () => {
@@ -426,6 +432,8 @@ test("question set generation reflects criteria and question type conditions", a
 
   const output = JSON.parse(repository.get(29).outputRef ?? "{}") as {
     items?: string[];
+    questionCandidates?: unknown[];
+    questionSetPreview?: unknown[];
     sourceProcessLogId?: number;
     reviewStatus?: string;
     targetTables?: string[];
@@ -436,6 +444,8 @@ test("question set generation reflects criteria and question type conditions", a
   assert.deepEqual(output.targetTables, ["question_bank"]);
   assert.equal(output.postingId, 2);
   assert.deepEqual(output.items, ["TECHNICAL question 1 for Problem solving", "EXPERIENCE question 2 for Problem solving"]);
+  assert.equal(output.questionCandidates?.length, 2);
+  assert.equal(output.questionSetPreview?.length, 1);
 });
 
 test("evaluation context records every required source group", async () => {

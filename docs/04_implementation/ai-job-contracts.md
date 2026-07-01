@@ -47,6 +47,18 @@ GET /api/v1/ai/jobs/101/status
     "output": {
       "sourceProcessLogId": 101,
       "items": ["Question 1", "Question 2"],
+      "questionCandidates": [
+        {
+          "content": "Question 1",
+          "category": "채용면접",
+          "difficulty": "MEDIUM",
+          "criterionId": 1,
+          "criterionTitle": "문제 해결력",
+          "expectedKeywords": ["경험", "근거", "성과"],
+          "suggestionReason": "JD와 평가 기준을 기준으로 검증 가능한 답변을 유도합니다.",
+          "questionType": "TECHNICAL"
+        }
+      ],
       "reviewRequired": true,
       "reviewStatus": "PENDING_REVIEW",
       "targetTables": ["question_bank"],
@@ -178,6 +190,72 @@ STT 입력:
 {
   "sourceProcessLogId": 101,
   "items": ["Question 1", "Question 2"],
+  "questionCandidates": [
+    {
+      "content": "Question 1",
+      "category": "채용면접",
+      "difficulty": "MEDIUM",
+      "criterionId": 1,
+      "criterionTitle": "문제 해결력",
+      "expectedKeywords": ["경험", "근거", "성과"],
+      "suggestionReason": "JD와 평가 기준을 기준으로 검증 가능한 답변을 유도합니다.",
+      "questionType": "TECHNICAL"
+    }
+  ],
+  "reviewRequired": true,
+  "reviewStatus": "PENDING_REVIEW",
+  "targetTables": ["question_bank"],
+  "postingId": 2
+}
+```
+
+평가 기준 추천 draft 출력:
+
+```json
+{
+  "sourceProcessLogId": 102,
+  "items": ["문제 해결력", "조직 적합도"],
+  "criteriaSuggestions": [
+    {
+      "title": "문제 해결력",
+      "description": "JD 맥락: NestJS와 PostgreSQL 기반 백엔드 개발",
+      "weight": 40,
+      "order": 1,
+      "suggestionReason": "직무 요구사항에서 문제 분석과 해결 역량 검증이 필요합니다.",
+      "category": "직무 역량"
+    }
+  ],
+  "reviewRequired": true,
+  "reviewStatus": "PENDING_REVIEW",
+  "targetTables": ["criterion_tags", "evaluation_criteria"],
+  "postingId": 2
+}
+```
+
+질문 세트 draft 출력:
+
+```json
+{
+  "sourceProcessLogId": 103,
+  "items": ["TECHNICAL question 1 for 문제 해결력"],
+  "questionSetPreview": [
+    {
+      "criterionId": 1,
+      "criterionTitle": "문제 해결력",
+      "questions": [
+        {
+          "content": "TECHNICAL question 1 for 문제 해결력",
+          "category": "질문 세트",
+          "difficulty": "MEDIUM",
+          "criterionId": 1,
+          "criterionTitle": "문제 해결력",
+          "expectedKeywords": ["상황", "행동", "결과"],
+          "suggestionReason": "평가 기준별 질문 세트 구성을 위해 선택된 후보입니다.",
+          "questionType": "TECHNICAL"
+        }
+      ]
+    }
+  ],
   "reviewRequired": true,
   "reviewStatus": "PENDING_REVIEW",
   "targetTables": ["question_bank"],
@@ -222,7 +300,8 @@ STT 입력:
 
 - A는 SQS queue URL, S3 bucket, AI provider secret, worker 배포/재시작을 제공한다.
 - D는 파일 원본을 API payload에 넣지 않고 S3 업로드 후 fileId와 storage key만 E API에 전달한다.
-- C는 평가 기준/질문 생성 화면에서 `reviewRequired=true` 결과를 사용자 확정 전 draft로 취급한다.
+- C는 평가 기준/질문 생성 화면에서 `reviewRequired=true` 결과를 사용자 확정 전 draft로 취급한다. 사용자 화면 상태는 `대기 중`, `처리 중`, `완료`, `실패` 한글 라벨로 표시한다.
+- C는 `criteriaSuggestions`, `questionCandidates`, `questionSetPreview`를 자동 저장하지 않고 미리보기로 표시한 뒤 사용자가 선택한 항목만 기존 C 저장 API에 반영한다.
 - D는 STT와 꼬리질문 입력으로 `answerId`, `audioFileId`, `audioS3Key`, transcript를 넘긴다.
 - B는 리포트 화면에서 `evaluation_reports.status`와 `GET /ai/jobs/{processLogId}/status` 결과를 함께 표시한다.
 - E는 guardrail PASS/REGENERATED 전에는 `evaluation_reports`, `report_scores`, `report_evidences`, `question_bank`, `evaluation_criteria`에 최종 저장하지 않는다.
