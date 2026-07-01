@@ -1040,9 +1040,47 @@ td input {
 
 .csv-summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 14px 0;
+}
+
+.upload-progress {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.upload-progress div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload-progress strong {
+  color: var(--ink-900);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.upload-progress span {
+  color: var(--ink-400);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.upload-progress progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  accent-color: var(--primary);
+  border: 0;
+  border-radius: 999px;
 }
 
 .csv-summary-grid div {
@@ -1110,6 +1148,58 @@ td input {
   margin: 0;
   color: var(--ink-300);
   font-size: 12px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.pagination-summary {
+  color: var(--ink-400);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  color: var(--ink-500);
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.page-button:hover:not(:disabled),
+.page-button.active {
+  color: var(--primary);
+  background: #f5f4ff;
+  border-color: rgba(101, 94, 255, 0.28);
+}
+
+.page-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .confirm-box {
@@ -1617,6 +1707,16 @@ td input {
   .toolbar input,
   .toolbar select {
     width: 100%;
+  }
+
+  .pagination,
+  .upload-progress div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pagination-actions {
+    justify-content: flex-start;
   }
 
   .posting-actions {

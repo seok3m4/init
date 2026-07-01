@@ -7,7 +7,7 @@ export type ApplicantCsvColumnMapping = Partial<Record<ApplicantCsvField, string
 export type CsvApplicantParseFailure = {
   rowNumber: number;
   field?: string;
-  reason: "EMPTY_FILE" | "MISSING_HEADER" | "TOO_MANY_ROWS";
+  reason: "EMPTY_FILE" | "MISSING_HEADER";
   message: string;
 };
 
@@ -93,19 +93,6 @@ export function parseApplicantCsvSource(text: string): ParsedApplicantCsvSource 
 
   const rawHeaders = headerRecord.cells.map((cell) => cell.trim());
   const headers = rawHeaders.filter((cell) => cell !== "");
-  if (dataRecords.length > 200) {
-    return {
-      headers,
-      dataRows: [],
-      failures: [
-        {
-          rowNumber: dataRecords[200]?.rowNumber ?? headerRecord.rowNumber,
-          reason: "TOO_MANY_ROWS",
-          message: "CSV 업로드는 최대 200행까지 가능합니다.",
-        },
-      ],
-    };
-  }
 
   return {
     headers,
@@ -119,6 +106,15 @@ export function parseApplicantCsvSource(text: string): ParsedApplicantCsvSource 
     })),
     failures: [],
   };
+}
+
+export function chunkApplicantRows(rows: BulkCreateApplicantRowInput[], chunkSize: number) {
+  const normalizedSize = Math.max(1, Math.floor(chunkSize));
+  const chunks: BulkCreateApplicantRowInput[][] = [];
+  for (let index = 0; index < rows.length; index += normalizedSize) {
+    chunks.push(rows.slice(index, index + normalizedSize));
+  }
+  return chunks;
 }
 
 export function inferApplicantCsvMapping(headers: string[]): ApplicantCsvColumnMapping {

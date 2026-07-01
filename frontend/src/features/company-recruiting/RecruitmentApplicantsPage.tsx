@@ -7,6 +7,7 @@ import { bulkCreateApplicants, createApplicant, getRecruitment, inviteApplicant,
 import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
 import {
   buildApplicantRowsFromCsvSource,
+  chunkApplicantRows,
   inferApplicantCsvMapping,
   parseApplicantCsvSource,
   type ApplicantCsvColumnMapping,
@@ -14,7 +15,8 @@ import {
   type CsvApplicantParseFailure,
   type ParsedApplicantCsvSource,
 } from "./csv-applicants";
-import type { Applicant, BulkApplicantRegistrationResult, BulkCreateApplicantRowInput, Recruitment } from "./types";
+import { buildPaginationRange } from "./pagination";
+import type { Applicant, BulkApplicantRegistrationResult, BulkCreateApplicantRowInput, PageMeta, Recruitment } from "./types";
 
 type FormState = {
   name: string;
@@ -49,9 +51,21 @@ const csvFieldConfigs: Array<{ key: ApplicantCsvField; label: string }> = [
   { key: "phone", label: "연락처" },
 ];
 
+const applicantPageSize = 20;
+const csvUploadChunkSize = 200;
+
+type CsvUploadProgress = {
+  totalChunks: number;
+  currentChunk: number;
+  totalRows: number;
+  processedRows: number;
+};
+
 export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: number }) {
   const [recruitment, setRecruitment] = useState<Recruitment | null>(null);
   const [items, setItems] = useState<Applicant[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<PageMeta | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [invitation, setInvitation] = useState<InvitationState>(initialInvitation);
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -62,6 +76,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   const [csvRows, setCsvRows] = useState<BulkCreateApplicantRowInput[]>([]);
   const [csvParseFailures, setCsvParseFailures] = useState<CsvApplicantParseFailure[]>([]);
   const [csvResult, setCsvResult] = useState<BulkApplicantRegistrationResult | null>(null);
+  const [csvUploadProgress, setCsvUploadProgress] = useState<CsvUploadProgress | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedApplicantIds, setSelectedApplicantIds] = useState<Record<number, boolean>>({});
   const [invitedApplicants, setInvitedApplicants] = useState<Record<number, string>>({});
@@ -69,8 +84,13 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const csvFileInputRef = useRef<HTMLInputElement | null>(null);
+  const paginationPages = buildPaginationRange({
+    page: pageMeta?.page ?? page,
+    totalPages: pageMeta?.totalPages ?? 0,
+  });
 
-  const load = useCallback(async (search: string, options: { clearMessage?: boolean } = {}) => {
+  const load = useCallback(async (search: string, options: { clearMessage?: boolean; page?: number } = {}) => {
+    const requestedPage = options.page ?? 1;
     setLoading(true);
     if (options.clearMessage !== false) {
       setMessage("");
@@ -78,10 +98,12 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     try {
       const [detail, applicants] = await Promise.all([
         getRecruitment(recruitmentId),
-        listRecruitmentApplicants(recruitmentId, { page: 1, limit: 20, q: search, sort: "updatedAt", order: "desc" }),
+        listRecruitmentApplicants(recruitmentId, { page: requestedPage, limit: applicantPageSize, q: search, sort: "updatedAt", order: "desc" }),
       ]);
       setRecruitment(detail.data);
       setItems(applicants.data.items);
+      setPage(applicants.meta.page?.page ?? requestedPage);
+      setPageMeta(applicants.meta.page ?? null);
       setForm((current) => ({ ...current, jobRole: current.jobRole || detail.data.jobRole }));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "지원자 목록을 불러오지 못했습니다.");
@@ -109,7 +131,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
       setForm({ ...initialForm, jobRole: recruitment?.jobRole ?? "" });
       setMessage("지원자가 등록되었습니다.");
       setRegisterOpen(false);
-      await load("", { clearMessage: false });
+      await load(q, { clearMessage: false, page: 1 });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "지원자 등록에 실패했습니다.");
     } finally {
@@ -120,6 +142,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
   async function handleCsvFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     setCsvResult(null);
+    setCsvUploadProgress(null);
     setCsvRows([]);
     setCsvParseFailures([]);
     setCsvFileName(file?.name ?? "");
@@ -153,12 +176,51 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
 
     setLoading(true);
     setMessage("");
+    setCsvResult(null);
+    setCsvUploadProgress({
+      totalChunks: Math.ceil(csvRows.length / csvUploadChunkSize),
+      currentChunk: 0,
+      totalRows: csvRows.length,
+      processedRows: 0,
+    });
     try {
-      const result = await bulkCreateApplicants({ recruitmentId, applicants: csvRows });
-      setCsvResult(result.data);
-      if (result.data.summary.successCount > 0) {
-        setMessage(`${result.data.summary.successCount}명이 등록되었습니다.`);
-        await load(q, { clearMessage: false });
+      const chunks = chunkApplicantRows(csvRows, csvUploadChunkSize);
+      const combinedResult: BulkApplicantRegistrationResult = {
+        summary: {
+          totalRows: csvRows.length,
+          successCount: 0,
+          failedCount: 0,
+        },
+        successes: [],
+        failures: [],
+      };
+      let processedRows = 0;
+
+      for (const [index, chunk] of chunks.entries()) {
+        setCsvUploadProgress({
+          totalChunks: chunks.length,
+          currentChunk: index + 1,
+          totalRows: csvRows.length,
+          processedRows,
+        });
+        const result = await bulkCreateApplicants({ recruitmentId, applicants: chunk });
+        combinedResult.successes.push(...result.data.successes);
+        combinedResult.failures.push(...result.data.failures);
+        combinedResult.summary.successCount = combinedResult.successes.length;
+        combinedResult.summary.failedCount = combinedResult.failures.length;
+        processedRows += chunk.length;
+        setCsvResult({ ...combinedResult, successes: [...combinedResult.successes], failures: [...combinedResult.failures] });
+        setCsvUploadProgress({
+          totalChunks: chunks.length,
+          currentChunk: index + 1,
+          totalRows: csvRows.length,
+          processedRows,
+        });
+      }
+
+      if (combinedResult.summary.successCount > 0) {
+        setMessage(`${combinedResult.summary.successCount}명이 등록되었습니다.`);
+        await load(q, { clearMessage: false, page: 1 });
       } else {
         setMessage("등록된 지원자가 없습니다. 실패 행을 확인해주세요.");
       }
@@ -197,7 +259,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
       setSelectedApplicantIds({});
       setInviteOpen(false);
       setMessage(`${selectedIds.length}명에게 초대 요청을 보냈습니다. 실제 이메일 발송과 면접 세션 생성은 연결 전일 수 있습니다.`);
-      await load(q, { clearMessage: false });
+      await load(q, { clearMessage: false, page });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "초대 요청에 실패했습니다.");
     } finally {
@@ -225,6 +287,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     setCsvRows([]);
     setCsvParseFailures([]);
     setCsvResult(null);
+    setCsvUploadProgress(null);
     if (csvFileInputRef.current) {
       csvFileInputRef.current.value = "";
     }
@@ -253,6 +316,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
     setCsvRows(parsed.rows);
     setCsvParseFailures(parsed.failures);
     setCsvResult(null);
+    setCsvUploadProgress(null);
     setMessage("");
   }
 
@@ -325,7 +389,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
               className="toolbar"
               onSubmit={(event) => {
                 event.preventDefault();
-                void load(q);
+                void load(q, { page: 1 });
               }}
             >
               <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="이름, 이메일 검색" />
@@ -379,6 +443,38 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
               </table>
             </div>
           )}
+          {pageMeta && pageMeta.totalItems > 0 ? (
+            <div className="pagination" aria-label="지원자 목록 페이지네이션">
+              <div className="pagination-summary">
+                총 {pageMeta.totalItems}명 · {pageMeta.page}/{Math.max(pageMeta.totalPages, 1)}페이지
+              </div>
+              <div className="pagination-actions">
+                <button className="btn secondary compact" type="button" disabled={loading || pageMeta.page <= 1} onClick={() => void load(q, { page: pageMeta.page - 1 })}>
+                  이전
+                </button>
+                {paginationPages.map((pageNumber) => (
+                  <button
+                    className={`page-button ${pageNumber === pageMeta.page ? "active" : ""}`}
+                    key={pageNumber}
+                    type="button"
+                    aria-current={pageNumber === pageMeta.page ? "page" : undefined}
+                    disabled={loading}
+                    onClick={() => void load(q, { page: pageNumber })}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+                <button
+                  className="btn secondary compact"
+                  type="button"
+                  disabled={loading || !pageMeta.hasNext}
+                  onClick={() => void load(q, { page: pageMeta.page + 1 })}
+                >
+                  다음
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         {registerOpen ? (
@@ -427,7 +523,7 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
               <div className="modal-head">
                 <div>
                   <h2 id="csv-applicant-title">CSV 업로드</h2>
-                  <p>name,email,jobRole,phone 또는 한글 헤더로 최대 200명을 등록합니다.</p>
+                  <p>name,email,jobRole,phone 또는 한글 헤더를 지원하며 큰 파일은 200행씩 나눠 등록합니다.</p>
                 </div>
                 <button className="btn secondary compact" type="button" onClick={closeCsvModal}>
                   닫기
@@ -481,6 +577,10 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
                   <strong>{csvRows.length}</strong>
                 </div>
                 <div>
+                  <span>처리 묶음</span>
+                  <strong>{csvRows.length > 0 ? Math.ceil(csvRows.length / csvUploadChunkSize) : "-"}</strong>
+                </div>
+                <div>
                   <span>등록 성공</span>
                   <strong>{csvResult?.summary.successCount ?? "-"}</strong>
                 </div>
@@ -489,6 +589,20 @@ export function RecruitmentApplicantsPage({ recruitmentId }: { recruitmentId: nu
                   <strong>{(csvResult?.summary.failedCount ?? 0) + csvParseFailures.length || "-"}</strong>
                 </div>
               </div>
+
+              {csvUploadProgress ? (
+                <div className="upload-progress" aria-live="polite">
+                  <div>
+                    <strong>
+                      {csvUploadProgress.processedRows}/{csvUploadProgress.totalRows}행 처리
+                    </strong>
+                    <span>
+                      {csvUploadProgress.currentChunk}/{csvUploadProgress.totalChunks}번째 묶음
+                    </span>
+                  </div>
+                  <progress value={csvUploadProgress.processedRows} max={csvUploadProgress.totalRows} />
+                </div>
+              ) : null}
 
               {csvRows.length > 0 ? (
                 <div className="csv-preview">
