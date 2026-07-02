@@ -2068,17 +2068,19 @@ function InterviewRuntimePanel({
         mode === "mock"
           ? await api.saveMockAnswer(data.runtime.sessionId, request)
           : await api.saveRecruitingAnswer(data.runtime.sessionId, request);
-      const answerFileAssetId = result.data.audioFile?.fileId ?? result.data.answer.audioFileId ?? result.data.videoFile?.fileId ?? result.data.answer.videoFileId;
+      const audioFileId = result.data.audioFile?.fileId ?? result.data.answer.audioFileId;
+      const videoFileId = result.data.videoFile?.fileId ?? result.data.answer.videoFileId;
+      const answerFileAssetId = audioFileId ?? videoFileId;
       const savedAnswer: LastSavedAnswer = {
         answerId: result.data.answer.answerId,
         questionId: result.data.answer.questionId,
         questionText: question?.content ?? question?.audioPrompt ?? "이전 질문",
         transcript: `${formatQuestionTypeLabel(question?.questionType)} 답변 파일이 저장되었습니다.`,
         fileAssetId: answerFileAssetId,
-        audioFileId: result.data.audioFile?.fileId ?? result.data.answer.audioFileId,
-        audioS3Key: result.data.audioFile?.storageKey,
-        videoFileId: result.data.videoFile?.fileId ?? result.data.answer.videoFileId,
-        videoS3Key: result.data.videoFile?.storageKey,
+        audioFileId,
+        audioS3Key: result.data.audioFile?.storageKey ?? request.audioFile?.storageKey,
+        videoFileId,
+        videoS3Key: result.data.videoFile?.storageKey ?? request.videoFile?.storageKey,
       };
       setLastAnswer(savedAnswer);
       setAiHandoff(undefined);
@@ -2320,15 +2322,7 @@ function InterviewRuntimePanel({
     setMessage("");
     try {
       const api = getCandidateApi();
-      const request = compactPayload({
-        answerId: lastAnswer.answerId,
-        fileAssetId: lastAnswer.fileAssetId,
-        audioFileId: lastAnswer.audioFileId,
-        audioS3Key: lastAnswer.audioS3Key,
-        previousQuestion: lastAnswer.questionText,
-        transcript: lastAnswer.transcript,
-        jobDescription: mode === "recruiting" ? data.runtime.jobDescription : undefined,
-      }) as AiInterviewRequest;
+      const request = buildAiInterviewRequest(processType, lastAnswer, data.runtime.jobDescription, mode);
       const result =
         processType === "STT"
           ? mode === "mock"
@@ -3343,10 +3337,17 @@ function buildAiInterviewRequest(
   mode: RuntimeMode,
 ): AiInterviewRequest {
   if (processType === "STT") {
+    const audioFileId = answer.audioFileId ?? answer.fileAssetId ?? answer.videoFileId;
+    const audioS3Key = answer.audioS3Key ?? answer.videoS3Key;
+
+    if (!audioFileId || !audioS3Key) {
+      throw new Error("STT 요청에 필요한 녹음 파일 정보가 없습니다. 답변 녹음을 다시 완료해 주세요.");
+    }
+
     return compactPayload({
       answerId: answer.answerId,
-      audioFileId: answer.audioFileId ?? answer.fileAssetId,
-      audioS3Key: answer.audioS3Key ?? answer.videoS3Key,
+      audioFileId,
+      audioS3Key,
     }) as AiInterviewRequest;
   }
 
