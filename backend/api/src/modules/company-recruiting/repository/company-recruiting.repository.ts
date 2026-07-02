@@ -10,7 +10,12 @@ import {
 } from "@prisma/client";
 
 import { PrismaService } from "../../../shared/prisma.service";
-import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
+import type {
+  ApplicantRecord,
+  CompanyFileAssetRecord,
+  NormalizedListQuery,
+  RecruitmentRecord,
+} from "../company-recruiting.types";
 
 export type CreatePostingInput = {
   companyId: number;
@@ -58,6 +63,14 @@ export type UpdateApplicationScreeningInput = {
   screeningMemo: string | null;
 };
 
+export type CreateFileAssetInput = {
+  ownerUserId: number;
+  storageKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
 export type CompanyRecruitingRepositoryPort = {
   createPosting(input: CreatePostingInput): Promise<RecruitmentRecord>;
   updatePosting(postingId: number, companyId: number, input: UpdatePostingInput): Promise<RecruitmentRecord | null>;
@@ -80,6 +93,7 @@ export type CompanyRecruitingRepositoryPort = {
     companyId: number,
     input: UpdateApplicationScreeningInput,
   ): Promise<ApplicantRecord | null>;
+  createFileAsset(input: CreateFileAssetInput): Promise<CompanyFileAssetRecord>;
 };
 
 @Injectable()
@@ -277,6 +291,20 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     });
     return mapApplicant(application);
   }
+
+  async createFileAsset(input: CreateFileAssetInput): Promise<CompanyFileAssetRecord> {
+    const fileAsset = await this.prisma.fileAsset.create({
+      data: {
+        ownerUserId: BigInt(input.ownerUserId),
+        storageKey: input.storageKey,
+        originalName: input.originalName,
+        mimeType: input.mimeType,
+        sizeBytes: BigInt(input.sizeBytes),
+        status: "ACTIVE",
+      },
+    });
+    return mapFileAsset(fileAsset);
+  }
 }
 
 const applicantInclude = {
@@ -381,6 +409,20 @@ function mapPosting(posting: Prisma.PostingGetPayload<{ include: { _count: { sel
 }
 
 type ApplicationWithIncludes = Prisma.ApplicationGetPayload<{ include: typeof applicantInclude }>;
+type FileAssetRecord = Prisma.FileAssetGetPayload<Record<string, never>>;
+
+function mapFileAsset(fileAsset: FileAssetRecord): CompanyFileAssetRecord {
+  return {
+    fileId: Number(fileAsset.fileId),
+    ownerUserId: Number(fileAsset.ownerUserId),
+    storageKey: fileAsset.storageKey,
+    originalName: fileAsset.originalName,
+    mimeType: fileAsset.mimeType,
+    sizeBytes: Number(fileAsset.sizeBytes),
+    status: fileAsset.status,
+    createdAt: fileAsset.createdAt,
+  };
+}
 
 function mapApplicant(application: ApplicationWithIncludes): ApplicantRecord {
   return {

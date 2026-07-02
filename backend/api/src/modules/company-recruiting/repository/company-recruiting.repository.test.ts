@@ -148,4 +148,46 @@ describe("PrismaCompanyRecruitingRepository", () => {
       screeningMemo: "추가 확인 필요",
     });
   });
+
+  it("creates file_assets metadata for JD editor image uploads", async () => {
+    let capturedData: Record<string, unknown> | null = null;
+    const prisma = {
+      fileAsset: {
+        async create(args: { data: Record<string, unknown> }) {
+          capturedData = args.data;
+          return {
+            fileId: 501n,
+            ownerUserId: 1n,
+            storageKey: "company/7/jd-images/image.webp",
+            originalName: "image.webp",
+            mimeType: "image/webp",
+            sizeBytes: 245760n,
+            status: "ACTIVE",
+            createdAt: new Date("2026-07-02T00:00:00.000Z"),
+          };
+        },
+      },
+    };
+    const repository = new PrismaCompanyRecruitingRepository(prisma as never);
+
+    const result = await repository.createFileAsset({
+      ownerUserId: 1,
+      storageKey: "company/7/jd-images/image.webp",
+      originalName: "image.webp",
+      mimeType: "image/webp",
+      sizeBytes: 245_760,
+    });
+
+    assert.deepEqual(capturedData, {
+      ownerUserId: 1n,
+      storageKey: "company/7/jd-images/image.webp",
+      originalName: "image.webp",
+      mimeType: "image/webp",
+      sizeBytes: 245760n,
+      status: "ACTIVE",
+    });
+    assert.equal(result.fileId, 501);
+    assert.equal(result.storageKey, "company/7/jd-images/image.webp");
+    assert.equal(result.status, "ACTIVE");
+  });
 });

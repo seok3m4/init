@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { ERROR_CODES, type CurrentUser, type ErrorCode } from "@init/common";
 import { PostingStatus, ScreeningDecision } from "@prisma/client";
 
@@ -15,7 +16,13 @@ import type { ListQueryDto } from "../dto/list-query.dto";
 import type { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 import type { CompanyRecruitingRepositoryPort } from "../repository/company-recruiting.repository";
-import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
+import type {
+  ApplicantRecord,
+  JobDescriptionImageUploadFile,
+  JobDescriptionImageUploadResponse,
+  NormalizedListQuery,
+  RecruitmentRecord,
+} from "../company-recruiting.types";
 
 class CompanyRecruitingException extends SharedApiException {
   constructor(status: number, code: ErrorCode, message: string, details: Array<Record<string, unknown>> = []) {
@@ -39,11 +46,38 @@ type BulkApplicantFailure = {
   message: string;
 };
 
+export type CompanyRecruitingStoragePutObjectInput = {
+  key: string;
+  body: Buffer;
+  contentType: string;
+  contentLength: number;
+};
+
+export type CompanyRecruitingStorageAdapterPort = {
+  putObject(input: CompanyRecruitingStoragePutObjectInput): Promise<void>;
+};
+
+export type CompanyRecruitingUploadConfig = {
+  jdImagePublicBaseUrl?: string;
+  jdImageMaxUploadBytes?: number;
+};
+
+const ALLOWED_JD_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const DEFAULT_JD_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+class MissingCompanyRecruitingStorageAdapter implements CompanyRecruitingStorageAdapterPort {
+  async putObject(): Promise<void> {
+    throw new CompanyRecruitingException(500, ERROR_CODES.COMMON_VALIDATION_FAILED, "파일 저장소 설정이 필요합니다.");
+  }
+}
+
 @Injectable()
 export class CompanyRecruitingService {
   constructor(
     private readonly repository: CompanyRecruitingRepositoryPort,
     private readonly invitationAdapter: CompanyRecruitingInvitationAdapterPort = new InMemoryCompanyRecruitingInvitationAdapter(),
+    private readonly storageAdapter: CompanyRecruitingStorageAdapterPort = new MissingCompanyRecruitingStorageAdapter(),
+    private readonly uploadConfig: CompanyRecruitingUploadConfig = {},
   ) {}
 
   async createRecruitment(user: CurrentUser, dto: CreateRecruitmentDto) {
@@ -67,6 +101,34 @@ export class CompanyRecruitingService {
       status: (dto.status ?? PostingStatus.DRAFT) as PostingStatus,
     });
     return toRecruitmentResponse(posting);
+  }
+
+  async uploadJobDescriptionImage(
+    user: CurrentUser,
+    file: JobDescriptionImageUploadFile | undefined,
+  ): Promise<JobDescriptionImageUploadResponse> {
+    const companyId = requireCompanyId(user);
+    this.assertJobDescriptionImageFile(file);
+
+    const storageKey = buildJobDescriptionImageStorageKey(companyId, file.originalName);
+    await this.storageAdapter.putObject({
+      key: storageKey,
+      body: file.buffer,
+      contentType: file.mimeType,
+      contentLength: file.sizeBytes,
+    });
+    const fileAsset = await this.repository.createFileAsset({
+      ownerUserId: user.userId,
+      storageKey,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+    });
+
+    return {
+      ...fileAsset,
+      url: buildPublicFileUrl(storageKey, this.uploadConfig.jdImagePublicBaseUrl),
+    };
   }
 
   async updateRecruitment(user: CurrentUser, recruitmentId: number, dto: UpdateRecruitmentDto) {
@@ -349,6 +411,33 @@ export class CompanyRecruitingService {
 
     return toApplicantResponse(application);
   }
+
+  private assertJobDescriptionImageFile(
+    file: JobDescriptionImageUploadFile | undefined,
+  ): asserts file is JobDescriptionImageUploadFile {
+    if (
+      !file ||
+      !file.originalName?.trim() ||
+      !file.mimeType?.trim() ||
+      !Buffer.isBuffer(file.buffer) ||
+      file.sizeBytes < 1
+    ) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "업로드할 이미지 파일을 선택해주세요.", [
+        { field: "file", reason: "REQUIRED" },
+      ]);
+    }
+    if (!ALLOWED_JD_IMAGE_MIME_TYPES.has(file.mimeType)) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.FILE_INVALID_TYPE, "PNG, JPG, WEBP 이미지만 업로드할 수 있습니다.", [
+        { field: "file", reason: "INVALID_MIME_TYPE", allowedMimeTypes: [...ALLOWED_JD_IMAGE_MIME_TYPES] },
+      ]);
+    }
+    const maxUploadBytes = this.uploadConfig.jdImageMaxUploadBytes ?? getConfiguredJdImageMaxUploadBytes();
+    if (file.sizeBytes > maxUploadBytes) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.FILE_SIZE_EXCEEDED, "이미지 파일 용량이 너무 큽니다.", [
+        { field: "file", reason: "SIZE_EXCEEDED", maxSizeBytes: maxUploadBytes },
+      ]);
+    }
+  }
 }
 
 export function normalizeListQuery(query: ListQueryDto, defaultSort: string): NormalizedListQuery {
@@ -373,6 +462,43 @@ function requireCompanyId(user: CurrentUser): number {
     throw new CompanyRecruitingException(403, ERROR_CODES.COMMON_FORBIDDEN, "기업 사용자만 접근할 수 있습니다.");
   }
   return user.companyId;
+}
+
+export function getConfiguredJdImageMaxUploadBytes() {
+  const parsed = Number(process.env.JD_IMAGE_MAX_UPLOAD_BYTES ?? DEFAULT_JD_IMAGE_MAX_UPLOAD_BYTES);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_JD_IMAGE_MAX_UPLOAD_BYTES;
+}
+
+function buildJobDescriptionImageStorageKey(companyId: number, originalName: string) {
+  return `company/${companyId}/jd-images/${randomUUID()}-${sanitizeFileName(originalName)}`;
+}
+
+function sanitizeFileName(originalName: string) {
+  const fileName = originalName.trim().split(/[/\\]/).pop() ?? "image";
+  const sanitized = fileName
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return sanitized || "image";
+}
+
+function buildPublicFileUrl(storageKey: string, configuredBaseUrl: string | undefined) {
+  const baseUrl = configuredBaseUrl ?? process.env.S3_PUBLIC_BASE_URL ?? buildDefaultS3PublicBaseUrl();
+  return `${baseUrl.replace(/\/+$/, "")}/${encodeStorageKeyPath(storageKey)}`;
+}
+
+function buildDefaultS3PublicBaseUrl() {
+  const bucket = process.env.S3_BUCKET_NAME ?? process.env.S3_BUCKET ?? "";
+  const region = process.env.AWS_REGION ?? "ap-northeast-2";
+  if (process.env.AWS_ENDPOINT_URL && bucket) {
+    return `${process.env.AWS_ENDPOINT_URL.replace(/\/+$/, "")}/${bucket}`;
+  }
+  return bucket ? `https://${bucket}.s3.${region}.amazonaws.com` : "";
+}
+
+function encodeStorageKeyPath(storageKey: string) {
+  return storageKey.split("/").map(encodeURIComponent).join("/");
 }
 
 function parseOptionalDate(value: string | undefined, field: string) {
