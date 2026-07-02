@@ -77,4 +77,5 @@ export interface CompanyInterviewRepository {
     input: UpdateTimePolicyInput,
   ): Promise<TimePolicyRecord>;
   confirmQuestionSet(input: ConfirmQuestionSetInput): Promise<QuestionSetRecord>;
+  findActiveQuestionSet(postingId: number): Promise<QuestionSetRecord | undefined>;
 }

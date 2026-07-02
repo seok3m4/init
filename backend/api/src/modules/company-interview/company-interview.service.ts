@@ -14,6 +14,7 @@ import {
   UpdateInterviewQuestionDto,
 } from './dto/question-management.dto';
 import {
+  ActiveQuestionSetResponseDto,
   ConfirmQuestionSetDto,
   QuestionSetResponseDto,
 } from './dto/question-set.dto';
@@ -295,6 +296,22 @@ export class CompanyInterviewService {
     });
 
     return this.mapQuestionSet(saved);
+  }
+
+  async getActiveQuestionSet(
+    currentUser: CurrentUser,
+    postingId?: number,
+  ): Promise<ActiveQuestionSetResponseDto> {
+    const posting = await this.getOwnedPosting(currentUser, postingId);
+    const questionSet = await this.repository.findActiveQuestionSet(
+      posting.postingId,
+    );
+
+    return {
+      postingId: posting.postingId,
+      questionSet: questionSet ? this.mapQuestionSet(questionSet) : null,
+      fallbackPolicy: 'USE_ACTIVE_POSTING_QUESTIONS',
+    };
   }
 
   private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {

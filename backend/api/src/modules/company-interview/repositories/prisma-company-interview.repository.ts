@@ -286,6 +286,18 @@ export class PrismaCompanyInterviewRepository
 
     return mapQuestionSet(questionSet);
   }
+
+  async findActiveQuestionSet(
+    postingId: number,
+  ): Promise<QuestionSetRecord | undefined> {
+    const questionSet = await (this.prisma as any).interviewQuestionSet.findFirst({
+      where: { postingId: BigInt(postingId), status: 'ACTIVE' },
+      orderBy: { questionSetId: 'desc' },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    return questionSet ? mapQuestionSet(questionSet) : undefined;
+  }
 }
 
 function normalizeQuestionContent(content: string): string {
