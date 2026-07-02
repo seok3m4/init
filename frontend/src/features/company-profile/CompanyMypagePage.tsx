@@ -135,7 +135,7 @@ export function CompanyMypagePage() {
     <section className="app-page company-mypage-page">
       <div className="page-head">
         <div>
-          <h1>기업 마이페이지</h1>
+          <h1>계정</h1>
           <p className="page-sub">회사 정보와 채용 운영 기본값을 관리합니다.</p>
         </div>
         <button className="btn secondary" type="button" onClick={() => void loadProfile()} disabled={loading || saving || uploadingLogo}>

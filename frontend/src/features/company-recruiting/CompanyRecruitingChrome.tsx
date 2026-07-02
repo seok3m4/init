@@ -6,12 +6,13 @@ import { usePathname } from "next/navigation";
 
 import { GnbAvatar, GnbLogoutButton } from "../auth/GnbAccountControls";
 import { COMPANY_MYPAGE_ROUTE } from "../company-profile/routes";
+import { companyAccountBillingNav, companyNavLabels } from "./company-nav-config";
 
-type CompanyNavSection = "postings" | "mypage";
+type CompanyNavSection = "postings" | "accountBilling";
 
 export function CompanyNav({ active }: { active?: CompanyNavSection }) {
   const pathname = usePathname();
-  const current = active ?? (pathname?.startsWith(COMPANY_MYPAGE_ROUTE) ? "mypage" : "postings");
+  const current = active ?? (pathname?.startsWith(COMPANY_MYPAGE_ROUTE) ? "accountBilling" : "postings");
 
   return (
     <header className="gnb">
@@ -22,13 +23,36 @@ export function CompanyNav({ active }: { active?: CompanyNavSection }) {
         <nav className="gnb-menu" aria-label="기업 메뉴">
           <div className={`gnb-item ${current === "postings" ? "active" : ""}`}>
             <Link className="gnb-link" href="/company/recruitments" aria-current={current === "postings" ? "page" : undefined}>
-              공고 목록
+              {companyNavLabels.postings}
             </Link>
           </div>
-          <div className={`gnb-item ${current === "mypage" ? "active" : ""}`}>
-            <Link className="gnb-link" href={COMPANY_MYPAGE_ROUTE} aria-current={current === "mypage" ? "page" : undefined}>
-              마이페이지
+          <div className={`gnb-item ${current === "accountBilling" ? "active" : ""}`}>
+            <Link
+              className="gnb-link"
+              href={COMPANY_MYPAGE_ROUTE}
+              aria-current={current === "accountBilling" ? "page" : undefined}
+              aria-haspopup="true"
+            >
+              {companyNavLabels.accountBilling}
+              <span className="gnb-caret" aria-hidden="true">⌄</span>
             </Link>
+            <div className="gnb-panel">
+              {companyAccountBillingNav.map((item) => {
+                if (!("href" in item)) {
+                  return (
+                    <span className="disabled" key={item.label} aria-disabled="true">
+                      {item.label}
+                    </span>
+                  );
+                }
+                const isActive = pathname?.startsWith(item.href);
+                return (
+                  <Link className={isActive ? "active" : ""} href={item.href} key={item.href} aria-current={isActive ? "page" : undefined}>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </nav>
         <div className="gnb-right">

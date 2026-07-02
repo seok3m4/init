@@ -222,15 +222,13 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                     </label>
                   </div>
 
-                  <label>
-                    이력서 PDF *
-                    <input
-                      required
-                      type="file"
-                      accept="application/pdf,.pdf"
-                      onChange={(event) => updateField("resumeFile", event.currentTarget.files?.[0] ?? null)}
-                    />
-                  </label>
+                  <FilePickerField
+                    id="public-application-resume-file"
+                    label="이력서 PDF"
+                    required
+                    file={form.resumeFile ?? null}
+                    onChange={(file) => updateField("resumeFile", file)}
+                  />
 
                   <fieldset className="choice-fieldset">
                     <legend>포트폴리오</legend>
@@ -257,7 +255,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                   </fieldset>
 
                   {form.portfolioMode === "URL" ? (
-                    <label>
+                    <label key="portfolio-url">
                       포트폴리오 URL
                       <input
                         type="url"
@@ -267,14 +265,13 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                       />
                     </label>
                   ) : (
-                    <label>
-                      포트폴리오 PDF
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        onChange={(event) => updateField("portfolioFile", event.currentTarget.files?.[0] ?? null)}
-                      />
-                    </label>
+                    <FilePickerField
+                      key="portfolio-file"
+                      id="public-application-portfolio-file"
+                      label="포트폴리오 PDF"
+                      file={form.portfolioFile ?? null}
+                      onChange={(file) => updateField("portfolioFile", file)}
+                    />
                   )}
 
                   <label>
@@ -318,6 +315,46 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
   );
 }
 
+function FilePickerField({
+  id,
+  label,
+  required = false,
+  file,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  file: File | null;
+  onChange: (file: File | null) => void;
+}) {
+  return (
+    <div className="file-picker-field">
+      <span className="file-picker-label">
+        {label}
+        {required ? " *" : ""}
+      </span>
+      <label className={`file-picker ${file ? "has-file" : ""}`} htmlFor={id}>
+        <span className="file-picker-icon" aria-hidden="true">
+          PDF
+        </span>
+        <span className="file-picker-copy">
+          <strong>{file ? file.name : "PDF 파일 선택"}</strong>
+          <small>{file ? formatFileSize(file.size) : "이력서와 포트폴리오는 PDF 파일로 첨부해주세요."}</small>
+        </span>
+        <span className="file-picker-action">파일 선택</span>
+      </label>
+      <input
+        id={id}
+        className="file-picker-input"
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={(event) => onChange(event.currentTarget.files?.[0] ?? null)}
+      />
+    </div>
+  );
+}
+
 function DetailItem({ label, value }: { label: string; value?: string | null }) {
   return (
     <>
@@ -347,6 +384,13 @@ function formatDeliveryStatus(status: "SENT" | "FAILED" | "NOT_SENT_TEMPORARY" |
   if (status === "FAILED") return "발송 실패";
   if (status === "NOT_SENT_TEMPORARY") return "임시 미발송";
   return "-";
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))}KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 function toErrorMessage(error: unknown) {
