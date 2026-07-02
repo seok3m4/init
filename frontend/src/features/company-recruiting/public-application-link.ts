@@ -10,9 +10,9 @@ export type PublicApplicationLinkState = {
   helperText: string;
 };
 
-// Temporary B-owned boundary: this public link opens the candidate apply route, not the email magic-link flow.
+// Temporary B-owned boundary: this public link opens the public application form, not the email magic-link flow.
 export function buildPublicApplicationPath(recruitment: Pick<Recruitment, "postingId">) {
-  return `/candidate/jobs/${recruitment.postingId}/apply`;
+  return `/public/recruitments/${recruitment.postingId}/apply`;
 }
 
 export function buildPublicApplicationUrl(recruitment: Pick<Recruitment, "postingId">, origin: string) {

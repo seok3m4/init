@@ -14,6 +14,7 @@ import type {
   ApplicantRecord,
   CompanyFileAssetRecord,
   NormalizedListQuery,
+  PublicRecruitmentRecord,
   RecruitmentRecord,
 } from "../company-recruiting.types";
 
@@ -52,6 +53,17 @@ export type CreateCandidateInput = {
   phone: string | null;
 };
 
+export type CreatePublicCandidateInput = CreateCandidateInput & {
+  portfolioUrl: string | null;
+  summary: string | null;
+};
+
+export type RecruitingUserAccount = {
+  userId: number;
+  userType: UserType;
+  hasCandidateProfile: boolean;
+};
+
 export type CreateApplicationInput = {
   postingId: number;
   candidateId: number;
@@ -78,8 +90,12 @@ export type CompanyRecruitingRepositoryPort = {
   listPostings(companyId: number, query: NormalizedListQuery): Promise<RecruitmentRecord[]>;
   countPostings(companyId: number, query: NormalizedListQuery): Promise<number>;
   findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
+  findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null>;
   findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null>;
+  findPublicApplicationStatusById(applicationId: number): Promise<ApplicantRecord | null>;
+  findUserAccountByEmail(email: string): Promise<RecruitingUserAccount | null>;
   findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }>;
+  findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }>;
   createApplication(input: CreateApplicationInput): Promise<ApplicantRecord>;
   listApplicationsForPosting(
     postingId: number,
@@ -168,6 +184,19 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     return posting ? mapPosting(posting) : null;
   }
 
+  async findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null> {
+    const posting = await this.prisma.posting.findFirst({
+      where: {
+        postingId: BigInt(postingId),
+        status: PostingStatus.OPEN,
+      },
+      include: {
+        company: { select: { name: true } },
+      },
+    });
+    return posting ? mapPublicPosting(posting) : null;
+  }
+
   async findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null> {
     const application = await this.prisma.application.findFirst({
       where: {
@@ -183,6 +212,32 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     return application ? { applicationId: Number(application.applicationId) } : null;
   }
 
+  async findPublicApplicationStatusById(applicationId: number): Promise<ApplicantRecord | null> {
+    const application = await this.prisma.application.findUnique({
+      where: { applicationId: BigInt(applicationId) },
+      include: applicantInclude,
+    });
+    return application ? mapApplicant(application) : null;
+  }
+
+  async findUserAccountByEmail(email: string): Promise<RecruitingUserAccount | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        userId: true,
+        userType: true,
+        candidateProfile: { select: { candidateId: true } },
+      },
+    });
+    return user
+      ? {
+          userId: Number(user.userId),
+          userType: user.userType,
+          hasCandidateProfile: Boolean(user.candidateProfile),
+        }
+      : null;
+  }
+
   async findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }> {
     return this.prisma.$transaction(async (tx) => {
       const existingUser = await tx.user.findUnique({
@@ -195,6 +250,9 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       }
 
       if (existingUser) {
+        if (existingUser.userType !== UserType.CANDIDATE) {
+          throw new Error("USER_TYPE_MISMATCH");
+        }
         const profile = await tx.candidateProfile.create({
           data: {
             userId: existingUser.userId,
@@ -219,6 +277,43 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
         data: {
           userId: user.userId,
           summary: "Registered by company recruiter.",
+        },
+      });
+      return { candidateId: Number(profile.candidateId) };
+    });
+  }
+
+  async findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({
+        where: { email: input.email },
+        include: { candidateProfile: true },
+      });
+
+      if (existingUser?.candidateProfile) {
+        return { candidateId: Number(existingUser.candidateProfile.candidateId) };
+      }
+
+      if (existingUser) {
+        throw new Error(existingUser.userType === UserType.CANDIDATE ? "EXISTING_USER_REQUIRES_VERIFICATION" : "USER_TYPE_MISMATCH");
+      }
+
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          passwordHash: null,
+          userType: UserType.CANDIDATE,
+          name: input.name,
+          phone: input.phone,
+          status: UserStatus.PENDING,
+          authProvider: AuthProvider.LOCAL,
+        },
+      });
+      const profile = await tx.candidateProfile.create({
+        data: {
+          userId: user.userId,
+          portfolioUrl: input.portfolioUrl,
+          summary: input.summary || "Submitted through public application form.",
         },
       });
       return { candidateId: Number(profile.candidateId) };
@@ -405,6 +500,24 @@ function mapPosting(posting: Prisma.PostingGetPayload<{ include: { _count: { sel
     createdAt: posting.createdAt,
     updatedAt: posting.updatedAt,
     applicantCount: posting._count.applications,
+  };
+}
+
+function mapPublicPosting(posting: Prisma.PostingGetPayload<{ include: { company: { select: { name: true } } } }>): PublicRecruitmentRecord {
+  return {
+    postingId: Number(posting.postingId),
+    title: posting.title,
+    jobRole: posting.jobRole,
+    jobDescription: posting.jobDescription,
+    careerRequirement: posting.careerRequirement,
+    educationRequirement: posting.educationRequirement,
+    salaryInfo: posting.salaryInfo,
+    workLocation: posting.workLocation,
+    employmentType: posting.employmentType,
+    startsOn: posting.startsOn,
+    endsOn: posting.endsOn,
+    status: posting.status,
+    companyName: posting.company.name,
   };
 }
 

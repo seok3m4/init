@@ -520,6 +520,45 @@ textarea:focus {
   text-align: center;
 }
 
+.detail-list {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 10px 14px;
+  margin: 0 0 16px;
+  padding: 0;
+  font-size: 13px;
+}
+
+.detail-list dt {
+  color: var(--ink-300);
+  font-weight: 700;
+}
+
+.detail-list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-800);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-700);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inline-check input {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+}
+
 .description-box {
   white-space: pre-line;
 }

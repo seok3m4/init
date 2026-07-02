@@ -15,12 +15,12 @@ const draftRecruitment = {
   status: "DRAFT",
 } as Recruitment;
 
-if (buildPublicApplicationPath(openRecruitment) !== "/candidate/jobs/42/apply") {
-  throw new Error("Public application path should target the existing candidate apply route.");
+if (buildPublicApplicationPath(openRecruitment) !== "/public/recruitments/42/apply") {
+  throw new Error("Public application path should target the public recruitment apply route.");
 }
 
-if (buildPublicApplicationUrl(openRecruitment, "https://init.example.com/") !== "https://init.example.com/candidate/jobs/42/apply") {
-  throw new Error("Public application URL should combine origin and candidate apply path.");
+if (buildPublicApplicationUrl(openRecruitment, "https://init.example.com/") !== "https://init.example.com/public/recruitments/42/apply") {
+  throw new Error("Public application URL should combine origin and public apply path.");
 }
 
 const openState = getPublicApplicationLinkState(openRecruitment, "https://init.example.com");

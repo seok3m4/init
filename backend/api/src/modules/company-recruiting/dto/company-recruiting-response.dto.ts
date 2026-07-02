@@ -53,6 +53,168 @@ export class RecruitmentResponseDto {
   updatedAt!: string;
 }
 
+export class PublicRecruitmentResponseDto {
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: 101 })
+  postingId!: number;
+
+  @ApiProperty({ example: "크래프톤" })
+  companyName!: string;
+
+  @ApiProperty({ example: "2026 신입 백엔드 채용" })
+  title!: string;
+
+  @ApiProperty({ example: "Backend Developer" })
+  jobRole!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: "NestJS와 PostgreSQL 기반 API 개발" })
+  jobDescription!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "경력무관" })
+  careerRequirement!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "학력무관" })
+  educationRequirement!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "회사 내규에 따름" })
+  salaryInfo!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "서울" })
+  workLocation!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "정규직" })
+  employmentType!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-06-29" })
+  startsOn!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-07-15" })
+  endsOn!: string | null;
+
+  @ApiProperty({ enum: ["OPEN"], example: "OPEN" })
+  status!: string;
+}
+
+export class PublicApplicationResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ example: "SUBMITTED" })
+  applicationStatus!: string;
+
+  @ApiProperty({ enum: ["PENDING"], example: "PENDING" })
+  emailVerificationStatus!: string;
+
+  @ApiProperty({ enum: ["CHECK_EMAIL"], example: "CHECK_EMAIL" })
+  nextAction!: string;
+
+  @ApiProperty({ example: true })
+  temporary!: boolean;
+
+  @ApiPropertyOptional({ nullable: true, example: null })
+  temporaryBoundary!: string | null;
+
+  @ApiProperty({ enum: ["SENT", "FAILED", "NOT_SENT_TEMPORARY"], example: "SENT" })
+  magicLinkDeliveryStatus!: string;
+
+  @ApiProperty({ example: 604800 })
+  magicLinkExpiresInSeconds!: number;
+}
+
+export class PublicApplicationAccessLinkResponseDto {
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ enum: ["PENDING"], example: "PENDING" })
+  emailVerificationStatus!: string;
+
+  @ApiProperty({ enum: ["CHECK_EMAIL"], example: "CHECK_EMAIL" })
+  nextAction!: string;
+
+  @ApiProperty({ enum: ["SENT", "FAILED"], example: "SENT" })
+  magicLinkDeliveryStatus!: string;
+
+  @ApiProperty({ example: 604800 })
+  magicLinkExpiresInSeconds!: number;
+}
+
+export class PublicInterviewEntryResponseDto {
+  @ApiProperty({ example: "/public/applications/77/interview" })
+  href!: string;
+
+  @ApiProperty({ enum: ["면접 시작", "면접 이어가기", "면접 완료"], example: "면접 시작" })
+  label!: string;
+
+  @ApiProperty({ example: true })
+  enabled!: boolean;
+
+  @ApiProperty({ enum: ["D_PUBLIC_CONTEXT_PENDING"], example: "D_PUBLIC_CONTEXT_PENDING" })
+  integrationStatus!: string;
+
+  @ApiProperty({ example: true })
+  temporary!: boolean;
+
+  @ApiProperty({ example: "B_MODULE_PUBLIC_INTERVIEW_ADAPTER" })
+  temporaryBoundary!: string;
+
+  @ApiProperty({ example: "면접 시작은 D public interview access context 연동 후 활성화됩니다." })
+  message!: string;
+}
+
+export class PublicApplicationStatusResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ example: "김지원" })
+  name!: string;
+
+  @ApiProperty({ example: "Backend Developer" })
+  jobRole!: string;
+
+  @ApiProperty({ example: "SUBMITTED" })
+  applicationStatus!: string;
+
+  @ApiProperty({ example: "NOT_SUBMITTED" })
+  documentStatus!: string;
+
+  @ApiProperty({ example: "NOT_READY" })
+  interviewStatus!: string;
+
+  @ApiProperty({ example: "PENDING" })
+  reportStatus!: string;
+
+  @ApiProperty({ type: PublicInterviewEntryResponseDto })
+  interviewEntry!: PublicInterviewEntryResponseDto;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-06-29T00:00:00.000Z" })
+  submittedAt!: string | null;
+
+  @ApiProperty({ example: "2026-06-29T00:00:00.000Z" })
+  updatedAt!: string;
+}
+
+export class PublicApplicationTokenVerificationResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+}
+
 export class JdImageUploadResponseDto {
   @ApiProperty({ example: 123 })
   fileId!: number;
@@ -167,92 +329,6 @@ export class ApplicantResponseDto {
 
   @ApiProperty({ example: "2026-06-29T00:00:00.000Z" })
   updatedAt!: string;
-}
-
-export class InvitationResponseDto {
-  @ApiProperty({ example: "temp-invitation-77" })
-  invitationId!: string;
-
-  @ApiProperty({ example: 77 })
-  applicantId!: number;
-
-  @ApiProperty({ example: 77 })
-  applicationId!: number;
-
-  @ApiProperty({ example: 101 })
-  recruitmentId!: number;
-
-  @ApiProperty({ example: "candidate@example.com" })
-  email!: string;
-
-  @ApiProperty({ example: "2026-06-30T00:00:00.000Z" })
-  availableFrom!: string;
-
-  @ApiProperty({ example: "2026-07-02T00:00:00.000Z" })
-  availableUntil!: string;
-
-  @ApiProperty({ example: "REQUESTED" })
-  deliveryStatus!: string;
-
-  @ApiProperty({ example: true })
-  temporary!: boolean;
-}
-
-export class BulkApplicantRegistrationSummaryDto {
-  @ApiProperty({ example: 5 })
-  totalRows!: number;
-
-  @ApiProperty({ example: 3 })
-  successCount!: number;
-
-  @ApiProperty({ example: 2 })
-  failedCount!: number;
-}
-
-export class BulkApplicantRegistrationSuccessDto {
-  @ApiProperty({ example: 2 })
-  rowNumber!: number;
-
-  @ApiProperty({ type: ApplicantResponseDto })
-  applicant!: ApplicantResponseDto;
-}
-
-export class BulkApplicantRegistrationFailureDto {
-  @ApiProperty({ example: 4 })
-  rowNumber!: number;
-
-  @ApiPropertyOptional({ example: "candidate@example.com" })
-  email?: string;
-
-  @ApiPropertyOptional({ example: "email" })
-  field?: string;
-
-  @ApiProperty({
-    enum: [
-      "MISSING_REQUIRED_FIELD",
-      "INVALID_NAME",
-      "INVALID_EMAIL",
-      "DUPLICATED_IN_CSV",
-      "DUPLICATED_IN_RECRUITMENT",
-      "ROW_CREATE_FAILED",
-    ],
-    example: "DUPLICATED_IN_RECRUITMENT",
-  })
-  reason!: string;
-
-  @ApiProperty({ example: "같은 공고에 이미 등록된 이메일입니다." })
-  message!: string;
-}
-
-export class BulkApplicantRegistrationResponseDto {
-  @ApiProperty({ type: BulkApplicantRegistrationSummaryDto })
-  summary!: BulkApplicantRegistrationSummaryDto;
-
-  @ApiProperty({ type: [BulkApplicantRegistrationSuccessDto] })
-  successes!: BulkApplicantRegistrationSuccessDto[];
-
-  @ApiProperty({ type: [BulkApplicantRegistrationFailureDto] })
-  failures!: BulkApplicantRegistrationFailureDto[];
 }
 
 export class ApplicantEvaluationResponseDto {

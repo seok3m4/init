@@ -61,6 +61,7 @@ import {
   inferPortfolioLinkType,
   isAllowedInterviewMediaMimeType,
   requiredInterviewConsents,
+  shouldShowInterviewDeviceSetup,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
   toRuntimeQuestionSpeechText,
@@ -2509,6 +2510,13 @@ function InterviewRuntimePanel({
       answeredQuestionCount >= data.runtime.totalQuestions &&
       !recording,
   );
+  const showDeviceSetup = data
+    ? shouldShowInterviewDeviceSetup({
+        mode,
+        setupCompleted,
+        runtimeStatus: data.runtime.status,
+      })
+    : false;
   const formattedRemainingTime = formatInterviewCountdown(remainingSeconds);
   const timerDanger = remainingSeconds <= 10;
 
@@ -2523,7 +2531,7 @@ function InterviewRuntimePanel({
 
       <section className="iv-body">
         <StatusNotice loading={loading || busy} error={error} message={message} />
-        {data && !setupCompleted && mode === "mock" ? (
+        {showDeviceSetup ? (
           <section className="candidate-device-setup">
             <div className="candidate-device-setup__head">
               <div>

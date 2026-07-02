@@ -5,7 +5,7 @@ import { METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
 import { CandidateService, DEV_CANDIDATE_USER, InMemoryCandidateRepository } from "../../candidate";
 import { InMemoryInterviewRepository } from "../repository/in-memory-interview.repository";
 import { InterviewService } from "../service/interview.service";
-import { DefaultPublicApplicationAccessVerifier } from "./public-application-access.verifier";
+import type { PublicApplicationAccessVerifier } from "./public-application-access.verifier";
 import { PublicInterviewAccessTokenService } from "./public-interview-access-token.service";
 import { PublicInterviewController } from "./public-interview.controller";
 import { PublicInterviewService } from "./public-interview.service";
@@ -34,8 +34,14 @@ function createPublicInterviewFixture() {
   const interviewRepository = new InMemoryInterviewRepository();
   const interviewService = new InterviewService(candidateService, interviewRepository);
   const tokenService = new PublicInterviewAccessTokenService();
+  const accessVerifier: PublicApplicationAccessVerifier = {
+    async verifyApplicationToken(token) {
+      const match = token.match(/^application:(\d+)$/);
+      return { applicationId: match ? Number(match[1]) : 999 };
+    },
+  };
   const service = new PublicInterviewService(
-    new DefaultPublicApplicationAccessVerifier(),
+    accessVerifier,
     tokenService,
     candidateService,
     interviewService,
@@ -98,6 +104,80 @@ test("public interview start issues access token and runtime calls use that cont
   const questions = await controller.listQuestions(request, String(started.data.sessionId));
   assert.equal(questions.data.interviewType, "RECRUITING");
   assert.ok(questions.data.questions.length > 0);
+});
+
+test("public interview start records required interview consent before begin", async () => {
+  const { candidateRepository, tokenService, controller } = createPublicInterviewFixture();
+  const submitted = await candidateRepository.createApplication({
+    postingId: 1,
+    candidateId: DEV_CANDIDATE_USER.candidateId,
+    resumeFileId: 1,
+    consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+  });
+
+  const started = await controller.startPublicInterview(String(submitted.application.applicationId), {
+    token: `application:${submitted.application.applicationId}`,
+  });
+  const access = tokenService.verify(started.data.publicAccessToken);
+  const request = {
+    headers: {},
+    publicInterviewAccess: access,
+    currentUser: {
+      userId: access.userId,
+      userType: "CANDIDATE" as const,
+      companyId: null,
+      candidateId: access.candidateId,
+    },
+  };
+
+  await controller.saveDeviceCheck(request, String(started.data.sessionId), {
+    cameraGranted: true,
+    microphoneGranted: true,
+    networkStable: true,
+  });
+
+  const begun = await controller.beginPublicInterview(request, String(submitted.application.applicationId));
+  assert.equal(begun.data.interviewStatus, "IN_PROGRESS");
+});
+
+test("public interview begin records required consent for existing runtime access", async () => {
+  const { candidateRepository, tokenService, controller } = createPublicInterviewFixture();
+  const submitted = await candidateRepository.createApplication({
+    postingId: 1,
+    candidateId: DEV_CANDIDATE_USER.candidateId,
+    resumeFileId: 1,
+    consentTypes: ["PRIVACY_COLLECTION", "AI_DOCUMENT_ANALYSIS"],
+  });
+  const session = await candidateRepository.ensureInterviewSessionByApplication(submitted.application.applicationId);
+  assert.ok(session);
+
+  const access = tokenService.verify(
+    tokenService.issue({
+      applicationId: submitted.application.applicationId,
+      sessionId: session.sessionId,
+      candidateId: DEV_CANDIDATE_USER.candidateId,
+      userId: DEV_CANDIDATE_USER.userId,
+    }),
+  );
+  const request = {
+    headers: {},
+    publicInterviewAccess: access,
+    currentUser: {
+      userId: access.userId,
+      userType: "CANDIDATE" as const,
+      companyId: null,
+      candidateId: access.candidateId,
+    },
+  };
+
+  await controller.saveDeviceCheck(request, String(session.sessionId), {
+    cameraGranted: true,
+    microphoneGranted: true,
+    networkStable: true,
+  });
+
+  const begun = await controller.beginPublicInterview(request, String(submitted.application.applicationId));
+  assert.equal(begun.data.interviewStatus, "IN_PROGRESS");
 });
 
 test("public interview start requires a verified application token", async () => {
