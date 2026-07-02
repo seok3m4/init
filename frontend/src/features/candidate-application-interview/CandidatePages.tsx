@@ -2137,8 +2137,9 @@ function InterviewRuntimePanel({
       const isLastSavedQuestion = questionIndex >= 0
         ? questionIndex >= data.runtime.totalQuestions - 1
         : result.data.nextQuestionAvailable === false;
+      const shouldPrepareFollowUp = question?.questionType !== "FOLLOW_UP";
       setMessage(
-        isLastSavedQuestion
+        isLastSavedQuestion && !shouldPrepareFollowUp
           ? "답변이 저장되었습니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요."
           : "답변이 저장되었습니다. 다음 질문을 준비하고 있습니다.",
       );
@@ -2252,7 +2253,17 @@ function InterviewRuntimePanel({
       }));
 
       if (isFollowUpAnswer) {
-        setMessage("답변 처리가 완료되었습니다. 다음 질문으로 이동해주세요.");
+        const questionIndex = question
+          ? data.questions.questions.findIndex((candidateQuestion) => candidateQuestion.questionId === question.questionId)
+          : -1;
+        const isLastFollowUpQuestion = questionIndex >= 0
+          ? questionIndex >= data.runtime.totalQuestions - 1
+          : false;
+        setMessage(
+          isLastFollowUpQuestion
+            ? "마지막 답변 처리가 완료되었습니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요."
+            : "답변 처리가 완료되었습니다. 다음 질문으로 이동해주세요.",
+        );
         return;
       }
 

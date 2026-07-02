@@ -873,7 +873,38 @@ function buildFollowUpQuestion(input: {
 
 function buildPracticeFollowUp(previousQuestion: string, transcript: string): string {
   const topic = extractFollowUpTopic(transcript, previousQuestion);
-  return `방금 답변에서 ${topic}을 언급했는데, 그 경험을 실제 상황과 본인의 행동 중심으로 조금 더 구체적으로 설명해 주세요.`;
+  const questionContext = normalizeSpace(previousQuestion);
+  const answerContext = normalizeSpace(transcript).toLowerCase();
+
+  if (questionContext.includes("자기소개") || questionContext.includes("직무")) {
+    return `방금 소개한 ${topic} 경험 중 본인이 가장 주도적으로 맡았던 부분 하나를 골라, 맡은 역할과 결과를 구체적으로 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("문제") || questionContext.includes("어려")) {
+    return `문제를 해결할 때 로그와 데이터 흐름을 본다고 했는데, 실제 오류 하나를 예로 들어 원인을 좁힌 순서와 검증 방법을 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("기술") || questionContext.includes("구현")) {
+    return `${topic}을 구현하면서 가장 신경 쓴 설계 선택은 무엇이었고, 다른 방식 대신 그 방법을 선택한 이유를 설명해 주세요.`;
+  }
+
+  if (answerContext.includes("로그") || answerContext.includes("데이터 흐름")) {
+    return `문제를 해결할 때 로그와 데이터 흐름을 본다고 했는데, 실제 오류 하나를 예로 들어 원인을 좁힌 순서와 검증 방법을 설명해 주세요.`;
+  }
+
+  if (answerContext.includes("nestjs") || answerContext.includes("postgresql") || answerContext.includes("stt")) {
+    return `${topic}을 구현하면서 가장 신경 쓴 설계 선택은 무엇이었고, 다른 방식 대신 그 방법을 선택한 이유를 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("협업") || questionContext.includes("상황") || questionContext.includes("갈등")) {
+    return `그 상황에서 혼자 판단하기 어려웠던 지점은 무엇이었고, 팀원이나 이해관계자와 어떻게 맞춰 해결했는지 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("성과") || questionContext.includes("결과")) {
+    return `${topic} 경험의 결과를 어떤 기준으로 확인했고, 다시 한다면 개선하고 싶은 점은 무엇인지 설명해 주세요.`;
+  }
+
+  return `방금 답변한 ${topic} 경험에서 가장 중요한 판단 한 가지와 그 판단이 결과에 준 영향을 구체적으로 설명해 주세요.`;
 }
 
 function extractFollowUpTopic(...values: Array<string | undefined>): string {

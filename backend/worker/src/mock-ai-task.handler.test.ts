@@ -317,6 +317,53 @@ test("follow-up question policy is separated for mock and recruiting interviews"
   assert.match(results.followUpQuestions[1].content, /효과/);
 });
 
+test("mock follow-up questions vary by previous question intent", async () => {
+  const transcript =
+    "NestJS와 PostgreSQL 프로젝트에서 답변 저장과 STT, 꼬리질문 연결 흐름을 구현했고 로그와 데이터 흐름으로 문제를 좁혔습니다.";
+  const cases = [
+    {
+      processLogId: 40,
+      previousQuestion: "자기소개와 현재 준비 중인 직무를 함께 설명해주세요.",
+      expected: /주도적으로 맡았던 부분/,
+    },
+    {
+      processLogId: 41,
+      previousQuestion: "기술적으로 가장 신경 쓴 구현 경험을 설명해주세요.",
+      expected: /설계 선택/,
+    },
+    {
+      processLogId: 42,
+      previousQuestion: "문제가 생겼을 때 어떻게 해결했는지 설명해주세요.",
+      expected: /원인을 좁힌 순서/,
+    },
+  ];
+
+  const generated = [];
+  for (const item of cases) {
+    const results = new InMemoryAiResultRepository();
+    await run({
+      processLogId: item.processLogId,
+      processType: "FOLLOW_UP",
+      input: {
+        kind: "MOCK_FOLLOW_UP",
+        payload: {
+          sessionId: 3,
+          answerId: item.processLogId,
+          previousQuestion: item.previousQuestion,
+          transcript,
+        },
+      },
+      results,
+    });
+
+    const content = results.followUpQuestions[0]?.content ?? "";
+    generated.push(content);
+    assert.match(content, item.expected);
+  }
+
+  assert.equal(new Set(generated).size, cases.length);
+});
+
 test("duplicate follow-up requests keep one result per session, answer and policy", async () => {
   const results = new InMemoryAiResultRepository();
   const input = {
