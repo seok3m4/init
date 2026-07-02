@@ -170,8 +170,8 @@ describe('CompanyInterviewService', () => {
       title: 'AI 추천 질문 세트',
       sourceProcessLogId: 123,
       items: [
-        { questionId: 1, criterionId: 1, sortOrder: 1 },
         { questionId: 2, criterionId: 2, sortOrder: 2 },
+        { questionId: 1, criterionId: 1, sortOrder: 1 },
       ],
     });
 
@@ -180,11 +180,45 @@ describe('CompanyInterviewService', () => {
     assert.equal(result.createdByProcessLogId, 123);
     assert.equal(result.items.length, 2);
     assert.equal(result.items[0].questionId, 1);
+    assert.deepEqual(
+      result.items.map((item) => item.sortOrder),
+      [1, 2],
+    );
 
     const active = await service.getActiveQuestionSet(companyUser, 1);
     assert.equal(active.postingId, 1);
     assert.equal(active.fallbackPolicy, 'USE_ACTIVE_POSTING_QUESTIONS');
     assert.equal(active.questionSet?.questionSetId, result.questionSetId);
+    assert.equal(active.questionSet?.items.length, 2);
+    assert.deepEqual(
+      active.questionSet?.items.map((item) => item.questionId),
+      [1, 2],
+    );
+    assert.deepEqual(
+      active.questionSet?.items.map((item) => item.sortOrder),
+      [1, 2],
+    );
+    assert.equal(active.questionSet?.items[0].questionType, 'TECHNICAL');
+    assert.equal(
+      active.questionSet?.items[0].content,
+      'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',
+    );
+    assert.equal(active.questionSet?.items[0].isActive, true);
+
+    await service.deleteQuestion(companyUser, 2);
+
+    const activeAfterDelete = await service.getActiveQuestionSet(companyUser, 1);
+    assert.equal(activeAfterDelete.questionSet?.items.length, 2);
+    assert.deepEqual(
+      activeAfterDelete.questionSet?.items.map((item) => item.questionId),
+      [1, 2],
+    );
+    assert.equal(activeAfterDelete.questionSet?.items[1].questionType, 'TECHNICAL');
+    assert.equal(
+      activeAfterDelete.questionSet?.items[1].content,
+      '평가 기준과 질문 뱅크의 관계를 어떻게 모델링하시겠습니까?',
+    );
+    assert.equal(activeAfterDelete.questionSet?.items[1].isActive, false);
   });
 
   it('rejects duplicate questions in a confirmed question set', async () => {

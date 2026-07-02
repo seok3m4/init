@@ -74,6 +74,7 @@ export type QuestionSetItemRecord = {
   questionId: number;
   criterionId: number | null;
   sortOrder: number;
+  question?: QuestionRecord;
 };
 
 export type QuestionSetRecord = {

@@ -379,7 +379,12 @@ export class InMemoryCompanyInterviewRepository
     return questionSet
       ? {
           ...questionSet,
-          items: [...questionSet.items].sort((a, b) => a.sortOrder - b.sortOrder),
+          items: [...questionSet.items]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((item) => ({
+              ...item,
+              question: this.questions.find((question) => question.questionId === item.questionId),
+            })),
         }
       : undefined;
   }

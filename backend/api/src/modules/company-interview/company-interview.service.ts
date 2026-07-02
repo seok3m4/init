@@ -437,6 +437,9 @@ export class CompanyInterviewService {
         questionId: item.questionId,
         criterionId: item.criterionId,
         sortOrder: item.sortOrder,
+        questionType: item.question?.questionType,
+        content: item.question?.content,
+        isActive: item.question?.isActive,
       })),
     };
   }
