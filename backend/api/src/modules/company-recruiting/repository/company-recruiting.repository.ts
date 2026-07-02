@@ -13,7 +13,6 @@ import { PrismaService } from "../../../shared/prisma.service";
 import type {
   ApplicantRecord,
   NormalizedListQuery,
-  PublicApplicationStatusRecord,
   PublicRecruitmentRecord,
   RecruitmentRecord,
 } from "../company-recruiting.types";
@@ -78,7 +77,6 @@ export type CompanyRecruitingRepositoryPort = {
   findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
   findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null>;
   findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null>;
-  findPublicApplicationStatusByPostingAndEmail(postingId: number, email: string): Promise<PublicApplicationStatusRecord | null>;
   findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }>;
   findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }>;
   createApplication(input: CreateApplicationInput): Promise<ApplicantRecord>;
@@ -194,24 +192,6 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       select: { applicationId: true },
     });
     return application ? { applicationId: Number(application.applicationId) } : null;
-  }
-
-  async findPublicApplicationStatusByPostingAndEmail(postingId: number, email: string): Promise<PublicApplicationStatusRecord | null> {
-    const application = await this.prisma.application.findFirst({
-      where: {
-        postingId: BigInt(postingId),
-        posting: {
-          status: { not: PostingStatus.ARCHIVED },
-        },
-        candidate: {
-          user: {
-            email,
-          },
-        },
-      },
-      include: publicApplicationStatusInclude,
-    });
-    return application ? mapPublicApplicationStatus(application) : null;
   }
 
   async findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }> {
@@ -406,27 +386,6 @@ const applicantInclude = {
   },
 } satisfies Prisma.ApplicationInclude;
 
-const publicApplicationStatusInclude = {
-  candidate: {
-    include: {
-      user: true,
-    },
-  },
-  posting: {
-    include: {
-      company: { select: { name: true } },
-    },
-  },
-  evaluationReports: {
-    orderBy: { reportId: "desc" as const },
-    take: 1,
-  },
-  interviewSessions: {
-    orderBy: { sessionId: "desc" as const },
-    take: 1,
-  },
-} satisfies Prisma.ApplicationInclude;
-
 function buildPostingWhere(companyId: number, query: NormalizedListQuery): Prisma.PostingWhereInput {
   const q = query.q?.trim();
   return {
@@ -518,7 +477,6 @@ function mapPublicPosting(posting: Prisma.PostingGetPayload<{ include: { company
 }
 
 type ApplicationWithIncludes = Prisma.ApplicationGetPayload<{ include: typeof applicantInclude }>;
-type PublicApplicationStatusWithIncludes = Prisma.ApplicationGetPayload<{ include: typeof publicApplicationStatusInclude }>;
 
 function mapApplicant(application: ApplicationWithIncludes): ApplicantRecord {
   return {
@@ -568,52 +526,6 @@ function mapApplicant(application: ApplicationWithIncludes): ApplicantRecord {
           evidenceText: evidence.evidenceText,
         })),
       })),
-    })),
-    interviewSessions: application.interviewSessions.map((session) => ({
-      sessionId: Number(session.sessionId),
-      status: session.status,
-      interviewType: session.interviewType,
-      startedAt: session.startedAt,
-      completedAt: session.completedAt,
-    })),
-  };
-}
-
-function mapPublicApplicationStatus(application: PublicApplicationStatusWithIncludes): PublicApplicationStatusRecord {
-  return {
-    applicationId: Number(application.applicationId),
-    postingId: Number(application.postingId),
-    candidateId: Number(application.candidateId),
-    applicationStatus: application.applicationStatus,
-    documentStatus: application.documentStatus,
-    interviewStatus: application.interviewStatus,
-    reportStatus: application.reportStatus,
-    submittedAt: application.submittedAt,
-    updatedAt: application.updatedAt,
-    candidate: {
-      candidateId: Number(application.candidate.candidateId),
-      user: {
-        userId: Number(application.candidate.user.userId),
-        email: application.candidate.user.email,
-        name: application.candidate.user.name,
-        phone: application.candidate.user.phone,
-      },
-    },
-    posting: {
-      postingId: Number(application.posting.postingId),
-      title: application.posting.title,
-      jobRole: application.posting.jobRole,
-      companyName: application.posting.company.name,
-      status: application.posting.status,
-      startsOn: application.posting.startsOn,
-      endsOn: application.posting.endsOn,
-    },
-    evaluationReports: application.evaluationReports.map((report) => ({
-      reportId: Number(report.reportId),
-      status: report.status,
-      totalScore: null,
-      summary: null,
-      generatedAt: report.generatedAt,
     })),
     interviewSessions: application.interviewSessions.map((session) => ({
       sessionId: Number(session.sessionId),

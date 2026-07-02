@@ -35,10 +35,3 @@ export class SubmitPublicApplicationDto {
   @IsBoolean()
   consentAgreed!: boolean;
 }
-
-export class PublicApplicationStatusLookupDto {
-  @ApiProperty({ example: "candidate@example.com" })
-  @IsEmail()
-  @MaxLength(255)
-  email!: string;
-}

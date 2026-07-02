@@ -3,12 +3,8 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 
 import { ok, type RequestLike } from "../../../shared/response-envelope";
 import { ApiEnvelopeResponse, ApiErrorResponses, ApiOperationId, ApiParamId } from "../../../swagger/swagger.decorators";
-import {
-  PublicApplicationResponseDto,
-  PublicApplicationStatusResponseDto,
-  PublicRecruitmentResponseDto,
-} from "../dto/company-recruiting-response.dto";
-import { PublicApplicationStatusLookupDto, SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
+import { PublicApplicationResponseDto, PublicRecruitmentResponseDto } from "../dto/company-recruiting-response.dto";
+import { SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
 import { CompanyRecruitingService } from "../service/company-recruiting.service";
 
 @ApiTags("Public Recruitment")
@@ -41,20 +37,6 @@ export class PublicRecruitmentController {
     @Body() dto: SubmitPublicApplicationDto,
   ) {
     const data = await this.companyRecruitingService.submitPublicApplication(recruitmentId, dto);
-    return ok(request, data);
-  }
-
-  @Post(":recruitmentId/applications/status")
-  @ApiOperationId("API-088")
-  @ApiOperation({ summary: "공개 지원 현황 조회" })
-  @ApiParamId("recruitmentId", "채용 공고 ID")
-  @ApiEnvelopeResponse(PublicApplicationStatusResponseDto)
-  async getPublicApplicationStatus(
-    @Req() request: RequestLike,
-    @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
-    @Body() dto: PublicApplicationStatusLookupDto,
-  ) {
-    const data = await this.companyRecruitingService.getPublicApplicationStatus(recruitmentId, dto);
     return ok(request, data);
   }
 }

@@ -129,26 +129,6 @@ function createRepository(overrides: Record<string, unknown> = {}) {
       calls.findApplicationByPostingAndEmail = [postingId, email];
       return null;
     },
-    async findPublicApplicationStatusByPostingAndEmail(postingId: number, email: string) {
-      calls.findPublicApplicationStatusByPostingAndEmail = [postingId, email];
-      return {
-        ...applicant,
-        candidate: {
-          ...applicant.candidate,
-          user: {
-            ...applicant.candidate.user,
-            email,
-          },
-        },
-        posting: {
-          ...applicant.posting,
-          companyName: "INIT Corp",
-          status: "OPEN",
-          startsOn: null,
-          endsOn: null,
-        },
-      };
-    },
     async findOrCreateCandidate(input: unknown) {
       calls.findOrCreateCandidate = [input];
       return { candidateId: 44 };
@@ -450,54 +430,6 @@ describe("CompanyRecruitingService", () => {
       /동의가 필요합니다/,
     );
     assert.equal(repository.calls.findApplicationByPostingAndEmail, undefined);
-  });
-
-  it("returns limited public application status for returning applicants", async () => {
-    const repository = createRepository();
-    const service = new CompanyRecruitingService(repository);
-
-    const result = await service.getPublicApplicationStatus(101, {
-      email: " KIM@EXAMPLE.COM ",
-    });
-
-    assert.deepEqual(repository.calls.findPublicApplicationStatusByPostingAndEmail, [101, "kim@example.com"]);
-    assert.equal(result.applicationId, 77);
-    assert.equal(result.recruitmentId, 101);
-    assert.equal(result.email, "kim@example.com");
-    assert.equal(result.candidateName, "Kim Applicant");
-    assert.deepEqual(result.recruitment, {
-      companyName: "INIT Corp",
-      title: "Backend Developer",
-      jobRole: "Backend",
-      status: "OPEN",
-      startsOn: null,
-      endsOn: null,
-    });
-    assert.deepEqual(result.statuses, {
-      applicationStatus: "SUBMITTED",
-      documentStatus: "NOT_SUBMITTED",
-      interviewStatus: "NOT_READY",
-      reportStatus: "PENDING",
-    });
-    assert.equal(result.interviewAccess.nextAction, "WAIT_FOR_INTERVIEW_INVITATION");
-    assert.equal(result.interviewAccess.temporaryBoundary, "B_MODULE_PUBLIC_APPLICATION_STATUS_ACCESS");
-    assert.equal("screeningDecision" in result, false);
-    assert.equal("screeningMemo" in result, false);
-    assert.equal("report" in result, false);
-  });
-
-  it("rejects invalid email for public application status lookup", async () => {
-    const repository = createRepository();
-    const service = new CompanyRecruitingService(repository);
-
-    await assert.rejects(
-      () =>
-        service.getPublicApplicationStatus(101, {
-          email: "invalid-email",
-        }),
-      /이메일 형식이 올바르지 않습니다/,
-    );
-    assert.equal(repository.calls.findPublicApplicationStatusByPostingAndEmail, undefined);
   });
 
   it("updates recruitment settings for the current company only", async () => {

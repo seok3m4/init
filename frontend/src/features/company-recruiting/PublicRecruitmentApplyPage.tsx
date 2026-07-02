@@ -101,17 +101,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
 
         {state.loading ? <p className="notice">공고 정보를 불러오는 중입니다.</p> : null}
         {state.error ? <p className="notice danger">{state.error}</p> : null}
-        {message ? <p className={submittedEmail ? "notice" : "notice danger"}>{message}</p> : null}
-        {submittedEmail ? (
-          <div className="form-actions">
-            <Link
-              className="btn primary"
-              href={`/public/recruitments/${recruitmentId}/applications/status?email=${encodeURIComponent(submittedEmail)}`}
-            >
-              내 지원 현황 보기
-            </Link>
-          </div>
-        ) : null}
+        {message && !submittedEmail ? <p className="notice danger">{message}</p> : null}
 
         {state.data ? (
           <div className="grid-2">
@@ -141,75 +131,103 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
               </div>
             </section>
 
-            <form aria-label="공개 지원 폼" className="panel" onSubmit={handleSubmit}>
-              <div className="panel-head">
-                <div>
-                  <h2>지원 정보</h2>
-                  <p>접수 후 이메일 인증과 지원 현황 안내가 이어집니다.</p>
+            {submittedEmail ? (
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>지원서 접수 완료</h2>
+                    <p>입력한 이메일로 지원 현황과 면접 안내를 다시 확인할 수 있습니다.</p>
+                  </div>
                 </div>
-              </div>
-              <div className="creation-flow">
-                <label>
-                  이름 *
-                  <input
-                    required
-                    value={form.name}
-                    placeholder="김지원"
-                    onChange={(event) => updateField("name", event.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  이메일 *
-                  <input
-                    required
-                    type="email"
-                    value={form.email}
-                    placeholder="jiwon@example.com"
-                    onChange={(event) => updateField("email", event.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  연락처
-                  <input
-                    value={form.phone ?? ""}
-                    placeholder="010-0000-0000"
-                    onChange={(event) => updateField("phone", event.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  포트폴리오 URL
-                  <input
-                    type="url"
-                    value={form.portfolioUrl ?? ""}
-                    placeholder="https://github.com/jiwon"
-                    onChange={(event) => updateField("portfolioUrl", event.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  자기소개 / 추가 설명
-                  <textarea
-                    value={form.resumeText ?? ""}
-                    placeholder="지원 직무와 관련된 경험, 프로젝트, 강조하고 싶은 내용을 입력해주세요."
-                    onChange={(event) => updateField("resumeText", event.currentTarget.value)}
-                  />
-                </label>
-                <label>
-                  <span className="inline-check">
+                <div className="creation-flow">
+                  <p className="notice">{message || "지원서가 접수되었습니다. 이메일 안내를 확인해주세요."}</p>
+                  <dl className="detail-list">
+                    <DetailItem label="지원 이메일" value={submittedEmail} />
+                    <DetailItem label="다음 단계" value="이메일 인증 / 매직링크 확인" />
+                    <DetailItem label="면접 안내" value="면접 세션이 준비되면 지원 현황 화면에서 확인" />
+                  </dl>
+                  <div className="empty">
+                    실제 메일 발송 연동 후에는 이 단계에서 지원자 이메일로 매직링크가 발송되고, 지원자는 링크를 눌러
+                    지원 현황 화면으로 다시 들어오게 됩니다.
+                  </div>
+                  <div className="form-actions">
+                    <button className="btn secondary" type="button" onClick={() => setSubmittedEmail("")}>
+                      다른 이메일로 지원
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <form aria-label="공개 지원 폼" className="panel" onSubmit={handleSubmit}>
+                <div className="panel-head">
+                  <div>
+                    <h2>지원 정보</h2>
+                    <p>접수 후 이메일 인증과 지원 현황 안내가 이어집니다.</p>
+                  </div>
+                </div>
+                <div className="creation-flow">
+                  <label>
+                    이름 *
                     <input
-                      checked={form.consentAgreed}
-                      type="checkbox"
-                      onChange={(event) => updateField("consentAgreed", event.currentTarget.checked)}
+                      required
+                      value={form.name}
+                      placeholder="김지원"
+                      onChange={(event) => updateField("name", event.currentTarget.value)}
                     />
-                    개인정보 수집 및 채용 절차 이용에 동의합니다.
-                  </span>
-                </label>
-                <div className="form-actions">
-                  <button className="btn primary" disabled={!canSubmit} type="submit">
-                    {busy ? "제출 중" : "지원서 제출"}
-                  </button>
+                  </label>
+                  <label>
+                    이메일 *
+                    <input
+                      required
+                      type="email"
+                      value={form.email}
+                      placeholder="jiwon@example.com"
+                      onChange={(event) => updateField("email", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    연락처
+                    <input
+                      value={form.phone ?? ""}
+                      placeholder="010-0000-0000"
+                      onChange={(event) => updateField("phone", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    포트폴리오 URL
+                    <input
+                      type="url"
+                      value={form.portfolioUrl ?? ""}
+                      placeholder="https://github.com/jiwon"
+                      onChange={(event) => updateField("portfolioUrl", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    자기소개 / 추가 설명
+                    <textarea
+                      value={form.resumeText ?? ""}
+                      placeholder="지원 직무와 관련된 경험, 프로젝트, 강조하고 싶은 내용을 입력해주세요."
+                      onChange={(event) => updateField("resumeText", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    <span className="inline-check">
+                      <input
+                        checked={form.consentAgreed}
+                        type="checkbox"
+                        onChange={(event) => updateField("consentAgreed", event.currentTarget.checked)}
+                      />
+                      개인정보 수집 및 채용 절차 이용에 동의합니다.
+                    </span>
+                  </label>
+                  <div className="form-actions">
+                    <button className="btn primary" disabled={!canSubmit} type="submit">
+                      {busy ? "제출 중" : "지원서 제출"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         ) : null}
       </section>
