@@ -403,6 +403,23 @@ export interface AiInterviewHandoffResponse {
   callbackTopic?: string;
 }
 
+export interface AiJobStatusResponse {
+  processLogId: number;
+  processType: "STT" | "FOLLOW_UP" | "REPORT_GENERATE" | string;
+  status: CandidateAiProcessStatus;
+  queued?: boolean;
+  inputRef?: string;
+  outputRef?: string;
+  output?: unknown;
+  sessionId?: number;
+  applicationId?: number;
+  failure?: {
+    category: string;
+    reason: string;
+    retryable: boolean;
+  };
+}
+
 export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
 export type TranscriptStatus = "PENDING" | "AVAILABLE";
 export type CandidateAiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
@@ -642,6 +659,7 @@ export const candidateApiPaths = {
   recruitingComplete: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/complete`,
   recruitingStt: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/stt`,
   recruitingFollowUpQuestion: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/follow-up-question`,
+  aiJobStatus: (processLogId: number) => `/api/v1/ai/jobs/${processLogId}/status`,
   resume: "/api/v1/candidate/resume",
   portfolioLinks: "/api/v1/candidate/portfolio-links",
 } as const;
@@ -709,6 +727,7 @@ export interface CandidateApiClient {
     sessionId: number,
     body: AiInterviewRequest,
   ): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  getAiJobStatus(processLogId: number): Promise<ApiResponse<AiJobStatusResponse>>;
   getApplicationReport(applicationId: number): Promise<ApiResponse<CandidateRecruitingReportView>>;
   requestApplicationReportGeneration(applicationId: number): Promise<ApiResponse<CandidateReportGenerationHandoff>>;
   getApplicationStatus(applicationId: number): Promise<ApiResponse<CandidateApplicationStatusView>>;
@@ -840,6 +859,8 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+    getAiJobStatus: (processLogId) =>
+      request<ApiResponse<AiJobStatusResponse>>(candidateApiPaths.aiJobStatus(processLogId)),
     getApplicationReport: (applicationId) =>
       request<ApiResponse<CandidateRecruitingReportView>>(candidateApiPaths.applicationReport(applicationId)),
     requestApplicationReportGeneration: (applicationId) =>

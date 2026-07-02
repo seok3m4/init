@@ -69,6 +69,13 @@
         "^backend/worker/src/prisma-ai-result\\.repository(\\.test)?\\.ts$"
       ],
       "roles": ["D", "E"]
+    },
+    {
+      "name": "candidate interview AI worker output bridge",
+      "patterns": [
+        "^backend/worker/src/mock-ai-task\\.handler\\.ts$"
+      ],
+      "roles": ["D", "E"]
     }
   ],
   "roles": {

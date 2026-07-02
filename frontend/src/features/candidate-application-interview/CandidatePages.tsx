@@ -13,6 +13,7 @@ import {
   CandidateApiError,
   type AiInterviewHandoffResponse,
   type AiInterviewRequest,
+  type AiJobStatusResponse,
   type CandidateApplicationStatusView,
   type CandidateApplicationSummary,
   type CandidateFileAsset,
@@ -128,6 +129,17 @@ type AiPipelineDebugState = {
   processType: AiInterviewHandoffResponse["processType"];
   requestPayload: Record<string, unknown>;
   responsePayload: Record<string, unknown>;
+};
+type AutoAiStepStatus = "IDLE" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+type AutoAiPipelineState = {
+  answerId: number;
+  sttStatus: AutoAiStepStatus;
+  followUpStatus: AutoAiStepStatus;
+  sttProcessLogId?: number;
+  followUpProcessLogId?: number;
+  transcript?: string;
+  followUpQuestion?: string;
+  error?: string;
 };
 type CandidateRecordingCacheEntry = {
   url: string;
@@ -1377,6 +1389,7 @@ function InterviewRuntimePanel({
   const [lastAnswer, setLastAnswer] = useState<LastSavedAnswer>();
   const [aiHandoff, setAiHandoff] = useState<AiInterviewHandoffResponse>();
   const [aiPipelineDebug, setAiPipelineDebug] = useState<AiPipelineDebugState>();
+  const [autoAiPipeline, setAutoAiPipeline] = useState<AutoAiPipelineState>();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
@@ -2056,7 +2069,7 @@ function InterviewRuntimePanel({
           ? await api.saveMockAnswer(data.runtime.sessionId, request)
           : await api.saveRecruitingAnswer(data.runtime.sessionId, request);
       const answerFileAssetId = result.data.audioFile?.fileId ?? result.data.answer.audioFileId ?? result.data.videoFile?.fileId ?? result.data.answer.videoFileId;
-      setLastAnswer({
+      const savedAnswer: LastSavedAnswer = {
         answerId: result.data.answer.answerId,
         questionId: result.data.answer.questionId,
         questionText: question?.content ?? question?.audioPrompt ?? "이전 질문",
@@ -2066,8 +2079,15 @@ function InterviewRuntimePanel({
         audioS3Key: result.data.audioFile?.storageKey,
         videoFileId: result.data.videoFile?.fileId ?? result.data.answer.videoFileId,
         videoS3Key: result.data.videoFile?.storageKey,
-      });
+      };
+      setLastAnswer(savedAnswer);
       setAiHandoff(undefined);
+      setAiPipelineDebug(undefined);
+      setAutoAiPipeline({
+        answerId: savedAnswer.answerId,
+        sttStatus: "PENDING",
+        followUpStatus: "IDLE",
+      });
       setAnsweredQuestionIds((current) => {
         const next = new Set(current);
         next.add(request.questionId);
@@ -2086,6 +2106,7 @@ function InterviewRuntimePanel({
           ? `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요.`
           : `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 다음 질문 버튼으로 이동해주세요.`,
       );
+      await runAutomaticAiPipeline(savedAnswer);
       if (shouldAutoAdvance) {
         await advanceAfterTimedAnswer(question);
       }
@@ -2124,6 +2145,169 @@ function InterviewRuntimePanel({
     }
 
     setMessage("답변 녹화가 아직 준비되지 않았습니다.");
+  }
+
+  async function runAutomaticAiPipeline(savedAnswer: LastSavedAnswer) {
+    if (!data) return;
+
+    try {
+      const sttHandoff = await requestAiPipeline("STT", savedAnswer);
+      const sttProcessLogId = sttHandoff.processLogId;
+      if (!sttProcessLogId) {
+        setAutoAiPipeline((current) => ({
+          answerId: savedAnswer.answerId,
+          ...current,
+          sttStatus: "FAILED",
+          followUpStatus: "IDLE",
+          error: "STT 작업 ID를 받지 못했습니다.",
+        }));
+        return;
+      }
+
+      setAutoAiPipeline((current) => ({
+        answerId: savedAnswer.answerId,
+        ...current,
+        sttStatus: "RUNNING",
+        followUpStatus: "IDLE",
+        sttProcessLogId,
+        error: undefined,
+      }));
+
+      const sttStatus = await pollAiJobUntilSettled(sttProcessLogId);
+      if (sttStatus.status !== "COMPLETED") {
+        setAutoAiPipeline((current) => ({
+          answerId: savedAnswer.answerId,
+          ...current,
+          sttStatus: sttStatus.status === "FAILED" ? "FAILED" : "RUNNING",
+          followUpStatus: "IDLE",
+          error: sttStatus.status === "FAILED"
+            ? sttStatus.failure?.reason ?? "STT 처리에 실패했습니다."
+            : "STT 처리가 아직 진행 중입니다. 잠시 후 상태를 다시 확인해주세요.",
+        }));
+        return;
+      }
+
+      const transcript =
+        extractAiJobText(sttStatus.output, ["transcript"]) ??
+        extractAiJobText(sttStatus.outputRef, ["transcript"]);
+      if (!transcript) {
+        setAutoAiPipeline((current) => ({
+          answerId: savedAnswer.answerId,
+          ...current,
+          sttStatus: "COMPLETED",
+          followUpStatus: "FAILED",
+          sttProcessLogId,
+          error: "STT 결과에서 transcript를 찾지 못했습니다.",
+        }));
+        return;
+      }
+
+      const answerWithTranscript = { ...savedAnswer, transcript };
+      setLastAnswer(answerWithTranscript);
+      setAutoAiPipeline((current) => ({
+        answerId: savedAnswer.answerId,
+        ...current,
+        sttStatus: "COMPLETED",
+        followUpStatus: "PENDING",
+        sttProcessLogId,
+        transcript,
+        error: undefined,
+      }));
+
+      const followUpHandoff = await requestAiPipeline("FOLLOW_UP", answerWithTranscript);
+      const followUpProcessLogId = followUpHandoff.processLogId;
+      if (!followUpProcessLogId) {
+        setAutoAiPipeline((current) => ({
+          answerId: savedAnswer.answerId,
+          ...current,
+          sttStatus: current?.sttStatus ?? "COMPLETED",
+          followUpStatus: "FAILED",
+          error: "꼬리질문 작업 ID를 받지 못했습니다.",
+        }));
+        return;
+      }
+
+      setAutoAiPipeline((current) => ({
+        answerId: savedAnswer.answerId,
+        ...current,
+        sttStatus: current?.sttStatus ?? "COMPLETED",
+        followUpStatus: "RUNNING",
+        followUpProcessLogId,
+        error: undefined,
+      }));
+
+      const followUpStatus = await pollAiJobUntilSettled(followUpProcessLogId);
+      if (followUpStatus.status !== "COMPLETED") {
+        setAutoAiPipeline((current) => ({
+          answerId: savedAnswer.answerId,
+          ...current,
+          sttStatus: current?.sttStatus ?? "COMPLETED",
+          followUpStatus: followUpStatus.status === "FAILED" ? "FAILED" : "RUNNING",
+          error: followUpStatus.status === "FAILED"
+            ? followUpStatus.failure?.reason ?? "꼬리질문 생성에 실패했습니다."
+            : "꼬리질문 생성이 아직 진행 중입니다. 잠시 후 상태를 다시 확인해주세요.",
+        }));
+        return;
+      }
+
+      const followUpQuestion =
+        extractAiJobText(followUpStatus.output, ["content", "followUpQuestion", "question"]) ??
+        extractAiJobText(followUpStatus.outputRef, ["content", "followUpQuestion", "question"]);
+
+      setAutoAiPipeline((current) => ({
+        answerId: savedAnswer.answerId,
+        ...current,
+        sttStatus: current?.sttStatus ?? "COMPLETED",
+        followUpStatus: "COMPLETED",
+        followUpProcessLogId,
+        followUpQuestion,
+        error: followUpQuestion ? undefined : "꼬리질문 결과에서 content를 찾지 못했습니다.",
+      }));
+
+      setMessage(
+        followUpQuestion
+          ? "STT와 꼬리질문 생성이 완료되었습니다. 생성된 꼬리질문을 확인해주세요."
+          : "STT가 완료됐고 꼬리질문 작업 결과를 확인했습니다.",
+      );
+    } catch (pipelineError) {
+      setAutoAiPipeline((current) => ({
+        answerId: savedAnswer.answerId,
+        ...current,
+        sttStatus: current?.sttStatus ?? "FAILED",
+        followUpStatus: current?.followUpStatus ?? "IDLE",
+        error: toErrorMessage(pipelineError),
+      }));
+      setMessage(toErrorMessage(pipelineError));
+    }
+  }
+
+  async function requestAiPipeline(
+    processType: "STT" | "FOLLOW_UP",
+    targetAnswer: LastSavedAnswer,
+  ): Promise<AiInterviewHandoffResponse> {
+    if (!data) {
+      throw new Error("면접 런타임 정보를 찾지 못했습니다.");
+    }
+
+    const api = getCandidateApi();
+    const request = buildAiInterviewRequest(processType, targetAnswer, data.runtime.jobDescription, mode);
+    const result =
+      processType === "STT"
+        ? mode === "mock"
+          ? await api.requestMockStt(data.runtime.sessionId, request)
+          : await api.requestRecruitingStt(data.runtime.sessionId, request)
+        : mode === "mock"
+          ? await api.requestMockFollowUpQuestion(data.runtime.sessionId, request)
+          : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, request);
+
+    setAiHandoff(result.data);
+    setAiPipelineDebug({
+      processType: result.data.processType,
+      requestPayload: buildAiPipelineRequestPayload(data.runtime.sessionId, mode, processType, request),
+      responsePayload: buildAiPipelineResponsePayload(result.data, data.runtime.sessionId, targetAnswer),
+    });
+
+    return result.data;
   }
 
   async function handleRequestAiPipeline(processType: "STT" | "FOLLOW_UP") {
@@ -2392,6 +2576,12 @@ function InterviewRuntimePanel({
               <div className={`question-voice-status ${questionSpeechSupported ? "" : "unsupported"}`} aria-live="polite">
                 {questionSpeechStatus}
               </div>
+              {currentQuestionAnswered && autoAiPipeline?.followUpQuestion ? (
+                <div className="candidate-follow-up-prompt">
+                  <span>생성된 꼬리질문</span>
+                  <p>{autoAiPipeline.followUpQuestion}</p>
+                </div>
+              ) : null}
             </section>
 
             <section className="iv-grid">
@@ -2437,6 +2627,37 @@ function InterviewRuntimePanel({
                     <Definition label="fileAssetId" value={lastAnswer?.fileAssetId ?? "-"} />
                     <Definition label="questionId" value={lastAnswer?.questionId ?? currentQuestion?.questionId ?? "-"} />
                   </dl>
+                  <div className="candidate-ai-handoff__auto">
+                    <div className="status-line">
+                      <span className={autoAiStatusTone(autoAiPipeline?.sttStatus)}>
+                        {autoAiPipeline?.sttStatus === "COMPLETED" ? "✓" : "!"}
+                      </span>
+                      STT {formatAutoAiStatus(autoAiPipeline?.sttStatus)}
+                      {autoAiPipeline?.sttProcessLogId ? <small>#{autoAiPipeline.sttProcessLogId}</small> : null}
+                    </div>
+                    <div className="status-line">
+                      <span className={autoAiStatusTone(autoAiPipeline?.followUpStatus)}>
+                        {autoAiPipeline?.followUpStatus === "COMPLETED" ? "✓" : "!"}
+                      </span>
+                      꼬리질문 {formatAutoAiStatus(autoAiPipeline?.followUpStatus)}
+                      {autoAiPipeline?.followUpProcessLogId ? <small>#{autoAiPipeline.followUpProcessLogId}</small> : null}
+                    </div>
+                    {autoAiPipeline?.transcript ? (
+                      <div className="candidate-ai-handoff__insight">
+                        <strong>STT 텍스트</strong>
+                        <p>{autoAiPipeline.transcript}</p>
+                      </div>
+                    ) : null}
+                    {autoAiPipeline?.followUpQuestion ? (
+                      <div className="candidate-ai-handoff__insight">
+                        <strong>생성된 꼬리질문</strong>
+                        <p>{autoAiPipeline.followUpQuestion}</p>
+                      </div>
+                    ) : null}
+                    {autoAiPipeline?.error ? (
+                      <p className="candidate-ai-handoff__error">{autoAiPipeline.error}</p>
+                    ) : null}
+                  </div>
                   <div className="candidate-ai-handoff__actions">
                     <button
                       className="btn secondary compact"
@@ -3115,6 +3336,28 @@ function PipelinePayloadPreview({ title, payload }: { title: string; payload: Re
   );
 }
 
+function buildAiInterviewRequest(
+  processType: AiInterviewHandoffResponse["processType"],
+  answer: LastSavedAnswer,
+  jobDescription: string | undefined,
+  mode: RuntimeMode,
+): AiInterviewRequest {
+  if (processType === "STT") {
+    return compactPayload({
+      answerId: answer.answerId,
+      audioFileId: answer.audioFileId ?? answer.fileAssetId,
+      audioS3Key: answer.audioS3Key ?? answer.videoS3Key,
+    }) as AiInterviewRequest;
+  }
+
+  return compactPayload({
+    answerId: answer.answerId,
+    previousQuestion: answer.questionText,
+    transcript: answer.transcript,
+    jobDescription: mode === "recruiting" ? jobDescription : undefined,
+  }) as AiInterviewRequest;
+}
+
 function buildAiPipelineRequestPayload(
   sessionId: number,
   mode: RuntimeMode,
@@ -3183,6 +3426,57 @@ function compactPayload(payload: Record<string, unknown>): Record<string, unknow
 
 function formatJsonPayload(payload: Record<string, unknown>): string {
   return JSON.stringify(payload, null, 2);
+}
+
+async function pollAiJobUntilSettled(processLogId: number): Promise<AiJobStatusResponse> {
+  const api = getCandidateApi();
+  let latest = (await api.getAiJobStatus(processLogId)).data;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (latest.status === "COMPLETED" || latest.status === "FAILED") {
+      return latest;
+    }
+    await sleep(700);
+    latest = (await api.getAiJobStatus(processLogId)).data;
+  }
+
+  return latest;
+}
+
+function extractAiJobText(output: unknown, keys: string[]): string | undefined {
+  const parsed = parseAiJobOutput(output);
+  if (!isRecord(parsed)) {
+    return undefined;
+  }
+
+  for (const key of keys) {
+    const value = parsed[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function parseAiJobOutput(output: unknown): unknown {
+  if (typeof output !== "string") {
+    return output;
+  }
+
+  try {
+    return JSON.parse(output) as unknown;
+  } catch {
+    return output;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function formatIdList(ids: number[]): string {
@@ -3459,6 +3753,22 @@ function formatProcessTypeLabel(processType: string): string {
   };
 
   return labels[processType] ?? processType;
+}
+
+function formatAutoAiStatus(status?: AutoAiStepStatus): string {
+  const labels: Record<AutoAiStepStatus, string> = {
+    IDLE: "대기",
+    PENDING: "요청 대기",
+    RUNNING: "처리 중",
+    COMPLETED: "완료",
+    FAILED: "실패",
+  };
+
+  return status ? labels[status] : labels.IDLE;
+}
+
+function autoAiStatusTone(status?: AutoAiStepStatus): "ok" | "wait" {
+  return status === "COMPLETED" ? "ok" : "wait";
 }
 
 function useCandidateResource<T>(load: () => Promise<T>, dependencies: DependencyList) {
