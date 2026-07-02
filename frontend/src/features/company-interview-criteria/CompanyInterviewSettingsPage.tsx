@@ -620,8 +620,13 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     if (!settings) return;
 
     const matchedTag = findSuggestionTag(settings, criteriaDrafts, candidate, selectedTagId);
+    const projectedTotalWeight = criteriaTotalWeight + normalizeCriteriaSuggestionWeight(candidate.weight);
     if (!matchedTag) {
       setCriteriaError("이 추천안과 연결할 수 있는 평가 태그가 없습니다. 평가 태그를 먼저 추가해주세요.");
+      return;
+    }
+    if (projectedTotalWeight > 100) {
+      setCriteriaError("추천 기준을 적용하면 배점 합계가 100을 초과합니다. 기존 기준의 배점을 먼저 조정해주세요.");
       return;
     }
 
@@ -639,7 +644,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
           tagName: matchedTag.tagName,
           category: matchedTag.category,
           description: matchedTag.description ?? candidate.description,
-          weight: String(candidate.weight || 10),
+          weight: String(normalizeCriteriaSuggestionWeight(candidate.weight)),
           passScore: "",
           sortOrder: String(normalizedCriteria.length + 1),
         },
@@ -1334,6 +1339,10 @@ function AiJobPreview({
           const selectedTagId = toOptionalNumber(criteriaTagSelections[key]);
           const matchedTag = findSuggestionTag(settings, criteriaDrafts, candidate, selectedTagId);
           const availableTags = getAvailableSuggestionTags(settings, criteriaDrafts, candidate);
+          const appliedCriterion = findAppliedSuggestionCriteria(criteriaDrafts, candidate);
+          const projectedTotalWeight = getCriteriaTotalWeight(criteriaDrafts) + normalizeCriteriaSuggestionWeight(candidate.weight);
+          const isWeightOverflow = !appliedCriterion && projectedTotalWeight > 100;
+          const canApply = Boolean(matchedTag) && !appliedCriterion && !isWeightOverflow;
           return (
             <div className="posting" key={key}>
               <div className="logo-chip">{candidate.order || index + 1}</div>
@@ -1341,9 +1350,13 @@ function AiJobPreview({
                 <h3>{candidate.title}</h3>
                 <p>{candidate.description}</p>
                 <p>{candidate.suggestionReason}</p>
+                {appliedCriterion ? <p>{appliedCriterion.tagName} 태그로 이미 적용된 추천 기준입니다.</p> : null}
+                {isWeightOverflow ? <p>적용 시 배점 합계가 100을 초과합니다. 기존 배점을 조정한 뒤 적용해주세요.</p> : null}
+                {!matchedTag && !appliedCriterion ? <p>연결할 평가 태그를 선택해야 적용할 수 있습니다.</p> : null}
                 <select
                   className="field"
-                  value={matchedTag?.tagId ?? ""}
+                  value={appliedCriterion?.tagId ?? matchedTag?.tagId ?? ""}
+                  disabled={Boolean(appliedCriterion)}
                   onChange={(event) =>
                     setCriteriaTagSelections((current) => ({
                       ...current,
@@ -1360,8 +1373,8 @@ function AiJobPreview({
                 </select>
               </div>
               <span className="badge info">배점 {candidate.weight}</span>
-              <button className="btn secondary compact" type="button" disabled={!matchedTag} onClick={() => onApplyCriteria(candidate, matchedTag?.tagId)}>
-                {matchedTag ? "적용" : "연결 태그 없음"}
+              <button className="btn secondary compact" type="button" disabled={!canApply} onClick={() => onApplyCriteria(candidate, matchedTag?.tagId)}>
+                {appliedCriterion ? "적용됨" : isWeightOverflow ? "배점 초과" : matchedTag ? "적용" : "태그 선택 필요"}
               </button>
             </div>
           );
@@ -1377,19 +1390,28 @@ function AiJobPreview({
         {questionCandidates.map((candidate, index) => {
           const key = `${candidate.content}-${index}`;
           const selectedCriterionId = toOptionalNumber(questionCriterionSelections[key]);
-          const criterionId = selectedCriterionId ?? findCandidateCriterionId(settings, candidate);
+          const savedQuestion = findSavedQuestionCandidate(settings, candidate);
+          const criterionId = selectedCriterionId ?? findCandidateCriterionId(settings, candidate) ?? savedQuestion?.criterionId ?? undefined;
+          const isSaved = Boolean(savedQuestion);
           return (
             <div className="posting" key={key}>
               <div className="logo-chip">{normalizeQuestionType(candidate.questionType)}</div>
               <div>
                 <h3>{candidate.content}</h3>
-                <p>{criterionId ? getCriterionLabel(settings, criterionId) : "연결할 평가 기준 선택 필요"}</p>
+                <p>
+                  {isSaved
+                    ? `이미 ${criterionId ? getCriterionLabel(settings, criterionId) : "질문 뱅크"}에 저장된 질문입니다.`
+                    : criterionId
+                      ? getCriterionLabel(settings, criterionId)
+                      : "저장하려면 연결할 평가 기준을 선택해야 합니다."}
+                </p>
                 <p>
                   {candidate.category} · {candidate.difficulty} · {candidate.suggestionReason}
                 </p>
                 <select
                   className="field"
                   value={criterionId ?? ""}
+                  disabled={isSaved}
                   onChange={(event) =>
                     setQuestionCriterionSelections((current) => ({
                       ...current,
@@ -1405,8 +1427,8 @@ function AiJobPreview({
                   ))}
                 </select>
               </div>
-              <button className="btn secondary compact" type="button" disabled={!criterionId || questionSaving} onClick={() => onApplyQuestion(candidate, criterionId)}>
-                {criterionId ? "질문 저장" : "기준 선택 필요"}
+              <button className="btn secondary compact" type="button" disabled={!criterionId || questionSaving || isSaved} onClick={() => onApplyQuestion(candidate, criterionId)}>
+                {isSaved ? "저장됨" : criterionId ? "질문 저장" : "기준 선택 필요"}
               </button>
             </div>
           );
@@ -1563,6 +1585,26 @@ function findSuggestionTag(
   );
 }
 
+function findAppliedSuggestionCriteria(criteriaDrafts: CriteriaDraft[], candidate: CriteriaSuggestionCandidate) {
+  const normalizedTitle = normalizeText(candidate.tagName ?? candidate.title);
+  const normalizedCategory = normalizeText(candidate.category ?? "");
+
+  return criteriaDrafts.find((criterion) => {
+    if (candidate.tagId && criterion.tagId === candidate.tagId) return true;
+    if (normalizeText(criterion.tagName) === normalizedTitle) return true;
+    if (normalizedTitle.includes(normalizeText(criterion.tagName))) return true;
+    return normalizedCategory !== "" && normalizeText(criterion.category) === normalizedCategory;
+  });
+}
+
+function normalizeCriteriaSuggestionWeight(weight: number | undefined) {
+  return Number.isInteger(weight) && weight !== undefined && weight > 0 ? weight : 10;
+}
+
+function getCriteriaTotalWeight(criteriaDrafts: CriteriaDraft[]) {
+  return criteriaDrafts.reduce((total, criterion) => total + (toNumber(criterion.weight) ?? 0), 0);
+}
+
 function getAvailableSuggestionTags(
   settings: InterviewSettings,
   criteriaDrafts: CriteriaDraft[],
@@ -1589,6 +1631,16 @@ function findCandidateCriterionId(settings: InterviewSettings, candidate: Genera
     settings.criteria.find((criterion) => normalizedTitle.includes(normalizeText(criterion.tagName)))?.criterionId ??
     settings.criteria.find((criterion) => normalizeText(criterion.category) === normalizedTitle)?.criterionId
   );
+}
+
+function findSavedQuestionCandidate(settings: InterviewSettings, candidate: GeneratedQuestionCandidate) {
+  const normalizedContent = normalizeText(candidate.content);
+
+  return settings.questions.find((question) => {
+    if (!question.isActive) return false;
+    if (normalizeText(question.content) !== normalizedContent) return false;
+    return true;
+  });
 }
 
 function buildQuestionSetConfirmItems(settings: InterviewSettings, groups: GeneratedQuestionSetCandidate[]) {
