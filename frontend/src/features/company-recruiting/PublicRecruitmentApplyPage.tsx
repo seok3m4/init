@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -93,9 +94,9 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
               {state.data ? `${state.data.companyName} · ${state.data.jobRole}` : "공개 지원 공고 정보를 불러오고 있습니다."}
             </p>
           </div>
-          <a className="btn secondary" href="/">
+          <Link className="btn secondary" href="/">
             INIT 홈
-          </a>
+          </Link>
         </header>
 
         {state.loading ? <p className="notice">공고 정보를 불러오는 중입니다.</p> : null}
