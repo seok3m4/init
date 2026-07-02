@@ -32,9 +32,9 @@ export function CompanyNav({ active }: { active?: CompanyNavSection }) {
               href={COMPANY_MYPAGE_ROUTE}
               aria-current={current === "accountBilling" ? "page" : undefined}
               aria-haspopup="true"
+              onClick={(event) => event.currentTarget.blur()}
             >
               {companyNavLabels.accountBilling}
-              <span className="gnb-caret" aria-hidden="true">⌄</span>
             </Link>
             <div className="gnb-panel">
               {companyAccountBillingNav.map((item) => {
@@ -47,7 +47,13 @@ export function CompanyNav({ active }: { active?: CompanyNavSection }) {
                 }
                 const isActive = pathname?.startsWith(item.href);
                 return (
-                  <Link className={isActive ? "active" : ""} href={item.href} key={item.href} aria-current={isActive ? "page" : undefined}>
+                  <Link
+                    className={isActive ? "active" : ""}
+                    href={item.href}
+                    key={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={(event) => event.currentTarget.blur()}
+                  >
                     {item.label}
                   </Link>
                 );
