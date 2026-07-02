@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+﻿import { Inject, Injectable } from "@nestjs/common";
 import {
   CandidateDomainError,
   CandidateService,
@@ -9,7 +9,7 @@ import {
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
 import {
   AiInterviewRequestDto,
-  PromoteFollowUpQuestionDto,
+  InsertFollowUpQuestionDto,
   RuntimeFileAssetDto,
   SaveInterviewAnswerDto,
   StartMockInterviewDto,
@@ -23,7 +23,7 @@ import {
   InterviewQuestionView,
   InterviewRuntimeView,
   NextInterviewQuestionResult,
-  PromoteFollowUpQuestionResult,
+  InsertFollowUpQuestionResult,
   RuntimeInterviewSession,
   SaveInterviewAnswerResult,
   StartMockInterviewResult,
@@ -147,13 +147,13 @@ export class InterviewService {
     return this.createAiHandoff(session, dto, "FOLLOW_UP");
   }
 
-  async promoteMockFollowUpQuestion(
+  async insertMockFollowUpQuestion(
     sessionId: number,
-    dto: PromoteFollowUpQuestionDto,
+    dto: InsertFollowUpQuestionDto,
     currentUser: CurrentCandidateUser,
   ) {
     const session = await this.getOwnedMockSession(sessionId, currentUser);
-    return this.promoteFollowUpQuestion(session, dto);
+    return this.insertFollowUpQuestion(session, dto);
   }
 
   async listRecruitingQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
@@ -204,13 +204,13 @@ export class InterviewService {
     return this.createAiHandoff(session, dto, "FOLLOW_UP");
   }
 
-  async promoteRecruitingFollowUpQuestion(
+  async insertRecruitingFollowUpQuestion(
     sessionId: number,
-    dto: PromoteFollowUpQuestionDto,
+    dto: InsertFollowUpQuestionDto,
     currentUser: CurrentCandidateUser,
   ) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
-    return this.promoteFollowUpQuestion(session, dto);
+    return this.insertFollowUpQuestion(session, dto);
   }
 
   private async getRecruitingRuntimeSession(
@@ -419,12 +419,12 @@ export class InterviewService {
     });
   }
 
-  private async promoteFollowUpQuestion(
+  private async insertFollowUpQuestion(
     session: RuntimeInterviewSession,
-    dto: PromoteFollowUpQuestionDto,
-  ): Promise<{ data: PromoteFollowUpQuestionResult; meta: { traceId: string; timestamp: string } }> {
+    dto: InsertFollowUpQuestionDto,
+  ): Promise<{ data: InsertFollowUpQuestionResult; meta: { traceId: string; timestamp: string } }> {
     this.assertInProgress(session);
-    const processLogId = this.assertPromoteRequest(dto);
+    const processLogId = this.assertInsertRequest(dto);
     const process = await this.interviewRepository.findCompletedFollowUpProcess(processLogId);
     if (!process) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Completed follow-up process was not found.", 404, [
@@ -693,7 +693,7 @@ export class InterviewService {
     };
   }
 
-  private assertPromoteRequest(dto: PromoteFollowUpQuestionDto): number {
+  private assertInsertRequest(dto: InsertFollowUpQuestionDto): number {
     const requestBody = this.toRequestBody(dto, "followUpPromotion");
     if (!this.isPositiveInteger(requestBody.processLogId)) {
       throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "processLogId is invalid.", 400, [

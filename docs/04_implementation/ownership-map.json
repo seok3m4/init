@@ -89,6 +89,16 @@
         "^frontend/src/features/candidate-application-interview/(api|CandidatePages|contract\\.spec)\\.(ts|tsx)$"
       ],
       "roles": ["D", "E"]
+    },
+    {
+      "name": "candidate interview AI bridge docs",
+      "patterns": [
+        "^docs/01_product/(screen-flow|feature-spec)\\.md$",
+        "^docs/02_architecture/async-ai-pipeline\\.md$",
+        "^docs/03_contracts/(api-index|api-spec)\\.md$",
+        "^docs/04_implementation/ai-job-contracts\\.md$"
+      ],
+      "roles": ["D", "E", "PM"]
     }
   ],
   "roles": {

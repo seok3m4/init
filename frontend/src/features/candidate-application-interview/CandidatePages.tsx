@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import "./CandidatePages.module.css";
 
@@ -135,10 +135,10 @@ type AutoAiPipelineState = {
   answerId: number;
   sttStatus: AutoAiStepStatus;
   followUpStatus: AutoAiStepStatus;
-  promoteStatus?: AutoAiStepStatus;
+  insertStatus?: AutoAiStepStatus;
   sttProcessLogId?: number;
   followUpProcessLogId?: number;
-  promotedQuestionId?: number;
+  insertedQuestionId?: number;
   transcript?: string;
   followUpQuestion?: string;
   error?: string;
@@ -2349,39 +2349,41 @@ function InterviewRuntimePanel({
     }
   }
 
-  async function handlePromoteFollowUpQuestion() {
+  async function requestFollowUpQuestionInsert() {
     if (!data || !autoAiPipeline?.followUpProcessLogId) {
-      setMessage("질문으로 추가할 꼬리질문 작업이 없습니다.");
-      return;
+      throw new Error("질문으로 추가할 꼬리질문 작업이 없습니다.");
     }
 
+    const api = getCandidateApi();
+    return mode === "mock"
+      ? api.insertMockFollowUpQuestion(data.runtime.sessionId, {
+          processLogId: autoAiPipeline.followUpProcessLogId,
+        })
+      : api.insertRecruitingFollowUpQuestion(data.runtime.sessionId, {
+          processLogId: autoAiPipeline.followUpProcessLogId,
+        });
+  }
+
+  async function handleInsertFollowUpQuestion() {
     setBusy(true);
     setAutoAiPipeline((current) =>
       current
         ? {
             ...current,
-            promoteStatus: "RUNNING",
+            insertStatus: "RUNNING",
             error: undefined,
           }
         : current,
     );
     try {
-      const api = getCandidateApi();
-      const result =
-        mode === "mock"
-          ? await api.promoteMockFollowUpQuestion(data.runtime.sessionId, {
-              processLogId: autoAiPipeline.followUpProcessLogId,
-            })
-          : await api.promoteRecruitingFollowUpQuestion(data.runtime.sessionId, {
-              processLogId: autoAiPipeline.followUpProcessLogId,
-            });
+      const result = await requestFollowUpQuestionInsert();
 
       setAutoAiPipeline((current) =>
         current
           ? {
               ...current,
-              promoteStatus: "COMPLETED",
-              promotedQuestionId: result.data.question.questionId,
+              insertStatus: "COMPLETED",
+              insertedQuestionId: result.data.question.questionId,
               error: undefined,
             }
           : current,
@@ -2393,7 +2395,69 @@ function InterviewRuntimePanel({
         current
           ? {
               ...current,
-              promoteStatus: "FAILED",
+              insertStatus: "FAILED",
+              error: toErrorMessage(submitError),
+            }
+          : current,
+      );
+      setMessage(toErrorMessage(submitError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAnswerFollowUpQuestion() {
+    if (!data) return;
+
+    setBusy(true);
+    setMessage("");
+    setAutoAiPipeline((current) =>
+      current
+        ? {
+            ...current,
+            insertStatus: "RUNNING",
+            error: undefined,
+          }
+        : current,
+    );
+    try {
+      const result = await requestFollowUpQuestionInsert();
+      const api = getCandidateApi();
+      await (mode === "mock"
+        ? api.moveMockNextQuestion(data.runtime.sessionId)
+        : api.moveRecruitingNextQuestion(data.runtime.sessionId));
+
+      setAutoAiPipeline((current) =>
+        current
+          ? {
+              ...current,
+              insertStatus: "COMPLETED",
+              insertedQuestionId: result.data.question.questionId,
+              error: undefined,
+            }
+          : current,
+      );
+      stopQuestionSpeech();
+      setAnswer(defaultInterviewAnswerFormState);
+      setRecordedFileName("");
+      setQuestionSpeechStatus("꼬리질문 음성 대기");
+      setQuestionSpeechCompleted(false);
+      setQuestionSpeechPlaying(false);
+      setRemainingSeconds(INTERVIEW_QUESTION_TIME_LIMIT_SECONDS);
+      timeExpiredQuestionRef.current = null;
+      autoRecordingQuestionRef.current = null;
+      setMessage(
+        result.data.inserted
+          ? "생성된 꼬리질문으로 이동했습니다. 답변을 시작해주세요."
+          : "이미 추가된 꼬리질문으로 이동했습니다. 답변을 시작해주세요.",
+      );
+      refresh();
+    } catch (submitError) {
+      setAutoAiPipeline((current) =>
+        current
+          ? {
+              ...current,
+              insertStatus: "FAILED",
               error: toErrorMessage(submitError),
             }
           : current,
@@ -2629,7 +2693,22 @@ function InterviewRuntimePanel({
               </div>
               {currentQuestionAnswered && autoAiPipeline?.followUpQuestion ? (
                 <div className="candidate-follow-up-prompt">
-                  <span>생성된 꼬리질문</span>
+                  <div className="candidate-follow-up-prompt__head">
+                    <span>생성된 꼬리질문</span>
+                    <button
+                      className="btn primary compact"
+                      type="button"
+                      disabled={
+                        busy ||
+                        autoAiPipeline.followUpStatus !== "COMPLETED" ||
+                        !autoAiPipeline.followUpProcessLogId ||
+                        autoAiPipeline.insertStatus === "COMPLETED"
+                      }
+                      onClick={() => void handleAnswerFollowUpQuestion()}
+                    >
+                      꼬리질문 답변하기
+                    </button>
+                  </div>
                   <p>{autoAiPipeline.followUpQuestion}</p>
                 </div>
               ) : null}
@@ -2733,9 +2812,9 @@ function InterviewRuntimePanel({
                         busy ||
                         autoAiPipeline?.followUpStatus !== "COMPLETED" ||
                         !autoAiPipeline?.followUpProcessLogId ||
-                        autoAiPipeline?.promoteStatus === "COMPLETED"
+                        autoAiPipeline?.insertStatus === "COMPLETED"
                       }
-                      onClick={() => void handlePromoteFollowUpQuestion()}
+                      onClick={() => void handleInsertFollowUpQuestion()}
                     >
                       질문으로 추가
                     </button>

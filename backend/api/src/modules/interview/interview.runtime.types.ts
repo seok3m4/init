@@ -1,4 +1,4 @@
-import type { FileAsset, InterviewStatus, InterviewType } from "../candidate";
+﻿import type { FileAsset, InterviewStatus, InterviewType } from "../candidate";
 
 export type QuestionType = "INTRO" | "TECHNICAL" | "EXPERIENCE" | "SITUATION" | "FOLLOW_UP" | "CLOSING";
 
@@ -115,7 +115,7 @@ export interface AiHandoffResult {
   callbackTopic: string;
 }
 
-export interface PromoteFollowUpQuestionResult {
+export interface InsertFollowUpQuestionResult {
   sessionId: number;
   processLogId: number;
   sourceAnswerId: number;

@@ -1,4 +1,4 @@
-import "reflect-metadata";
+﻿import "reflect-metadata";
 import { strict as assert } from "node:assert";
 import { HttpException, RequestMethod } from "@nestjs/common";
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
@@ -23,7 +23,7 @@ type InterviewControllerRoute =
   | "completeMockInterview"
   | "requestMockStt"
   | "requestMockFollowUpQuestion"
-  | "promoteMockFollowUpQuestion"
+  | "insertMockFollowUpQuestion"
   | "saveDeviceCheck"
   | "startInterview"
   | "getInterviewRuntime"
@@ -33,7 +33,7 @@ type InterviewControllerRoute =
   | "completeRecruitingInterview"
   | "requestRecruitingStt"
   | "requestRecruitingFollowUpQuestion"
-  | "promoteRecruitingFollowUpQuestion";
+  | "insertRecruitingFollowUpQuestion";
 
 const validCandidateRequest = {
   headers: {},
@@ -68,7 +68,7 @@ assertRoute("listMockQuestions", interviewApiRoutes.mockQuestions, RequestMethod
 assertRoute("saveMockAnswer", interviewApiRoutes.mockAnswers, RequestMethod.POST, 201);
 assertRoute("moveMockNextQuestion", interviewApiRoutes.mockNextQuestion, RequestMethod.POST);
 assertRoute("completeMockInterview", interviewApiRoutes.mockComplete, RequestMethod.PATCH);
-assertRoute("promoteMockFollowUpQuestion", interviewApiRoutes.mockFollowUpQuestionPromote, RequestMethod.POST);
+assertRoute("insertMockFollowUpQuestion", interviewApiRoutes.mockFollowUpQuestionInsert, RequestMethod.POST);
 assertRoute("saveDeviceCheck", interviewApiRoutes.deviceCheck, RequestMethod.POST);
 assertRoute("startInterview", interviewApiRoutes.startInterview, RequestMethod.POST);
 assertRoute("getInterviewRuntime", interviewApiRoutes.interviewRuntime, RequestMethod.GET);
@@ -76,7 +76,7 @@ assertRoute("listRecruitingQuestions", interviewApiRoutes.recruitingQuestions, R
 assertRoute("saveRecruitingAnswer", interviewApiRoutes.recruitingAnswers, RequestMethod.POST, 201);
 assertRoute("moveRecruitingNextQuestion", interviewApiRoutes.recruitingNextQuestion, RequestMethod.POST);
 assertRoute("completeRecruitingInterview", interviewApiRoutes.recruitingComplete, RequestMethod.PATCH);
-assertRoute("promoteRecruitingFollowUpQuestion", interviewApiRoutes.recruitingFollowUpQuestionPromote, RequestMethod.POST);
+assertRoute("insertRecruitingFollowUpQuestion", interviewApiRoutes.recruitingFollowUpQuestionInsert, RequestMethod.POST);
 
 async function assertInterviewHttpError(
   action: () => Promise<unknown>,
@@ -166,21 +166,21 @@ async function runControllerRuntimeAssertions() {
     content: "그 선택이 결과에 어떤 영향을 줬는지 더 설명해주시겠어요?",
     policy: "MOCK",
   });
-  const promotedMock = await controller.promoteMockFollowUpQuestion(
+  const insertedMock = await controller.insertMockFollowUpQuestion(
     validCandidateRequest,
     String(mockStarted.data.sessionId),
     { processLogId: 9001 },
   );
-  assert.equal(promotedMock.data.inserted, true);
-  assert.equal(promotedMock.data.question.questionType, "FOLLOW_UP");
-  assert.equal(promotedMock.data.totalQuestions, 3);
+  assert.equal(insertedMock.data.inserted, true);
+  assert.equal(insertedMock.data.question.questionType, "FOLLOW_UP");
+  assert.equal(insertedMock.data.totalQuestions, 3);
 
   const runtimeAfterPromotion = await controller.getMockRuntime(validCandidateRequest, String(mockStarted.data.sessionId));
   assert.equal(runtimeAfterPromotion.data.currentQuestion?.current, true);
   assert.equal(runtimeAfterPromotion.data.currentQuestion?.questionType, "FOLLOW_UP");
 
   await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
-    questionId: promotedMock.data.question.questionId,
+    questionId: insertedMock.data.question.questionId,
     audioFile: {
       storageKey: "candidate/1/mock-answer-2.webm",
       originalName: "mock-answer-2.webm",

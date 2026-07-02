@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+﻿import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { CurrentUser } from "@init/common";
 import { type RequestLike } from "../../../shared/response-envelope";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
@@ -6,7 +6,7 @@ import { resolveCurrentCandidate, CandidateDomainError } from "../../candidate";
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
 import {
   AiInterviewRequestDto,
-  PromoteFollowUpQuestionDto,
+  InsertFollowUpQuestionDto,
   SaveInterviewAnswerDto,
   StartMockInterviewDto,
 } from "../dto/interview.runtime.dto";
@@ -78,14 +78,14 @@ export class InterviewController {
     );
   }
 
-  @Post(interviewApiRoutes.mockFollowUpQuestionPromote)
-  promoteMockFollowUpQuestion(
+  @Post(interviewApiRoutes.mockFollowUpQuestionInsert)
+  insertMockFollowUpQuestion(
     @Req() request: CandidateRequest,
     @Param("sessionId") sessionId: string,
-    @Body() dto: PromoteFollowUpQuestionDto,
+    @Body() dto: InsertFollowUpQuestionDto,
   ) {
     return this.handle(() =>
-      this.interviewService.promoteMockFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+      this.interviewService.insertMockFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
     );
   }
 
@@ -159,14 +159,14 @@ export class InterviewController {
     );
   }
 
-  @Post(interviewApiRoutes.recruitingFollowUpQuestionPromote)
-  promoteRecruitingFollowUpQuestion(
+  @Post(interviewApiRoutes.recruitingFollowUpQuestionInsert)
+  insertRecruitingFollowUpQuestion(
     @Req() request: CandidateRequest,
     @Param("sessionId") sessionId: string,
-    @Body() dto: PromoteFollowUpQuestionDto,
+    @Body() dto: InsertFollowUpQuestionDto,
   ) {
     return this.handle(() =>
-      this.interviewService.promoteRecruitingFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+      this.interviewService.insertRecruitingFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
     );
   }
 
