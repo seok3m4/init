@@ -218,7 +218,7 @@ model CandidateProfile {
   @@map("candidate_profiles")
 }
 
-mmodel Posting {
+model Posting {
   postingId            BigInt                 @id @default(autoincrement()) @map("posting_id")
   companyId            BigInt                 @map("company_id")
   title                String                 @db.VarChar(200)
