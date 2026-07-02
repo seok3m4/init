@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PrismaCompanyRecruitingRepository } from "./company-recruiting.repository";
 
 describe("PrismaCompanyRecruitingRepository", () => {
-  it("writes only B-owned application fields during direct registration", async () => {
+  it("writes only B-owned application fields when creating public applications", async () => {
     let capturedData: Record<string, unknown> | null = null;
     const prisma = {
       application: {

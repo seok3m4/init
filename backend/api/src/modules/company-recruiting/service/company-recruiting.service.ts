@@ -5,10 +5,6 @@ import { PostingStatus, ScreeningDecision, UserType } from "@prisma/client";
 
 import { ApiException as SharedApiException } from "../../../shared/api-exception";
 import {
-  InMemoryCompanyRecruitingInvitationAdapter,
-  type CompanyRecruitingInvitationAdapterPort,
-} from "./company-recruiting-invitation.adapter";
-import {
   InMemoryPublicApplicationAuthAdapter,
   type PublicApplicationAuthAdapterPort,
 } from "./public-application-auth.adapter";
@@ -16,10 +12,7 @@ import {
   DeferredPublicInterviewEntryAdapter,
   type PublicInterviewEntryAdapterPort,
 } from "./public-interview-entry.adapter";
-import type { BulkCreateApplicantsDto, BulkCreateApplicantRowDto } from "../dto/bulk-create-applicants.dto";
-import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
-import type { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import type { ListQueryDto } from "../dto/list-query.dto";
 import type { RequestPublicApplicationAccessLinkDto } from "../dto/request-public-application-access-link.dto";
 import type { SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
@@ -40,23 +33,6 @@ class CompanyRecruitingException extends SharedApiException {
     super(code, message, status, details);
   }
 }
-
-type BulkFailureReason =
-  | "MISSING_REQUIRED_FIELD"
-  | "INVALID_NAME"
-  | "INVALID_EMAIL"
-  | "USER_TYPE_MISMATCH"
-  | "DUPLICATED_IN_CSV"
-  | "DUPLICATED_IN_RECRUITMENT"
-  | "ROW_CREATE_FAILED";
-
-type BulkApplicantFailure = {
-  rowNumber: number;
-  email?: string;
-  field?: string;
-  reason: BulkFailureReason;
-  message: string;
-};
 
 export type CompanyRecruitingStoragePutObjectInput = {
   key: string;
@@ -87,7 +63,6 @@ class MissingCompanyRecruitingStorageAdapter implements CompanyRecruitingStorage
 export class CompanyRecruitingService {
   constructor(
     private readonly repository: CompanyRecruitingRepositoryPort,
-    private readonly invitationAdapter: CompanyRecruitingInvitationAdapterPort = new InMemoryCompanyRecruitingInvitationAdapter(),
     private readonly storageAdapter: CompanyRecruitingStorageAdapterPort = new MissingCompanyRecruitingStorageAdapter(),
     private readonly uploadConfig: CompanyRecruitingUploadConfig = {},
     private readonly publicApplicationAuthAdapter: PublicApplicationAuthAdapterPort = new InMemoryPublicApplicationAuthAdapter(),
@@ -381,117 +356,6 @@ export class CompanyRecruitingService {
     return toRecruitmentResponse(copied);
   }
 
-  async registerApplicant(user: CurrentUser, dto: CreateApplicantDto) {
-    const companyId = requireCompanyId(user);
-    const posting = await this.repository.findPostingForCompany(dto.recruitmentId, companyId);
-    if (!posting) {
-      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
-    }
-
-    validateApplicantName(dto.name);
-    const email = normalizeEmail(dto.email);
-    const duplicate = await this.repository.findApplicationByPostingAndEmail(dto.recruitmentId, email);
-    if (duplicate) {
-      throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "같은 공고에 이미 등록된 이메일입니다.", [
-        { field: "email", reason: "DUPLICATED_IN_RECRUITMENT" },
-      ]);
-    }
-    await this.assertExistingUserCanBeCandidate(email);
-
-    const candidate = await this.repository.findOrCreateCandidate({
-      name: dto.name.trim(),
-      email,
-      phone: dto.phone?.trim() || null,
-    });
-    const application = await this.repository.createApplication({
-      postingId: dto.recruitmentId,
-      candidateId: candidate.candidateId,
-      screeningMemo: null,
-    });
-    return toApplicantResponse(application);
-  }
-
-  async bulkRegisterApplicants(user: CurrentUser, dto: BulkCreateApplicantsDto) {
-    const companyId = requireCompanyId(user);
-    const posting = await this.repository.findPostingForCompany(dto.recruitmentId, companyId);
-    if (!posting) {
-      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
-    }
-    if (!dto.applicants?.length || dto.applicants.length > 200) {
-      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "CSV 업로드는 1행 이상 200행 이하만 가능합니다.", [
-        { field: "applicants", reason: "INVALID_BULK_ROW_COUNT" },
-      ]);
-    }
-
-    const seenEmails = new Set<string>();
-    const successes: Array<{ rowNumber: number; applicant: ReturnType<typeof toApplicantResponse> }> = [];
-    const failures: BulkApplicantFailure[] = [];
-
-    for (const [index, row] of dto.applicants.entries()) {
-      const prepared = prepareBulkApplicantRow(row, index);
-      const rowFailure = validatePreparedBulkRow(prepared, seenEmails);
-      if (rowFailure) {
-        failures.push(rowFailure);
-        continue;
-      }
-
-      seenEmails.add(prepared.email);
-      const duplicate = await this.repository.findApplicationByPostingAndEmail(dto.recruitmentId, prepared.email);
-      if (duplicate) {
-        failures.push({
-          rowNumber: prepared.rowNumber,
-          email: prepared.email,
-          field: "email",
-          reason: "DUPLICATED_IN_RECRUITMENT",
-          message: "같은 공고에 이미 등록된 이메일입니다.",
-        });
-        continue;
-      }
-      const account = await this.repository.findUserAccountByEmail(prepared.email);
-      if (account && account.userType !== UserType.CANDIDATE) {
-        failures.push({
-          rowNumber: prepared.rowNumber,
-          email: prepared.email,
-          field: "email",
-          reason: "USER_TYPE_MISMATCH",
-          message: "지원자 계정이 아닌 이메일은 지원자로 등록할 수 없습니다.",
-        });
-        continue;
-      }
-
-      try {
-        const candidate = await this.repository.findOrCreateCandidate({
-          name: prepared.name,
-          email: prepared.email,
-          phone: prepared.phone,
-        });
-        const application = await this.repository.createApplication({
-          postingId: dto.recruitmentId,
-          candidateId: candidate.candidateId,
-          screeningMemo: null,
-        });
-        successes.push({ rowNumber: prepared.rowNumber, applicant: toApplicantResponse(application) });
-      } catch {
-        failures.push({
-          rowNumber: prepared.rowNumber,
-          email: prepared.email,
-          reason: "ROW_CREATE_FAILED",
-          message: "지원자 등록 중 오류가 발생했습니다.",
-        });
-      }
-    }
-
-    return {
-      summary: {
-        totalRows: dto.applicants.length,
-        successCount: successes.length,
-        failedCount: failures.length,
-      },
-      successes,
-      failures,
-    };
-  }
-
   async listRecruitmentApplicants(user: CurrentUser, recruitmentId: number, query: ListQueryDto) {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);
@@ -506,45 +370,6 @@ export class CompanyRecruitingService {
     return {
       items: items.map(toApplicantResponse),
       page: buildPageMeta(normalized.page, normalized.limit, totalItems),
-    };
-  }
-
-  async inviteApplicant(user: CurrentUser, dto: InviteApplicantDto) {
-    const companyId = requireCompanyId(user);
-    const application = await this.repository.findApplicationForCompany(dto.applicantId, companyId);
-    if (!application) {
-      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원자를 찾을 수 없습니다.");
-    }
-
-    const availableFrom = parseDateTime(dto.availableFrom, "availableFrom");
-    const availableUntil = parseDateTime(dto.availableUntil, "availableUntil");
-    if (availableFrom > availableUntil) {
-      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "응시 시작일시는 종료일시보다 늦을 수 없습니다.", [
-        { field: "availableFrom", reason: "AFTER_AVAILABLE_UNTIL" },
-      ]);
-    }
-
-    const invitation = await this.invitationAdapter.requestInvitation({
-      application,
-      availableFrom,
-      availableUntil,
-      message: dto.message.trim(),
-    });
-
-    return {
-      invitationId: invitation.invitationId,
-      applicantId: application.applicationId,
-      applicationId: application.applicationId,
-      recruitmentId: application.postingId,
-      candidateId: application.candidateId,
-      email: application.candidate.user.email,
-      availableFrom: invitation.availableFrom.toISOString(),
-      availableUntil: invitation.availableUntil.toISOString(),
-      message: invitation.message,
-      deliveryStatus: invitation.deliveryStatus,
-      temporary: invitation.temporary,
-      temporaryBoundary: invitation.temporaryBoundary,
-      sessionConnection: invitation.sessionConnection,
     };
   }
 
@@ -586,15 +411,6 @@ export class CompanyRecruitingService {
     throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "이미 가입된 이메일은 공개 지원 폼에서 사용할 수 없습니다.", [
       { field: "email", reason: "EXISTING_USER_REQUIRES_VERIFICATION" },
     ]);
-  }
-
-  private async assertExistingUserCanBeCandidate(email: string) {
-    const account = await this.repository.findUserAccountByEmail(email);
-    if (account && account.userType !== UserType.CANDIDATE) {
-      throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "지원자 계정이 아닌 이메일은 지원자로 등록할 수 없습니다.", [
-        { field: "email", reason: "USER_TYPE_MISMATCH" },
-      ]);
-    }
   }
 
   private assertJobDescriptionImageFile(
@@ -699,16 +515,6 @@ function parseOptionalDate(value: string | undefined, field: string) {
   return date;
 }
 
-function parseDateTime(value: string, field: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "날짜 형식을 확인해주세요.", [
-      { field, reason: "INVALID_DATE_TIME" },
-    ]);
-  }
-  return date;
-}
-
 function parseScreeningDecision(value: UpdateScreeningStatusDto["screeningDecision"]): ScreeningDecision {
   if (!["UNDECIDED", "PASS", "HOLD", "FAIL"].includes(value)) {
     throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "허용되지 않은 전형 상태입니다.", [
@@ -746,57 +552,6 @@ function buildCopyTitle(title: string) {
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
-}
-
-function prepareBulkApplicantRow(row: BulkCreateApplicantRowDto, index: number) {
-  return {
-    rowNumber: Number.isInteger(row.rowNumber) && Number(row.rowNumber) > 0 ? Number(row.rowNumber) : index + 2,
-    name: normalizeOptionalString(row.name),
-    email: normalizeEmail(normalizeOptionalString(row.email)),
-    jobRole: normalizeOptionalString(row.jobRole),
-    phone: normalizeOptionalString(row.phone) || null,
-  };
-}
-
-function validatePreparedBulkRow(
-  row: ReturnType<typeof prepareBulkApplicantRow>,
-  seenEmails: Set<string>,
-): BulkApplicantFailure | null {
-  if (!row.name) {
-    return buildBulkFailure(row.rowNumber, row.email, "name", "MISSING_REQUIRED_FIELD", "이름은 필수입니다.");
-  }
-  if (!isValidApplicantName(row.name)) {
-    return buildBulkFailure(row.rowNumber, row.email, "name", "INVALID_NAME", "이름에는 숫자나 쉼표 등 특수문자를 사용할 수 없습니다.");
-  }
-  if (!row.email) {
-    return buildBulkFailure(row.rowNumber, undefined, "email", "MISSING_REQUIRED_FIELD", "이메일은 필수입니다.");
-  }
-  if (!row.jobRole) {
-    return buildBulkFailure(row.rowNumber, row.email, "jobRole", "MISSING_REQUIRED_FIELD", "지원 직무는 필수입니다.");
-  }
-  if (!isValidEmail(row.email)) {
-    return buildBulkFailure(row.rowNumber, row.email, "email", "INVALID_EMAIL", "이메일 형식이 올바르지 않습니다.");
-  }
-  if (seenEmails.has(row.email)) {
-    return buildBulkFailure(row.rowNumber, row.email, "email", "DUPLICATED_IN_CSV", "CSV 안에 중복된 이메일이 있습니다.");
-  }
-  return null;
-}
-
-function buildBulkFailure(
-  rowNumber: number,
-  email: string | undefined,
-  field: string,
-  reason: BulkFailureReason,
-  message: string,
-): BulkApplicantFailure {
-  return {
-    rowNumber,
-    ...(email ? { email } : {}),
-    field,
-    reason,
-    message,
-  };
 }
 
 function normalizeOptionalString(value: string | undefined) {
