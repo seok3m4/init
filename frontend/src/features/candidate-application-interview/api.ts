@@ -669,6 +669,7 @@ export const candidateApiPaths = {
   startInterview: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview/start`,
   interviewRuntime: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview`,
   recruitingQuestions: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/questions`,
+  interviewMedia: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/media`,
   recruitingAnswers: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/answers`,
   recruitingNextQuestion: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/next-question`,
   recruitingComplete: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/complete`,
@@ -685,6 +686,7 @@ export const publicInterviewApiPaths = {
   interviewRuntime: (applicationId: number) => `/api/v1/public/applications/${applicationId}/interview`,
   deviceCheck: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/device-check`,
   questions: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/questions`,
+  media: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/media`,
   answers: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/answers`,
   nextQuestion: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/next-question`,
   complete: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/complete`,
@@ -744,6 +746,7 @@ export interface CandidateApiClient {
   startInterview(applicationId: number): Promise<ApiResponse<StartInterviewResponse>>;
   getInterviewRuntime(applicationId: number): Promise<ApiResponse<CandidateInterviewRuntimeView>>;
   listRecruitingQuestions(sessionId: number): Promise<ApiResponse<RuntimeQuestionListResponse>>;
+  uploadInterviewMedia(sessionId: number, file: File): Promise<ApiResponse<CandidateFileAsset>>;
   saveRecruitingAnswer(
     sessionId: number,
     body: SaveInterviewAnswerRequest,
@@ -769,6 +772,7 @@ export type InterviewRuntimeApiClient = Pick<
   CandidateApiClient,
   | "saveDeviceCheck"
   | "startInterview"
+  | "uploadInterviewMedia"
   | "saveMockAnswer"
   | "saveRecruitingAnswer"
   | "moveMockNextQuestion"
@@ -804,6 +808,22 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         "content-type": "application/json",
         ...options.headers,
         ...init.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new CandidateApiError(response.status, await readErrorBody(response));
+    }
+
+    return (await response.json()) as T;
+  }
+
+  async function requestFormData<T>(path: string, formData: FormData): Promise<T> {
+    const response = await fetcher(toUrl(options.baseUrl, path), {
+      method: "POST",
+      body: formData,
+      headers: {
+        ...options.headers,
       },
     });
 
@@ -889,6 +909,11 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
       request<ApiResponse<CandidateInterviewRuntimeView>>(candidateApiPaths.interviewRuntime(applicationId)),
     listRecruitingQuestions: (sessionId) =>
       request<ApiResponse<RuntimeQuestionListResponse>>(candidateApiPaths.recruitingQuestions(sessionId)),
+    uploadInterviewMedia: (sessionId, file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return requestFormData<ApiResponse<CandidateFileAsset>>(candidateApiPaths.interviewMedia(sessionId), formData);
+    },
     saveRecruitingAnswer: (sessionId, body) =>
       request<ApiResponse<SaveInterviewAnswerResponse>>(candidateApiPaths.recruitingAnswers(sessionId), {
         method: "POST",
@@ -959,6 +984,24 @@ export function createPublicInterviewApiClient(
     return (await response.json()) as T;
   }
 
+  async function requestFormData<T>(path: string, formData: FormData): Promise<T> {
+    const headers = {
+      ...options.headers,
+      ...(options.publicAccessToken ? { Authorization: `Bearer ${options.publicAccessToken}` } : {}),
+    };
+    const response = await fetcher(toUrl(options.baseUrl, path), {
+      method: "POST",
+      body: formData,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new CandidateApiError(response.status, await readErrorBody(response));
+    }
+
+    return (await response.json()) as T;
+  }
+
   const unsupportedMockMethod = async (): Promise<never> => {
     throw new Error("Public interview runtime does not support mock interview APIs.");
   };
@@ -982,6 +1025,11 @@ export function createPublicInterviewApiClient(
       request<ApiResponse<CandidateInterviewRuntimeView>>(publicInterviewApiPaths.interviewRuntime(applicationId)),
     listRecruitingQuestions: (sessionId) =>
       request<ApiResponse<RuntimeQuestionListResponse>>(publicInterviewApiPaths.questions(sessionId)),
+    uploadInterviewMedia: (sessionId, file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return requestFormData<ApiResponse<CandidateFileAsset>>(publicInterviewApiPaths.media(sessionId), formData);
+    },
     saveRecruitingAnswer: (sessionId, body) =>
       request<ApiResponse<SaveInterviewAnswerResponse>>(publicInterviewApiPaths.answers(sessionId), {
         method: "POST",

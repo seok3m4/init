@@ -71,4 +71,29 @@ export class AiInterviewRequestDto {
   @IsInt()
   @IsPositive()
   fileAssetId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  audioFileId?: number;
+
+  @IsOptional()
+  @IsString()
+  audioS3Key?: string;
+
+  @IsOptional()
+  @IsString()
+  previousQuestion?: string;
+
+  @IsOptional()
+  @IsString()
+  transcript?: string;
+
+  @IsOptional()
+  @IsString()
+  jobDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  documentSummary?: string;
 }

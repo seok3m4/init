@@ -7,6 +7,7 @@ import { PrismaAiResultRepository } from "./prisma-ai-result.repository";
 import { PrismaAiProcessLogRepository } from "./prisma-process-log.repository";
 import { AiJobQueue } from "./queue";
 import { createDocumentExtractionStartHandler, createReportFailureHandler } from "./report-failure.handler";
+import { OpenAiS3SttProvider, SttProvider } from "./stt-provider";
 import { WorkerEnv } from "./worker-env";
 import { AiWorkerRunner } from "./worker-runner";
 
@@ -28,7 +29,9 @@ export interface WorkerRuntime {
 
 export async function createWorkerRuntime(queue: AiJobQueue, env: WorkerEnv): Promise<WorkerRuntime> {
   const repositories = await createRepositories(env);
-  const handler = new MockAiTaskHandler(repositories.results);
+  const handler = new MockAiTaskHandler(repositories.results, {
+    sttProvider: createSttProvider(env)
+  });
 
   return {
     runner: new AiWorkerRunner(queue, repositories.processLogs, handler, {
@@ -38,6 +41,26 @@ export async function createWorkerRuntime(queue: AiJobQueue, env: WorkerEnv): Pr
     }),
     disconnect: repositories.disconnect
   };
+}
+
+function createSttProvider(env: WorkerEnv): SttProvider | undefined {
+  if (process.env.AI_STT_PROVIDER === "mock") {
+    return undefined;
+  }
+
+  return new OpenAiS3SttProvider({
+    apiKey: process.env.OPENAI_API_KEY?.trim() || env.aiProviderApiKey,
+    bucketName: env.s3BucketName,
+    region: env.awsRegion,
+    endpoint: process.env.AWS_ENDPOINT_URL,
+    model: optionalEnv("OPENAI_STT_MODEL"),
+    language: optionalEnv("OPENAI_STT_LANGUAGE")
+  });
+}
+
+function optionalEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
 }
 
 async function createRepositories(env: WorkerEnv): Promise<WorkerRepositories> {

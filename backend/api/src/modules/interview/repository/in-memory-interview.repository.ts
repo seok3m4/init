@@ -2,6 +2,9 @@ import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from
 import type {
   CreateInterviewAnswerInput,
   CreateMockInterviewSessionInput,
+  CreateRuntimeFollowUpQuestionInput,
+  FollowUpQuestionPolicy,
+  GeneratedFollowUpQuestion,
   InterviewQuestionFilter,
   InterviewRepository,
 } from "./interview.repository";
@@ -117,6 +120,7 @@ export class InMemoryInterviewRepository implements InterviewRepository {
   private readonly mockSessions = new Map<number, RuntimeInterviewSession>();
   private readonly recruitingSessions = new Map<number, RuntimeInterviewSession>();
   private readonly answers: InterviewAnswer[] = [];
+  private readonly followUpQuestions = new Map<string, GeneratedFollowUpQuestion>();
 
   listQuestions(filter: InterviewQuestionFilter = {}): InterviewQuestion[] {
     return this.questions
@@ -124,6 +128,7 @@ export class InMemoryInterviewRepository implements InterviewRepository {
       .filter((question) => !filter.interviewType || question.interviewType === filter.interviewType)
       .filter((question) => filter.postingId === undefined || question.postingId === filter.postingId)
       .filter((question) => !filter.questionTypes || filter.questionTypes.includes(question.questionType))
+      .filter((question) => filter.questionTypes || question.questionType !== "FOLLOW_UP")
       .sort((left, right) => left.sortOrder - right.sortOrder || left.questionId - right.questionId)
       .map((question) => this.cloneQuestion(question));
   }
@@ -225,6 +230,49 @@ export class InMemoryInterviewRepository implements InterviewRepository {
     return this.cloneAnswer(answer);
   }
 
+  findGeneratedFollowUpQuestion(
+    answerId: number,
+    policy: FollowUpQuestionPolicy,
+  ): GeneratedFollowUpQuestion | undefined {
+    const question = this.followUpQuestions.get(this.followUpKey(answerId, policy));
+    if (!question || question.generationStatus !== "GENERATED") {
+      return undefined;
+    }
+    return { ...question };
+  }
+
+  createRuntimeFollowUpQuestion(input: CreateRuntimeFollowUpQuestionInput): InterviewQuestion {
+    const sourceQuestion = this.questions.find((question) => question.questionId === input.sourceAnswer.questionId);
+    const followUpQuestion: InterviewQuestion = {
+      questionId: Math.max(...this.questions.map((question) => question.questionId), 0) + 1,
+      questionType: "FOLLOW_UP",
+      content: input.content,
+      sortOrder: (sourceQuestion?.sortOrder ?? input.session.currentQuestionIndex + 1) + 0.5,
+      interviewType: input.session.interviewType,
+      postingId: input.session.interviewType === "RECRUITING" ? sourceQuestion?.postingId : undefined,
+      isActive: true,
+    };
+    this.questions.push(followUpQuestion);
+    return this.cloneQuestion(followUpQuestion);
+  }
+
+  saveGeneratedFollowUpQuestionForTest(
+    answerId: number,
+    policy: FollowUpQuestionPolicy,
+    content: string,
+    generationStatus = "GENERATED",
+  ): GeneratedFollowUpQuestion {
+    const question: GeneratedFollowUpQuestion = {
+      followUpId: this.followUpQuestions.size + 1,
+      answerId,
+      content,
+      generationStatus,
+      policy,
+    };
+    this.followUpQuestions.set(this.followUpKey(answerId, policy), question);
+    return { ...question };
+  }
+
   saveAnswerTranscript(answerId: number, transcript: string): void {
     const answer = this.answers.find((candidate) => candidate.answerId === answerId);
     if (answer) {
@@ -246,5 +294,9 @@ export class InMemoryInterviewRepository implements InterviewRepository {
 
   private cloneSession(session: RuntimeInterviewSession): RuntimeInterviewSession {
     return { ...session, questionIds: [...session.questionIds] };
+  }
+
+  private followUpKey(answerId: number, policy: FollowUpQuestionPolicy): string {
+    return `${policy}:${answerId}`;
   }
 }

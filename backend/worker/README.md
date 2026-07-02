@@ -36,6 +36,9 @@ Deployment boundary with A:
 
 Optional runtime environment variables:
 
+- `AI_STT_PROVIDER` defaults to `openai`; set `mock` only for isolated local tests that do not need real STT.
+- `OPENAI_STT_MODEL` defaults to `gpt-4o-mini-transcribe`.
+- `OPENAI_STT_LANGUAGE` defaults to `ko`.
 - `WORKER_BATCH_SIZE` defaults to `1`, max `10`.
 - `WORKER_POLL_INTERVAL_MS` defaults to `1000`.
 - `WORKER_REPOSITORY_MODE` is `memory` by default when unset, but integration runs must set it to `prisma` so worker updates are visible through API status polling.

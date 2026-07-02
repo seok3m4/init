@@ -1,10 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpException, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpException, Param, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { CandidateDomainError } from "../../candidate";
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
 import { AiInterviewRequestDto, SaveInterviewAnswerDto } from "../dto/interview.runtime.dto";
 import { PublicInterviewAccessGuard, type PublicInterviewRequest } from "./public-interview-access.guard";
 import { PublicInterviewStartDto } from "./public-interview.dto";
 import { PublicInterviewService } from "./public-interview.service";
+
+type UploadedInterviewMediaFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
 
 @Controller("public")
 export class PublicInterviewController {
@@ -56,6 +64,31 @@ export class PublicInterviewController {
     @Body() dto: SaveInterviewAnswerDto,
   ) {
     return this.handle(() => this.publicInterviewService.saveAnswer(Number(sessionId), dto, request.publicInterviewAccess));
+  }
+
+  @UseGuards(PublicInterviewAccessGuard)
+  @Post("interviews/:sessionId/media")
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor("file"))
+  uploadMedia(
+    @Req() request: PublicInterviewRequest,
+    @Param("sessionId") sessionId: string,
+    @UploadedFile() file?: UploadedInterviewMediaFile,
+  ) {
+    return this.handle(() =>
+      this.publicInterviewService.uploadMedia(
+        Number(sessionId),
+        file
+          ? {
+              originalName: file.originalname,
+              mimeType: file.mimetype,
+              sizeBytes: file.size,
+              buffer: file.buffer,
+            }
+          : undefined,
+        request.publicInterviewAccess,
+      ),
+    );
   }
 
   @UseGuards(PublicInterviewAccessGuard)

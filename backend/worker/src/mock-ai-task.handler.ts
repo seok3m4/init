@@ -10,6 +10,7 @@ import {
 } from "./ai-result.repository";
 import { NonRetryableAiWorkerFailure } from "./worker-errors";
 import { AiTaskHandler, AiTaskResult, AiWorkerJob } from "./worker.types";
+import { SttProvider } from "./stt-provider";
 
 interface WorkerInput {
   kind?: string;
@@ -33,7 +34,10 @@ const MOCK_HIRING_DECISION_TERMS = [
 ];
 
 export class MockAiTaskHandler implements AiTaskHandler {
-  constructor(private readonly results: AiResultRepository) {}
+  constructor(
+    private readonly results: AiResultRepository,
+    private readonly options: { sttProvider?: SttProvider } = {}
+  ) {}
 
   async handle(job: AiWorkerJob): Promise<AiTaskResult> {
     const input = parseInput(job.inputRef);
@@ -87,23 +91,36 @@ export class MockAiTaskHandler implements AiTaskHandler {
     };
   }
 
-  private stt(payload: Record<string, unknown>): AiTaskResult {
+  private async stt(payload: Record<string, unknown>): Promise<AiTaskResult> {
     const answerId = positiveNumber(payload.answerId, "answerId");
     const audioFileId = positiveNumber(payload.audioFileId, "audioFileId");
     const audioS3Key = requiredText(payload.audioS3Key, "audioS3Key");
-    const transcript = `Transcript generated from ${audioS3Key}`;
+    const providerResult = this.options.sttProvider
+      ? await this.options.sttProvider.transcribe({ audioFileId, audioS3Key })
+      : {
+          transcript: `Transcript generated from ${audioS3Key}`,
+          transcriptSource: "MOCK_AUDIO_PLACEHOLDER" as const
+        };
 
     return {
       outputRef: JSON.stringify({
         answerId,
         fileAsset: fileAssetRef(audioFileId, audioS3Key),
-        transcript,
+        transcript: providerResult.transcript,
+        transcriptSource: providerResult.transcriptSource,
+        model: providerResult.model,
         transcriptTarget: "interview_answers.transcript",
         dedupeKey: `answer:${answerId}:transcript`,
         duplicatePolicy: "KEEP_EXISTING_TRANSCRIPT"
       }),
       guardrail: { result: "PASS", reason: null },
-      finalSave: () => this.results.saveTranscript({ answerId, audioFileId, audioS3Key, transcript })
+      finalSave: () =>
+        this.results.saveTranscript({
+          answerId,
+          audioFileId,
+          audioS3Key,
+          transcript: providerResult.transcript
+        })
     };
   }
 
@@ -125,10 +142,14 @@ export class MockAiTaskHandler implements AiTaskHandler {
             .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
             .map(shorten)
             .join(" | ");
-    const content =
-      policy === "MOCK"
-        ? `Practice follow-up for "${shorten(previousQuestion)}" based on: ${shorten(transcript)}`
-        : `Recruiting follow-up using ${context} based on: ${shorten(transcript)}`;
+    const content = buildFollowUpQuestion({
+      policy,
+      previousQuestion,
+      transcript,
+      context,
+      jobDescription,
+      documentSummary
+    });
 
     return {
       outputRef: JSON.stringify({
@@ -805,6 +826,111 @@ function answersOf(value: unknown): Array<{ answerId: number; question?: string;
       transcript: requiredText(record.transcript, "transcript")
     };
   });
+}
+
+function optionalText(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = normalizeSpace(value);
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function buildFollowUpQuestion(input: {
+  policy: "MOCK" | "RECRUITING";
+  previousQuestion: string;
+  transcript: string;
+  context: string;
+  jobDescription?: string;
+  documentSummary?: string;
+}): string {
+  const transcript = normalizeSpace(input.transcript);
+  const lower = transcript.toLowerCase();
+
+  if (input.policy === "MOCK") {
+    return buildPracticeFollowUp(input.previousQuestion, transcript);
+  }
+
+  if (lower.includes("nestjs") || lower.includes("postgresql") || lower.includes("stt") || transcript.includes("꼬리질문")) {
+    return "NestJS와 PostgreSQL 기반 프로젝트에서 답변 저장, STT 결과, 꼬리질문 표시가 연결되는 흐름을 구현했다고 했는데, 사용자가 답변 완료를 누른 뒤 DB 저장과 지원자 화면 표시까지의 데이터 흐름을 구체적으로 설명해 주세요.";
+  }
+
+  if (transcript.includes("로그") || transcript.includes("데이터 흐름") || lower.includes("log")) {
+    return "문제가 생기면 로그와 데이터 흐름을 먼저 확인한다고 했는데, 실제로 마주친 오류 하나를 예로 들어 원인을 어떻게 좁히고 어떤 단위로 검증했는지 설명해 주세요.";
+  }
+
+  if (lower.includes("redis") || lower.includes("cache") || transcript.includes("캐시")) {
+    return "캐시를 활용해 성능이나 안정성을 개선했다고 했는데, 캐시 무효화나 TTL 정책을 어떻게 설계했고 어떤 지표로 효과를 확인했는지 설명해 주세요.";
+  }
+
+  if (lower.includes("performance") || transcript.includes("성능") || transcript.includes("최적화")) {
+    return "성능 개선 경험을 언급했는데, 병목을 어떻게 찾았고 개선 전후를 어떤 기준으로 비교했는지 구체적으로 설명해 주세요.";
+  }
+
+  const topic = extractFollowUpTopic(transcript, input.jobDescription, input.documentSummary, input.context);
+  return `방금 답변에서 ${topic}을 언급했는데, 그 경험에서 본인이 직접 맡은 역할과 가장 어려웠던 의사결정을 구체적으로 설명해 주세요.`;
+}
+
+function buildPracticeFollowUp(previousQuestion: string, transcript: string): string {
+  const topic = extractFollowUpTopic(transcript, previousQuestion);
+  const questionContext = normalizeSpace(previousQuestion);
+  const answerContext = normalizeSpace(transcript).toLowerCase();
+
+  if (questionContext.includes("자기소개") || questionContext.includes("직무")) {
+    return `방금 소개한 ${topic} 경험 중 본인이 가장 주도적으로 맡았던 부분 하나를 골라, 맡은 역할과 결과를 구체적으로 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("문제") || questionContext.includes("어려")) {
+    return `문제를 해결할 때 로그와 데이터 흐름을 본다고 했는데, 실제 오류 하나를 예로 들어 원인을 좁힌 순서와 검증 방법을 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("기술") || questionContext.includes("구현")) {
+    return `${topic}을 구현하면서 가장 신경 쓴 설계 선택은 무엇이었고, 다른 방식 대신 그 방법을 선택한 이유를 설명해 주세요.`;
+  }
+
+  if (answerContext.includes("로그") || answerContext.includes("데이터 흐름")) {
+    return `문제를 해결할 때 로그와 데이터 흐름을 본다고 했는데, 실제 오류 하나를 예로 들어 원인을 좁힌 순서와 검증 방법을 설명해 주세요.`;
+  }
+
+  if (answerContext.includes("nestjs") || answerContext.includes("postgresql") || answerContext.includes("stt")) {
+    return `${topic}을 구현하면서 가장 신경 쓴 설계 선택은 무엇이었고, 다른 방식 대신 그 방법을 선택한 이유를 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("협업") || questionContext.includes("상황") || questionContext.includes("갈등")) {
+    return `그 상황에서 혼자 판단하기 어려웠던 지점은 무엇이었고, 팀원이나 이해관계자와 어떻게 맞춰 해결했는지 설명해 주세요.`;
+  }
+
+  if (questionContext.includes("성과") || questionContext.includes("결과")) {
+    return `${topic} 경험의 결과를 어떤 기준으로 확인했고, 다시 한다면 개선하고 싶은 점은 무엇인지 설명해 주세요.`;
+  }
+
+  return `방금 답변한 ${topic} 경험에서 가장 중요한 판단 한 가지와 그 판단이 결과에 준 영향을 구체적으로 설명해 주세요.`;
+}
+
+function extractFollowUpTopic(...values: Array<string | undefined>): string {
+  const source = normalizeSpace(values.find((value) => value && value.trim().length > 0) ?? "");
+  if (!source) {
+    return "핵심 경험";
+  }
+
+  const keyword = [
+    "NestJS",
+    "PostgreSQL",
+    "STT",
+    "꼬리질문",
+    "로그",
+    "데이터 흐름",
+    "Redis",
+    "캐시",
+    "성능",
+    "최적화"
+  ].find((candidate) => source.toLowerCase().includes(candidate.toLowerCase()));
+
+  return keyword ?? `"${shorten(source)}"`;
+}
+
+function normalizeSpace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function pickEvidence(transcript: string, documentText?: string): string {

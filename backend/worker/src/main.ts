@@ -1,9 +1,11 @@
 import { createAiJobQueue } from "./queue";
 import { createWorkerRuntime } from "./worker-bootstrap";
 import { loadWorkerEnv } from "./worker-env";
+import { loadWorkerEnvFiles } from "./worker-env-file";
 import { AiWorkerLoop } from "./worker-loop";
 
 async function main(): Promise<void> {
+  loadWorkerEnvFiles();
   const env = loadWorkerEnv();
   const queue = createAiJobQueue();
   const runtime = await createWorkerRuntime(queue, env);
