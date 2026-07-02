@@ -135,6 +135,13 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     return this.applications.find((application) => application.applicationId === applicationId);
   }
 
+  async findCandidateUserId(candidateId: number): Promise<number | undefined> {
+    if (candidateId === DEV_CANDIDATE_USER.candidateId) {
+      return DEV_CANDIDATE_USER.userId;
+    }
+    return candidateId;
+  }
+
   async listDocuments(applicationId: number): Promise<ApplicationDocument[]> {
     return this.documents.filter((document) => document.applicationId === applicationId);
   }
@@ -172,6 +179,18 @@ export class InMemoryCandidateRepository implements CandidateRepository {
 
   async findInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
     return this.interviewSessions.find((session) => session.applicationId === applicationId);
+  }
+
+  async ensureInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
+    const existing = await this.findInterviewSessionByApplication(applicationId);
+    if (existing) return existing;
+
+    const application = await this.findApplication(applicationId);
+    if (!application) return undefined;
+
+    const session = this.createRecruitingInterviewSession(application, new Date().toISOString());
+    this.interviewSessions.push(session);
+    return session;
   }
 
   async saveDeviceCheck(

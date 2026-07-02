@@ -124,6 +124,7 @@
     "D": [
       "^frontend/src/features/candidate-application-interview/",
       "^frontend/src/app/candidate/",
+      "^frontend/src/app/public/applications/\\[applicationId\\]/interview/runtime/",
       "^backend/api/src/modules/(candidate|interview)/"
     ],
     "E": [

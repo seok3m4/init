@@ -269,6 +269,20 @@ export interface StartInterviewResponse {
   startedAt: string;
 }
 
+export interface PublicInterviewStartRequest {
+  token?: string;
+  magicToken?: string;
+}
+
+export interface PublicInterviewStartResponse {
+  applicationId: number;
+  sessionId: number;
+  interviewStatus: InterviewStatus;
+  interviewSessionStatus: InterviewStatus;
+  runtimePath: string;
+  publicAccessToken: string;
+}
+
 export interface CandidateInterviewRuntimeView {
   applicationId: number;
   sessionId: number;
@@ -665,6 +679,19 @@ export const candidateApiPaths = {
   portfolioLinks: "/api/v1/candidate/portfolio-links",
 } as const;
 
+export const publicInterviewApiPaths = {
+  startInterview: (applicationId: number) => `/api/v1/public/applications/${applicationId}/interview/start`,
+  beginInterview: (applicationId: number) => `/api/v1/public/applications/${applicationId}/interview/begin`,
+  interviewRuntime: (applicationId: number) => `/api/v1/public/applications/${applicationId}/interview`,
+  deviceCheck: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/device-check`,
+  questions: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/questions`,
+  answers: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/answers`,
+  nextQuestion: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/next-question`,
+  complete: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/complete`,
+  stt: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/stt`,
+  followUpQuestion: (sessionId: number) => `/api/v1/public/interviews/${sessionId}/follow-up-question`,
+} as const;
+
 export class CandidateApiError extends Error {
   readonly status: number;
   readonly body?: ApiErrorBody;
@@ -736,6 +763,31 @@ export interface CandidateApiClient {
   createPortfolioLink(
     body: CreatePortfolioLinkRequest,
   ): Promise<ApiResponse<CandidatePortfolioLink>>;
+}
+
+export type InterviewRuntimeApiClient = Pick<
+  CandidateApiClient,
+  | "saveDeviceCheck"
+  | "startInterview"
+  | "saveMockAnswer"
+  | "saveRecruitingAnswer"
+  | "moveMockNextQuestion"
+  | "moveRecruitingNextQuestion"
+  | "completeMockInterview"
+  | "completeRecruitingInterview"
+  | "requestMockStt"
+  | "requestRecruitingStt"
+  | "requestMockFollowUpQuestion"
+  | "requestRecruitingFollowUpQuestion"
+>;
+
+export interface PublicInterviewApiClient extends InterviewRuntimeApiClient {
+  startPublicInterview(
+    applicationId: number,
+    body: PublicInterviewStartRequest,
+  ): Promise<ApiResponse<PublicInterviewStartResponse>>;
+  getInterviewRuntime(applicationId: number): Promise<ApiResponse<CandidateInterviewRuntimeView>>;
+  listRecruitingQuestions(sessionId: number): Promise<ApiResponse<RuntimeQuestionListResponse>>;
 }
 
 export function createCandidateApiClient(options: CandidateApiClientOptions = {}): CandidateApiClient {
@@ -880,6 +932,84 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+  };
+}
+
+export function createPublicInterviewApiClient(
+  options: CandidateApiClientOptions & { publicAccessToken?: string | null } = {},
+): PublicInterviewApiClient {
+  const fetcher = options.fetcher ?? fetch;
+
+  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const headers = {
+      "content-type": "application/json",
+      ...options.headers,
+      ...(options.publicAccessToken ? { Authorization: `Bearer ${options.publicAccessToken}` } : {}),
+      ...init.headers,
+    };
+    const response = await fetcher(toUrl(options.baseUrl, path), {
+      ...init,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new CandidateApiError(response.status, await readErrorBody(response));
+    }
+
+    return (await response.json()) as T;
+  }
+
+  const unsupportedMockMethod = async (): Promise<never> => {
+    throw new Error("Public interview runtime does not support mock interview APIs.");
+  };
+
+  return {
+    startPublicInterview: (applicationId, body) =>
+      request<ApiResponse<PublicInterviewStartResponse>>(publicInterviewApiPaths.startInterview(applicationId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    saveDeviceCheck: (sessionId, body) =>
+      request<ApiResponse<InterviewDeviceCheckResponse>>(publicInterviewApiPaths.deviceCheck(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    startInterview: (applicationId) =>
+      request<ApiResponse<StartInterviewResponse>>(publicInterviewApiPaths.beginInterview(applicationId), {
+        method: "POST",
+      }),
+    getInterviewRuntime: (applicationId) =>
+      request<ApiResponse<CandidateInterviewRuntimeView>>(publicInterviewApiPaths.interviewRuntime(applicationId)),
+    listRecruitingQuestions: (sessionId) =>
+      request<ApiResponse<RuntimeQuestionListResponse>>(publicInterviewApiPaths.questions(sessionId)),
+    saveRecruitingAnswer: (sessionId, body) =>
+      request<ApiResponse<SaveInterviewAnswerResponse>>(publicInterviewApiPaths.answers(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    moveRecruitingNextQuestion: (sessionId) =>
+      request<ApiResponse<NextInterviewQuestionResponse>>(publicInterviewApiPaths.nextQuestion(sessionId), {
+        method: "POST",
+      }),
+    completeRecruitingInterview: (sessionId) =>
+      request<ApiResponse<CompleteInterviewResponse>>(publicInterviewApiPaths.complete(sessionId), {
+        method: "PATCH",
+      }),
+    requestRecruitingStt: (sessionId, body) =>
+      request<ApiResponse<AiInterviewHandoffResponse>>(publicInterviewApiPaths.stt(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    requestRecruitingFollowUpQuestion: (sessionId, body) =>
+      request<ApiResponse<AiInterviewHandoffResponse>>(publicInterviewApiPaths.followUpQuestion(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    saveMockAnswer: unsupportedMockMethod,
+    moveMockNextQuestion: unsupportedMockMethod,
+    completeMockInterview: unsupportedMockMethod,
+    requestMockStt: unsupportedMockMethod,
+    requestMockFollowUpQuestion: unsupportedMockMethod,
   };
 }
 
