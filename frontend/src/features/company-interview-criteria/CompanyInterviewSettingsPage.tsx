@@ -1407,6 +1407,7 @@ function AiJobPreview({
 }) {
   const [criteriaTagSelections, setCriteriaTagSelections] = useState<Record<string, string>>({});
   const [questionCriterionSelections, setQuestionCriterionSelections] = useState<Record<string, string>>({});
+  const [questionSetSelections, setQuestionSetSelections] = useState<Record<string, boolean>>({});
   const criteriaSuggestions = getCriteriaSuggestions(notice.output);
   const questionCandidates = getQuestionCandidates(notice.output);
   const questionSetPreview = getGeneratedQuestionSetPreview(notice.output);
@@ -1459,7 +1460,7 @@ function AiJobPreview({
             </div>
           );
         })}
-        {criteriaSuggestions.length === 0 ? <div className="empty">표시할 평가 기준 추천 결과가 없습니다.</div> : null}
+        {criteriaSuggestions.length === 0 ? <div className="empty">{getEmptyAiOutputMessage(notice)}</div> : null}
       </div>
     );
   }
@@ -1513,33 +1514,79 @@ function AiJobPreview({
             </div>
           );
         })}
-        {questionCandidates.length === 0 ? <div className="empty">표시할 질문 생성 결과가 없습니다.</div> : null}
+        {questionCandidates.length === 0 ? <div className="empty">{getEmptyAiOutputMessage(notice)}</div> : null}
       </div>
     );
   }
 
+  const selectedQuestionSetPreview = questionSetPreview
+    .map((group, groupIndex) => ({
+      ...group,
+      questions: group.questions.filter((candidate, questionIndex) => {
+        const key = getQuestionSetCandidateKey(group, groupIndex, candidate, questionIndex);
+        const question = findQuestionForCandidate(settings, candidate, group);
+        return Boolean(question) && questionSetSelections[key] !== false;
+      }),
+    }))
+    .filter((group) => group.questions.length > 0);
+  const selectedSummary = buildQuestionSetConfirmSummary(settings, selectedQuestionSetPreview);
+  const selectedItems = buildQuestionSetConfirmItems(settings, selectedQuestionSetPreview);
+
   return (
     <div className="posting-list">
       {questionSetPreview.length > 0 ? (
-        <QuestionSetConfirmNotice summary={buildQuestionSetConfirmSummary(settings, questionSetPreview)} />
+        <QuestionSetConfirmNotice summary={selectedSummary} />
       ) : null}
-      {questionSetPreview.map((group, index) => {
-        const groupSummary = buildQuestionSetConfirmSummary(settings, [group]);
-        const firstConfirmableQuestion = buildQuestionSetConfirmItems(settings, [group]).length > 0;
+      {questionSetPreview.map((group, groupIndex) => {
+        const includedQuestions = group.questions.filter((candidate, questionIndex) => {
+          const key = getQuestionSetCandidateKey(group, groupIndex, candidate, questionIndex);
+          return questionSetSelections[key] !== false;
+        });
+        const groupSummary = buildQuestionSetConfirmSummary(settings, [{ ...group, questions: includedQuestions }]);
+        const firstConfirmableQuestion = buildQuestionSetConfirmItems(settings, [{ ...group, questions: includedQuestions }]).length > 0;
         return (
-          <div className="posting" key={`${group.criterionTitle}-${index}`}>
+          <div className="posting" key={`${group.criterionTitle}-${groupIndex}`}>
             <div className="logo-chip">{firstConfirmableQuestion ? "포함" : "누락"}</div>
             <div>
               <h3>{group.criterionTitle}</h3>
-              <p>
-                {group.questions.length > 0
-                  ? group.questions.map((question) => question.content).join(" / ")
-                  : "AI가 제안한 질문이 없습니다."}
-              </p>
+              <div className="posting-list" style={{ marginTop: 8 }}>
+                {group.questions.length > 0 ? (
+                  group.questions.map((candidate, questionIndex) => {
+                    const key = getQuestionSetCandidateKey(group, groupIndex, candidate, questionIndex);
+                    const question = findQuestionForCandidate(settings, candidate, group);
+                    const checked = Boolean(question) && questionSetSelections[key] !== false;
+                    return (
+                      <label className="check-row" key={key}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!question || questionSetConfirming}
+                          onChange={(event) =>
+                            setQuestionSetSelections((current) => ({
+                              ...current,
+                              [key]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          {candidate.content}
+                          <span>
+                            {question
+                              ? `${getQuestionTypeLabel(question.questionType)} · ${getCriterionLabel(settings, question.criterionId)}`
+                              : "질문 뱅크에 저장된 활성 질문과 매칭되지 않아 확정할 수 없습니다."}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p>AI가 제안한 질문이 없습니다.</p>
+                )}
+              </div>
               {groupSummary.confirmableCount > 0 ? (
-                <p>질문 뱅크의 활성 질문 {groupSummary.confirmableCount}개가 확정 대상입니다.</p>
+                <p>선택된 활성 질문 {groupSummary.confirmableCount}개가 확정 대상입니다.</p>
               ) : (
-                <p>질문 뱅크에 연결된 활성 질문이 없어 확정 대상에서 제외됩니다.</p>
+                <p>선택된 확정 대상이 없습니다. 질문을 포함하거나 질문 뱅크에 먼저 저장해주세요.</p>
               )}
             </div>
             <span className={`badge ${firstConfirmableQuestion ? "success" : "warning"}`}>
@@ -1552,13 +1599,13 @@ function AiJobPreview({
         <button
           className="btn primary compact"
           type="button"
-          disabled={questionSetConfirming || buildQuestionSetConfirmItems(settings, questionSetPreview).length === 0}
-          onClick={() => onConfirmQuestionSet(questionSetPreview)}
+          disabled={questionSetConfirming || selectedItems.length === 0}
+          onClick={() => onConfirmQuestionSet(selectedQuestionSetPreview)}
         >
-          {questionSetConfirming ? "확정 중" : "질문 세트 확정"}
+          {questionSetConfirming ? "확정 중" : `선택 질문 ${selectedItems.length}개 확정`}
         </button>
       ) : null}
-      {questionSetPreview.length === 0 ? <div className="empty">표시할 질문 세트 결과가 없습니다.</div> : null}
+      {questionSetPreview.length === 0 ? <div className="empty">{getEmptyAiOutputMessage(notice)}</div> : null}
     </div>
   );
 }
@@ -1608,6 +1655,13 @@ function getAiJobStatusMessage(notice: AiJobNotice) {
       : "AI 요청 처리에 실패했습니다. 다시 요청할 수 있습니다.";
   }
   if (notice.status === "COMPLETED") {
+    const guardrailResult = notice.output?.guardrail?.result?.toUpperCase();
+    if (guardrailResult === "BLOCKED") {
+      return "생성 결과가 검수 정책을 통과하지 못했습니다. 조건을 수정한 뒤 다시 요청해주세요.";
+    }
+    if (!hasAiOutputForKind(notice)) {
+      return getEmptyAiOutputMessage(notice);
+    }
     return "AI 요청 처리가 완료되었습니다. 아래 결과를 검토한 뒤 적용해주세요.";
   }
 
@@ -1619,6 +1673,29 @@ function getAiJobStatusMessage(notice: AiJobNotice) {
     return "AI가 요청을 처리하고 있습니다. 완료되면 결과가 자동으로 표시됩니다.";
   }
   return "요청이 접수되었습니다. worker가 작업을 가져가면 처리 상태로 변경됩니다.";
+}
+
+function hasAiOutputForKind(notice: AiJobNotice) {
+  if (notice.kind === "criteria") return getCriteriaSuggestions(notice.output).length > 0;
+  if (notice.kind === "questions") return getQuestionCandidates(notice.output).length > 0;
+  return getGeneratedQuestionSetPreview(notice.output).length > 0;
+}
+
+function getEmptyAiOutputMessage(notice: AiJobNotice) {
+  const guardrailReason = notice.output?.guardrail?.reason;
+  if (guardrailReason) {
+    return `AI 결과를 적용할 수 없습니다. 검수 사유: ${guardrailReason}`;
+  }
+  if (!notice.output) {
+    return "AI 작업은 완료되었지만 결과 본문이 없습니다. worker 결과 저장 상태를 확인해주세요.";
+  }
+  if (notice.kind === "criteria") {
+    return "저장 가능한 평가 기준 추천 결과가 없습니다. JD나 인재상 조건을 보강한 뒤 다시 요청해주세요.";
+  }
+  if (notice.kind === "questions") {
+    return "저장 가능한 질문 후보가 없습니다. 평가 기준을 저장하거나 JD 내용을 보강한 뒤 다시 요청해주세요.";
+  }
+  return "확정 가능한 질문 세트 결과가 없습니다. 질문 후보를 질문 뱅크에 저장한 뒤 다시 구성해주세요.";
 }
 
 function normalizeAiJobOutput(output: unknown): AiJobOutput | undefined {
@@ -1672,6 +1749,20 @@ function getGeneratedQuestionSetPreview(output?: AiJobOutput): GeneratedQuestion
       questions,
     },
   ];
+}
+
+function getQuestionSetCandidateKey(
+  group: GeneratedQuestionSetCandidate,
+  groupIndex: number,
+  candidate: GeneratedQuestionCandidate,
+  questionIndex: number,
+) {
+  return [
+    group.criterionId ?? group.criterionTitle,
+    groupIndex,
+    candidate.questionId ?? normalizeText(candidate.content),
+    questionIndex,
+  ].join(":");
 }
 
 function findSuggestionTag(
