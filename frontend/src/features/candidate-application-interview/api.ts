@@ -1,4 +1,4 @@
-﻿import { authFetch } from "../../api/client";
+import { authFetch } from "../../api/client";
 
 export type PostingStatus = "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
 export type CandidateJobListPostingStatus = Extract<PostingStatus, "OPEN" | "CLOSING_SOON">;

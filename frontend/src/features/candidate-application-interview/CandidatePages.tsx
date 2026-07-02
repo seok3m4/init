@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import "./CandidatePages.module.css";
 
@@ -2390,10 +2390,6 @@ function InterviewRuntimePanel({
     );
     try {
       const result = await requestFollowUpQuestionInsert();
-      const api = getCandidateApi();
-      await (mode === "mock"
-        ? api.moveMockNextQuestion(data.runtime.sessionId)
-        : api.moveRecruitingNextQuestion(data.runtime.sessionId));
 
       setAutoAiPipeline((current) =>
         current

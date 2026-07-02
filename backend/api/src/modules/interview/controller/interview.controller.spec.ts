@@ -102,6 +102,63 @@ async function assertInterviewHttpError(
   }
 }
 
+test("explicit follow-up insert focuses the inserted question and is idempotent", async () => {
+  const repository = new InMemoryCandidateRepository();
+  const candidateService = new CandidateService(repository);
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
+
+  const started = await controller.startMockInterview(validCandidateRequest, {
+    questionTypes: ["INTRO", "TECHNICAL"],
+    showQuestionText: false,
+  });
+  const questions = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
+  const firstQuestionId = questions.data.questions[0]?.questionId ?? 0;
+
+  const answer = await controller.saveMockAnswer(validCandidateRequest, String(started.data.sessionId), {
+    questionId: firstQuestionId,
+    audioFile: {
+      storageKey: "candidate/1/mock-answer-for-explicit-follow-up.webm",
+      originalName: "mock-answer-for-explicit-follow-up.webm",
+      mimeType: "audio/webm",
+      sizeBytes: 1024,
+    },
+    durationSeconds: 30,
+  });
+  const moved = await controller.moveMockNextQuestion(validCandidateRequest, String(started.data.sessionId));
+  assert.equal(moved.data.currentQuestion?.questionType, "TECHNICAL");
+
+  interviewRepository.saveCompletedFollowUpProcess({
+    processLogId: 9001,
+    sessionId: started.data.sessionId,
+    answerId: answer.data.answer.answerId,
+    content: "Please explain the cache invalidation tradeoff in more detail.",
+    policy: "MOCK",
+  });
+
+  const inserted = await controller.insertMockFollowUpQuestion(validCandidateRequest, String(started.data.sessionId), {
+    processLogId: 9001,
+  });
+  assert.equal(inserted.data.inserted, true);
+  assert.equal(inserted.data.question.questionType, "FOLLOW_UP");
+
+  const runtimeAfterInsert = await controller.getMockRuntime(validCandidateRequest, String(started.data.sessionId));
+  assert.equal(runtimeAfterInsert.data.currentQuestion?.questionId, inserted.data.question.questionId);
+
+  const duplicate = await controller.insertMockFollowUpQuestion(validCandidateRequest, String(started.data.sessionId), {
+    processLogId: 9001,
+  });
+  assert.equal(duplicate.data.inserted, false);
+  assert.equal(duplicate.data.question.questionId, inserted.data.question.questionId);
+
+  const questionsAfterDuplicate = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
+  assert.equal(
+    questionsAfterDuplicate.data.questions.filter((question) => question.questionId === inserted.data.question.questionId).length,
+    1,
+  );
+  assert.equal(questionsAfterDuplicate.data.questions[1]?.questionId, inserted.data.question.questionId);
+});
+
 async function runControllerRuntimeAssertions() {
   const repository = new InMemoryCandidateRepository();
   const candidateService = new CandidateService(repository);

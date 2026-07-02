@@ -1,4 +1,4 @@
-﻿import { strict as assert } from "node:assert";
+import { strict as assert } from "node:assert";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "./interview.routes";
 
 assert.equal(interviewApiRoutePrefix, "candidate");

@@ -643,24 +643,34 @@ export class InterviewService {
       ]);
     }
 
-    const followUpCount = await this.countFollowUpQuestions(session);
-    if (followUpCount >= 2) {
-      throw new CandidateDomainError("COMMON_CONFLICT", "Follow-up question limit has been reached.", 409, [
-        { field: "followUpQuestions", reason: "maximum 2 follow-up questions per session" },
-      ]);
+    let question = await this.findExistingRuntimeFollowUpQuestion(session, sourceQuestionIndex, process.content);
+    let questionIndex = question ? session.questionIds.indexOf(question.questionId) : -1;
+    let inserted = false;
+
+    if (!question) {
+      const followUpCount = await this.countFollowUpQuestions(session);
+      if (followUpCount >= 2) {
+        throw new CandidateDomainError("COMMON_CONFLICT", "Follow-up question limit has been reached.", 409, [
+          { field: "followUpQuestions", reason: "maximum 2 follow-up questions per session" },
+        ]);
+      }
+
+      question = await this.interviewRepository.createRuntimeFollowUpQuestion({
+        session,
+        sourceAnswer: answer,
+        content: process.content,
+      });
+      questionIndex = session.questionIds.indexOf(question.questionId);
+      if (questionIndex < 0) {
+        questionIndex = sourceQuestionIndex + 1;
+        session.questionIds.splice(questionIndex, 0, question.questionId);
+        inserted = true;
+      }
     }
 
-    const question = await this.interviewRepository.createRuntimeFollowUpQuestion({
-      session,
-      sourceAnswer: answer,
-      content: process.content,
-    });
-    const alreadyIncluded = session.questionIds.includes(question.questionId);
-    if (!alreadyIncluded) {
-      session.questionIds.splice(sourceQuestionIndex + 1, 0, question.questionId);
-      session.updatedAt = new Date().toISOString();
-      session = await this.interviewRepository.saveRuntimeSession(session);
-    }
+    session.currentQuestionIndex = questionIndex;
+    session.updatedAt = new Date().toISOString();
+    session = await this.interviewRepository.saveRuntimeSession(session);
 
     return this.envelope({
       sessionId: session.sessionId,
@@ -668,7 +678,7 @@ export class InterviewService {
       sourceAnswerId: answer.answerId,
       sourceQuestionId: answer.questionId,
       question: await this.toQuestionView(session, question, false),
-      inserted: !alreadyIncluded,
+      inserted,
       totalQuestions: session.questionIds.length,
       nextQuestionAvailable: session.currentQuestionIndex < session.questionIds.length - 1,
     });
@@ -942,6 +952,24 @@ export class InterviewService {
   private async countFollowUpQuestions(session: RuntimeInterviewSession): Promise<number> {
     const questions = await Promise.all(session.questionIds.map((questionId) => this.interviewRepository.findQuestion(questionId)));
     return questions.filter((question) => question?.questionType === "FOLLOW_UP").length;
+  }
+
+  private async findExistingRuntimeFollowUpQuestion(
+    session: RuntimeInterviewSession,
+    sourceQuestionIndex: number,
+    content: string,
+  ): Promise<InterviewQuestion | undefined> {
+    const normalizedContent = content.trim();
+    for (let index = sourceQuestionIndex + 1; index < session.questionIds.length; index += 1) {
+      const questionId = session.questionIds[index];
+      if (!questionId) continue;
+
+      const question = await this.interviewRepository.findQuestion(questionId);
+      if (question?.questionType === "FOLLOW_UP" && question.content.trim() === normalizedContent) {
+        return question;
+      }
+    }
+    return undefined;
   }
 
   private assertInProgress(session: RuntimeInterviewSession): void {
