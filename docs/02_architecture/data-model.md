@@ -24,6 +24,7 @@
 | `criterion_tags` | `CriterionTag` | C |
 | `evaluation_criteria` | `EvaluationCriterion` | C |
 | `question_bank` | `Question` | C |
+| `interview_time_policies` | `InterviewTimePolicy` | C |
 | `applications` | `Application` | B/D |
 | `application_documents` | `ApplicationDocument` | D/E |
 | `consent_records` | `ConsentRecord` | D |
@@ -46,7 +47,7 @@
 | Aggregate | Owned Tables | Responsibility |
 | --- |--- |--- |
 | Account | users, companies, candidate_profiles | 로그인 계정, 기업/지원자 프로필, 기본 파일 참조 |
-| Recruiting | postings, criterion_tags, evaluation_criteria, question_bank | 공고, JD, 평가 기준, 질문 관리 |
+| Recruiting | postings, criterion_tags, evaluation_criteria, question_bank, interview_time_policies | 공고, JD, 평가 기준, 질문, 면접 시간 정책 관리 |
 | Application | applications, application_documents, consent_records | 지원서 제출, 서류 파싱, 동의 이력 |
 | Interview | interview_sessions, interview_answers, follow_up_questions | 모의/채용 AI 면접 실행과 답변 |
 | Report | evaluation_reports, report_scores, report_evidences, manual_evaluations | AI 평가 결과와 면접관 검토 |
@@ -167,6 +168,17 @@
 | question_type | VARCHAR(50) NOT NULL | 질문 유형: INTRO, TECHNICAL, EXPERIENCE, SITUATION, FOLLOW_UP, CLOSING |
 | content | TEXT NOT NULL | 실제 질문 문장 |
 | is_active | BOOLEAN NOT NULL DEFAULT TRUE | 현재 사용 가능한 질문인지 여부 |
+
+### interview_time_policies
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| posting_id | BIGINT PRIMARY KEY | 시간 정책이 적용되는 채용 공고 FK |
+| preparation_time_sec | INTEGER NOT NULL DEFAULT 0 | 질문 표시 후 답변 전 준비 시간(초) |
+| answer_time_sec | INTEGER NOT NULL DEFAULT 90 | 답변 제한 시간(초) |
+| retry_allowed | BOOLEAN NOT NULL DEFAULT FALSE | 지원자의 재시도 허용 여부 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 생성 시각 |
+| updated_at | TIMESTAMP NOT NULL | 수정 시각 |
 
 ### applications
 

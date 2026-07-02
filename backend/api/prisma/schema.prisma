@@ -239,6 +239,7 @@ model Posting {
   questions            Question[]
   applications         Application[]
   questionSets         InterviewQuestionSet[]
+  timePolicy           InterviewTimePolicy?
 
   @@index([companyId, status])
   @@map("postings")
@@ -318,6 +319,18 @@ model InterviewQuestionSetItem {
 
   @@unique([questionSetId, sortOrder], map: "uq_interview_question_set_items_order")
   @@map("interview_question_set_items")
+}
+
+model InterviewTimePolicy {
+  postingId          BigInt   @id @map("posting_id")
+  preparationTimeSec Int      @default(0) @map("preparation_time_sec")
+  answerTimeSec      Int      @default(90) @map("answer_time_sec")
+  retryAllowed       Boolean  @default(false) @map("retry_allowed")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  posting            Posting  @relation(fields: [postingId], references: [postingId], onDelete: Cascade)
+
+  @@map("interview_time_policies")
 }
 
 model Application {
