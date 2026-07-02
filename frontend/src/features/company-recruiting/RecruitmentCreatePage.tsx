@@ -7,6 +7,12 @@ import { FormEvent, useState } from "react";
 import { createRecruitment } from "./api";
 import { Breadcrumb } from "./CompanyRecruitingChrome";
 import { JobDescriptionEditor } from "./JobDescriptionEditor";
+import { PostingExtraInfoFields } from "./PostingExtraInfoFields";
+import {
+  composeJobDescriptionWithExtraInfo,
+  createEmptyPostingExtraInfo,
+  type PostingExtraInfo,
+} from "./posting-extra-info";
 import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
@@ -15,19 +21,23 @@ type FormState = {
   startsOn: string;
   endsOn: string;
   jobDescription: string;
+  extraInfo: PostingExtraInfo;
 };
 
-const initialForm: FormState = {
-  title: "",
-  jobRole: "",
-  startsOn: "",
-  endsOn: "",
-  jobDescription: "",
-};
+function createInitialForm(): FormState {
+  return {
+    title: "",
+    jobRole: "",
+    startsOn: "",
+    endsOn: "",
+    jobDescription: "",
+    extraInfo: createEmptyPostingExtraInfo(),
+  };
+}
 
 export function RecruitmentCreatePage() {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(initialForm);
+  const [form, setForm] = useState<FormState>(() => createInitialForm());
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,13 +46,14 @@ export function RecruitmentCreatePage() {
     setLoading(true);
     setMessage("");
     try {
+      const jobDescription = composeJobDescriptionWithExtraInfo(form.jobDescription, form.extraInfo);
       const result = await createRecruitment({
         title: form.title,
         jobRole: form.jobRole,
         startsOn: form.startsOn || undefined,
         endsOn: form.endsOn || undefined,
         status: "DRAFT",
-        jobDescription: form.jobDescription || undefined,
+        jobDescription: jobDescription || undefined,
       });
       router.push(buildInterviewSettingsHref(result.data.recruitmentId));
     } catch (error) {
@@ -111,6 +122,20 @@ export function RecruitmentCreatePage() {
                 <input type="date" value={form.endsOn} onChange={(event) => updateField("endsOn", event.target.value)} />
               </label>
             </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>추가 공고 정보</h2>
+                <p>필요한 항목만 선택해서 지원자에게 보여줄 조건을 입력합니다.</p>
+              </div>
+            </div>
+            <PostingExtraInfoFields
+              value={form.extraInfo}
+              disabled={loading}
+              onChange={(value) => updateField("extraInfo", value)}
+            />
           </section>
 
           <section className="panel">

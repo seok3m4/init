@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
 import { Breadcrumb } from "./CompanyRecruitingChrome";
 import { JobDescriptionViewer } from "./JobDescriptionViewer";
+import { PostingExtraInfoSummary } from "./PostingExtraInfoFields";
+import { extractPostingExtraInfo } from "./posting-extra-info";
 import { getPublicApplicationLinkState } from "./public-application-link";
 import { buildInterviewSettingsHref } from "./routes";
 import {
@@ -153,6 +155,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const completedInterviews = applicants.filter((item) => isCompleted(item.interviewStatus)).length;
   const reportCompleted = applicants.filter((item) => item.report && isCompleted(item.report.status)).length;
   const completionRate = applicants.length === 0 ? 0 : Math.round((completedInterviews / applicants.length) * 100);
+  const parsedJobDescription = extractPostingExtraInfo(recruitment?.jobDescription);
 
   return (
     <section className="app-page glass-page">
@@ -223,9 +226,10 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
               </button>
               {isRecruitmentInfoOpen ? (
                 <div className="info-toggle-body" id="recruitment-info-content">
+                  <PostingExtraInfoSummary value={parsedJobDescription.extraInfo} />
                   <div className="description-box">
                     <JobDescriptionViewer
-                      value={recruitment.jobDescription}
+                      value={parsedJobDescription.jobDescription}
                       emptyMessage="등록된 JD가 없습니다. 면접 설정은 C 역할 영역에서 별도 연결합니다."
                     />
                   </div>
