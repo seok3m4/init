@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { ERROR_CODES, type CurrentUser, type ErrorCode } from "@init/common";
-import { PostingStatus, ScreeningDecision, UserType } from "@prisma/client";
+import { DocumentStatus, DocumentType, PostingStatus, ScreeningDecision, UserType } from "@prisma/client";
 
 import { ApiException as SharedApiException } from "../../../shared/api-exception";
 import {
@@ -24,6 +24,7 @@ import type {
   JobDescriptionImageUploadFile,
   JobDescriptionImageUploadResponse,
   NormalizedListQuery,
+  PublicApplicationDocumentUploadFile,
   PublicRecruitmentRecord,
   RecruitmentRecord,
 } from "../company-recruiting.types";
@@ -48,10 +49,18 @@ export type CompanyRecruitingStorageAdapterPort = {
 export type CompanyRecruitingUploadConfig = {
   jdImagePublicBaseUrl?: string;
   jdImageMaxUploadBytes?: number;
+  publicApplicationDocumentMaxUploadBytes?: number;
 };
 
 const ALLOWED_JD_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const DEFAULT_JD_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ALLOWED_PUBLIC_APPLICATION_DOCUMENT_MIME_TYPES = new Set(["application/pdf"]);
+const DEFAULT_PUBLIC_APPLICATION_DOCUMENT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+type PublicApplicationDocumentUploadFiles = {
+  resumeFile?: PublicApplicationDocumentUploadFile;
+  portfolioFile?: PublicApplicationDocumentUploadFile;
+};
 
 class MissingCompanyRecruitingStorageAdapter implements CompanyRecruitingStorageAdapterPort {
   async putObject(): Promise<void> {
@@ -181,7 +190,11 @@ export class CompanyRecruitingService {
     return toPublicRecruitmentResponse(posting);
   }
 
-  async submitPublicApplication(recruitmentId: number, dto: SubmitPublicApplicationDto) {
+  async submitPublicApplication(
+    recruitmentId: number,
+    dto: SubmitPublicApplicationDto,
+    files: PublicApplicationDocumentUploadFiles = {},
+  ) {
     const posting = await this.repository.findOpenPostingForPublic(recruitmentId);
     if (!posting) {
       throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공개 지원 가능한 공고를 찾을 수 없습니다.");
@@ -193,6 +206,7 @@ export class CompanyRecruitingService {
     }
 
     validateApplicantName(dto.name);
+    validateRequiredString(dto.phone, "phone", "연락처를 입력해주세요.");
     const email = normalizeEmail(dto.email);
     if (!isValidEmail(email)) {
       throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "이메일 형식이 올바르지 않습니다.", [
@@ -207,19 +221,54 @@ export class CompanyRecruitingService {
       ]);
     }
     await this.assertPublicApplicationEmailIsNew(email);
+    this.assertPublicApplicationDocumentFile(files.resumeFile, "resumeFile", "이력서 PDF 파일을 업로드해주세요.");
+    if (files.portfolioFile) {
+      this.assertPublicApplicationDocumentFile(files.portfolioFile, "portfolioFile", "포트폴리오 PDF 파일을 확인해주세요.");
+    }
 
     const candidate = await this.repository.findOrCreatePublicCandidate({
       name: dto.name.trim(),
       email,
       phone: normalizeNullableString(dto.phone),
+      githubUrl: normalizeNullableString(dto.githubBlogUrl),
       portfolioUrl: normalizeNullableString(dto.portfolioUrl),
-      summary: normalizeNullableString(dto.resumeText),
+      summary: buildPublicApplicationSummary(dto),
     });
+    const uploadedDocuments = [
+      await this.uploadPublicApplicationDocumentFile(
+        recruitmentId,
+        candidate.candidateId,
+        candidate.userId,
+        DocumentType.RESUME,
+        files.resumeFile,
+      ),
+    ];
+    if (files.portfolioFile) {
+      uploadedDocuments.push(
+        await this.uploadPublicApplicationDocumentFile(
+          recruitmentId,
+          candidate.candidateId,
+          candidate.userId,
+          DocumentType.PORTFOLIO,
+          files.portfolioFile,
+        ),
+      );
+    }
     const application = await this.repository.createApplication({
       postingId: recruitmentId,
       candidateId: candidate.candidateId,
       screeningMemo: null,
+      documentStatus: DocumentStatus.SUBMITTED,
     });
+    await Promise.all(
+      uploadedDocuments.map((document) =>
+        this.repository.createApplicationDocument({
+          applicationId: application.applicationId,
+          fileId: document.fileId,
+          documentType: document.documentType,
+        }),
+      ),
+    );
     const verification = await this.publicApplicationAuthAdapter.requestEmailVerification({
       applicationId: application.applicationId,
       recruitmentId: application.postingId,
@@ -439,6 +488,62 @@ export class CompanyRecruitingService {
       ]);
     }
   }
+
+  private assertPublicApplicationDocumentFile(
+    file: PublicApplicationDocumentUploadFile | undefined,
+    field: string,
+    requiredMessage: string,
+  ): asserts file is PublicApplicationDocumentUploadFile {
+    if (
+      !file ||
+      !file.originalName?.trim() ||
+      !file.mimeType?.trim() ||
+      !Buffer.isBuffer(file.buffer) ||
+      file.sizeBytes < 1
+    ) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, requiredMessage, [
+        { field, reason: "REQUIRED" },
+      ]);
+    }
+    if (!ALLOWED_PUBLIC_APPLICATION_DOCUMENT_MIME_TYPES.has(file.mimeType)) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.FILE_INVALID_TYPE, "PDF 파일만 업로드할 수 있습니다.", [
+        { field, reason: "INVALID_MIME_TYPE", allowedMimeTypes: [...ALLOWED_PUBLIC_APPLICATION_DOCUMENT_MIME_TYPES] },
+      ]);
+    }
+    const maxUploadBytes = this.uploadConfig.publicApplicationDocumentMaxUploadBytes ?? getConfiguredPublicApplicationDocumentMaxUploadBytes();
+    if (file.sizeBytes > maxUploadBytes) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.FILE_SIZE_EXCEEDED, "PDF 파일 용량이 너무 큽니다.", [
+        { field, reason: "SIZE_EXCEEDED", maxSizeBytes: maxUploadBytes },
+      ]);
+    }
+  }
+
+  private async uploadPublicApplicationDocumentFile(
+    recruitmentId: number,
+    candidateId: number,
+    ownerUserId: number,
+    documentType: DocumentType,
+    file: PublicApplicationDocumentUploadFile,
+  ) {
+    const storageKey = buildPublicApplicationDocumentStorageKey(recruitmentId, candidateId, documentType, file.originalName);
+    await this.storageAdapter.putObject({
+      key: storageKey,
+      body: file.buffer,
+      contentType: file.mimeType,
+      contentLength: file.sizeBytes,
+    });
+    const fileAsset = await this.repository.createFileAsset({
+      ownerUserId,
+      storageKey,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+    });
+    return {
+      fileId: fileAsset.fileId,
+      documentType,
+    };
+  }
 }
 
 export function normalizeListQuery(query: ListQueryDto, defaultSort: string): NormalizedListQuery {
@@ -470,8 +575,23 @@ export function getConfiguredJdImageMaxUploadBytes() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_JD_IMAGE_MAX_UPLOAD_BYTES;
 }
 
+export function getConfiguredPublicApplicationDocumentMaxUploadBytes() {
+  const parsed = Number(process.env.PUBLIC_APPLICATION_DOCUMENT_MAX_UPLOAD_BYTES ?? DEFAULT_PUBLIC_APPLICATION_DOCUMENT_MAX_UPLOAD_BYTES);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PUBLIC_APPLICATION_DOCUMENT_MAX_UPLOAD_BYTES;
+}
+
 function buildJobDescriptionImageStorageKey(companyId: number, originalName: string) {
   return `company/${companyId}/jd-images/${randomUUID()}-${sanitizeFileName(originalName)}`;
+}
+
+function buildPublicApplicationDocumentStorageKey(
+  recruitmentId: number,
+  candidateId: number,
+  documentType: DocumentType,
+  originalName: string,
+) {
+  const typePrefix = documentType === DocumentType.RESUME ? "resume" : "portfolio";
+  return `public-applications/${recruitmentId}/candidate-${candidateId}/${typePrefix}/${randomUUID()}-${sanitizeFileName(originalName)}`;
 }
 
 function sanitizeFileName(originalName: string) {
@@ -571,6 +691,25 @@ function buildPostingExtraInfoInput(dto: CreateRecruitmentDto | UpdateRecruitmen
 function normalizeNullableString(value: string | undefined) {
   const normalized = normalizeOptionalString(value);
   return normalized || null;
+}
+
+function validateRequiredString(value: string | undefined, field: string, message: string) {
+  if (!normalizeOptionalString(value)) {
+    throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, message, [
+      { field, reason: "REQUIRED" },
+    ]);
+  }
+}
+
+function buildPublicApplicationSummary(dto: SubmitPublicApplicationDto) {
+  const sections = [
+    ["지원동기", normalizeOptionalString(dto.motivation)],
+    ["추가 설명", normalizeOptionalString(dto.additionalInfo)],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}:\n${value}`);
+  const summary = sections.join("\n\n") || normalizeOptionalString(dto.resumeText);
+  return summary || null;
 }
 
 function validateApplicantName(name: string) {
