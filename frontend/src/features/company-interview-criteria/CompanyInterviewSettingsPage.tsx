@@ -64,6 +64,8 @@ type AiJobNotice = {
   status: AiProcessStatus;
   output?: AiJobOutput;
   failure?: AiJobResult["failure"];
+  requestedAt: number;
+  lastCheckedAt: number;
 };
 
 type QuestionSetPreviewItem = {
@@ -104,6 +106,7 @@ const AI_STATUS_LABELS: Record<AiProcessStatus, string> = {
   COMPLETED: "완료",
   FAILED: "실패",
 };
+const AI_JOB_SLOW_THRESHOLD_MS = 30_000;
 
 export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number }) {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
@@ -182,10 +185,21 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
         let changed = false;
         const next = current.map((notice) => {
           const result = results.find((item) => item.kind === notice.kind);
-          if (!result || !("data" in result)) return notice;
+          if (!result || !("data" in result)) {
+            if (!isTerminalAiStatus(notice.status)) {
+              changed = true;
+              return { ...notice, lastCheckedAt: Date.now() };
+            }
+            return notice;
+          }
 
           const output = normalizeAiJobOutput(result.data.output);
-          if (notice.status !== result.data.status || notice.output !== output || notice.failure !== result.data.failure) {
+          if (
+            notice.status !== result.data.status ||
+            notice.output !== output ||
+            notice.failure !== result.data.failure ||
+            !isTerminalAiStatus(result.data.status)
+          ) {
             changed = true;
           }
           return {
@@ -193,6 +207,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
             status: result.data.status,
             output,
             failure: result.data.failure,
+            lastCheckedAt: Date.now(),
           };
         });
         return changed ? next : current;
@@ -200,7 +215,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
       const failed = results.find((item) => "error" in item);
       if (failed && "error" in failed) {
-        setAiJobError(failed.error ?? "AI 작업 상태를 조회하지 못했습니다.");
+        setAiJobError(formatAiRequestError(failed.error ?? "AI 작업 상태를 조회하지 못했습니다."));
       }
     };
 
@@ -246,6 +261,10 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
   const questionSetPreview = useMemo(() => buildQuestionSetPreview(settings), [settings]);
   const questionSetPreviewSummary = useMemo(() => buildQuestionSetPreviewSummary(questionSetPreview), [questionSetPreview]);
+  const activeAiJobKinds = useMemo(
+    () => new Set(aiJobNotices.filter((notice) => !isTerminalAiStatus(notice.status)).map((notice) => notice.kind)),
+    [aiJobNotices],
+  );
 
   function addCriteriaDraft() {
     if (!settings || selectedTagId === "") return;
@@ -330,6 +349,10 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
           }
         : current,
     );
+  }
+
+  function updateTimePolicySeconds(field: TimePolicyField, value: string) {
+    updateTimePolicyDraft(field, toDigitsOnly(value));
   }
 
   function resetTimePolicyDraft() {
@@ -532,6 +555,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
   async function handleSuggestCriteria() {
     if (!settings) return;
+    if (isAiRequestBlocked("criteria", aiJobSubmitting, activeAiJobKinds)) return;
 
     setAiJobSubmitting("criteria");
     setAiJobError("");
@@ -545,7 +569,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       });
       rememberAiJob("criteria", "AI 평가 기준 추천", response.data);
     } catch (error) {
-      setAiJobError(error instanceof Error ? error.message : "AI 평가 기준 추천 요청에 실패했습니다.");
+      setAiJobError(formatAiRequestError(error instanceof Error ? error.message : "AI 평가 기준 추천 요청에 실패했습니다."));
     } finally {
       setAiJobSubmitting(null);
     }
@@ -553,6 +577,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
   async function handleGenerateQuestions() {
     if (!settings) return;
+    if (isAiRequestBlocked("questions", aiJobSubmitting, activeAiJobKinds)) return;
 
     setAiJobSubmitting("questions");
     setAiJobError("");
@@ -564,7 +589,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       });
       rememberAiJob("questions", "JD 기반 질문 생성", response.data);
     } catch (error) {
-      setAiJobError(error instanceof Error ? error.message : "JD 기반 질문 생성 요청에 실패했습니다.");
+      setAiJobError(formatAiRequestError(error instanceof Error ? error.message : "JD 기반 질문 생성 요청에 실패했습니다."));
     } finally {
       setAiJobSubmitting(null);
     }
@@ -572,6 +597,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
 
   async function handleGenerateQuestionSet() {
     if (!settings) return;
+    if (isAiRequestBlocked("questionSet", aiJobSubmitting, activeAiJobKinds)) return;
 
     setShowQuestionSetPreview(true);
 
@@ -596,7 +622,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
       });
       rememberAiJob("questionSet", "면접 질문 세트 구성", response.data);
     } catch (error) {
-      setAiJobError(error instanceof Error ? error.message : "질문 세트 구성 요청에 실패했습니다.");
+      setAiJobError(formatAiRequestError(error instanceof Error ? error.message : "질문 세트 구성 요청에 실패했습니다."));
     } finally {
       setAiJobSubmitting(null);
     }
@@ -611,6 +637,8 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
         status: result.status,
         output: normalizeAiJobOutput(result.output),
         failure: result.failure,
+        requestedAt: Date.now(),
+        lastCheckedAt: Date.now(),
       },
       ...current.filter((item) => item.kind !== kind),
     ]);
@@ -694,6 +722,8 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   }
 
   function retryAiJob(kind: AiJobKind) {
+    if (isAiRequestBlocked(kind, aiJobSubmitting, activeAiJobKinds)) return;
+
     if (kind === "criteria") {
       void handleSuggestCriteria();
       return;
@@ -796,55 +826,29 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 >
                   <label style={{ gap: "6px", minWidth: 0 }}>
                     준비 시간
-                    <select
-                      aria-label="준비 시간 초"
-                      style={{ minHeight: "40px", width: "100%" }}
-                      value={timePolicyDraft.preparationTimeMode}
-                      onChange={(event) => updateTimePolicyPreset("preparationTimeSec", event.target.value)}
-                    >
-                      <option value="0">0초</option>
-                      <option value="30">30초</option>
-                      <option value="60">60초</option>
-                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
-                    </select>
-                    {timePolicyDraft.preparationTimeMode === CUSTOM_TIME_OPTION ? (
-                      <input
-                        aria-label="준비 시간 직접 입력"
-                        inputMode="numeric"
-                        maxLength={3}
-                        placeholder="초 단위"
-                        style={{ minHeight: "40px", width: "100%" }}
-                        type="text"
-                        value={timePolicyDraft.preparationTimeSec}
-                        onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
-                      />
-                    ) : null}
+                    <TimePolicySecondsControl
+                      ariaLabel="준비 시간 초"
+                      customAriaLabel="준비 시간 직접 입력"
+                      maxLength={3}
+                      mode={timePolicyDraft.preparationTimeMode}
+                      options={PREPARATION_TIME_OPTIONS}
+                      value={timePolicyDraft.preparationTimeSec}
+                      onModeChange={(value) => updateTimePolicyPreset("preparationTimeSec", value)}
+                      onValueChange={(value) => updateTimePolicySeconds("preparationTimeSec", value)}
+                    />
                   </label>
                   <label style={{ gap: "6px", minWidth: 0 }}>
                     답변 시간
-                    <select
-                      aria-label="답변 시간 초"
-                      style={{ minHeight: "40px", width: "100%" }}
-                      value={timePolicyDraft.answerTimeMode}
-                      onChange={(event) => updateTimePolicyPreset("answerTimeSec", event.target.value)}
-                    >
-                      <option value="60">60초</option>
-                      <option value="90">90초</option>
-                      <option value="120">120초</option>
-                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
-                    </select>
-                    {timePolicyDraft.answerTimeMode === CUSTOM_TIME_OPTION ? (
-                      <input
-                        aria-label="답변 시간 직접 입력"
-                        inputMode="numeric"
-                        maxLength={4}
-                        placeholder="초 단위"
-                        style={{ minHeight: "40px", width: "100%" }}
-                        type="text"
-                        value={timePolicyDraft.answerTimeSec}
-                        onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
-                      />
-                    ) : null}
+                    <TimePolicySecondsControl
+                      ariaLabel="답변 시간 초"
+                      customAriaLabel="답변 시간 직접 입력"
+                      maxLength={4}
+                      mode={timePolicyDraft.answerTimeMode}
+                      options={ANSWER_TIME_OPTIONS}
+                      value={timePolicyDraft.answerTimeSec}
+                      onModeChange={(value) => updateTimePolicyPreset("answerTimeSec", value)}
+                      onValueChange={(value) => updateTimePolicySeconds("answerTimeSec", value)}
+                    />
                   </label>
                   <label
                     style={{
@@ -886,26 +890,26 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                   <button
                     className="btn secondary compact"
                     type="button"
-                    disabled={aiJobSubmitting !== null}
+                    disabled={isAiRequestBlocked("criteria", aiJobSubmitting, activeAiJobKinds)}
                     onClick={() => void handleSuggestCriteria()}
                   >
-                    {aiJobSubmitting === "criteria" ? "요청 중" : "평가 기준 추천"}
+                    {getAiRequestButtonLabel("criteria", "평가 기준 추천", aiJobSubmitting, activeAiJobKinds)}
                   </button>
                   <button
                     className="btn secondary compact"
                     type="button"
-                    disabled={aiJobSubmitting !== null}
+                    disabled={isAiRequestBlocked("questions", aiJobSubmitting, activeAiJobKinds)}
                     onClick={() => void handleGenerateQuestions()}
                   >
-                    {aiJobSubmitting === "questions" ? "요청 중" : "JD 질문 생성"}
+                    {getAiRequestButtonLabel("questions", "JD 질문 생성", aiJobSubmitting, activeAiJobKinds)}
                   </button>
                   <button
                     className="btn primary compact"
                     type="button"
-                    disabled={aiJobSubmitting !== null}
+                    disabled={isAiRequestBlocked("questionSet", aiJobSubmitting, activeAiJobKinds)}
                     onClick={() => void handleGenerateQuestionSet()}
                   >
-                    {aiJobSubmitting === "questionSet" ? "요청 중" : "질문 세트 구성"}
+                    {getAiRequestButtonLabel("questionSet", "질문 세트 구성", aiJobSubmitting, activeAiJobKinds)}
                   </button>
                 </div>
               </div>
@@ -920,10 +924,15 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                           <h3>{notice.label}</h3>
                           <p>
                             작업 ID {notice.processLogId}
-                            {notice.failure?.reason ? ` · ${formatAiFailureReason(notice.failure.reason)}` : ""}
                           </p>
+                          <p>{getAiJobStatusMessage(notice)}</p>
                           {notice.status === "FAILED" ? (
-                            <button className="btn secondary compact" type="button" disabled={aiJobSubmitting !== null} onClick={() => retryAiJob(notice.kind)}>
+                            <button
+                              className="btn secondary compact"
+                              type="button"
+                              disabled={isAiRequestBlocked(notice.kind, aiJobSubmitting, activeAiJobKinds)}
+                              onClick={() => retryAiJob(notice.kind)}
+                            >
                               다시 요청
                             </button>
                           ) : null}
@@ -1301,6 +1310,77 @@ function Metric({ label, value, compact = false }: { label: string; value: numbe
   );
 }
 
+function TimePolicySecondsControl({
+  ariaLabel,
+  customAriaLabel,
+  maxLength,
+  mode,
+  options,
+  value,
+  onModeChange,
+  onValueChange,
+}: {
+  ariaLabel: string;
+  customAriaLabel: string;
+  maxLength: number;
+  mode: string;
+  options: string[];
+  value: string;
+  onModeChange: (value: string) => void;
+  onValueChange: (value: string) => void;
+}) {
+  if (mode === CUSTOM_TIME_OPTION) {
+    return (
+      <div style={{ position: "relative", width: "100%" }}>
+        <input
+          aria-label={customAriaLabel}
+          inputMode="numeric"
+          maxLength={maxLength}
+          placeholder="초"
+          style={{ minHeight: "40px", width: "100%", paddingRight: "34px" }}
+          type="text"
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
+        />
+        <span
+          aria-hidden="true"
+          style={{
+            color: "#6b7280",
+            pointerEvents: "none",
+            position: "absolute",
+            right: "12px",
+            top: "50%",
+            transform: "translateY(-50%)",
+          }}
+        >
+          초
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      aria-label={ariaLabel}
+      style={{ minHeight: "40px", width: "100%" }}
+      value={mode}
+      onChange={(event) => onModeChange(event.target.value)}
+    >
+      {value.trim() !== "" && !options.includes(value.trim()) && mode !== CUSTOM_TIME_OPTION ? (
+        <option hidden value={value.trim()}>
+          {value.trim()}초
+        </option>
+      ) : null}
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}초
+        </option>
+      ))}
+      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
+    </select>
+  );
+}
+
 function AiStatusBadge({ status }: { status: AiProcessStatus }) {
   const tone = status === "COMPLETED" ? "success" : status === "FAILED" ? "danger" : status === "RUNNING" ? "info" : "warning";
   return <span className={`badge ${tone}`}>{AI_STATUS_LABELS[status]}</span>;
@@ -1504,6 +1584,41 @@ function QuestionSetConfirmNotice({ summary }: { summary: QuestionSetConfirmSumm
 
 function isTerminalAiStatus(status: AiProcessStatus) {
   return status === "COMPLETED" || status === "FAILED";
+}
+
+function isAiRequestBlocked(kind: AiJobKind, submitting: AiJobKind | null, activeKinds: Set<AiJobKind>) {
+  return submitting !== null || activeKinds.has(kind);
+}
+
+function getAiRequestButtonLabel(
+  kind: AiJobKind,
+  defaultLabel: string,
+  submitting: AiJobKind | null,
+  activeKinds: Set<AiJobKind>,
+) {
+  if (submitting === kind) return "요청 중";
+  if (activeKinds.has(kind)) return "처리 대기 중";
+  return defaultLabel;
+}
+
+function getAiJobStatusMessage(notice: AiJobNotice) {
+  if (notice.status === "FAILED") {
+    return notice.failure?.reason
+      ? formatAiFailureReason(notice.failure.reason)
+      : "AI 요청 처리에 실패했습니다. 다시 요청할 수 있습니다.";
+  }
+  if (notice.status === "COMPLETED") {
+    return "AI 요청 처리가 완료되었습니다. 아래 결과를 검토한 뒤 적용해주세요.";
+  }
+
+  const elapsedMs = notice.lastCheckedAt - notice.requestedAt;
+  if (elapsedMs >= AI_JOB_SLOW_THRESHOLD_MS) {
+    return "처리가 예상보다 오래 걸리고 있습니다. 계속 대기 중이면 worker와 LocalStack queue 실행 상태를 확인해주세요.";
+  }
+  if (notice.status === "RUNNING") {
+    return "AI가 요청을 처리하고 있습니다. 완료되면 결과가 자동으로 표시됩니다.";
+  }
+  return "요청이 접수되었습니다. worker가 작업을 가져가면 처리 상태로 변경됩니다.";
 }
 
 function normalizeAiJobOutput(output: unknown): AiJobOutput | undefined {
@@ -1723,13 +1838,39 @@ function toOptionalNumber(value: string | undefined) {
 }
 
 function formatAiFailureReason(reason: string) {
+  const normalized = reason.toLowerCase();
   if (reason.includes("AI queue publish failed")) {
     return "AI 작업 대기열에 연결하지 못했습니다. LocalStack과 worker 실행 상태를 확인해주세요.";
   }
-  if (reason.toLowerCase().includes("guardrail")) {
+  if (normalized.includes("dev auth headers are required") || normalized.includes("unauthorized") || normalized.includes("forbidden")) {
+    return "인증 정보가 만료되었거나 요청 권한이 없습니다. 다시 로그인한 뒤 요청해주세요.";
+  }
+  if (normalized.includes("timeout") || normalized.includes("network") || normalized.includes("fetch")) {
+    return "AI 작업 상태를 확인하는 중 네트워크 문제가 발생했습니다. 잠시 후 다시 요청해주세요.";
+  }
+  if (normalized.includes("guardrail")) {
     return "생성 결과가 검수 정책을 통과하지 못했습니다. 조건을 수정한 뒤 다시 요청해주세요.";
   }
   return "AI 결과 생성 중 오류가 발생했습니다. 다시 요청할 수 있습니다.";
+}
+
+function formatAiRequestError(message: string) {
+  const normalized = message.toLowerCase();
+  if (message.includes("AI queue publish failed")) {
+    return "AI 요청을 대기열에 등록하지 못했습니다. LocalStack queue와 worker 실행 상태를 확인해주세요.";
+  }
+  if (normalized.includes("dev auth headers are required") || normalized.includes("unauthorized") || normalized.includes("forbidden")) {
+    return "인증 정보가 만료되었거나 요청 권한이 없습니다. 다시 로그인한 뒤 요청해주세요.";
+  }
+  if (normalized.includes("failed to fetch") || normalized.includes("network") || normalized.includes("timeout")) {
+    return "AI 요청 중 네트워크 문제가 발생했습니다. API 서버와 worker 실행 상태를 확인해주세요.";
+  }
+  if (normalized.includes("already") || normalized.includes("pending")) {
+    return "이미 처리 중인 AI 요청이 있습니다. 현재 요청이 끝난 뒤 다시 시도해주세요.";
+  }
+  return message.startsWith("AI ") || message.startsWith("JD ") || message.startsWith("질문 ")
+    ? message
+    : "AI 요청을 처리하지 못했습니다. 실행 환경을 확인한 뒤 다시 시도해주세요.";
 }
 
 function normalizeQuestionType(value: string | undefined): QuestionType {
@@ -1762,9 +1903,9 @@ function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
 function toTimePolicyDraft(settings: InterviewSettings): TimePolicyDraft {
   return {
     preparationTimeSec: String(settings.timePolicy.preparationTimeSec),
-    preparationTimeMode: getTimePolicyMode(String(settings.timePolicy.preparationTimeSec), PREPARATION_TIME_OPTIONS),
+    preparationTimeMode: String(settings.timePolicy.preparationTimeSec),
     answerTimeSec: String(settings.timePolicy.answerTimeSec),
-    answerTimeMode: getTimePolicyMode(String(settings.timePolicy.answerTimeSec), ANSWER_TIME_OPTIONS),
+    answerTimeMode: String(settings.timePolicy.answerTimeSec),
     retryAllowed: settings.timePolicy.retryAllowed,
   };
 }
@@ -1777,8 +1918,8 @@ function toTimePolicyComparable(draft: TimePolicyDraft) {
   };
 }
 
-function getTimePolicyMode(value: string, options: string[]) {
-  return options.includes(value.trim()) ? value.trim() : CUSTOM_TIME_OPTION;
+function toDigitsOnly(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function validateCriteriaDrafts(criteria: CriteriaDraft[]) {

@@ -80,6 +80,7 @@ export interface CandidateJobQuery {
 export interface CandidateJobSummary {
   jobId: number;
   companyName: string;
+  companyLogoUrl: string | null;
   title: string;
   jobGroup: string;
   jobRole: string;
@@ -275,6 +276,7 @@ export interface CandidateInterviewRuntimeView {
   status: InterviewStatus;
   showQuestionText: boolean;
   canRecord: boolean;
+  jobDescription?: string;
   nextQuestionEndpoint: string;
   answerUploadEndpoint: string;
 }
@@ -402,8 +404,75 @@ export interface AiInterviewHandoffResponse {
   callbackTopic?: string;
 }
 
+export interface AiJobStatusResponse {
+  processLogId: number;
+  processType: "STT" | "FOLLOW_UP" | "REPORT_GENERATE" | string;
+  status: CandidateAiProcessStatus;
+  queued?: boolean;
+  inputRef?: string;
+  outputRef?: string;
+  output?: unknown;
+  sessionId?: number;
+  applicationId?: number;
+  failure?: {
+    category: string;
+    reason: string;
+    retryable: boolean;
+  };
+}
+
 export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
 export type TranscriptStatus = "PENDING" | "AVAILABLE";
+export type CandidateAiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export interface CandidateAiProcessView {
+  processLogId: number;
+  processType: string;
+  status: CandidateAiProcessStatus;
+  failureCategory?: string;
+  failureReason?: string;
+  createdAt: string;
+}
+
+export interface CandidateReportEvidenceView {
+  evidenceId: number;
+  sourceType: string;
+  answerId?: number;
+  documentId?: number;
+  documentRef?: string;
+  evidenceText: string;
+}
+
+export interface CandidateReportScoreView {
+  scoreId: number;
+  criterionId?: number;
+  criterionName?: string;
+  score: number;
+  rationale?: string;
+  evidences: CandidateReportEvidenceView[];
+}
+
+export interface CandidateFollowUpQuestionView {
+  followUpId: number;
+  content: string;
+  generationStatus: string;
+  policy: string;
+  createdAt: string;
+}
+
+export interface CandidateReportAnswerView {
+  answerId: number;
+  questionId: number;
+  questionType?: QuestionType;
+  sortOrder?: number;
+  questionContent?: string;
+  durationSeconds: number;
+  submittedAt: string;
+  transcriptStatus: TranscriptStatus;
+  transcript?: string;
+  followUpQuestions: CandidateFollowUpQuestionView[];
+  evidences: CandidateReportEvidenceView[];
+}
 
 export interface CandidateMockInterviewHistoryItem {
   sessionId: number;
@@ -430,11 +499,14 @@ export interface CandidateMockReportFeedback {
   sessionId: number;
   reportType: "MOCK_INTERVIEW_REPORT";
   status: ReportStatus;
+  aiProcess?: CandidateAiProcessView;
   generatedAt?: string;
+  totalScore?: number;
   summary?: string;
   strengths: string[];
   improvements: string[];
   nextPractice: string[];
+  scores?: CandidateReportScoreView[];
   visibilityPolicy: {
     candidateFacingOnly: true;
     excludesHiringDecision: true;
@@ -465,6 +537,7 @@ export interface CandidateMockReportMediaItem {
   submittedAt: string;
   transcriptStatus: TranscriptStatus;
   transcript?: string;
+  followUpQuestions: CandidateFollowUpQuestionView[];
 }
 
 export interface CandidateMockReportMedia {
@@ -476,15 +549,20 @@ export interface CandidateMockReportMedia {
 }
 
 export interface CandidateReportGenerationHandoff {
-  accepted: true;
+  accepted: boolean;
+  queued: boolean;
+  processLogId: number;
   processType: "REPORT_GENERATE";
-  status: "PENDING";
+  status: CandidateAiProcessStatus;
+  reportStatus: ReportStatus;
   reportId: number;
   sessionId: number;
-  reportType: "MOCK_INTERVIEW_REPORT";
+  applicationId?: number;
+  reportType: CandidateReportType;
   answerIds: number[];
   fileIds: number[];
   callbackTopic: "ai.report.generate.requested";
+  inputRef?: string;
 }
 
 export interface CandidateApplicationStatusView {
@@ -513,13 +591,19 @@ export interface CandidateRecruitingReportView {
   interviewStatus: InterviewStatus;
   companyName: string;
   jobTitle: string;
+  reportId?: number;
+  aiProcess?: CandidateAiProcessView;
+  generatedAt?: string;
+  totalScore?: number;
   summary?: string;
   candidateMessage: string;
   nextStepLabel: string;
+  scores: CandidateReportScoreView[];
+  answers: CandidateReportAnswerView[];
   visibilityPolicy: {
     candidateFacingOnly: true;
-    excludesDetailedScores: true;
-    excludesEvaluationEvidence: true;
+    excludesDetailedScores: boolean;
+    excludesEvaluationEvidence: boolean;
     excludesInternalMemo: true;
     excludesManualEvaluation: true;
   };
@@ -565,6 +649,7 @@ export const candidateApiPaths = {
   interviewGuide: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview-guide`,
   interviewConsent: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/consent`,
   applicationReport: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/report`,
+  applicationReportGenerate: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/report/generate`,
   applicationStatus: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/status`,
   deviceCheck: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/device-check`,
   startInterview: (applicationId: number) => `/api/v1/candidate/applications/${applicationId}/interview/start`,
@@ -575,6 +660,7 @@ export const candidateApiPaths = {
   recruitingComplete: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/complete`,
   recruitingStt: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/stt`,
   recruitingFollowUpQuestion: (sessionId: number) => `/api/v1/candidate/interviews/${sessionId}/follow-up-question`,
+  aiJobStatus: (processLogId: number) => `/api/v1/ai/jobs/${processLogId}/status`,
   resume: "/api/v1/candidate/resume",
   portfolioLinks: "/api/v1/candidate/portfolio-links",
 } as const;
@@ -642,7 +728,9 @@ export interface CandidateApiClient {
     sessionId: number,
     body: AiInterviewRequest,
   ): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  getAiJobStatus(processLogId: number): Promise<ApiResponse<AiJobStatusResponse>>;
   getApplicationReport(applicationId: number): Promise<ApiResponse<CandidateRecruitingReportView>>;
+  requestApplicationReportGeneration(applicationId: number): Promise<ApiResponse<CandidateReportGenerationHandoff>>;
   getApplicationStatus(applicationId: number): Promise<ApiResponse<CandidateApplicationStatusView>>;
   uploadResume(body: UploadResumeRequest): Promise<ApiResponse<CandidateFileAsset>>;
   createPortfolioLink(
@@ -772,8 +860,14 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         method: "POST",
         body: JSON.stringify(body),
       }),
+    getAiJobStatus: (processLogId) =>
+      request<ApiResponse<AiJobStatusResponse>>(candidateApiPaths.aiJobStatus(processLogId)),
     getApplicationReport: (applicationId) =>
       request<ApiResponse<CandidateRecruitingReportView>>(candidateApiPaths.applicationReport(applicationId)),
+    requestApplicationReportGeneration: (applicationId) =>
+      request<ApiResponse<CandidateReportGenerationHandoff>>(candidateApiPaths.applicationReportGenerate(applicationId), {
+        method: "POST",
+      }),
     getApplicationStatus: (applicationId) =>
       request<ApiResponse<CandidateApplicationStatusView>>(candidateApiPaths.applicationStatus(applicationId)),
     uploadResume: (body) =>

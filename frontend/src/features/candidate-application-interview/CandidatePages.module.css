@@ -628,6 +628,7 @@
   display: grid;
   flex: 0 0 auto;
   place-items: center;
+  overflow: hidden;
   width: 52px;
   height: 52px;
   color: var(--brand-strong);
@@ -635,6 +636,21 @@
   font-weight: 900;
   background: var(--brand-soft);
   border-radius: 14px;
+}
+
+:global(.candidate-jobcard__logo.has-image) {
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+}
+
+:global(.candidate-jobcard__logo.has-image span) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 :global(.candidate-jobcard h2) {
@@ -1520,6 +1536,31 @@
   background: #fff5d8;
 }
 
+:global(.candidate-follow-up-prompt) {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  margin-top: 16px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+:global(.candidate-follow-up-prompt span) {
+  color: var(--brand-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+:global(.candidate-follow-up-prompt p) {
+  margin: 0;
+  color: var(--ink-900);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 :global(.iv-grid) {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
@@ -1731,9 +1772,7 @@
 }
 
 :global(.candidate-ai-handoff__actions) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: none;
 }
 
 :global(.candidate-ai-handoff__result) {
@@ -1746,6 +1785,49 @@
 :global(.candidate-ai-handoff__payloads) {
   display: grid;
   gap: 8px;
+}
+
+:global(.candidate-ai-handoff__auto) {
+  display: grid;
+  gap: 10px;
+}
+
+:global(.candidate-ai-handoff__auto .status-line) {
+  align-items: center;
+}
+
+:global(.candidate-ai-handoff__auto small) {
+  color: var(--ink-300);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+:global(.candidate-ai-handoff__insight) {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+:global(.candidate-ai-handoff__insight strong) {
+  color: var(--ink-800);
+  font-size: 12px;
+}
+
+:global(.candidate-ai-handoff__insight p),
+:global(.candidate-ai-handoff__error) {
+  margin: 0;
+  color: var(--ink-600);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+:global(.candidate-ai-handoff__error) {
+  color: #b42318;
+  font-weight: 800;
 }
 
 :global(.candidate-pipeline-card) {
@@ -2036,6 +2118,99 @@
 :global(.report-audio-player) {
   width: 100%;
   margin-top: 16px;
+}
+
+:global(.report-ai-process) {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+:global(.report-score-list),
+:global(.report-answer-insight-list) {
+  display: grid;
+  gap: 14px;
+}
+
+:global(.report-score-card),
+:global(.report-answer-insight-card) {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+:global(.report-score-card__head) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+:global(.report-score-card__head strong) {
+  color: var(--ink-900);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+:global(.report-score-card__head span) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 900;
+  background: #ccfbf1;
+  border-radius: 999px;
+}
+
+:global(.report-score-card p) {
+  margin: 0;
+  color: var(--ink-600);
+  line-height: 1.6;
+}
+
+:global(.report-follow-up-list),
+:global(.report-evidence-list) {
+  display: grid;
+  gap: 8px;
+}
+
+:global(.report-follow-up-list strong),
+:global(.report-evidence-list strong) {
+  color: var(--ink-900);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+:global(.report-follow-up-list ul),
+:global(.report-evidence-list ul) {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+:global(.report-follow-up-list li),
+:global(.report-evidence-list li) {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  color: var(--ink-700);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+:global(.report-follow-up-list small),
+:global(.report-evidence-list small) {
+  color: var(--ink-500);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 :global(.script-box) {

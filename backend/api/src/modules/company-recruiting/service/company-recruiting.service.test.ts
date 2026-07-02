@@ -172,6 +172,19 @@ function createRepository(overrides: Record<string, unknown> = {}) {
         screeningMemo: (input as { screeningMemo?: string | null }).screeningMemo ?? null,
       };
     },
+    async createFileAsset(input: unknown) {
+      calls.createFileAsset = [input];
+      return {
+        fileId: 501,
+        ownerUserId: (input as { ownerUserId: number }).ownerUserId,
+        storageKey: (input as { storageKey: string }).storageKey,
+        originalName: (input as { originalName: string }).originalName,
+        mimeType: (input as { mimeType: string }).mimeType,
+        sizeBytes: (input as { sizeBytes: number }).sizeBytes,
+        status: "ACTIVE",
+        createdAt: new Date("2026-07-02T00:00:00.000Z"),
+      };
+    },
     ...overrides,
   };
   return repository;
@@ -265,6 +278,16 @@ function createPublicApplicationAuthAdapter(
   };
 }
 
+function createStorageAdapter() {
+  const calls: Record<string, unknown[]> = {};
+  return {
+    calls,
+    async putObject(input: unknown) {
+      calls.putObject = [input];
+    },
+  };
+}
+
 describe("CompanyRecruitingService", () => {
   it("creates recruitments for the current company only", async () => {
     const repository = createRepository();
@@ -304,6 +327,107 @@ describe("CompanyRecruitingService", () => {
         status: "OPEN",
       },
     ]);
+  });
+
+  it("uploads JD editor images to object storage and stores file_assets metadata", async () => {
+    const storageAdapter = createStorageAdapter();
+    const repository = createRepository({
+      async createFileAsset(input: unknown) {
+        repository.calls.createFileAsset = [input];
+        return {
+          fileId: 501,
+          ownerUserId: (input as { ownerUserId: number }).ownerUserId,
+          storageKey: (input as { storageKey: string }).storageKey,
+          originalName: (input as { originalName: string }).originalName,
+          mimeType: (input as { mimeType: string }).mimeType,
+          sizeBytes: (input as { sizeBytes: number }).sizeBytes,
+          status: "ACTIVE",
+          createdAt: new Date("2026-07-02T00:00:00.000Z"),
+        };
+      },
+    });
+    const service = new CompanyRecruitingService(repository, createInvitationAdapter(), storageAdapter, {
+      jdImagePublicBaseUrl: "https://cdn.example.com/assets",
+      jdImageMaxUploadBytes: 5 * 1024 * 1024,
+    });
+
+    const result = await service.uploadJobDescriptionImage(companyUser, {
+      originalName: "culture.webp",
+      mimeType: "image/webp",
+      sizeBytes: 245_760,
+      buffer: Buffer.from("image-bytes"),
+    });
+
+    assert.equal(result.fileId, 501);
+    assert.equal(result.ownerUserId, companyUser.userId);
+    assert.equal(result.originalName, "culture.webp");
+    assert.equal(result.mimeType, "image/webp");
+    assert.equal(result.sizeBytes, 245_760);
+    assert.match(result.storageKey, /^company\/7\/jd-images\/[0-9a-f-]+-culture\.webp$/);
+    assert.equal(result.url, `https://cdn.example.com/assets/${result.storageKey}`);
+    assert.deepEqual(repository.calls.createFileAsset, [
+      {
+        ownerUserId: 1,
+        storageKey: result.storageKey,
+        originalName: "culture.webp",
+        mimeType: "image/webp",
+        sizeBytes: 245_760,
+      },
+    ]);
+    assert.deepEqual(storageAdapter.calls.putObject, [
+      {
+        key: result.storageKey,
+        body: Buffer.from("image-bytes"),
+        contentType: "image/webp",
+        contentLength: 245_760,
+      },
+    ]);
+  });
+
+  it("rejects JD editor image uploads with unsupported MIME types", async () => {
+    const storageAdapter = createStorageAdapter();
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository, createInvitationAdapter(), storageAdapter);
+
+    await assert.rejects(
+      service.uploadJobDescriptionImage(companyUser, {
+        originalName: "animation.gif",
+        mimeType: "image/gif",
+        sizeBytes: 1024,
+        buffer: Buffer.from("gif"),
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "FILE_INVALID_TYPE",
+    );
+    assert.equal(storageAdapter.calls.putObject, undefined);
+    assert.equal(repository.calls.createFileAsset, undefined);
+  });
+
+  it("rejects JD editor image uploads over the configured size limit", async () => {
+    const storageAdapter = createStorageAdapter();
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository, createInvitationAdapter(), storageAdapter, {
+      jdImageMaxUploadBytes: 4,
+    });
+
+    await assert.rejects(
+      service.uploadJobDescriptionImage(companyUser, {
+        originalName: "large.png",
+        mimeType: "image/png",
+        sizeBytes: 5,
+        buffer: Buffer.from("large"),
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "FILE_SIZE_EXCEEDED",
+    );
+    assert.equal(storageAdapter.calls.putObject, undefined);
+    assert.equal(repository.calls.createFileAsset, undefined);
   });
 
   it("lists recruitments using CurrentUser.companyId", async () => {
@@ -378,7 +502,7 @@ describe("CompanyRecruitingService", () => {
     const repository = createRepository();
     const invitationAdapter = createInvitationAdapter();
     const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
-    const service = new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter);
+    const service = new CompanyRecruitingService(repository, invitationAdapter, undefined, {}, publicApplicationAuthAdapter);
 
     const result = await service.submitPublicApplication(101, {
       name: "김지원",
@@ -422,7 +546,7 @@ describe("CompanyRecruitingService", () => {
     const repository = createRepository();
     const invitationAdapter = createInvitationAdapter();
     const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
-    const service = new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter);
+    const service = new CompanyRecruitingService(repository, invitationAdapter, undefined, {}, publicApplicationAuthAdapter);
 
     const result = await (service as unknown as { getPublicApplicationStatusByMagicLink(token: string): Promise<unknown> })
       .getPublicApplicationStatusByMagicLink("valid-token");
@@ -457,7 +581,7 @@ describe("CompanyRecruitingService", () => {
     const repository = createRepository();
     const invitationAdapter = createInvitationAdapter();
     const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter(null);
-    const service = new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter);
+    const service = new CompanyRecruitingService(repository, invitationAdapter, undefined, {}, publicApplicationAuthAdapter);
 
     await assert.rejects(
       () =>

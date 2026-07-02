@@ -29,6 +29,14 @@ export class InMemoryCompanyInterviewRepository
       jobRole: 'Backend Developer',
       jobDescription: 'NestJS와 PostgreSQL 기반 서비스 개발',
     },
+    {
+      postingId: 2,
+      companyId: 1,
+      title: '2026 신입 프론트엔드 채용',
+      status: 'OPEN',
+      jobRole: 'Frontend Developer',
+      jobDescription: 'Next.js 기반 서비스 개발',
+    },
   ];
 
   private readonly criterionTags: CriterionTagRecord[] = [
@@ -86,6 +94,14 @@ export class InMemoryCompanyInterviewRepository
       passScore: null,
       sortOrder: 3,
     },
+    {
+      criterionId: 4,
+      postingId: 2,
+      tagId: 1,
+      weight: 100,
+      passScore: 70,
+      sortOrder: 1,
+    },
   ];
 
   private questions: QuestionRecord[] = [
@@ -116,6 +132,15 @@ export class InMemoryCompanyInterviewRepository
       content: '다른 담당자와 API 계약 충돌을 조정했던 경험을 말해주세요.',
       isActive: true,
     },
+    {
+      questionId: 4,
+      companyId: 1,
+      postingId: 2,
+      criterionId: 4,
+      questionType: 'TECHNICAL',
+      content: 'Next.js App Router의 서버/클라이언트 컴포넌트 경계를 설명해주세요.',
+      isActive: true,
+    },
   ];
 
   private timePolicies: TimePolicyRecord[] = [
@@ -127,8 +152,8 @@ export class InMemoryCompanyInterviewRepository
     },
   ];
 
-  private nextCriterionId = 4;
-  private nextQuestionId = 4;
+  private nextCriterionId = 5;
+  private nextQuestionId = 5;
   private nextQuestionSetId = 1;
   private nextQuestionSetItemId = 1;
   private questionSets: QuestionSetRecord[] = [];
@@ -339,5 +364,23 @@ export class InMemoryCompanyInterviewRepository
 
     this.questionSets = [...this.questionSets, questionSet];
     return questionSet;
+  }
+
+  async findActiveQuestionSet(
+    postingId: number,
+  ): Promise<QuestionSetRecord | undefined> {
+    const questionSet = [...this.questionSets]
+      .reverse()
+      .find(
+        (candidate) =>
+          candidate.postingId === postingId && candidate.status === 'ACTIVE',
+      );
+
+    return questionSet
+      ? {
+          ...questionSet,
+          items: [...questionSet.items].sort((a, b) => a.sortOrder - b.sortOrder),
+        }
+      : undefined;
   }
 }

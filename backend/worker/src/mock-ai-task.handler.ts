@@ -97,6 +97,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
       outputRef: JSON.stringify({
         answerId,
         fileAsset: fileAssetRef(audioFileId, audioS3Key),
+        transcript,
         transcriptTarget: "interview_answers.transcript",
         dedupeKey: `answer:${answerId}:transcript`,
         duplicatePolicy: "KEEP_EXISTING_TRANSCRIPT"
@@ -135,6 +136,7 @@ export class MockAiTaskHandler implements AiTaskHandler {
         answerId,
         policy,
         previousQuestion,
+        content,
         jobDescription,
         documentSummary,
         dedupeKey: `${policy}:${sessionId}:${answerId}`,

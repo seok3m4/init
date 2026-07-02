@@ -38,11 +38,34 @@ describe("Swagger setup", () => {
     expect(response.body.info.title).toBe("Final Weapon API");
     expect(paths).toContain("/api/v1/health");
     expect(paths).toContain("/api/v1/auth/login");
+    expect(paths).toContain("/api/v1/company/profile");
+    expect(paths).toContain("/api/v1/company/profile/logo");
     expect(paths).toContain("/api/v1/company/recruitments");
+    expect(paths).toContain("/api/v1/company/recruitments/jd-images");
     expect(paths).toContain("/api/v1/candidate/jobs");
     expect(paths).toContain("/api/v1/candidate/mock-interview/reports");
     expect(paths).toContain("/api/v1/reports/{reportId}/generate");
     expect(paths).toContain("/api/v1/ai/guardrails/validate");
+  });
+
+  it("documents JD image uploads as multipart file requests", async () => {
+    const response = await request(app.getHttpServer()).get("/api-docs-json").expect(200);
+    const uploadImage = response.body.paths["/api/v1/company/recruitments/jd-images"].post;
+
+    expect(uploadImage["x-api-id"]).toBe("API-086");
+    expect(uploadImage.requestBody.content["multipart/form-data"].schema.properties.file).toEqual(
+      expect.objectContaining({ type: "string", format: "binary" }),
+    );
+  });
+
+  it("documents company logo uploads as multipart file requests", async () => {
+    const response = await request(app.getHttpServer()).get("/api-docs-json").expect(200);
+    const uploadLogo = response.body.paths["/api/v1/company/profile/logo"].post;
+
+    expect(uploadLogo["x-api-id"]).toBe("API-042");
+    expect(uploadLogo.requestBody.content["multipart/form-data"].schema.properties.file).toEqual(
+      expect.objectContaining({ type: "string", format: "binary" }),
+    );
   });
 
   it("documents bearer auth and local dev auth headers", async () => {

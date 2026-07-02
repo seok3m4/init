@@ -66,3 +66,9 @@ export class QuestionSetResponseDto {
   createdByProcessLogId!: number | null;
   items!: QuestionSetResponseItemDto[];
 }
+
+export class ActiveQuestionSetResponseDto {
+  postingId!: number;
+  questionSet!: QuestionSetResponseDto | null;
+  fallbackPolicy!: 'USE_ACTIVE_POSTING_QUESTIONS';
+}

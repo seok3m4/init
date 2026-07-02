@@ -1,8 +1,10 @@
 import type {
   ApiErrorBody,
   CandidateApplicationSummary,
+  CandidateJobDetail,
   CandidateJobListPostingStatus,
   CandidateJobQuery,
+  CandidateJobSummary,
   CandidateMockReportFeedback,
   CandidateMockReportSummary,
   CandidateRecruitingReportView,
@@ -135,6 +137,34 @@ const applicationSummary: CandidateApplicationSummary = {
   canStartInterview: true,
 };
 
+const candidateJobSummary: CandidateJobSummary = {
+  jobId: 1,
+  companyName: "Init Labs",
+  companyLogoUrl: "https://cdn.example.com/assets/company/1/profile-logo/init.png",
+  title: "Backend Developer",
+  jobGroup: "Engineering",
+  jobRole: "Backend",
+  location: "Seoul",
+  careerLevel: "Junior",
+  employmentType: "Full-time",
+  postingStatus: "OPEN",
+  startsOn: "2026-07-01",
+  endsOn: "2026-07-31",
+  canApply: true,
+  alreadyApplied: false,
+};
+
+const candidateJobDetail: CandidateJobDetail = {
+  ...candidateJobSummary,
+  companyId: 1,
+  isPublic: true,
+  companyIndustry: "SaaS",
+  companyProfile: "AI recruiting workflow",
+  jobDescription: "NestJS API",
+  techStacks: ["Node.js", "NestJS"],
+  createdAt: "2026-07-01T00:00:00.000Z",
+};
+
 const mockReport: CandidateMockReportSummary = {
   sessionId: 10001,
   reportId: 10001,
@@ -157,10 +187,12 @@ const mockFeedback: CandidateMockReportFeedback = {
   sessionId: 10001,
   reportType: "MOCK_INTERVIEW_REPORT",
   status: "COMPLETED",
+  totalScore: 82,
   summary: "연습 피드백이 준비되었습니다.",
   strengths: ["질문 순서에 맞춰 답변을 제출했습니다."],
   improvements: ["예시는 더 간결하게 정리해보세요."],
   nextPractice: ["녹화된 답변을 다시 확인하세요."],
+  scores: [],
   visibilityPolicy: {
     candidateFacingOnly: true,
     excludesHiringDecision: true,
@@ -180,6 +212,8 @@ const recruitingReport: CandidateRecruitingReportView = {
   jobTitle: "Backend Developer",
   candidateMessage: "면접 분석이 진행 중입니다.",
   nextStepLabel: "분석 진행 중",
+  scores: [],
+  answers: [],
   visibilityPolicy: {
     candidateFacingOnly: true,
     excludesDetailedScores: true,
@@ -213,6 +247,7 @@ const mockReportGeneratePath = candidateApiPaths.mockReportGenerate(10001);
 const applicationsPath = candidateApiPaths.applications;
 const interviewGuidePath = candidateApiPaths.interviewGuide(1);
 const applicationReportPath = candidateApiPaths.applicationReport(1);
+const applicationReportGeneratePath = candidateApiPaths.applicationReportGenerate(1);
 const applicationStatusPath = candidateApiPaths.applicationStatus(1);
 const deviceCheckPath = candidateApiPaths.deviceCheck(1);
 const startInterviewPath = candidateApiPaths.startInterview(1);
@@ -266,6 +301,8 @@ void answerRequest;
 void questionSpeechText;
 void audioPromptSpeechText;
 void applicationSummary;
+void candidateJobSummary;
+void candidateJobDetail;
 void mockReport;
 void mockFeedback;
 void recruitingReport;
@@ -292,6 +329,7 @@ void mockReportGeneratePath;
 void applicationsPath;
 void interviewGuidePath;
 void applicationReportPath;
+void applicationReportGeneratePath;
 void applicationStatusPath;
 void deviceCheckPath;
 void startInterviewPath;

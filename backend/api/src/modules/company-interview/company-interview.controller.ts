@@ -93,6 +93,18 @@ export class CompanyInterviewController {
     return ok(request, data);
   }
 
+  @Get('question-sets/active')
+  async getActiveQuestionSet(
+    @Req() request: CompanyRequest,
+    @Query() query: InterviewSettingsQueryDto,
+  ) {
+    const data = await this.service.getActiveQuestionSet(
+      request.currentUser,
+      query.postingId,
+    );
+    return ok(request, data);
+  }
+
   @Post('question-sets/confirm')
   async confirmQuestionSet(
     @Req() request: CompanyRequest,

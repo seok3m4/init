@@ -102,3 +102,25 @@ export type ApplicantRecord = {
     completedAt: Date | null;
   }>;
 };
+
+export type CompanyFileAssetRecord = {
+  fileId: number;
+  ownerUserId: number;
+  storageKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: string;
+  createdAt: Date;
+};
+
+export type JobDescriptionImageUploadFile = {
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  buffer: Buffer;
+};
+
+export type JobDescriptionImageUploadResponse = CompanyFileAssetRecord & {
+  url: string;
+};

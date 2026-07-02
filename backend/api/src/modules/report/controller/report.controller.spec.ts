@@ -11,6 +11,9 @@ import { InMemoryInterviewRepository, InterviewService } from "../../interview";
 import { ReportController } from "./report.controller";
 import { reportApiRoutePrefix, reportApiRoutes } from "../report.routes";
 import { InMemoryCandidateReportRepository } from "../repository/in-memory-candidate-report.repository";
+import { InMemoryReportRepository } from "../repository/in-memory-report.repository";
+import { AiJobDispatcherService } from "../service/ai-job-dispatcher.service";
+import { InMemoryAiJobQueuePublisher } from "../service/ai-job-queue.publisher";
 import { ReportService } from "../service/report.service";
 
 type ReportControllerRoute =
@@ -19,6 +22,7 @@ type ReportControllerRoute =
   | "getMockReportMedia"
   | "requestMockReportGeneration"
   | "getApplicationReport"
+  | "requestApplicationReportGeneration"
   | "getApplicationStatus";
 
 const validCandidateRequest = {
@@ -57,6 +61,7 @@ assertRoute("getMockReportFeedback", reportApiRoutes.mockFeedback, RequestMethod
 assertRoute("getMockReportMedia", reportApiRoutes.mockMedia, RequestMethod.GET);
 assertRoute("requestMockReportGeneration", reportApiRoutes.mockGenerate, RequestMethod.POST, 202);
 assertRoute("getApplicationReport", reportApiRoutes.applicationReport, RequestMethod.GET);
+assertRoute("requestApplicationReportGeneration", reportApiRoutes.applicationReportGenerate, RequestMethod.POST, 202);
 assertRoute("getApplicationStatus", reportApiRoutes.applicationStatus, RequestMethod.GET);
 
 async function assertReportHttpError(
@@ -122,10 +127,6 @@ async function answerAllRecruitingQuestions(interviewService: InterviewService, 
 }
 
 function assertNoRecruitingInternalFields(data: Record<string, unknown>) {
-  assert.equal("score" in data, false);
-  assert.equal("scores" in data, false);
-  assert.equal("evidence" in data, false);
-  assert.equal("evidences" in data, false);
   assert.equal("internalMemo" in data, false);
   assert.equal("companyMemo" in data, false);
   assert.equal("manualEvaluation" in data, false);
@@ -138,8 +139,11 @@ async function runReportControllerAssertions() {
   const interviewRepository = new InMemoryInterviewRepository();
   const interviewService = new InterviewService(candidateService, interviewRepository);
   const candidateReportRepository = new InMemoryCandidateReportRepository();
+  const reportRepository = new InMemoryReportRepository();
+  const queuePublisher = new InMemoryAiJobQueuePublisher();
+  const dispatcher = new AiJobDispatcherService(reportRepository, queuePublisher);
   const controller = new ReportController(
-    new ReportService(candidateService, interviewRepository, candidateReportRepository),
+    new ReportService(candidateService, interviewRepository, candidateReportRepository, dispatcher),
   );
 
   const startedMock = await interviewService.startMockInterview(
@@ -160,11 +164,65 @@ async function runReportControllerAssertions() {
   const reports = await controller.listMockReports(validCandidateRequest);
   assert.equal(reports.data.items.length, 1);
   assert.equal(reports.data.items[0]?.reportId, mockReportId);
-  assert.equal(reports.data.items[0]?.reportStatus, "COMPLETED");
+  assert.equal(reports.data.items[0]?.reportStatus, "PENDING");
+
+  await assertReportHttpError(
+    () => controller.getMockReportFeedback(validCandidateRequest, String(mockReportId)),
+    409,
+    "REPORT_NOT_READY",
+  );
+
+  const mockAnswers = interviewRepository.listAnswersBySession(mockReportId);
+  const firstMockAnswer = mockAnswers[0];
+  assert.ok(firstMockAnswer);
+  mockAnswers.forEach((answer, index) => {
+    interviewRepository.saveAnswerTranscript(
+      answer.answerId,
+      index === 0
+        ? "I explained the project tradeoffs with concrete examples."
+        : "I described follow-up practice goals with measurable next steps.",
+    );
+  });
+  candidateReportRepository.saveFollowUpQuestion({
+    followUpId: 1,
+    answerId: firstMockAnswer.answerId,
+    content: "Which tradeoff had the largest impact?",
+    generationStatus: "GENERATED",
+    policy: "MOCK",
+    createdAt: "2026-07-02T00:00:00.000Z",
+  });
+  candidateReportRepository.saveReport({
+    reportId: mockReportId,
+    sessionId: mockReportId,
+    reportType: "MOCK_INTERVIEW_REPORT",
+    status: "COMPLETED",
+    totalScore: 82,
+    summary: "Practice feedback is ready.",
+    generatedAt: "2026-07-02T00:01:00.000Z",
+    scores: [
+      {
+        scoreId: 1,
+        criterionId: 1,
+        criterionName: "Clarity",
+        score: 82,
+        rationale: "The answer was structured and evidence-backed.",
+        evidences: [
+          {
+            evidenceId: 1,
+            sourceType: "INTERVIEW_ANSWER",
+            answerId: firstMockAnswer.answerId,
+            evidenceText: "project tradeoffs with concrete examples",
+          },
+        ],
+      },
+    ],
+  });
 
   const feedback = await controller.getMockReportFeedback(validCandidateRequest, String(mockReportId));
   assert.equal(feedback.data.reportType, "MOCK_INTERVIEW_REPORT");
   assert.equal(feedback.data.status, "COMPLETED");
+  assert.equal(feedback.data.totalScore, 82);
+  assert.equal(feedback.data.scores?.[0]?.evidences[0]?.evidenceText, "project tradeoffs with concrete examples");
   assert.equal(feedback.data.visibilityPolicy.excludesHiringDecision, true);
   assert.equal(/합격|탈락|pass|fail|hire|reject/i.test([
     feedback.data.summary,
@@ -176,15 +234,23 @@ async function runReportControllerAssertions() {
   const media = await controller.getMockReportMedia(validCandidateRequest, String(mockReportId));
   assert.equal(media.data.media.length, 2);
   assert.equal(media.data.media[0]?.videoFile?.status, "ACTIVE");
-  assert.equal(media.data.media[0]?.transcriptStatus, "PENDING");
+  assert.equal(media.data.media[0]?.transcriptStatus, "AVAILABLE");
+  assert.equal(media.data.media[0]?.transcript, "I explained the project tradeoffs with concrete examples.");
+  assert.equal(media.data.media[0]?.followUpQuestions[0]?.content, "Which tradeoff had the largest impact?");
   assert.ok(media.data.media[0]?.questionContent);
 
   const generation = await controller.requestMockReportGeneration(validCandidateRequest, String(mockReportId));
   assert.equal(generation.data.accepted, true);
+  assert.equal(generation.data.queued, true);
   assert.equal(generation.data.processType, "REPORT_GENERATE");
+  assert.equal(generation.data.status, "PENDING");
+  assert.equal(generation.data.reportStatus, "GENERATING");
+  assert.ok(generation.data.processLogId > 0);
   assert.equal(generation.data.reportId, mockReportId);
+  assert.equal(generation.data.sessionId, mockReportId);
   assert.equal(generation.data.answerIds.length, 2);
   assert.equal(generation.data.callbackTopic, "ai.report.generate.requested");
+  assert.equal(queuePublisher.messages.length, 1);
 
   await assertReportHttpError(
     () => controller.getMockReportFeedback(otherCandidateRequest, String(mockReportId)),
@@ -236,9 +302,97 @@ async function runReportControllerAssertions() {
   );
   assert.equal(applicationReport.data.reportType, "RECRUITING_REPORT");
   assert.equal(applicationReport.data.status, "GENERATING");
+  assert.deepEqual(applicationReport.data.scores, []);
   assert.equal(applicationReport.data.visibilityPolicy.excludesInternalMemo, true);
   assert.equal(applicationReport.data.visibilityPolicy.excludesManualEvaluation, true);
   assertNoRecruitingInternalFields(applicationReport.data as unknown as Record<string, unknown>);
+
+  const recruitingAnswers = interviewRepository.listAnswersBySession(session.sessionId);
+  const firstRecruitingAnswer = recruitingAnswers[0];
+  assert.ok(firstRecruitingAnswer);
+  recruitingAnswers.forEach((answer, index) => {
+    interviewRepository.saveAnswerTranscript(
+      answer.answerId,
+      index === 0
+        ? "I improved API latency with caching and queue isolation."
+        : "I explained production incident handling with clear ownership.",
+    );
+  });
+  candidateReportRepository.saveFollowUpQuestion({
+    followUpId: 2,
+    answerId: firstRecruitingAnswer.answerId,
+    content: "How did you measure the latency improvement?",
+    generationStatus: "GENERATED",
+    policy: "RECRUITING",
+    createdAt: "2026-07-02T00:02:00.000Z",
+  });
+
+  const applicationGeneration = await controller.requestApplicationReportGeneration(
+    validCandidateRequest,
+    String(submitted.application.applicationId),
+  );
+  assert.equal(applicationGeneration.data.accepted, true);
+  assert.equal(applicationGeneration.data.queued, true);
+  assert.equal(applicationGeneration.data.processType, "REPORT_GENERATE");
+  assert.equal(applicationGeneration.data.reportType, "RECRUITING_REPORT");
+  assert.equal(applicationGeneration.data.reportStatus, "GENERATING");
+  assert.equal(applicationGeneration.data.applicationId, submitted.application.applicationId);
+  assert.equal(applicationGeneration.data.sessionId, session.sessionId);
+  assert.equal(applicationGeneration.data.reportId, session.sessionId);
+  assert.equal(applicationGeneration.data.answerIds.length, recruitingAnswers.length);
+  assert.equal(queuePublisher.messages.length, 2);
+
+  candidateReportRepository.saveReport({
+    reportId: submitted.application.applicationId,
+    applicationId: submitted.application.applicationId,
+    sessionId: session.sessionId,
+    reportType: "RECRUITING_REPORT",
+    status: "COMPLETED",
+    totalScore: 88,
+    summary: "Recruiting report is ready.",
+    generatedAt: "2026-07-02T00:03:00.000Z",
+    scores: [
+      {
+        scoreId: 2,
+        criterionId: 1,
+        criterionName: "Backend ownership",
+        score: 88,
+        rationale: "The answer connects implementation choices to measurable results.",
+        evidences: [
+          {
+            evidenceId: 2,
+            sourceType: "INTERVIEW_ANSWER",
+            answerId: firstRecruitingAnswer.answerId,
+            evidenceText: "improved API latency with caching and queue isolation",
+          },
+        ],
+      },
+    ],
+  });
+
+  const completedApplicationStatus = await controller.getApplicationStatus(
+    validCandidateRequest,
+    String(submitted.application.applicationId),
+  );
+  assert.equal(completedApplicationStatus.data.reportStatus, "COMPLETED");
+  assert.equal(completedApplicationStatus.data.reportAvailable, true);
+
+  const completedApplicationReport = await controller.getApplicationReport(
+    validCandidateRequest,
+    String(submitted.application.applicationId),
+  );
+  assert.equal(completedApplicationReport.data.status, "COMPLETED");
+  assert.equal(completedApplicationReport.data.totalScore, 88);
+  assert.equal(completedApplicationReport.data.scores[0]?.criterionName, "Backend ownership");
+  assert.equal(
+    completedApplicationReport.data.scores[0]?.evidences[0]?.evidenceText,
+    "improved API latency with caching and queue isolation",
+  );
+  assert.equal(completedApplicationReport.data.answers[0]?.transcriptStatus, "AVAILABLE");
+  assert.equal(
+    completedApplicationReport.data.answers[0]?.followUpQuestions[0]?.content,
+    "How did you measure the latency improvement?",
+  );
 
   await assertReportHttpError(
     () => controller.getApplicationStatus(otherCandidateRequest, String(submitted.application.applicationId)),

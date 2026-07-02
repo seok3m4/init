@@ -100,6 +100,13 @@ export class PrismaCompanyInterviewRepository
   }
 
   async getTimePolicy(postingId: number): Promise<TimePolicyRecord> {
+    const timePolicy = await this.prisma.interviewTimePolicy.findUnique({
+      where: { postingId: BigInt(postingId) },
+    });
+    if (timePolicy) {
+      return mapTimePolicy(timePolicy);
+    }
+
     return {
       postingId,
       preparationTimeSec: 0,
@@ -227,12 +234,21 @@ export class PrismaCompanyInterviewRepository
     postingId: number,
     input: UpdateTimePolicyInput,
   ): Promise<TimePolicyRecord> {
-    return {
-      postingId,
-      preparationTimeSec: input.preparationTimeSec,
-      answerTimeSec: input.answerTimeSec,
-      retryAllowed: input.retryAllowed,
-    };
+    const timePolicy = await this.prisma.interviewTimePolicy.upsert({
+      where: { postingId: BigInt(postingId) },
+      create: {
+        postingId: BigInt(postingId),
+        preparationTimeSec: input.preparationTimeSec,
+        answerTimeSec: input.answerTimeSec,
+        retryAllowed: input.retryAllowed,
+      },
+      update: {
+        preparationTimeSec: input.preparationTimeSec,
+        answerTimeSec: input.answerTimeSec,
+        retryAllowed: input.retryAllowed,
+      },
+    });
+    return mapTimePolicy(timePolicy);
   }
 
   async confirmQuestionSet(input: ConfirmQuestionSetInput): Promise<QuestionSetRecord> {
@@ -269,6 +285,18 @@ export class PrismaCompanyInterviewRepository
     });
 
     return mapQuestionSet(questionSet);
+  }
+
+  async findActiveQuestionSet(
+    postingId: number,
+  ): Promise<QuestionSetRecord | undefined> {
+    const questionSet = await (this.prisma as any).interviewQuestionSet.findFirst({
+      where: { postingId: BigInt(postingId), status: 'ACTIVE' },
+      orderBy: { questionSetId: 'desc' },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    return questionSet ? mapQuestionSet(questionSet) : undefined;
   }
 }
 
@@ -350,6 +378,20 @@ function mapQuestion(question: {
     questionType: question.questionType,
     content: question.content,
     isActive: question.isActive,
+  };
+}
+
+function mapTimePolicy(timePolicy: {
+  postingId: bigint;
+  preparationTimeSec: number;
+  answerTimeSec: number;
+  retryAllowed: boolean;
+}): TimePolicyRecord {
+  return {
+    postingId: Number(timePolicy.postingId),
+    preparationTimeSec: timePolicy.preparationTimeSec,
+    answerTimeSec: timePolicy.answerTimeSec,
+    retryAllowed: timePolicy.retryAllowed,
   };
 }
 

@@ -180,6 +180,11 @@ describe('CompanyInterviewService', () => {
     assert.equal(result.createdByProcessLogId, 123);
     assert.equal(result.items.length, 2);
     assert.equal(result.items[0].questionId, 1);
+
+    const active = await service.getActiveQuestionSet(companyUser, 1);
+    assert.equal(active.postingId, 1);
+    assert.equal(active.fallbackPolicy, 'USE_ACTIVE_POSTING_QUESTIONS');
+    assert.equal(active.questionSet?.questionSetId, result.questionSetId);
   });
 
   it('rejects duplicate questions in a confirmed question set', async () => {
@@ -191,6 +196,50 @@ describe('CompanyInterviewService', () => {
           { questionId: 1, criterionId: 1, sortOrder: 1 },
           { questionId: 1, criterionId: 1, sortOrder: 2 },
         ],
+      }),
+    );
+  });
+
+  it('keeps only one active interview question set per posting', async () => {
+    const service = createService();
+    const first = await service.confirmQuestionSet(companyUser, {
+      postingId: 1,
+      title: '첫 질문 세트',
+      items: [
+        { questionId: 1, criterionId: 1, sortOrder: 1 },
+        { questionId: 2, criterionId: 2, sortOrder: 2 },
+      ],
+    });
+    const second = await service.confirmQuestionSet(companyUser, {
+      postingId: 1,
+      title: '최종 질문 세트',
+      items: [{ questionId: 3, criterionId: 3, sortOrder: 1 }],
+    });
+
+    const active = await service.getActiveQuestionSet(companyUser, 1);
+    assert.notEqual(first.questionSetId, second.questionSetId);
+    assert.equal(active.questionSet?.questionSetId, second.questionSetId);
+    assert.equal(active.questionSet?.items.length, 1);
+    assert.equal(active.questionSet?.items[0].questionId, 3);
+  });
+
+  it('rejects inactive or other-posting questions when confirming a question set', async () => {
+    const service = createService();
+    await service.deleteQuestion(companyUser, 1);
+
+    await assertBadRequest(() =>
+      service.confirmQuestionSet(companyUser, {
+        postingId: 1,
+        title: '비활성 질문 포함',
+        items: [{ questionId: 1, criterionId: 1, sortOrder: 1 }],
+      }),
+    );
+
+    await assertBadRequest(() =>
+      service.confirmQuestionSet(companyUser, {
+        postingId: 1,
+        title: '다른 공고 질문 포함',
+        items: [{ questionId: 4, criterionId: 4, sortOrder: 1 }],
       }),
     );
   });
@@ -210,6 +259,10 @@ describe('CompanyInterviewService', () => {
     assert.equal(
       (await service.getSettings(companyUser, { postingId: 1 })).timePolicy.answerTimeSec,
       300,
+    );
+    assert.equal(
+      (await service.getSettings(companyUser, { postingId: 2 })).timePolicy.answerTimeSec,
+      90,
     );
 
     await assertBadRequest(() =>

@@ -56,6 +56,7 @@ export interface CandidateJob {
   companyId: number;
   isPublic: boolean;
   companyName: string;
+  companyLogoUrl: string | null;
   companyIndustry: string;
   companyProfile: string;
   title: string;
@@ -75,6 +76,7 @@ export interface CandidateJob {
 export interface CandidateJobSummary {
   jobId: number;
   companyName: string;
+  companyLogoUrl: string | null;
   title: string;
   jobGroup: string;
   jobRole: string;
@@ -256,6 +258,7 @@ export interface CandidateInterviewRuntimeView {
   status: InterviewStatus;
   showQuestionText: boolean;
   canRecord: boolean;
+  jobDescription?: string;
   nextQuestionEndpoint: string;
   answerUploadEndpoint: string;
 }

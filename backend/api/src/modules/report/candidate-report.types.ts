@@ -9,6 +9,56 @@ import type { QuestionType } from "../interview";
 
 export type CandidateReportType = "MOCK_INTERVIEW_REPORT" | "RECRUITING_REPORT";
 export type TranscriptStatus = "PENDING" | "AVAILABLE";
+export type CandidateAiProcessStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export interface CandidateAiProcessView {
+  processLogId: number;
+  processType: string;
+  status: CandidateAiProcessStatus;
+  failureCategory?: string;
+  failureReason?: string;
+  createdAt: string;
+}
+
+export interface CandidateReportEvidenceView {
+  evidenceId: number;
+  sourceType: string;
+  answerId?: number;
+  documentId?: number;
+  documentRef?: string;
+  evidenceText: string;
+}
+
+export interface CandidateReportScoreView {
+  scoreId: number;
+  criterionId?: number;
+  criterionName?: string;
+  score: number;
+  rationale?: string;
+  evidences: CandidateReportEvidenceView[];
+}
+
+export interface CandidateFollowUpQuestionView {
+  followUpId: number;
+  content: string;
+  generationStatus: string;
+  policy: string;
+  createdAt: string;
+}
+
+export interface CandidateReportAnswerView {
+  answerId: number;
+  questionId: number;
+  questionType?: QuestionType;
+  sortOrder?: number;
+  questionContent?: string;
+  durationSeconds: number;
+  submittedAt: string;
+  transcriptStatus: TranscriptStatus;
+  transcript?: string;
+  followUpQuestions: CandidateFollowUpQuestionView[];
+  evidences: CandidateReportEvidenceView[];
+}
 
 export interface CandidateMockInterviewHistoryItem {
   sessionId: number;
@@ -35,11 +85,14 @@ export interface CandidateMockReportFeedback {
   sessionId: number;
   reportType: "MOCK_INTERVIEW_REPORT";
   status: ReportStatus;
+  aiProcess?: CandidateAiProcessView;
   generatedAt?: string;
+  totalScore?: number;
   summary?: string;
   strengths: string[];
   improvements: string[];
   nextPractice: string[];
+  scores?: CandidateReportScoreView[];
   visibilityPolicy: {
     candidateFacingOnly: true;
     excludesHiringDecision: true;
@@ -70,6 +123,7 @@ export interface CandidateMockReportMediaItem {
   submittedAt: string;
   transcriptStatus: TranscriptStatus;
   transcript?: string;
+  followUpQuestions: CandidateFollowUpQuestionView[];
 }
 
 export interface CandidateMockReportMedia {
@@ -81,15 +135,20 @@ export interface CandidateMockReportMedia {
 }
 
 export interface CandidateReportGenerationHandoff {
-  accepted: true;
+  accepted: boolean;
+  queued: boolean;
+  processLogId: number;
   processType: "REPORT_GENERATE";
-  status: "PENDING";
+  status: CandidateAiProcessStatus;
+  reportStatus: ReportStatus;
   reportId: number;
   sessionId: number;
-  reportType: "MOCK_INTERVIEW_REPORT";
+  applicationId?: number;
+  reportType: CandidateReportType;
   answerIds: number[];
   fileIds: number[];
   callbackTopic: "ai.report.generate.requested";
+  inputRef?: string;
 }
 
 export interface CandidateApplicationStatusView {
@@ -118,13 +177,19 @@ export interface CandidateRecruitingReportView {
   interviewStatus: InterviewStatus;
   companyName: string;
   jobTitle: string;
+  reportId?: number;
+  aiProcess?: CandidateAiProcessView;
+  generatedAt?: string;
+  totalScore?: number;
   summary?: string;
   candidateMessage: string;
   nextStepLabel: string;
+  scores: CandidateReportScoreView[];
+  answers: CandidateReportAnswerView[];
   visibilityPolicy: {
     candidateFacingOnly: true;
-    excludesDetailedScores: true;
-    excludesEvaluationEvidence: true;
+    excludesDetailedScores: boolean;
+    excludesEvaluationEvidence: boolean;
     excludesInternalMemo: true;
     excludesManualEvaluation: true;
   };

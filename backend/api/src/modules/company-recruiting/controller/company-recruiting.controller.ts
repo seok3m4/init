@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Inject,
   Param,
   ParseIntPipe,
@@ -10,9 +11,12 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { CurrentUser } from "@init/common";
 
 import { ok, okList, type RequestLike } from "../../../shared/response-envelope";
@@ -24,6 +28,7 @@ import {
   ApplicantResponseDto,
   BulkApplicantRegistrationResponseDto,
   InvitationResponseDto,
+  JdImageUploadResponseDto,
   RecruitmentResponseDto,
 } from "../dto/company-recruiting-response.dto";
 import { BulkCreateApplicantsDto } from "../dto/bulk-create-applicants.dto";
@@ -35,6 +40,12 @@ import { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 
 type CompanyRequest = RequestLike & { currentUser: CurrentUser };
+type UploadedJdImageFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
 
 @UseGuards(JwtAuthGuard)
 @ApiTags("Company Recruiting")
@@ -54,6 +65,47 @@ export class CompanyRecruitingController {
   ) {
     const data = await this.companyRecruitingService.createRecruitment(request.currentUser, dto);
     return ok(request, data);
+  }
+
+  @Post("recruitments/jd-images")
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiOperationId("API-086")
+  @ApiOperation({ summary: "JD 에디터 이미지 업로드" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["file"],
+      properties: {
+        file: {
+          type: "string",
+          format: "binary",
+          description: "image/png, image/jpeg, image/webp",
+        },
+      },
+    },
+  })
+  @ApiEnvelopeResponse(JdImageUploadResponseDto, 201)
+  async uploadJobDescriptionImage(
+    @Req() request: CompanyRequest,
+    @UploadedFile() file?: UploadedJdImageFile,
+  ) {
+    const data = await this.companyRecruitingService.uploadJobDescriptionImage(
+      request.currentUser,
+      file
+        ? {
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            sizeBytes: file.size,
+            buffer: file.buffer,
+          }
+        : undefined,
+    );
+    return ok(request, {
+      ...data,
+      createdAt: data.createdAt.toISOString(),
+    });
   }
 
   @Get("recruitments")
