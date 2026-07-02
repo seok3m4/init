@@ -56,6 +56,9 @@ export class QuestionSetResponseItemDto {
   questionId!: number;
   criterionId!: number | null;
   sortOrder!: number;
+  questionType?: string;
+  content?: string;
+  isActive?: boolean;
 }
 
 export class QuestionSetResponseDto {

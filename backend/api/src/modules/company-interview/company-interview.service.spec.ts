@@ -185,6 +185,12 @@ describe('CompanyInterviewService', () => {
     assert.equal(active.postingId, 1);
     assert.equal(active.fallbackPolicy, 'USE_ACTIVE_POSTING_QUESTIONS');
     assert.equal(active.questionSet?.questionSetId, result.questionSetId);
+    assert.equal(active.questionSet?.items[0].questionType, 'TECHNICAL');
+    assert.equal(
+      active.questionSet?.items[0].content,
+      'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',
+    );
+    assert.equal(active.questionSet?.items[0].isActive, true);
   });
 
   it('rejects duplicate questions in a confirmed question set', async () => {

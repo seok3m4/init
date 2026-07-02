@@ -275,6 +275,18 @@ C 화면은 E worker가 반환한 draft output을 자동 저장하지 않는다.
 
 AI 결과가 비어 있거나 `guardrail.result=BLOCKED`이면 C 화면은 최종 저장을 시도하지 않고 한글 안내 문구와 재요청 흐름을 제공한다. `failure.category`, `failure.reason`, `failure.retryable`은 사용자 문구 변환에 사용하며 원문을 그대로 장문 노출하지 않는다.
 
+## C AI 예외 상태 QA 기준
+
+| 상태 | Worker/API 응답 조건 | C 화면 기대 동작 | 저장/확정 가능 여부 |
+| --- | --- | --- | --- |
+| 실패 | `status=FAILED`, `failure.reason` 존재 | 실패 badge와 한글 안내 문구, `다시 요청` 버튼 표시 | 불가 |
+| 빈 평가 기준 결과 | `status=COMPLETED`, `criteriaSuggestions=[]` | "추천 가능한 평가 기준 결과가 없습니다" 계열 안내 표시 | 불가 |
+| 빈 질문 후보 결과 | `status=COMPLETED`, `questionCandidates=[]` | "저장 가능한 질문 후보가 없습니다" 계열 안내 표시 | 불가 |
+| 빈 질문 세트 결과 | `status=COMPLETED`, `questionSetPreview=[]` | "확정 가능한 질문 세트 결과가 없습니다" 계열 안내 표시 | 불가 |
+| Guardrail 차단 | `output.guardrail.result=BLOCKED` 또는 실패 reason에 guardrail 포함 | 정책 검수 차단 안내와 재요청 흐름 표시 | 불가 |
+
+QA는 정상 완료 흐름과 별개로 위 5개 상태를 최소 1회씩 확인한다. C 화면은 예외 상태에서 기존 `evaluation_criteria`, `question_bank`, `interview_question_sets`에 자동 저장을 시도하지 않아야 한다.
+
 리포트 생성 완료 출력:
 
 ```json
