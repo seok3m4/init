@@ -1,19 +1,30 @@
 "use client";
 
 import { EditorContent, useEditor } from "@tiptap/react";
-import { type CSSProperties, useEffect, useState } from "react";
+import { type ChangeEvent, type CSSProperties, useEffect, useRef, useState } from "react";
 
+import { uploadJobDescriptionImage } from "./api";
 import { buildJobDescriptionEditorContent } from "./job-description-content";
+import { JOB_DESCRIPTION_IMAGE_ACCEPT, validateJobDescriptionImageFile } from "./job-description-image-upload";
 import { getJobDescriptionExtensions } from "./job-description-tiptap";
 
 type JobDescriptionEditorProps = {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  uploadImage?: (file: File) => Promise<{ url: string }>;
 };
 
-export function JobDescriptionEditor({ value, onChange, disabled = false }: JobDescriptionEditorProps) {
+async function uploadImageByApi(file: File) {
+  const response = await uploadJobDescriptionImage(file);
+  return response.data;
+}
+
+export function JobDescriptionEditor({ value, onChange, disabled = false, uploadImage = uploadImageByApi }: JobDescriptionEditorProps) {
   const [zoom, setZoom] = useState(1);
+  const [imageUploadMessage, setImageUploadMessage] = useState<string | null>(null);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const editor = useEditor({
     extensions: getJobDescriptionExtensions(),
     content: buildJobDescriptionEditorContent(value),
@@ -64,19 +75,39 @@ export function JobDescriptionEditor({ value, onChange, disabled = false }: JobD
     editor.chain().focus().extendMarkRange("link").setLink({ href: nextUrl.trim() }).run();
   }
 
-  function addImageUrl() {
-    if (!editor || disabled) {
+  function openImageFilePicker() {
+    if (!editor || disabled || isImageUploading) {
       return;
     }
 
-    const imageUrl = window.prompt("삽입할 이미지 URL을 입력하세요.");
-    const trimmedUrl = imageUrl?.trim();
+    imageInputRef.current?.click();
+  }
 
-    if (!trimmedUrl) {
+  async function handleImageFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !editor || disabled || isImageUploading) {
       return;
     }
 
-    editor.chain().focus().setImage({ src: trimmedUrl }).run();
+    const validation = validateJobDescriptionImageFile(file);
+    if (!validation.ok) {
+      setImageUploadMessage(validation.message);
+      return;
+    }
+
+    setImageUploadMessage(null);
+    setIsImageUploading(true);
+
+    try {
+      const uploadedImage = await uploadImage(file);
+      editor.chain().focus().setImage({ src: uploadedImage.url }).run();
+    } catch (error) {
+      setImageUploadMessage(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
+    } finally {
+      setIsImageUploading(false);
+    }
   }
 
   if (!editor) {
@@ -251,11 +282,25 @@ export function JobDescriptionEditor({ value, onChange, disabled = false }: JobD
           <button className="jd-toolbar-button" type="button" disabled={disabled} onClick={setLink}>
             링크
           </button>
-          <button className="jd-toolbar-button" type="button" disabled={disabled} onClick={addImageUrl}>
-            이미지 URL
+          <button className="jd-toolbar-button" type="button" disabled={disabled || isImageUploading} onClick={openImageFilePicker}>
+            {isImageUploading ? "업로드 중" : "이미지 업로드"}
           </button>
+          <input
+            ref={imageInputRef}
+            className="jd-file-input"
+            type="file"
+            accept={JOB_DESCRIPTION_IMAGE_ACCEPT}
+            disabled={disabled || isImageUploading}
+            onChange={handleImageFileChange}
+          />
         </div>
       </div>
+
+      {imageUploadMessage ? (
+        <p className="jd-upload-message" role="status" aria-live="polite">
+          {imageUploadMessage}
+        </p>
+      ) : null}
 
       <EditorContent className="jd-editor-shell" editor={editor} />
     </div>

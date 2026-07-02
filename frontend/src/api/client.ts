@@ -45,7 +45,7 @@ export function getDefaultEntryPath(userType: AuthUserType) {
 
 export async function authFetch(input: string | URL, options: RequestInit = {}, retry = true): Promise<Response> {
   const headers = new Headers(options.headers);
-  if (options.body !== undefined && !headers.has("Content-Type")) {
+  if (options.body !== undefined && !isFormDataBody(options.body) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -64,6 +64,10 @@ export async function authFetch(input: string | URL, options: RequestInit = {}, 
   }
 
   return response;
+}
+
+function isFormDataBody(body: BodyInit | null | undefined) {
+  return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {

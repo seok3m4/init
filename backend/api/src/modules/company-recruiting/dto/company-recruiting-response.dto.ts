@@ -53,6 +53,35 @@ export class RecruitmentResponseDto {
   updatedAt!: string;
 }
 
+export class JdImageUploadResponseDto {
+  @ApiProperty({ example: 123 })
+  fileId!: number;
+
+  @ApiProperty({ example: 1 })
+  ownerUserId!: number;
+
+  @ApiProperty({ example: "company/1/jd-images/uuid-culture.webp" })
+  storageKey!: string;
+
+  @ApiProperty({ example: "culture.webp" })
+  originalName!: string;
+
+  @ApiProperty({ enum: ["image/png", "image/jpeg", "image/webp"], example: "image/webp" })
+  mimeType!: string;
+
+  @ApiProperty({ example: 245760 })
+  sizeBytes!: number;
+
+  @ApiProperty({ example: "ACTIVE" })
+  status!: string;
+
+  @ApiProperty({ example: "2026-07-02T00:00:00.000Z" })
+  createdAt!: string;
+
+  @ApiProperty({ example: "https://cdn.example.com/company/1/jd-images/uuid-culture.webp" })
+  url!: string;
+}
+
 export class InterviewSessionSummaryDto {
   @ApiProperty({ example: 10 })
   sessionId!: number;
