@@ -23,6 +23,7 @@ type InterviewControllerRoute =
   | "completeMockInterview"
   | "requestMockStt"
   | "requestMockFollowUpQuestion"
+  | "promoteMockFollowUpQuestion"
   | "saveDeviceCheck"
   | "startInterview"
   | "getInterviewRuntime"
@@ -31,7 +32,8 @@ type InterviewControllerRoute =
   | "moveRecruitingNextQuestion"
   | "completeRecruitingInterview"
   | "requestRecruitingStt"
-  | "requestRecruitingFollowUpQuestion";
+  | "requestRecruitingFollowUpQuestion"
+  | "promoteRecruitingFollowUpQuestion";
 
 const validCandidateRequest = {
   headers: {},
@@ -66,6 +68,7 @@ assertRoute("listMockQuestions", interviewApiRoutes.mockQuestions, RequestMethod
 assertRoute("saveMockAnswer", interviewApiRoutes.mockAnswers, RequestMethod.POST, 201);
 assertRoute("moveMockNextQuestion", interviewApiRoutes.mockNextQuestion, RequestMethod.POST);
 assertRoute("completeMockInterview", interviewApiRoutes.mockComplete, RequestMethod.PATCH);
+assertRoute("promoteMockFollowUpQuestion", interviewApiRoutes.mockFollowUpQuestionPromote, RequestMethod.POST);
 assertRoute("saveDeviceCheck", interviewApiRoutes.deviceCheck, RequestMethod.POST);
 assertRoute("startInterview", interviewApiRoutes.startInterview, RequestMethod.POST);
 assertRoute("getInterviewRuntime", interviewApiRoutes.interviewRuntime, RequestMethod.GET);
@@ -73,6 +76,7 @@ assertRoute("listRecruitingQuestions", interviewApiRoutes.recruitingQuestions, R
 assertRoute("saveRecruitingAnswer", interviewApiRoutes.recruitingAnswers, RequestMethod.POST, 201);
 assertRoute("moveRecruitingNextQuestion", interviewApiRoutes.recruitingNextQuestion, RequestMethod.POST);
 assertRoute("completeRecruitingInterview", interviewApiRoutes.recruitingComplete, RequestMethod.PATCH);
+assertRoute("promoteRecruitingFollowUpQuestion", interviewApiRoutes.recruitingFollowUpQuestionPromote, RequestMethod.POST);
 
 async function assertInterviewHttpError(
   action: () => Promise<unknown>,
@@ -151,13 +155,32 @@ async function runControllerRuntimeAssertions() {
   );
   assert.equal(mockFollowUp.data.processType, "FOLLOW_UP");
 
-  const nextMock = await controller.moveMockNextQuestion(validCandidateRequest, String(mockStarted.data.sessionId));
-  assert.equal(nextMock.data.previousQuestionId, firstMockQuestionId);
-  assert.equal(nextMock.data.currentQuestion?.current, true);
-  assert.equal(nextMock.data.isLastQuestion, true);
+  const movedBeforePromotion = await controller.moveMockNextQuestion(validCandidateRequest, String(mockStarted.data.sessionId));
+  assert.equal(movedBeforePromotion.data.previousQuestionId, firstMockQuestionId);
+  assert.notEqual(movedBeforePromotion.data.currentQuestion?.questionId, firstMockQuestionId);
+
+  interviewRepository.saveCompletedFollowUpProcess({
+    processLogId: 9001,
+    sessionId: mockStarted.data.sessionId,
+    answerId: firstMockAnswer.data.answer.answerId,
+    content: "그 선택이 결과에 어떤 영향을 줬는지 더 설명해주시겠어요?",
+    policy: "MOCK",
+  });
+  const promotedMock = await controller.promoteMockFollowUpQuestion(
+    validCandidateRequest,
+    String(mockStarted.data.sessionId),
+    { processLogId: 9001 },
+  );
+  assert.equal(promotedMock.data.inserted, true);
+  assert.equal(promotedMock.data.question.questionType, "FOLLOW_UP");
+  assert.equal(promotedMock.data.totalQuestions, 3);
+
+  const runtimeAfterPromotion = await controller.getMockRuntime(validCandidateRequest, String(mockStarted.data.sessionId));
+  assert.equal(runtimeAfterPromotion.data.currentQuestion?.current, true);
+  assert.equal(runtimeAfterPromotion.data.currentQuestion?.questionType, "FOLLOW_UP");
 
   await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
-    questionId: nextMock.data.currentQuestion?.questionId ?? 0,
+    questionId: promotedMock.data.question.questionId,
     audioFile: {
       storageKey: "candidate/1/mock-answer-2.webm",
       originalName: "mock-answer-2.webm",
@@ -167,9 +190,24 @@ async function runControllerRuntimeAssertions() {
     durationSeconds: 30,
   });
 
+  const nextAfterFollowUp = await controller.moveMockNextQuestion(validCandidateRequest, String(mockStarted.data.sessionId));
+  assert.equal(nextAfterFollowUp.data.currentQuestion?.current, true);
+  assert.equal(nextAfterFollowUp.data.isLastQuestion, true);
+
+  await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
+    questionId: nextAfterFollowUp.data.currentQuestion?.questionId ?? 0,
+    audioFile: {
+      storageKey: "candidate/1/mock-answer-3.webm",
+      originalName: "mock-answer-3.webm",
+      mimeType: "audio/webm",
+      sizeBytes: 2048,
+    },
+    durationSeconds: 30,
+  });
+
   const completedMock = await controller.completeMockInterview(validCandidateRequest, String(mockStarted.data.sessionId));
   assert.equal(completedMock.data.status, "COMPLETED");
-  assert.equal(completedMock.data.answeredCount, 2);
+  assert.equal(completedMock.data.answeredCount, 3);
 
   const mockHistory = await controller.listMockInterviewHistory(validCandidateRequest);
   assert.equal(mockHistory.data.items[0]?.sessionId, mockStarted.data.sessionId);

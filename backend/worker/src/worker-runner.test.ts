@@ -174,6 +174,8 @@ test("loads SQS, S3 and AI provider settings from environment variables", () => 
       aiSqsQueueUrl: "https://sqs.ap-northeast-2.amazonaws.com/1/init-ai",
       awsRegion: "ap-northeast-2",
       aiProviderApiKey: "test-key",
+      aiProviderMode: "mock",
+      openaiModel: "gpt-4o-mini",
       s3BucketName: "init-dev",
       workerBatchSize: 5,
       workerPollIntervalMs: 2500,

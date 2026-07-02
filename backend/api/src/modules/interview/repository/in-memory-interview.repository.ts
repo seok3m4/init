@@ -1,5 +1,7 @@
 import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from "../interview.runtime.types";
 import type {
+  CompletedFollowUpProcess,
+  CreateFollowUpQuestionInput,
   CreateInterviewAnswerInput,
   CreateMockInterviewSessionInput,
   InterviewQuestionFilter,
@@ -117,6 +119,7 @@ export class InMemoryInterviewRepository implements InterviewRepository {
   private readonly mockSessions = new Map<number, RuntimeInterviewSession>();
   private readonly recruitingSessions = new Map<number, RuntimeInterviewSession>();
   private readonly answers: InterviewAnswer[] = [];
+  private readonly followUpProcesses = new Map<number, CompletedFollowUpProcess>();
 
   listQuestions(filter: InterviewQuestionFilter = {}): InterviewQuestion[] {
     return this.questions
@@ -225,11 +228,48 @@ export class InMemoryInterviewRepository implements InterviewRepository {
     return this.cloneAnswer(answer);
   }
 
+  findCompletedFollowUpProcess(processLogId: number): CompletedFollowUpProcess | undefined {
+    const process = this.followUpProcesses.get(processLogId);
+    return process ? { ...process } : undefined;
+  }
+
+  createFollowUpQuestion(input: CreateFollowUpQuestionInput): InterviewQuestion {
+    const sourceQuestion = this.questions.find((question) => question.questionId === input.sourceQuestionId);
+    const existing = this.questions.find(
+      (question) =>
+        question.questionType === "FOLLOW_UP" &&
+        question.interviewType === input.session.interviewType &&
+        question.postingId === sourceQuestion?.postingId &&
+        question.content === input.content &&
+        question.isActive,
+    );
+    if (existing) {
+      return this.cloneQuestion(existing);
+    }
+
+    const question: InterviewQuestion = {
+      questionId: Math.max(...this.questions.map((candidate) => candidate.questionId)) + 1,
+      questionType: "FOLLOW_UP",
+      content: input.content,
+      sortOrder: 5,
+      interviewType: input.session.interviewType,
+      postingId: sourceQuestion?.postingId,
+      criterionId: sourceQuestion?.criterionId,
+      isActive: true,
+    };
+    this.questions.push(question);
+    return this.cloneQuestion(question);
+  }
+
   saveAnswerTranscript(answerId: number, transcript: string): void {
     const answer = this.answers.find((candidate) => candidate.answerId === answerId);
     if (answer) {
       answer.transcript = transcript;
     }
+  }
+
+  saveCompletedFollowUpProcess(process: CompletedFollowUpProcess): void {
+    this.followUpProcesses.set(process.processLogId, { ...process });
   }
 
   private questionSortOrder(questionId: number): number {

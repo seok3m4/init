@@ -4,7 +4,12 @@ import { type RequestLike } from "../../../shared/response-envelope";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { resolveCurrentCandidate, CandidateDomainError } from "../../candidate";
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
-import { AiInterviewRequestDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "../dto/interview.runtime.dto";
+import {
+  AiInterviewRequestDto,
+  PromoteFollowUpQuestionDto,
+  SaveInterviewAnswerDto,
+  StartMockInterviewDto,
+} from "../dto/interview.runtime.dto";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "../interview.routes";
 import { InterviewService } from "../service/interview.service";
 
@@ -70,6 +75,17 @@ export class InterviewController {
   ) {
     return this.handle(() =>
       this.interviewService.requestMockFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
+  }
+
+  @Post(interviewApiRoutes.mockFollowUpQuestionPromote)
+  promoteMockFollowUpQuestion(
+    @Req() request: CandidateRequest,
+    @Param("sessionId") sessionId: string,
+    @Body() dto: PromoteFollowUpQuestionDto,
+  ) {
+    return this.handle(() =>
+      this.interviewService.promoteMockFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
     );
   }
 
@@ -140,6 +156,17 @@ export class InterviewController {
   ) {
     return this.handle(() =>
       this.interviewService.requestRecruitingFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
+  }
+
+  @Post(interviewApiRoutes.recruitingFollowUpQuestionPromote)
+  promoteRecruitingFollowUpQuestion(
+    @Req() request: CandidateRequest,
+    @Param("sessionId") sessionId: string,
+    @Body() dto: PromoteFollowUpQuestionDto,
+  ) {
+    return this.handle(() =>
+      this.interviewService.promoteRecruitingFollowUpQuestion(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
     );
   }
 

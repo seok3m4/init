@@ -72,3 +72,9 @@ export class AiInterviewRequestDto {
   @IsPositive()
   fileAssetId?: number;
 }
+
+export class PromoteFollowUpQuestionDto {
+  @IsInt()
+  @IsPositive()
+  processLogId!: number;
+}

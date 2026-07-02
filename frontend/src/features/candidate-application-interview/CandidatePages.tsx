@@ -135,8 +135,10 @@ type AutoAiPipelineState = {
   answerId: number;
   sttStatus: AutoAiStepStatus;
   followUpStatus: AutoAiStepStatus;
+  promoteStatus?: AutoAiStepStatus;
   sttProcessLogId?: number;
   followUpProcessLogId?: number;
+  promotedQuestionId?: number;
   transcript?: string;
   followUpQuestion?: string;
   error?: string;
@@ -2347,6 +2349,61 @@ function InterviewRuntimePanel({
     }
   }
 
+  async function handlePromoteFollowUpQuestion() {
+    if (!data || !autoAiPipeline?.followUpProcessLogId) {
+      setMessage("질문으로 추가할 꼬리질문 작업이 없습니다.");
+      return;
+    }
+
+    setBusy(true);
+    setAutoAiPipeline((current) =>
+      current
+        ? {
+            ...current,
+            promoteStatus: "RUNNING",
+            error: undefined,
+          }
+        : current,
+    );
+    try {
+      const api = getCandidateApi();
+      const result =
+        mode === "mock"
+          ? await api.promoteMockFollowUpQuestion(data.runtime.sessionId, {
+              processLogId: autoAiPipeline.followUpProcessLogId,
+            })
+          : await api.promoteRecruitingFollowUpQuestion(data.runtime.sessionId, {
+              processLogId: autoAiPipeline.followUpProcessLogId,
+            });
+
+      setAutoAiPipeline((current) =>
+        current
+          ? {
+              ...current,
+              promoteStatus: "COMPLETED",
+              promotedQuestionId: result.data.question.questionId,
+              error: undefined,
+            }
+          : current,
+      );
+      setMessage(result.data.inserted ? "생성된 꼬리질문을 다음 질문으로 추가했습니다." : "이미 추가된 꼬리질문입니다.");
+      refresh();
+    } catch (submitError) {
+      setAutoAiPipeline((current) =>
+        current
+          ? {
+              ...current,
+              promoteStatus: "FAILED",
+              error: toErrorMessage(submitError),
+            }
+          : current,
+      );
+      setMessage(toErrorMessage(submitError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleQuestionTimeExpired() {
     if (!data || !currentQuestion || currentQuestionAnswered) return;
     setMessage("답변 시간이 종료되어 현재 답변을 자동 제출합니다.");
@@ -2668,6 +2725,19 @@ function InterviewRuntimePanel({
                       onClick={() => void handleRequestAiPipeline("FOLLOW_UP")}
                     >
                       꼬리질문 연결 확인
+                    </button>
+                    <button
+                      className="btn secondary compact"
+                      type="button"
+                      disabled={
+                        busy ||
+                        autoAiPipeline?.followUpStatus !== "COMPLETED" ||
+                        !autoAiPipeline?.followUpProcessLogId ||
+                        autoAiPipeline?.promoteStatus === "COMPLETED"
+                      }
+                      onClick={() => void handlePromoteFollowUpQuestion()}
+                    >
+                      질문으로 추가
                     </button>
                   </div>
                   {aiHandoff ? (

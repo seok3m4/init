@@ -10,6 +10,7 @@ export const interviewApiRoutes = {
   mockComplete: "mock-interviews/:sessionId/complete",
   mockStt: "mock-interviews/:sessionId/stt",
   mockFollowUpQuestion: "mock-interviews/:sessionId/follow-up-question",
+  mockFollowUpQuestionPromote: "mock-interviews/:sessionId/follow-up-questions/promote",
   deviceCheck: "interviews/:sessionId/device-check",
   startInterview: "applications/:applicationId/interview/start",
   interviewRuntime: "applications/:applicationId/interview",
@@ -19,4 +20,5 @@ export const interviewApiRoutes = {
   recruitingComplete: "interviews/:sessionId/complete",
   recruitingStt: "interviews/:sessionId/stt",
   recruitingFollowUpQuestion: "interviews/:sessionId/follow-up-question",
+  recruitingFollowUpQuestionPromote: "interviews/:sessionId/follow-up-questions/promote",
 } as const;

@@ -114,3 +114,14 @@ export interface AiHandoffResult {
   audioFileId?: number;
   callbackTopic: string;
 }
+
+export interface PromoteFollowUpQuestionResult {
+  sessionId: number;
+  processLogId: number;
+  sourceAnswerId: number;
+  sourceQuestionId: number;
+  question: InterviewQuestionView;
+  inserted: boolean;
+  totalQuestions: number;
+  nextQuestionAvailable: boolean;
+}

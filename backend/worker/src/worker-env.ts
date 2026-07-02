@@ -2,6 +2,8 @@ export interface WorkerEnv {
   aiSqsQueueUrl: string;
   awsRegion: string;
   aiProviderApiKey: string;
+  aiProviderMode: "mock" | "openai";
+  openaiModel: string;
   s3BucketName: string;
   workerBatchSize: number;
   workerPollIntervalMs: number;
@@ -10,10 +12,13 @@ export interface WorkerEnv {
 }
 
 export function loadWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
+  const aiProviderMode = providerMode(env.AI_PROVIDER_MODE);
   return {
     aiSqsQueueUrl: requiredOneOf(env, ["AI_SQS_QUEUE_URL", "SQS_QUEUE_URL"]),
     awsRegion: required(env, "AWS_REGION"),
-    aiProviderApiKey: requiredOneOf(env, ["AI_PROVIDER_API_KEY", "OPENAI_API_KEY"]),
+    aiProviderApiKey: aiProviderKey(env, aiProviderMode),
+    aiProviderMode,
+    openaiModel: optional(env.OPENAI_MODEL) ?? "gpt-4o-mini",
     s3BucketName: requiredOneOf(env, ["S3_BUCKET_NAME", "S3_BUCKET"]),
     workerBatchSize: integer(env.WORKER_BATCH_SIZE, 1, 10, 1),
     workerPollIntervalMs: integer(env.WORKER_POLL_INTERVAL_MS, 100, 60_000, 1_000),
@@ -43,6 +48,24 @@ function requiredOneOf(env: NodeJS.ProcessEnv, names: string[]): string {
 function optional(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function aiProviderKey(env: NodeJS.ProcessEnv, mode: WorkerEnv["aiProviderMode"]): string {
+  const key = optional(env.OPENAI_API_KEY) ?? optional(env.AI_PROVIDER_API_KEY);
+  if (mode === "openai" && (!key || key === "local-dev-placeholder" || key === "replace-with-secret")) {
+    throw new Error("OPENAI_API_KEY or AI_PROVIDER_API_KEY is required when AI_PROVIDER_MODE=openai.");
+  }
+  return key ?? "local-dev-placeholder";
+}
+
+function providerMode(value: string | undefined): WorkerEnv["aiProviderMode"] {
+  if (!value?.trim()) {
+    return "mock";
+  }
+  if (value === "mock" || value === "openai") {
+    return value;
+  }
+  throw new Error("AI_PROVIDER_MODE must be mock or openai.");
 }
 
 function integer(value: string | undefined, min: number, max: number, fallback: number): number {

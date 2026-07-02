@@ -2,6 +2,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { AiResultRepository, InMemoryAiResultRepository } from "./ai-result.repository";
 import { MockAiTaskHandler } from "./mock-ai-task.handler";
+import { OpenAiAiTaskHandler } from "./openai-ai-task.handler";
+import { OpenAiFollowUpProvider } from "./openai-follow-up.provider";
 import { AiProcessLogRepository, InMemoryAiProcessLogRepository } from "./process-log.repository";
 import { PrismaAiResultRepository } from "./prisma-ai-result.repository";
 import { PrismaAiProcessLogRepository } from "./prisma-process-log.repository";
@@ -28,7 +30,15 @@ export interface WorkerRuntime {
 
 export async function createWorkerRuntime(queue: AiJobQueue, env: WorkerEnv): Promise<WorkerRuntime> {
   const repositories = await createRepositories(env);
-  const handler = new MockAiTaskHandler(repositories.results);
+  const mockHandler = new MockAiTaskHandler(repositories.results);
+  const handler =
+    env.aiProviderMode === "openai"
+      ? new OpenAiAiTaskHandler(
+          mockHandler,
+          repositories.results,
+          new OpenAiFollowUpProvider(env.aiProviderApiKey, env.openaiModel)
+        )
+      : mockHandler;
 
   return {
     runner: new AiWorkerRunner(queue, repositories.processLogs, handler, {
