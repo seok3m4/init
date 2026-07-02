@@ -92,6 +92,8 @@
       "^frontend/src/app/(login|signup|password/reset)/",
       "^frontend/src/features/auth/",
       "^infra/",
+      "^\\.dockerignore$",
+      "^docs/04_implementation/aws-deployment-solution\\.md$",
       "^docs/03_contracts/",
       "^docs/02_architecture/"
     ],
