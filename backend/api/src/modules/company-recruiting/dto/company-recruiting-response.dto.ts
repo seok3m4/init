@@ -115,6 +115,15 @@ export class PublicApplicationResponseDto {
 
   @ApiProperty({ enum: ["CHECK_EMAIL"], example: "CHECK_EMAIL" })
   nextAction!: string;
+
+  @ApiProperty({ example: true })
+  temporary!: boolean;
+
+  @ApiProperty({ example: "B_MODULE_PUBLIC_APPLICATION_AUTH_ADAPTER" })
+  temporaryBoundary!: string;
+
+  @ApiProperty({ enum: ["NOT_SENT_TEMPORARY"], example: "NOT_SENT_TEMPORARY" })
+  magicLinkDeliveryStatus!: string;
 }
 
 export class InterviewSessionSummaryDto {

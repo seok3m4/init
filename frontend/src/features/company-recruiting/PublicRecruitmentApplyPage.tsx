@@ -65,7 +65,11 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
         resumeText: emptyToUndefined(form.resumeText),
       });
       setSubmittedEmail(result.data.email);
-      setMessage("지원서가 접수되었습니다. 이메일 확인 후 지원 현황과 면접 안내를 확인할 수 있습니다.");
+      setMessage(
+        result.data.temporary
+          ? "지원서가 접수되었습니다. 이메일 인증과 매직 링크 발송은 현재 임시 처리 상태입니다."
+          : "지원서가 접수되었습니다. 이메일 확인 후 지원 현황과 면접 안내를 확인할 수 있습니다.",
+      );
       setForm(initialForm);
     } catch (error) {
       setMessage(toErrorMessage(error));

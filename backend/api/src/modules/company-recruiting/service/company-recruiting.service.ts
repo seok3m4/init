@@ -7,6 +7,10 @@ import {
   InMemoryCompanyRecruitingInvitationAdapter,
   type CompanyRecruitingInvitationAdapterPort,
 } from "./company-recruiting-invitation.adapter";
+import {
+  InMemoryPublicApplicationAuthAdapter,
+  type PublicApplicationAuthAdapterPort,
+} from "./public-application-auth.adapter";
 import type { BulkCreateApplicantsDto, BulkCreateApplicantRowDto } from "../dto/bulk-create-applicants.dto";
 import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
@@ -45,6 +49,7 @@ export class CompanyRecruitingService {
   constructor(
     private readonly repository: CompanyRecruitingRepositoryPort,
     private readonly invitationAdapter: CompanyRecruitingInvitationAdapterPort = new InMemoryCompanyRecruitingInvitationAdapter(),
+    private readonly publicApplicationAuthAdapter: PublicApplicationAuthAdapterPort = new InMemoryPublicApplicationAuthAdapter(),
   ) {}
 
   async createRecruitment(user: CurrentUser, dto: CreateRecruitmentDto) {
@@ -169,14 +174,18 @@ export class CompanyRecruitingService {
       candidateId: candidate.candidateId,
       screeningMemo: null,
     });
+    const verification = await this.publicApplicationAuthAdapter.requestEmailVerification({
+      applicationId: application.applicationId,
+      recruitmentId: application.postingId,
+      email,
+    });
 
     return {
       applicationId: application.applicationId,
       recruitmentId: application.postingId,
       email,
       applicationStatus: application.applicationStatus,
-      emailVerificationStatus: "PENDING" as const,
-      nextAction: "CHECK_EMAIL" as const,
+      ...verification,
     };
   }
 

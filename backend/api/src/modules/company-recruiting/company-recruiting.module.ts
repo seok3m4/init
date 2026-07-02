@@ -9,6 +9,10 @@ import {
   type CompanyRecruitingInvitationAdapterPort,
 } from "./service/company-recruiting-invitation.adapter";
 import {
+  InMemoryPublicApplicationAuthAdapter,
+  type PublicApplicationAuthAdapterPort,
+} from "./service/public-application-auth.adapter";
+import {
   PrismaCompanyRecruitingRepository,
   type CompanyRecruitingRepositoryPort,
 } from "./repository/company-recruiting.repository";
@@ -21,13 +25,15 @@ import { CompanyRecruitingService } from "./service/company-recruiting.service";
     PrismaService,
     PrismaCompanyRecruitingRepository,
     InMemoryCompanyRecruitingInvitationAdapter,
+    InMemoryPublicApplicationAuthAdapter,
     {
       provide: CompanyRecruitingService,
       useFactory: (
         repository: CompanyRecruitingRepositoryPort,
         invitationAdapter: CompanyRecruitingInvitationAdapterPort,
-      ) => new CompanyRecruitingService(repository, invitationAdapter),
-      inject: [PrismaCompanyRecruitingRepository, InMemoryCompanyRecruitingInvitationAdapter],
+        publicApplicationAuthAdapter: PublicApplicationAuthAdapterPort,
+      ) => new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter),
+      inject: [PrismaCompanyRecruitingRepository, InMemoryCompanyRecruitingInvitationAdapter, InMemoryPublicApplicationAuthAdapter],
     },
   ],
 })

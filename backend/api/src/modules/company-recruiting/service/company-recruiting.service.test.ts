@@ -227,6 +227,23 @@ function createInvitationAdapter() {
   };
 }
 
+function createPublicApplicationAuthAdapter() {
+  const calls: Record<string, unknown[]> = {};
+  return {
+    calls,
+    async requestEmailVerification(input: unknown) {
+      calls.requestEmailVerification = [input];
+      return {
+        emailVerificationStatus: "PENDING" as const,
+        nextAction: "CHECK_EMAIL" as const,
+        temporary: true as const,
+        temporaryBoundary: "B_MODULE_PUBLIC_APPLICATION_AUTH_ADAPTER" as const,
+        magicLinkDeliveryStatus: "NOT_SENT_TEMPORARY" as const,
+      };
+    },
+  };
+}
+
 describe("CompanyRecruitingService", () => {
   it("creates recruitments for the current company only", async () => {
     const repository = createRepository();
@@ -338,7 +355,9 @@ describe("CompanyRecruitingService", () => {
 
   it("stores public applications as pending candidate applications", async () => {
     const repository = createRepository();
-    const service = new CompanyRecruitingService(repository);
+    const invitationAdapter = createInvitationAdapter();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
+    const service = new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter);
 
     const result = await service.submitPublicApplication(101, {
       name: "김지원",
@@ -361,10 +380,20 @@ describe("CompanyRecruitingService", () => {
       },
     ]);
     assert.deepEqual(repository.calls.createApplication, [{ postingId: 101, candidateId: 44, screeningMemo: null }]);
+    assert.deepEqual(publicApplicationAuthAdapter.calls.requestEmailVerification, [
+      {
+        applicationId: 77,
+        recruitmentId: 101,
+        email: "jiwon@example.com",
+      },
+    ]);
     assert.equal(result.email, "jiwon@example.com");
     assert.equal(result.applicationStatus, "SUBMITTED");
     assert.equal(result.emailVerificationStatus, "PENDING");
     assert.equal(result.nextAction, "CHECK_EMAIL");
+    assert.equal(result.temporary, true);
+    assert.equal(result.temporaryBoundary, "B_MODULE_PUBLIC_APPLICATION_AUTH_ADAPTER");
+    assert.equal(result.magicLinkDeliveryStatus, "NOT_SENT_TEMPORARY");
   });
 
   it("rejects duplicate public application emails", async () => {

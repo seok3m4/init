@@ -37,6 +37,9 @@ export type PublicApplicationResult = {
   applicationStatus: string;
   emailVerificationStatus: "PENDING";
   nextAction: "CHECK_EMAIL";
+  temporary: boolean;
+  temporaryBoundary: string;
+  magicLinkDeliveryStatus: "NOT_SENT_TEMPORARY";
 };
 
 export async function getPublicRecruitment(recruitmentId: number) {
