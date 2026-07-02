@@ -9,6 +9,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import type { QuestionType } from '../company-interview.types';
 
 export class ConfirmQuestionSetItemDto {
   @Type(() => Number)
@@ -56,7 +57,7 @@ export class QuestionSetResponseItemDto {
   questionId!: number;
   criterionId!: number | null;
   sortOrder!: number;
-  questionType?: string;
+  questionType?: QuestionType;
   content?: string;
   isActive?: boolean;
 }
