@@ -35,6 +35,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | criterion_tags | tag_id | 7 | 평가 태그 후보 |  |
 | evaluation_criteria | criterion_id | 6 | 공고별 평가 기준과 가중치 | posting_id -> postings.posting_id / tag_id -> criterion_tags.tag_id |
 | question_bank | question_id | 7 | 면접 질문 뱅크 | company_id -> companies.company_id / posting_id -> postings.posting_id / criterion_id -> evaluation_criteria.criterion_id |
+| interview_time_policies | posting_id | 6 | 공고별 면접 시간 정책 | posting_id -> postings.posting_id |
 | applications | application_id | 11 | 지원서와 전형 상태 | posting_id -> postings.posting_id / candidate_id -> candidate_profiles.candidate_id |
 | application_documents | document_id | 7 | 지원서 첨부 서류와 파싱 결과 | application_id -> applications.application_id / file_id -> file_assets.file_id |
 | consent_records | consent_id | 5 | 지원/면접 동의 이력 | application_id -> applications.application_id |
@@ -64,6 +65,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | question_bank | company_id | companies.company_id | fk_question_bank_company |
 | question_bank | posting_id | postings.posting_id | fk_question_bank_posting |
 | question_bank | criterion_id | evaluation_criteria.criterion_id | fk_question_bank_criterion |
+| interview_time_policies | posting_id | postings.posting_id | fk_interview_time_policies_posting |
 | applications | posting_id | postings.posting_id | fk_applications_posting |
 | applications | candidate_id | candidate_profiles.candidate_id | fk_applications_candidate |
 | application_documents | application_id | applications.application_id | fk_application_documents_application |
