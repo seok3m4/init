@@ -3,6 +3,11 @@ import { PrismaService } from "../../shared/prisma.service";
 import { AuthModule } from "../auth/auth.module";
 import { CandidateModule } from "../candidate";
 import { InterviewController } from "./controller/interview.controller";
+import { DefaultPublicApplicationAccessVerifier, PUBLIC_APPLICATION_ACCESS_VERIFIER } from "./public/public-application-access.verifier";
+import { PublicInterviewAccessGuard } from "./public/public-interview-access.guard";
+import { PublicInterviewAccessTokenService } from "./public/public-interview-access-token.service";
+import { PublicInterviewController } from "./public/public-interview.controller";
+import { PublicInterviewService } from "./public/public-interview.service";
 import { InMemoryInterviewRepository } from "./repository/in-memory-interview.repository";
 import { INTERVIEW_REPOSITORY } from "./repository/interview.repository";
 import { PrismaInterviewRepository } from "./repository/prisma-interview.repository";
@@ -10,7 +15,7 @@ import { InterviewService } from "./service/interview.service";
 
 @Module({
   imports: [AuthModule, CandidateModule],
-  controllers: [InterviewController],
+  controllers: [InterviewController, PublicInterviewController],
   providers: [
     PrismaService,
     {
@@ -24,7 +29,14 @@ import { InterviewService } from "./service/interview.service";
       },
     },
     InterviewService,
+    PublicInterviewAccessTokenService,
+    PublicInterviewAccessGuard,
+    PublicInterviewService,
+    {
+      provide: PUBLIC_APPLICATION_ACCESS_VERIFIER,
+      useClass: DefaultPublicApplicationAccessVerifier,
+    },
   ],
-  exports: [INTERVIEW_REPOSITORY, InterviewService],
+  exports: [INTERVIEW_REPOSITORY, InterviewService, PublicInterviewService],
 })
 export class InterviewModule {}

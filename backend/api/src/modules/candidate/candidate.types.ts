@@ -274,6 +274,7 @@ export interface CandidateRepository {
   findFileAsset(fileId: number): Promise<FileAsset | undefined>;
   listApplications(candidateId: number): Promise<Application[]>;
   findApplication(applicationId: number): Promise<Application | undefined>;
+  findCandidateUserId(candidateId: number): Promise<number | undefined>;
   listDocuments(applicationId: number): Promise<ApplicationDocument[]>;
   listConsentRecords(applicationId: number): Promise<ConsentRecord[]>;
   saveConsentRecords(applicationId: number, consentTypes: ConsentType[]): Promise<ConsentRecord[]>;

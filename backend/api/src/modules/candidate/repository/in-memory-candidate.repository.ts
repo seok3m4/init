@@ -131,6 +131,13 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     return this.applications.find((application) => application.applicationId === applicationId);
   }
 
+  async findCandidateUserId(candidateId: number): Promise<number | undefined> {
+    if (candidateId === DEV_CANDIDATE_USER.candidateId) {
+      return DEV_CANDIDATE_USER.userId;
+    }
+    return candidateId;
+  }
+
   async listDocuments(applicationId: number): Promise<ApplicationDocument[]> {
     return this.documents.filter((document) => document.applicationId === applicationId);
   }

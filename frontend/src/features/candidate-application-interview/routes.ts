@@ -10,6 +10,9 @@ export const candidateApplicationInterviewRoutes = {
   interviewGuide: (applicationId: number) => `/candidate/applications/${applicationId}/interview-guide`,
   interview: (applicationId: number) => `/candidate/applications/${applicationId}/interview`,
   applicationReport: (applicationId: number) => `/candidate/applications/${applicationId}/report`,
+  publicInterview: (applicationId: number, sessionId?: number) =>
+    `/public/applications/${applicationId}/interview${sessionId ? `?sessionId=${sessionId}` : ""}`,
+  publicInterviewComplete: (applicationId: number) => `/public/applications/${applicationId}/interview/complete`,
   mypage: "/candidate/mypage",
 } as const;
 

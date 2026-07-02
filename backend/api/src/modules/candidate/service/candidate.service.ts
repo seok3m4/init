@@ -365,6 +365,37 @@ export class CandidateService {
     });
   }
 
+  async getPublicRecruitingInterviewContext(
+    applicationId: number,
+  ): Promise<{ application: Application; session: InterviewSession; currentUser: CurrentCandidateUser }> {
+    this.assertPositiveIntegerId(applicationId, "applicationId");
+    const application = await this.repository.findApplication(applicationId);
+    if (!application) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Application was not found.", 404, [
+        { field: "applicationId", reason: "application not found" },
+      ]);
+    }
+
+    const session = await this.repository.findInterviewSessionByApplication(application.applicationId);
+    if (!session) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
+        { field: "applicationId", reason: "interview session not found" },
+      ]);
+    }
+    if (session.interviewType !== "RECRUITING") {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview type does not match recruiting runtime.", 409, [
+        { field: "interviewType", reason: `current type is ${session.interviewType}` },
+      ]);
+    }
+
+    this.assertSessionNotExpired(session);
+    return {
+      application,
+      session,
+      currentUser: await this.toCurrentCandidateUser(application),
+    };
+  }
+
   async getOwnedRecruitingInterviewSession(
     sessionId: number,
     currentUser: CurrentCandidateUser,
@@ -487,6 +518,21 @@ export class CandidateService {
     }
 
     return application;
+  }
+
+  private async toCurrentCandidateUser(application: Application): Promise<CurrentCandidateUser> {
+    const userId = await this.repository.findCandidateUserId(application.candidateId);
+    if (!userId) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Candidate profile was not found.", 404, [
+        { field: "candidateId", reason: "candidate profile not found" },
+      ]);
+    }
+
+    return {
+      userId,
+      candidateId: application.candidateId,
+      userType: "CANDIDATE",
+    };
   }
 
   private assertSessionNotExpired(session: InterviewSession): void {
