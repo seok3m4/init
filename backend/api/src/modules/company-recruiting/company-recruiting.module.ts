@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { PrismaService } from "../../shared/prisma.service";
 import { AuthModule } from "../auth/auth.module";
 import { CompanyRecruitingController } from "./controller/company-recruiting.controller";
+import { PublicRecruitmentController } from "./controller/public-recruitment.controller";
 import {
   InMemoryCompanyRecruitingInvitationAdapter,
   type CompanyRecruitingInvitationAdapterPort,
@@ -15,7 +16,7 @@ import { CompanyRecruitingService } from "./service/company-recruiting.service";
 
 @Module({
   imports: [AuthModule],
-  controllers: [CompanyRecruitingController],
+  controllers: [CompanyRecruitingController, PublicRecruitmentController],
   providers: [
     PrismaService,
     PrismaCompanyRecruitingRepository,

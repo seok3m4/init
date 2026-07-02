@@ -44,6 +44,10 @@ export type RecruitmentRecord = {
   applicantCount: number;
 };
 
+export type PublicRecruitmentRecord = Omit<RecruitmentRecord, "companyId" | "applicantCount" | "createdAt" | "updatedAt"> & {
+  companyName: string;
+};
+
 export type ApplicantRecord = {
   applicationId: number;
   postingId: number;

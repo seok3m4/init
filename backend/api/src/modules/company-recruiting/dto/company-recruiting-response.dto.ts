@@ -53,6 +53,70 @@ export class RecruitmentResponseDto {
   updatedAt!: string;
 }
 
+export class PublicRecruitmentResponseDto {
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: 101 })
+  postingId!: number;
+
+  @ApiProperty({ example: "크래프톤" })
+  companyName!: string;
+
+  @ApiProperty({ example: "2026 신입 백엔드 채용" })
+  title!: string;
+
+  @ApiProperty({ example: "Backend Developer" })
+  jobRole!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: "NestJS와 PostgreSQL 기반 API 개발" })
+  jobDescription!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "경력무관" })
+  careerRequirement!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "학력무관" })
+  educationRequirement!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "회사 내규에 따름" })
+  salaryInfo!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "서울" })
+  workLocation!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "정규직" })
+  employmentType!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-06-29" })
+  startsOn!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-07-15" })
+  endsOn!: string | null;
+
+  @ApiProperty({ enum: ["OPEN"], example: "OPEN" })
+  status!: string;
+}
+
+export class PublicApplicationResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ example: "SUBMITTED" })
+  applicationStatus!: string;
+
+  @ApiProperty({ enum: ["PENDING"], example: "PENDING" })
+  emailVerificationStatus!: string;
+
+  @ApiProperty({ enum: ["CHECK_EMAIL"], example: "CHECK_EMAIL" })
+  nextAction!: string;
+}
+
 export class InterviewSessionSummaryDto {
   @ApiProperty({ example: 10 })
   sessionId!: number;

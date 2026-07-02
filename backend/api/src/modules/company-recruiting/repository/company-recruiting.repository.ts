@@ -10,7 +10,7 @@ import {
 } from "@prisma/client";
 
 import { PrismaService } from "../../../shared/prisma.service";
-import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
+import type { ApplicantRecord, NormalizedListQuery, PublicRecruitmentRecord, RecruitmentRecord } from "../company-recruiting.types";
 
 export type CreatePostingInput = {
   companyId: number;
@@ -65,6 +65,7 @@ export type CompanyRecruitingRepositoryPort = {
   listPostings(companyId: number, query: NormalizedListQuery): Promise<RecruitmentRecord[]>;
   countPostings(companyId: number, query: NormalizedListQuery): Promise<number>;
   findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
+  findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null>;
   findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null>;
   findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }>;
   createApplication(input: CreateApplicationInput): Promise<ApplicantRecord>;
@@ -152,6 +153,19 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       include: { _count: { select: { applications: true } } },
     });
     return posting ? mapPosting(posting) : null;
+  }
+
+  async findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null> {
+    const posting = await this.prisma.posting.findFirst({
+      where: {
+        postingId: BigInt(postingId),
+        status: PostingStatus.OPEN,
+      },
+      include: {
+        company: { select: { name: true } },
+      },
+    });
+    return posting ? mapPublicPosting(posting) : null;
   }
 
   async findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null> {
@@ -377,6 +391,24 @@ function mapPosting(posting: Prisma.PostingGetPayload<{ include: { _count: { sel
     createdAt: posting.createdAt,
     updatedAt: posting.updatedAt,
     applicantCount: posting._count.applications,
+  };
+}
+
+function mapPublicPosting(posting: Prisma.PostingGetPayload<{ include: { company: { select: { name: true } } } }>): PublicRecruitmentRecord {
+  return {
+    postingId: Number(posting.postingId),
+    title: posting.title,
+    jobRole: posting.jobRole,
+    jobDescription: posting.jobDescription,
+    careerRequirement: posting.careerRequirement,
+    educationRequirement: posting.educationRequirement,
+    salaryInfo: posting.salaryInfo,
+    workLocation: posting.workLocation,
+    employmentType: posting.employmentType,
+    startsOn: posting.startsOn,
+    endsOn: posting.endsOn,
+    status: posting.status,
+    companyName: posting.company.name,
   };
 }
 

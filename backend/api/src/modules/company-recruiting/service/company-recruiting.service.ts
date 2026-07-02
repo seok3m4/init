@@ -15,7 +15,7 @@ import type { ListQueryDto } from "../dto/list-query.dto";
 import type { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 import type { CompanyRecruitingRepositoryPort } from "../repository/company-recruiting.repository";
-import type { ApplicantRecord, NormalizedListQuery, RecruitmentRecord } from "../company-recruiting.types";
+import type { ApplicantRecord, NormalizedListQuery, PublicRecruitmentRecord, RecruitmentRecord } from "../company-recruiting.types";
 
 class CompanyRecruitingException extends SharedApiException {
   constructor(status: number, code: ErrorCode, message: string, details: Array<Record<string, unknown>> = []) {
@@ -120,6 +120,14 @@ export class CompanyRecruitingService {
       throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공고를 찾을 수 없습니다.");
     }
     return toRecruitmentResponse(posting);
+  }
+
+  async getPublicRecruitment(recruitmentId: number) {
+    const posting = await this.repository.findOpenPostingForPublic(recruitmentId);
+    if (!posting) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공개 지원 가능한 공고를 찾을 수 없습니다.");
+    }
+    return toPublicRecruitmentResponse(posting);
   }
 
   async deleteRecruitment(user: CurrentUser, recruitmentId: number) {
@@ -553,6 +561,25 @@ function toRecruitmentResponse(posting: RecruitmentRecord) {
     applicantCount: posting.applicantCount,
     createdAt: posting.createdAt.toISOString(),
     updatedAt: posting.updatedAt.toISOString(),
+  };
+}
+
+function toPublicRecruitmentResponse(posting: PublicRecruitmentRecord) {
+  return {
+    recruitmentId: posting.postingId,
+    postingId: posting.postingId,
+    companyName: posting.companyName,
+    title: posting.title,
+    jobRole: posting.jobRole,
+    jobDescription: posting.jobDescription,
+    careerRequirement: posting.careerRequirement,
+    educationRequirement: posting.educationRequirement,
+    salaryInfo: posting.salaryInfo,
+    workLocation: posting.workLocation,
+    employmentType: posting.employmentType,
+    startsOn: posting.startsOn ? formatDate(posting.startsOn) : null,
+    endsOn: posting.endsOn ? formatDate(posting.endsOn) : null,
+    status: posting.status,
   };
 }
 

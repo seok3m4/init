@@ -107,6 +107,24 @@ function createRepository(overrides: Record<string, unknown> = {}) {
         applicantCount: 0,
       };
     },
+    async findOpenPostingForPublic(postingId: number) {
+      calls.findOpenPostingForPublic = [postingId];
+      return {
+        postingId,
+        companyName: "INIT Corp",
+        title: "Backend Developer",
+        jobRole: "Backend",
+        jobDescription: "Build APIs",
+        careerRequirement: "경력무관",
+        educationRequirement: "학력무관",
+        salaryInfo: "회사 내규에 따름",
+        workLocation: "서울",
+        employmentType: "정규직",
+        startsOn: new Date("2026-06-29T00:00:00.000Z"),
+        endsOn: new Date("2026-07-15T00:00:00.000Z"),
+        status: "OPEN",
+      };
+    },
     async findApplicationByPostingAndEmail(postingId: number, email: string) {
       calls.findApplicationByPostingAndEmail = [postingId, email];
       return null;
@@ -298,6 +316,20 @@ describe("CompanyRecruitingService", () => {
         take: 20,
       },
     ]);
+  });
+
+  it("exposes only public recruitment fields for OPEN postings", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    const result = await service.getPublicRecruitment(101);
+
+    assert.deepEqual(repository.calls.findOpenPostingForPublic, [101]);
+    assert.equal(result.recruitmentId, 101);
+    assert.equal(result.companyName, "INIT Corp");
+    assert.equal(result.status, "OPEN");
+    assert.equal("companyId" in result, false);
+    assert.equal("applicantCount" in result, false);
   });
 
   it("updates recruitment settings for the current company only", async () => {
