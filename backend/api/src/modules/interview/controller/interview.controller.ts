@@ -63,6 +63,7 @@ export class InterviewController {
   }
 
   @Post(interviewApiRoutes.mockStt)
+  @HttpCode(202)
   requestMockStt(
     @Req()
     request: CandidateRequest,
@@ -75,6 +76,7 @@ export class InterviewController {
   }
 
   @Post(interviewApiRoutes.mockFollowUpQuestion)
+  @HttpCode(202)
   requestMockFollowUpQuestion(
     @Req()
     request: CandidateRequest,
@@ -174,6 +176,7 @@ export class InterviewController {
   }
 
   @Post(interviewApiRoutes.recruitingStt)
+  @HttpCode(202)
   requestRecruitingStt(
     @Req()
     request: CandidateRequest,
@@ -188,6 +191,7 @@ export class InterviewController {
   }
 
   @Post(interviewApiRoutes.recruitingFollowUpQuestion)
+  @HttpCode(202)
   requestRecruitingFollowUpQuestion(
     @Req()
     request: CandidateRequest,

@@ -540,6 +540,7 @@ export class InterviewService {
   ): Promise<{ data: AiHandoffResult; meta: { traceId: string; timestamp: string } }> {
     this.assertNotCompleted(session);
     const requestBody = this.toRequestBody(dto ?? {}, "aiRequest") as AiInterviewRequestDto;
+    this.assertNoRawAiPayload(requestBody as Record<string, unknown>);
     const answer = await this.resolveAnswerForAi(session, dto);
     const fileId = answer.audioFileId ?? answer.videoFileId;
     const callbackTopic =
@@ -712,14 +713,35 @@ export class InterviewService {
       ]);
     }
 
+    const jobDescription = session.interviewType === "RECRUITING" ? requestBody.jobDescription : undefined;
+    const documentSummary = session.interviewType === "RECRUITING" ? requestBody.documentSummary : undefined;
+    if (session.interviewType === "RECRUITING" && !jobDescription?.trim() && !documentSummary?.trim()) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Recruiting follow-up context is required.", 400, [
+        { field: "jobDescription", reason: "jobDescription or documentSummary is required" },
+        { field: "documentSummary", reason: "jobDescription or documentSummary is required" },
+      ]);
+    }
+
     return {
       answerId: answer.answerId,
       previousQuestion,
       transcript,
-      jobDescription: session.interviewType === "RECRUITING" ? requestBody.jobDescription : undefined,
-      documentSummary: session.interviewType === "RECRUITING" ? requestBody.documentSummary : undefined,
+      jobDescription,
+      documentSummary,
       sessionId: session.sessionId,
     };
+  }
+
+  private assertNoRawAiPayload(requestBody: Record<string, unknown>): void {
+    const forbiddenFields = ["audioContent", "audioBuffer", "audioBase64", "audioBytes", "fileContent", "fileBuffer", "fileBase64"];
+    const forbiddenField = forbiddenFields.find((field) => Object.hasOwn(requestBody, field));
+    if (!forbiddenField) {
+      return;
+    }
+
+    throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "AI interview requests must reference uploaded files.", 400, [
+      { field: forbiddenField, reason: "raw media payload must be uploaded to object storage first" },
+    ]);
   }
 
   private async resolveAnswerForAi(session: RuntimeInterviewSession, dto: AiInterviewRequestDto): Promise<InterviewAnswer> {
