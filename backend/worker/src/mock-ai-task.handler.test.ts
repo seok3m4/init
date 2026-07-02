@@ -7,6 +7,7 @@ import { MockAiTaskHandler } from "./mock-ai-task.handler";
 import { InMemoryAiProcessLogRepository } from "./process-log.repository";
 import { InMemoryAiJobQueue } from "./queue";
 import { createDocumentExtractionStartHandler, createReportFailureHandler } from "./report-failure.handler";
+import { SttProvider } from "./stt-provider";
 import { AiWorkerRunner } from "./worker-runner";
 import { AiProcessType, AiQueueMessage } from "./worker.types";
 
@@ -167,6 +168,45 @@ test("STT stores transcript against the target interview answer", async () => {
   assert.equal(output.duplicatePolicy, "KEEP_EXISTING_TRANSCRIPT");
 });
 
+test("STT stores transcript returned by the configured STT provider", async () => {
+  const results = new InMemoryAiResultRepository();
+  const sttProvider: SttProvider = {
+    transcribe: async (input) => ({
+      transcript: `provider transcript for ${input.audioS3Key}`,
+      transcriptSource: "OPENAI_AUDIO_TRANSCRIPTION",
+      model: "test-stt-model"
+    })
+  };
+
+  const repository = await run({
+    processLogId: 111,
+    processType: "STT",
+    input: {
+      kind: "RECRUITING_INTERVIEW_STT",
+      payload: {
+        answerId: 42,
+        audioFileId: 11,
+        audioS3Key: "candidate/1/answer-42.wav",
+        transcript: "This payload value must not be trusted by the STT worker."
+      }
+    },
+    results,
+    sttProvider
+  });
+
+  assert.deepEqual(results.transcripts, [
+    {
+      answerId: 42,
+      audioFileId: 11,
+      audioS3Key: "candidate/1/answer-42.wav",
+      transcript: "provider transcript for candidate/1/answer-42.wav"
+    }
+  ]);
+  const output = JSON.parse(repository.get(111).outputRef ?? "{}");
+  assert.equal(output.transcriptSource, "OPENAI_AUDIO_TRANSCRIPTION");
+  assert.equal(output.model, "test-stt-model");
+});
+
 test("duplicate STT requests keep the existing transcript result", async () => {
   const results = new InMemoryAiResultRepository();
 
@@ -269,12 +309,12 @@ test("follow-up question policy is separated for mock and recruiting interviews"
   });
 
   assert.equal(results.followUpQuestions[0].policy, "MOCK");
-  assert.match(results.followUpQuestions[0].content, /Practice follow-up/);
-  assert.match(results.followUpQuestions[0].content, /How did you use Redis/);
+  assert.match(results.followUpQuestions[0].content, /Redis/);
+  assert.match(results.followUpQuestions[0].content, /구체적으로/);
   assert.equal(results.followUpQuestions[1].policy, "RECRUITING");
-  assert.match(results.followUpQuestions[1].content, /Recruiting follow-up/);
-  assert.match(results.followUpQuestions[1].content, /Backend engineer with Redis operations/);
-  assert.match(results.followUpQuestions[1].content, /production cache systems/);
+  assert.match(results.followUpQuestions[1].content, /캐시/);
+  assert.match(results.followUpQuestions[1].content, /TTL/);
+  assert.match(results.followUpQuestions[1].content, /효과/);
 });
 
 test("duplicate follow-up requests keep one result per session, answer and policy", async () => {
@@ -799,11 +839,16 @@ async function run(args: {
   processType: AiProcessType;
   input: unknown;
   results: InMemoryAiResultRepository;
+  sttProvider?: SttProvider;
 }): Promise<InMemoryAiProcessLogRepository> {
   const repository = new InMemoryAiProcessLogRepository();
   const queue = new InMemoryAiJobQueue([message(args.processLogId, args.processType, args.input)]);
 
-  await new AiWorkerRunner(queue, repository, new MockAiTaskHandler(args.results)).processBatch();
+  await new AiWorkerRunner(
+    queue,
+    repository,
+    new MockAiTaskHandler(args.results, { sttProvider: args.sttProvider })
+  ).processBatch();
 
   assert.equal(repository.get(args.processLogId).status, "COMPLETED");
   return repository;

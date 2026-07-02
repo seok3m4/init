@@ -11,6 +11,7 @@ import { PublicInterviewService } from "./public/public-interview.service";
 import { InMemoryInterviewRepository } from "./repository/in-memory-interview.repository";
 import { INTERVIEW_REPOSITORY } from "./repository/interview.repository";
 import { PrismaInterviewRepository } from "./repository/prisma-interview.repository";
+import { INTERVIEW_MEDIA_STORAGE, S3InterviewMediaStorageAdapter } from "./service/interview-media-storage.adapter";
 import { InterviewService } from "./service/interview.service";
 
 @Module({
@@ -29,6 +30,10 @@ import { InterviewService } from "./service/interview.service";
       },
     },
     InterviewService,
+    {
+      provide: INTERVIEW_MEDIA_STORAGE,
+      useClass: S3InterviewMediaStorageAdapter,
+    },
     PublicInterviewAccessTokenService,
     PublicInterviewAccessGuard,
     PublicInterviewService,

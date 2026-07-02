@@ -146,6 +146,7 @@ type AutoAiPipelineState = {
 };
 type CandidateRecordingCacheEntry = {
   url: string;
+  blob: Blob;
   mimeType: string;
   originalName: string;
   sizeBytes: number;
@@ -2034,11 +2035,7 @@ function InterviewRuntimePanel({
         const blob = new Blob(recordingChunksRef.current, { type: recordedMimeType });
         const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
         const fileName = `${mode}-answer-${data.runtime.sessionId}-${currentQuestion.questionId}.${mediaFileExtension(recordedMimeType)}`;
-        const audioFileName = `${mode}-answer-${data.runtime.sessionId}-${currentQuestion.questionId}-audio.webm`;
         const videoFile = createRuntimeFileAssetFromMetadata(fileName, recordedMimeType, blob.size);
-        const audioFile = stream.getAudioTracks().some((track) => track.readyState === "live")
-          ? createRuntimeFileAssetFromMetadata(audioFileName, "audio/webm", blob.size)
-          : undefined;
 
         if (!videoFile) {
           setMessage("지원하지 않는 녹화 파일 형식입니다.");
@@ -2047,7 +2044,6 @@ function InterviewRuntimePanel({
         }
 
         cacheRecordedInterviewBlob(videoFile, blob);
-        cacheRecordedInterviewBlob(audioFile, blob);
 
         setAnswer((current) => ({
           ...current,
@@ -2055,7 +2051,7 @@ function InterviewRuntimePanel({
           durationSeconds,
           videoFile,
           videoFileId: undefined,
-          audioFile,
+          audioFile: undefined,
           audioFileId: undefined,
         }));
         setRecordedFileName(fileName);
@@ -2067,7 +2063,6 @@ function InterviewRuntimePanel({
               questionId: currentQuestion.questionId,
               durationSeconds,
               videoFile,
-              audioFile,
             }),
             currentQuestion,
           );
@@ -2111,10 +2106,11 @@ function InterviewRuntimePanel({
     setMessage("");
     try {
       const api = runtimeApi;
+      const preparedRequest = await prepareAnswerRequestWithUploadedMedia(api, data.runtime.sessionId, request);
       const result =
         mode === "mock"
-          ? await api.saveMockAnswer(data.runtime.sessionId, request)
-          : await api.saveRecruitingAnswer(data.runtime.sessionId, request);
+          ? await api.saveMockAnswer(data.runtime.sessionId, preparedRequest)
+          : await api.saveRecruitingAnswer(data.runtime.sessionId, preparedRequest);
       const audioFileId = result.data.audioFile?.fileId ?? result.data.answer.audioFileId;
       const videoFileId = result.data.videoFile?.fileId ?? result.data.answer.videoFileId;
       const answerFileAssetId = audioFileId ?? videoFileId;
@@ -2125,9 +2121,9 @@ function InterviewRuntimePanel({
         transcript: `${formatQuestionTypeLabel(question?.questionType)} 답변 파일이 저장되었습니다.`,
         fileAssetId: answerFileAssetId,
         audioFileId,
-        audioS3Key: result.data.audioFile?.storageKey ?? request.audioFile?.storageKey,
+        audioS3Key: result.data.audioFile?.storageKey,
         videoFileId,
-        videoS3Key: result.data.videoFile?.storageKey ?? request.videoFile?.storageKey,
+        videoS3Key: result.data.videoFile?.storageKey,
       };
       setLastAnswer(savedAnswer);
       setAiHandoff(undefined);
@@ -2139,7 +2135,7 @@ function InterviewRuntimePanel({
       });
       setAnsweredQuestionIds((current) => {
         const next = new Set(current);
-        next.add(request.questionId);
+        next.add(preparedRequest.questionId);
         return next;
       });
       const shouldAutoAdvance = autoAdvanceAfterAnswerSubmitRef.current;
@@ -2155,7 +2151,7 @@ function InterviewRuntimePanel({
           ? `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요.`
           : `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 다음 질문 버튼으로 이동해주세요.`,
       );
-      await runAutomaticAiPipeline(savedAnswer);
+      await runAutomaticAiPipeline(savedAnswer, question);
       if (shouldAutoAdvance) {
         await advanceAfterTimedAnswer(question);
       }
@@ -2196,7 +2192,7 @@ function InterviewRuntimePanel({
     setMessage("답변 녹화가 아직 준비되지 않았습니다.");
   }
 
-  async function runAutomaticAiPipeline(savedAnswer: LastSavedAnswer) {
+  async function runAutomaticAiPipeline(savedAnswer: LastSavedAnswer, question = currentQuestion) {
     if (!data) return;
 
     try {
@@ -2252,16 +2248,22 @@ function InterviewRuntimePanel({
       }
 
       const answerWithTranscript = { ...savedAnswer, transcript };
+      const isFollowUpAnswer = question?.questionType === "FOLLOW_UP";
       setLastAnswer(answerWithTranscript);
       setAutoAiPipeline((current) => ({
         answerId: savedAnswer.answerId,
         ...current,
         sttStatus: "COMPLETED",
-        followUpStatus: "PENDING",
+        followUpStatus: isFollowUpAnswer ? "IDLE" : "PENDING",
         sttProcessLogId,
         transcript,
         error: undefined,
       }));
+
+      if (isFollowUpAnswer) {
+        setMessage("STT 처리가 완료되었습니다. 꼬리질문 답변에는 추가 꼬리질문을 생성하지 않습니다.");
+        return;
+      }
 
       const followUpHandoff = await requestAiPipeline("FOLLOW_UP", answerWithTranscript);
       const followUpProcessLogId = followUpHandoff.processLogId;
@@ -2501,11 +2503,22 @@ function InterviewRuntimePanel({
   const isCurrentQuestionLast = Boolean(
     data && currentQuestionIndex >= 0 && currentQuestionIndex >= data.runtime.totalQuestions - 1,
   );
-  const canMoveNextQuestion = Boolean(data && currentQuestionAnswered && !isCurrentQuestionLast && !recording);
+  const generatedFollowUpReady = Boolean(
+    data &&
+      currentQuestionAnswered &&
+      currentQuestion?.questionType !== "FOLLOW_UP" &&
+      autoAiPipeline?.answerId === lastAnswer?.answerId &&
+      autoAiPipeline?.followUpStatus === "COMPLETED" &&
+      autoAiPipeline?.followUpQuestion,
+  );
+  const canMoveNextQuestion = Boolean(
+    data && currentQuestionAnswered && (!isCurrentQuestionLast || generatedFollowUpReady) && !recording,
+  );
   const canCompleteInterview = Boolean(
     data &&
       currentQuestionAnswered &&
       isCurrentQuestionLast &&
+      !generatedFollowUpReady &&
       answeredQuestionCount >= data.runtime.totalQuestions &&
       !recording,
   );
@@ -3381,6 +3394,42 @@ function PipelinePayloadPreview({ title, payload }: { title: string; payload: Re
   );
 }
 
+async function prepareAnswerRequestWithUploadedMedia(
+  api: InterviewRuntimeApiClient,
+  sessionId: number,
+  request: SaveInterviewAnswerRequest,
+): Promise<SaveInterviewAnswerRequest> {
+  const videoFileId =
+    request.videoFileId ??
+    (request.videoFile ? (await uploadCachedRuntimeMedia(api, sessionId, request.videoFile)).fileId : undefined);
+  const audioFileId =
+    request.audioFileId ??
+    (request.audioFile ? (await uploadCachedRuntimeMedia(api, sessionId, request.audioFile)).fileId : undefined);
+
+  return {
+    questionId: request.questionId,
+    videoFileId,
+    audioFileId,
+    durationSeconds: request.durationSeconds,
+  };
+}
+
+async function uploadCachedRuntimeMedia(
+  api: InterviewRuntimeApiClient,
+  sessionId: number,
+  file: RuntimeFileAssetRequest,
+): Promise<CandidateFileAsset> {
+  const cached = getCachedRecordingEntry(file.storageKey);
+  if (!cached) {
+    throw new Error("녹음 파일 Blob을 찾지 못했습니다. 답변을 다시 녹음한 뒤 제출해주세요.");
+  }
+
+  const uploadFile = new File([cached.blob], file.originalName, { type: file.mimeType });
+  const uploaded = (await api.uploadInterviewMedia(sessionId, uploadFile)).data;
+  cacheUploadedInterviewBlob(uploaded, cached.blob);
+  return uploaded;
+}
+
 function buildAiInterviewRequest(
   processType: AiInterviewHandoffResponse["processType"],
   answer: LastSavedAnswer,
@@ -3951,11 +4000,36 @@ function cacheRecordedInterviewBlob(file: RuntimeFileAssetRequest | undefined, b
 
   cache.set(file.storageKey, {
     url: URL.createObjectURL(blob),
+    blob,
     mimeType: file.mimeType,
     originalName: file.originalName,
     sizeBytes: file.sizeBytes,
     createdAt: Date.now(),
   });
+}
+
+function cacheUploadedInterviewBlob(file: CandidateFileAsset, blob: Blob) {
+  if (typeof window === "undefined") return;
+
+  const cache = getCandidateRecordingCache();
+  const existing = cache.get(file.storageKey);
+  if (existing) {
+    URL.revokeObjectURL(existing.url);
+  }
+
+  cache.set(file.storageKey, {
+    url: URL.createObjectURL(blob),
+    blob,
+    mimeType: file.mimeType,
+    originalName: file.originalName,
+    sizeBytes: file.sizeBytes,
+    createdAt: Date.now(),
+  });
+}
+
+function getCachedRecordingEntry(storageKey?: string): CandidateRecordingCacheEntry | undefined {
+  if (!storageKey || typeof window === "undefined") return undefined;
+  return getCandidateRecordingCache().get(storageKey);
 }
 
 function getCachedRecordingObjectUrl(storageKey?: string): string | undefined {

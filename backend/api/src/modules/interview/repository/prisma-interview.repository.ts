@@ -10,6 +10,9 @@ import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from
 import type {
   CreateInterviewAnswerInput,
   CreateMockInterviewSessionInput,
+  CreateRuntimeFollowUpQuestionInput,
+  FollowUpQuestionPolicy,
+  GeneratedFollowUpQuestion,
   InterviewQuestionFilter,
   InterviewRepository,
 } from "./interview.repository";
@@ -202,6 +205,72 @@ export class PrismaInterviewRepository implements InterviewRepository {
     return this.toAnswer(answer);
   }
 
+  async findGeneratedFollowUpQuestion(
+    answerId: number,
+    policy: FollowUpQuestionPolicy,
+  ): Promise<GeneratedFollowUpQuestion | undefined> {
+    const followUpQuestion = await this.prisma.followUpQuestion.findUnique({
+      where: { answerIdPolicy: { answerId: BigInt(answerId), policy } },
+    });
+    if (!followUpQuestion || followUpQuestion.generationStatus !== "GENERATED") {
+      return undefined;
+    }
+    return {
+      followUpId: Number(followUpQuestion.followUpId),
+      answerId: Number(followUpQuestion.answerId),
+      content: followUpQuestion.content,
+      generationStatus: followUpQuestion.generationStatus,
+      policy: followUpQuestion.policy as FollowUpQuestionPolicy,
+    };
+  }
+
+  async createRuntimeFollowUpQuestion(input: CreateRuntimeFollowUpQuestionInput): Promise<InterviewQuestion> {
+    const sourceQuestion = await this.prisma.question.findUnique({
+      where: { questionId: BigInt(input.sourceAnswer.questionId) },
+      select: { companyId: true, postingId: true },
+    });
+    const fallbackCompany = sourceQuestion
+      ? undefined
+      : await this.prisma.company.findFirst({ orderBy: { companyId: "asc" }, select: { companyId: true } });
+    const companyId = sourceQuestion?.companyId ?? fallbackCompany?.companyId;
+    if (!companyId) {
+      throw new Error("Company is required to create a runtime follow-up question.");
+    }
+
+    let postingId = input.session.interviewType === "RECRUITING" ? sourceQuestion?.postingId ?? null : null;
+    if (input.session.interviewType === "RECRUITING" && !postingId && input.session.applicationId) {
+      const application = await this.prisma.application.findUnique({
+        where: { applicationId: BigInt(input.session.applicationId) },
+        select: { postingId: true },
+      });
+      postingId = application?.postingId ?? null;
+    }
+
+    const existing = await this.prisma.question.findFirst({
+      where: {
+        companyId,
+        postingId,
+        questionType: PrismaQuestionType.FOLLOW_UP,
+        content: input.content,
+      },
+    });
+    if (existing) {
+      return this.toQuestion(existing, input.session.interviewType);
+    }
+
+    const question = await this.prisma.question.create({
+      data: {
+        companyId,
+        postingId,
+        criterionId: null,
+        questionType: PrismaQuestionType.FOLLOW_UP,
+        content: input.content,
+        isActive: true,
+      },
+    });
+    return this.toQuestion(question, input.session.interviewType);
+  }
+
   private async queryQuestions(filter: InterviewQuestionFilter): Promise<InterviewQuestion[]> {
     if (filter.interviewType === "RECRUITING" && filter.postingId !== undefined && !filter.questionTypes) {
       const activeQuestionSetQuestions = await this.queryActiveQuestionSetQuestions(filter.postingId);
@@ -220,7 +289,9 @@ export class PrismaInterviewRepository implements InterviewRepository {
             : filter.interviewType === "RECRUITING"
               ? { not: null }
               : undefined,
-      questionType: filter.questionTypes ? { in: [...filter.questionTypes] as PrismaQuestionType[] } : undefined,
+      questionType: filter.questionTypes
+        ? { in: [...filter.questionTypes] as PrismaQuestionType[] }
+        : { not: PrismaQuestionType.FOLLOW_UP },
     };
     const questions = await this.prisma.question.findMany({
       where,
@@ -251,7 +322,8 @@ export class PrismaInterviewRepository implements InterviewRepository {
           Boolean(
             item.question?.isActive &&
               item.question.postingId !== null &&
-              Number(item.question.postingId) === postingId,
+              Number(item.question.postingId) === postingId &&
+              item.question.questionType !== PrismaQuestionType.FOLLOW_UP,
           ),
       )
       .map((item) => ({

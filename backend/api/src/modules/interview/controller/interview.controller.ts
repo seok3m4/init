@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import type { CurrentUser } from "@init/common";
 import { type RequestLike } from "../../../shared/response-envelope";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
@@ -9,6 +10,12 @@ import { interviewApiRoutePrefix, interviewApiRoutes } from "../interview.routes
 import { InterviewService } from "../service/interview.service";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
+type UploadedInterviewMediaFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
 
 @UseGuards(JwtAuthGuard)
 @Controller(interviewApiRoutePrefix)
@@ -106,6 +113,30 @@ export class InterviewController {
   ) {
     return this.handle(() =>
       this.interviewService.saveRecruitingAnswer(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
+  }
+
+  @Post(interviewApiRoutes.media)
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor("file"))
+  uploadInterviewMedia(
+    @Req() request: CandidateRequest,
+    @Param("sessionId") sessionId: string,
+    @UploadedFile() file?: UploadedInterviewMediaFile,
+  ) {
+    return this.handle(() =>
+      this.interviewService.uploadInterviewMedia(
+        Number(sessionId),
+        file
+          ? {
+              originalName: file.originalname,
+              mimeType: file.mimetype,
+              sizeBytes: file.size,
+              buffer: file.buffer,
+            }
+          : undefined,
+        resolveCurrentCandidate(request.currentUser),
+      ),
     );
   }
 

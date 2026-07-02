@@ -16,6 +16,7 @@ assert.equal(interviewApiRoutes.startInterview, "applications/:applicationId/int
 assert.equal(interviewApiRoutes.interviewRuntime, "applications/:applicationId/interview");
 assert.equal(interviewApiRoutes.recruitingQuestions, "interviews/:sessionId/questions");
 assert.equal(interviewApiRoutes.recruitingAnswers, "interviews/:sessionId/answers");
+assert.equal(interviewApiRoutes.media, "interviews/:sessionId/media");
 assert.equal(interviewApiRoutes.recruitingNextQuestion, "interviews/:sessionId/next-question");
 assert.equal(interviewApiRoutes.recruitingComplete, "interviews/:sessionId/complete");
 assert.equal(interviewApiRoutes.recruitingStt, "interviews/:sessionId/stt");

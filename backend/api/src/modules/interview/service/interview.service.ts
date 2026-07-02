@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   CandidateDomainError,
   CandidateService,
@@ -21,15 +21,29 @@ import {
   SaveInterviewAnswerResult,
   StartMockInterviewResult,
 } from "../interview.runtime.types";
-import { INTERVIEW_REPOSITORY, type InterviewRepository } from "../repository/interview.repository";
+import { INTERVIEW_REPOSITORY, type FollowUpQuestionPolicy, type InterviewRepository } from "../repository/interview.repository";
+import {
+  InMemoryInterviewMediaStorageAdapter,
+  INTERVIEW_MEDIA_STORAGE,
+  type InterviewMediaStoragePort,
+} from "./interview-media-storage.adapter";
 
 const DEFAULT_MOCK_QUESTION_TYPES = ["INTRO", "TECHNICAL", "EXPERIENCE", "CLOSING"] as const;
+export type UploadedInterviewMediaFile = {
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  buffer: Buffer;
+};
 
 @Injectable()
 export class InterviewService {
   constructor(
     @Inject(CandidateService) private readonly candidateService: CandidateService,
     @Inject(INTERVIEW_REPOSITORY) private readonly interviewRepository: InterviewRepository,
+    @Optional()
+    @Inject(INTERVIEW_MEDIA_STORAGE)
+    private readonly mediaStorage: InterviewMediaStoragePort = new InMemoryInterviewMediaStorageAdapter(),
   ) {}
 
   async listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): Promise<RuntimeInterviewSession[]> {
@@ -188,6 +202,69 @@ export class InterviewService {
     return this.createAiHandoff(session, dto, "FOLLOW_UP");
   }
 
+  async uploadInterviewMedia(
+    sessionId: number,
+    file: UploadedInterviewMediaFile | undefined,
+    currentUser: CurrentCandidateUser,
+  ) {
+    const session = await this.getOwnedRuntimeSession(sessionId, currentUser);
+    this.assertInProgress(session);
+    if (!file) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Interview media file is required.", 400, [
+        { field: "file", reason: "multipart file is required" },
+      ]);
+    }
+
+    const storageKey = this.buildInterviewMediaStorageKey(currentUser.candidateId, session.sessionId, file.originalName);
+    await this.mediaStorage.putObject({
+      key: storageKey,
+      body: file.buffer,
+      contentLength: file.sizeBytes,
+      contentType: file.mimeType,
+    });
+
+    const fileAsset = await this.candidateService.createInterviewFileAsset(
+      {
+        storageKey,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+      },
+      currentUser,
+    );
+
+    return this.envelope(fileAsset);
+  }
+
+  private async getOwnedRuntimeSession(
+    sessionId: number,
+    currentUser: CurrentCandidateUser,
+  ): Promise<RuntimeInterviewSession> {
+    const mockSession = await this.interviewRepository.findMockSession(sessionId);
+    if (mockSession) {
+      if (mockSession.candidateId !== currentUser.candidateId) {
+        throw new CandidateDomainError("COMMON_FORBIDDEN", "Interview session does not belong to current candidate.", 403, [
+          { field: "sessionId", reason: "candidate owner mismatch" },
+        ]);
+      }
+      return mockSession;
+    }
+
+    return this.getRecruitingRuntimeSession(sessionId, currentUser);
+  }
+
+  private buildInterviewMediaStorageKey(candidateId: number, sessionId: number, originalName: string): string {
+    const safeName = originalName
+      .replace(/\\/g, "/")
+      .split("/")
+      .pop()
+      ?.replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      || "interview-media.webm";
+    return `candidate/${candidateId}/interviews/${Date.now()}-${sessionId}-${safeName}`;
+  }
+
   private async getRecruitingRuntimeSession(
     sessionId: number,
     currentUser: CurrentCandidateUser,
@@ -307,8 +384,10 @@ export class InterviewService {
     session: RuntimeInterviewSession,
   ): Promise<{ data: NextInterviewQuestionResult; meta: { traceId: string; timestamp: string } }> {
     this.assertInProgress(session);
-    const previousQuestionId = this.currentQuestionId(session);
-    if (!(await this.interviewRepository.findAnswer(session.sessionId, previousQuestionId))) {
+    const previousQuestion = await this.currentQuestion(session);
+    const previousQuestionId = previousQuestion.questionId;
+    const answer = await this.interviewRepository.findAnswer(session.sessionId, previousQuestionId);
+    if (!answer) {
       const answeredCount = await this.countAnswers(session.sessionId);
       if (session.currentQuestionIndex > 0 && answeredCount === session.currentQuestionIndex) {
         return this.envelope({
@@ -322,6 +401,8 @@ export class InterviewService {
         { field: "questionId", reason: "current question answer is missing" },
       ]);
     }
+
+    await this.insertGeneratedFollowUpQuestionIfReady(session, previousQuestion, answer);
     if (session.currentQuestionIndex >= session.questionIds.length - 1) {
       throw new CandidateDomainError("COMMON_CONFLICT", "Already at the last question.", 409, [
         { field: "questionId", reason: "last question reached" },
@@ -337,6 +418,44 @@ export class InterviewService {
       currentQuestion: await this.toQuestionView(updatedSession, await this.currentQuestion(updatedSession), true),
       isLastQuestion: updatedSession.currentQuestionIndex === updatedSession.questionIds.length - 1,
     });
+  }
+
+  private async insertGeneratedFollowUpQuestionIfReady(
+    session: RuntimeInterviewSession,
+    previousQuestion: InterviewQuestion,
+    answer: InterviewAnswer,
+  ): Promise<void> {
+    if (previousQuestion.questionType === "FOLLOW_UP") {
+      return;
+    }
+
+    const nextQuestionId = session.questionIds[session.currentQuestionIndex + 1];
+    if (nextQuestionId) {
+      const nextQuestion = await this.interviewRepository.findQuestion(nextQuestionId);
+      if (nextQuestion?.questionType === "FOLLOW_UP") {
+        return;
+      }
+    }
+
+    const policy: FollowUpQuestionPolicy = session.interviewType === "MOCK" ? "MOCK" : "RECRUITING";
+    const generatedFollowUp = await this.interviewRepository.findGeneratedFollowUpQuestion(answer.answerId, policy);
+    const content = generatedFollowUp?.content.trim();
+    if (!content) {
+      return;
+    }
+
+    const followUpQuestion = await this.interviewRepository.createRuntimeFollowUpQuestion({
+      session,
+      sourceAnswer: answer,
+      content,
+    });
+    if (session.questionIds.includes(followUpQuestion.questionId)) {
+      return;
+    }
+
+    session.questionIds.splice(session.currentQuestionIndex + 1, 0, followUpQuestion.questionId);
+    session.updatedAt = new Date().toISOString();
+    await this.interviewRepository.saveRuntimeSession(session);
   }
 
   private async completeRuntimeSession(
