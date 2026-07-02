@@ -149,6 +149,29 @@ export class PublicApplicationAccessLinkResponseDto {
   magicLinkExpiresInSeconds!: number;
 }
 
+export class PublicInterviewEntryResponseDto {
+  @ApiProperty({ example: "/public/applications/77/interview" })
+  href!: string;
+
+  @ApiProperty({ enum: ["면접 시작", "면접 이어가기", "면접 완료"], example: "면접 시작" })
+  label!: string;
+
+  @ApiProperty({ example: true })
+  enabled!: boolean;
+
+  @ApiProperty({ enum: ["D_PUBLIC_CONTEXT_PENDING"], example: "D_PUBLIC_CONTEXT_PENDING" })
+  integrationStatus!: string;
+
+  @ApiProperty({ example: true })
+  temporary!: boolean;
+
+  @ApiProperty({ example: "B_MODULE_PUBLIC_INTERVIEW_ADAPTER" })
+  temporaryBoundary!: string;
+
+  @ApiProperty({ example: "면접 시작은 D public interview access context 연동 후 활성화됩니다." })
+  message!: string;
+}
+
 export class PublicApplicationStatusResponseDto {
   @ApiProperty({ example: 77 })
   applicationId!: number;
@@ -176,6 +199,9 @@ export class PublicApplicationStatusResponseDto {
 
   @ApiProperty({ example: "PENDING" })
   reportStatus!: string;
+
+  @ApiProperty({ type: PublicInterviewEntryResponseDto })
+  interviewEntry!: PublicInterviewEntryResponseDto;
 
   @ApiPropertyOptional({ nullable: true, example: "2026-06-29T00:00:00.000Z" })
   submittedAt!: string | null;

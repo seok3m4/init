@@ -57,6 +57,12 @@ export type CreatePublicCandidateInput = CreateCandidateInput & {
   summary: string | null;
 };
 
+export type RecruitingUserAccount = {
+  userId: number;
+  userType: UserType;
+  hasCandidateProfile: boolean;
+};
+
 export type CreateApplicationInput = {
   postingId: number;
   candidateId: number;
@@ -78,6 +84,7 @@ export type CompanyRecruitingRepositoryPort = {
   findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null>;
   findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null>;
   findPublicApplicationStatusById(applicationId: number): Promise<ApplicantRecord | null>;
+  findUserAccountByEmail(email: string): Promise<RecruitingUserAccount | null>;
   findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }>;
   findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }>;
   createApplication(input: CreateApplicationInput): Promise<ApplicantRecord>;
@@ -203,6 +210,24 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
     return application ? mapApplicant(application) : null;
   }
 
+  async findUserAccountByEmail(email: string): Promise<RecruitingUserAccount | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        userId: true,
+        userType: true,
+        candidateProfile: { select: { candidateId: true } },
+      },
+    });
+    return user
+      ? {
+          userId: Number(user.userId),
+          userType: user.userType,
+          hasCandidateProfile: Boolean(user.candidateProfile),
+        }
+      : null;
+  }
+
   async findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }> {
     return this.prisma.$transaction(async (tx) => {
       const existingUser = await tx.user.findUnique({
@@ -215,6 +240,9 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       }
 
       if (existingUser) {
+        if (existingUser.userType !== UserType.CANDIDATE) {
+          throw new Error("USER_TYPE_MISMATCH");
+        }
         const profile = await tx.candidateProfile.create({
           data: {
             userId: existingUser.userId,
@@ -253,27 +281,11 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       });
 
       if (existingUser?.candidateProfile) {
-        if (input.portfolioUrl || input.summary) {
-          await tx.candidateProfile.update({
-            where: { candidateId: existingUser.candidateProfile.candidateId },
-            data: {
-              ...(input.portfolioUrl ? { portfolioUrl: input.portfolioUrl } : {}),
-              ...(input.summary ? { summary: input.summary } : {}),
-            },
-          });
-        }
         return { candidateId: Number(existingUser.candidateProfile.candidateId) };
       }
 
       if (existingUser) {
-        const profile = await tx.candidateProfile.create({
-          data: {
-            userId: existingUser.userId,
-            portfolioUrl: input.portfolioUrl,
-            summary: input.summary || "Submitted through public application form.",
-          },
-        });
-        return { candidateId: Number(profile.candidateId) };
+        throw new Error(existingUser.userType === UserType.CANDIDATE ? "EXISTING_USER_REQUIRES_VERIFICATION" : "USER_TYPE_MISMATCH");
       }
 
       const user = await tx.user.create({

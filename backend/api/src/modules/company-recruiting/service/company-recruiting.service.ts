@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ERROR_CODES, type CurrentUser, type ErrorCode } from "@init/common";
-import { PostingStatus, ScreeningDecision } from "@prisma/client";
+import { PostingStatus, ScreeningDecision, UserType } from "@prisma/client";
 
 import { ApiException as SharedApiException } from "../../../shared/api-exception";
 import {
@@ -11,6 +11,10 @@ import {
   InMemoryPublicApplicationAuthAdapter,
   type PublicApplicationAuthAdapterPort,
 } from "./public-application-auth.adapter";
+import {
+  DeferredPublicInterviewEntryAdapter,
+  type PublicInterviewEntryAdapterPort,
+} from "./public-interview-entry.adapter";
 import type { BulkCreateApplicantsDto, BulkCreateApplicantRowDto } from "../dto/bulk-create-applicants.dto";
 import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
@@ -38,6 +42,7 @@ type BulkFailureReason =
   | "MISSING_REQUIRED_FIELD"
   | "INVALID_NAME"
   | "INVALID_EMAIL"
+  | "USER_TYPE_MISMATCH"
   | "DUPLICATED_IN_CSV"
   | "DUPLICATED_IN_RECRUITMENT"
   | "ROW_CREATE_FAILED";
@@ -56,6 +61,7 @@ export class CompanyRecruitingService {
     private readonly repository: CompanyRecruitingRepositoryPort,
     private readonly invitationAdapter: CompanyRecruitingInvitationAdapterPort = new InMemoryCompanyRecruitingInvitationAdapter(),
     private readonly publicApplicationAuthAdapter: PublicApplicationAuthAdapterPort = new InMemoryPublicApplicationAuthAdapter(),
+    private readonly publicInterviewEntryAdapter: PublicInterviewEntryAdapterPort = new DeferredPublicInterviewEntryAdapter(),
   ) {}
 
   async createRecruitment(user: CurrentUser, dto: CreateRecruitmentDto) {
@@ -167,6 +173,7 @@ export class CompanyRecruitingService {
         { field: "email", reason: "DUPLICATED_IN_RECRUITMENT" },
       ]);
     }
+    await this.assertPublicApplicationEmailIsNew(email);
 
     const candidate = await this.repository.findOrCreatePublicCandidate({
       name: dto.name.trim(),
@@ -243,7 +250,7 @@ export class CompanyRecruitingService {
       throw new CompanyRecruitingException(401, ERROR_CODES.COMMON_UNAUTHORIZED, "매직링크가 지원서 정보와 일치하지 않습니다.");
     }
 
-    return toPublicApplicationStatusResponse(application);
+    return toPublicApplicationStatusResponse(application, this.publicInterviewEntryAdapter.buildEntry(application));
   }
 
   async deleteRecruitment(user: CurrentUser, recruitmentId: number) {
@@ -309,6 +316,7 @@ export class CompanyRecruitingService {
         { field: "email", reason: "DUPLICATED_IN_RECRUITMENT" },
       ]);
     }
+    await this.assertExistingUserCanBeCandidate(email);
 
     const candidate = await this.repository.findOrCreateCandidate({
       name: dto.name.trim(),
@@ -356,6 +364,17 @@ export class CompanyRecruitingService {
           field: "email",
           reason: "DUPLICATED_IN_RECRUITMENT",
           message: "같은 공고에 이미 등록된 이메일입니다.",
+        });
+        continue;
+      }
+      const account = await this.repository.findUserAccountByEmail(prepared.email);
+      if (account && account.userType !== UserType.CANDIDATE) {
+        failures.push({
+          rowNumber: prepared.rowNumber,
+          email: prepared.email,
+          field: "email",
+          reason: "USER_TYPE_MISMATCH",
+          message: "지원자 계정이 아닌 이메일은 지원자로 등록할 수 없습니다.",
         });
         continue;
       }
@@ -472,6 +491,30 @@ export class CompanyRecruitingService {
     }
 
     return toApplicantResponse(application);
+  }
+
+  private async assertPublicApplicationEmailIsNew(email: string) {
+    const account = await this.repository.findUserAccountByEmail(email);
+    if (!account) {
+      return;
+    }
+    if (account.userType !== UserType.CANDIDATE) {
+      throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "지원자 계정이 아닌 이메일은 공개 지원에 사용할 수 없습니다.", [
+        { field: "email", reason: "USER_TYPE_MISMATCH" },
+      ]);
+    }
+    throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "이미 가입된 이메일은 공개 지원 폼에서 사용할 수 없습니다.", [
+      { field: "email", reason: "EXISTING_USER_REQUIRES_VERIFICATION" },
+    ]);
+  }
+
+  private async assertExistingUserCanBeCandidate(email: string) {
+    const account = await this.repository.findUserAccountByEmail(email);
+    if (account && account.userType !== UserType.CANDIDATE) {
+      throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "지원자 계정이 아닌 이메일은 지원자로 등록할 수 없습니다.", [
+        { field: "email", reason: "USER_TYPE_MISMATCH" },
+      ]);
+    }
   }
 }
 
@@ -785,7 +828,7 @@ function toApplicantEvaluationResponse(application: ApplicantRecord) {
   };
 }
 
-function toPublicApplicationStatusResponse(application: ApplicantRecord) {
+function toPublicApplicationStatusResponse(application: ApplicantRecord, interviewEntry: ReturnType<PublicInterviewEntryAdapterPort["buildEntry"]>) {
   return {
     applicationId: application.applicationId,
     recruitmentId: application.postingId,
@@ -796,6 +839,7 @@ function toPublicApplicationStatusResponse(application: ApplicantRecord) {
     documentStatus: application.documentStatus,
     interviewStatus: application.interviewStatus,
     reportStatus: application.reportStatus,
+    interviewEntry,
     submittedAt: application.submittedAt?.toISOString() ?? null,
     updatedAt: application.updatedAt.toISOString(),
   };

@@ -62,6 +62,15 @@ export type PublicApplicationStatus = {
   documentStatus: string;
   interviewStatus: string;
   reportStatus: string;
+  interviewEntry: {
+    href: `/public/applications/${number}/interview`;
+    label: "면접 시작" | "면접 이어가기" | "면접 완료";
+    enabled: boolean;
+    integrationStatus: "D_PUBLIC_CONTEXT_PENDING";
+    temporary: true;
+    temporaryBoundary: "B_MODULE_PUBLIC_INTERVIEW_ADAPTER";
+    message: string;
+  };
   submittedAt: string | null;
   updatedAt: string;
 };

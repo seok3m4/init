@@ -129,6 +129,10 @@ function createRepository(overrides: Record<string, unknown> = {}) {
       calls.findApplicationByPostingAndEmail = [postingId, email];
       return null;
     },
+    async findUserAccountByEmail(email: string) {
+      calls.findUserAccountByEmail = [email];
+      return null;
+    },
     async findPublicApplicationStatusById(applicationId: number) {
       calls.findPublicApplicationStatusById = [applicationId];
       return applicationId === applicant.applicationId ? applicant : null;
@@ -435,6 +439,15 @@ describe("CompanyRecruitingService", () => {
       documentStatus: "NOT_SUBMITTED",
       interviewStatus: "NOT_READY",
       reportStatus: "PENDING",
+      interviewEntry: {
+        href: "/public/applications/77/interview",
+        label: "면접 시작",
+        enabled: true,
+        integrationStatus: "D_PUBLIC_CONTEXT_PENDING",
+        temporary: true,
+        temporaryBoundary: "B_MODULE_PUBLIC_INTERVIEW_ADAPTER",
+        message: "면접 시작은 D public interview access context 연동 후 활성화됩니다.",
+      },
       submittedAt: null,
       updatedAt: "2026-06-29T00:00:00.000Z",
     });
@@ -473,6 +486,53 @@ describe("CompanyRecruitingService", () => {
       /이미 이 공고에 지원한 이메일입니다/,
     );
     assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+  });
+
+  it("rejects public submissions for existing accounts before mutating candidate profiles", async () => {
+    const repository = createRepository({
+      async findUserAccountByEmail(email: string) {
+        repository.calls.findUserAccountByEmail = [email];
+        return { userId: 88, userType: "CANDIDATE", hasCandidateProfile: true };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "existing@example.com",
+          portfolioUrl: "https://attacker.example.com",
+          resumeText: "변조 시도",
+          consentAgreed: true,
+        }),
+      /이미 가입된 이메일/,
+    );
+    assert.deepEqual(repository.calls.findUserAccountByEmail, ["existing@example.com"]);
+    assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+    assert.equal(repository.calls.createApplication, undefined);
+  });
+
+  it("rejects public submissions with company account emails", async () => {
+    const repository = createRepository({
+      async findUserAccountByEmail(email: string) {
+        repository.calls.findUserAccountByEmail = [email];
+        return { userId: 99, userType: "COMPANY", hasCandidateProfile: false };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "company@example.com",
+          consentAgreed: true,
+        }),
+      /지원자 계정이 아닌 이메일/,
+    );
+    assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+    assert.equal(repository.calls.createApplication, undefined);
   });
 
   it("requires consent for public application submission", async () => {
@@ -833,6 +893,28 @@ describe("CompanyRecruitingService", () => {
         error !== null &&
         "code" in error &&
         error.code === "COMMON_VALIDATION_FAILED",
+    );
+    assert.equal(repository.calls.findOrCreateCandidate, undefined);
+  });
+
+  it("rejects direct applicant registration with company account emails", async () => {
+    const repository = createRepository({
+      async findUserAccountByEmail(email: string) {
+        repository.calls.findUserAccountByEmail = [email];
+        return { userId: 99, userType: "COMPANY", hasCandidateProfile: false };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.registerApplicant(companyUser, {
+          recruitmentId: 101,
+          name: "기업계정",
+          email: "company@example.com",
+          jobRole: "Backend",
+        }),
+      /지원자 계정이 아닌 이메일/,
     );
     assert.equal(repository.calls.findOrCreateCandidate, undefined);
   });

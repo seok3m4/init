@@ -16,6 +16,10 @@ import {
   type PublicApplicationAuthAdapterPort,
 } from "./service/public-application-auth.adapter";
 import {
+  DeferredPublicInterviewEntryAdapter,
+  type PublicInterviewEntryAdapterPort,
+} from "./service/public-interview-entry.adapter";
+import {
   PrismaCompanyRecruitingRepository,
   type CompanyRecruitingRepositoryPort,
 } from "./repository/company-recruiting.repository";
@@ -30,15 +34,27 @@ import { CompanyRecruitingService } from "./service/company-recruiting.service";
     PrismaCompanyRecruitingRepository,
     InMemoryCompanyRecruitingInvitationAdapter,
     PublicApplicationMagicLinkStore,
-    PublicApplicationAuthAdapter,
+    {
+      provide: PublicApplicationAuthAdapter,
+      useFactory: (magicLinkStore: PublicApplicationMagicLinkStore, mailService: MailService) =>
+        new PublicApplicationAuthAdapter(magicLinkStore, mailService),
+      inject: [PublicApplicationMagicLinkStore, MailService],
+    },
+    DeferredPublicInterviewEntryAdapter,
     {
       provide: CompanyRecruitingService,
       useFactory: (
         repository: CompanyRecruitingRepositoryPort,
         invitationAdapter: CompanyRecruitingInvitationAdapterPort,
         publicApplicationAuthAdapter: PublicApplicationAuthAdapterPort,
-      ) => new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter),
-      inject: [PrismaCompanyRecruitingRepository, InMemoryCompanyRecruitingInvitationAdapter, PublicApplicationAuthAdapter],
+        publicInterviewEntryAdapter: PublicInterviewEntryAdapterPort,
+      ) => new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter, publicInterviewEntryAdapter),
+      inject: [
+        PrismaCompanyRecruitingRepository,
+        InMemoryCompanyRecruitingInvitationAdapter,
+        PublicApplicationAuthAdapter,
+        DeferredPublicInterviewEntryAdapter,
+      ],
     },
   ],
 })

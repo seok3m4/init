@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { getPublicApplicationStatus, type PublicApplicationStatus } from "./public-application-api";
+import { buildPublicApplicationInterviewHref } from "./routes";
 
 type AsyncState<T> = {
   data?: T;
@@ -63,16 +64,33 @@ export function PublicApplicationStatusPage({ token, backHref = "/" }: { token?:
             </div>
           ) : null}
           {state.data ? (
-            <dl className="detail-list">
-              <DetailItem label="지원자" value={state.data.name} />
-              <DetailItem label="이메일" value={state.data.email} />
-              <DetailItem label="직무" value={state.data.jobRole} />
-              <DetailItem label="지원 상태" value={state.data.applicationStatus} />
-              <DetailItem label="서류 상태" value={state.data.documentStatus} />
-              <DetailItem label="면접 상태" value={state.data.interviewStatus} />
-              <DetailItem label="리포트 상태" value={state.data.reportStatus} />
-              <DetailItem label="최종 갱신" value={formatDateTime(state.data.updatedAt)} />
-            </dl>
+            <>
+              <dl className="detail-list">
+                <DetailItem label="지원자" value={state.data.name} />
+                <DetailItem label="이메일" value={state.data.email} />
+                <DetailItem label="직무" value={state.data.jobRole} />
+                <DetailItem label="지원 상태" value={state.data.applicationStatus} />
+                <DetailItem label="서류 상태" value={state.data.documentStatus} />
+                <DetailItem label="면접 상태" value={state.data.interviewStatus} />
+                <DetailItem label="리포트 상태" value={state.data.reportStatus} />
+                <DetailItem label="최종 갱신" value={formatDateTime(state.data.updatedAt)} />
+              </dl>
+              <div className="form-actions">
+                {token && state.data.interviewEntry.enabled ? (
+                  <Link
+                    className="btn primary"
+                    href={buildPublicApplicationInterviewHref(state.data.applicationId, token)}
+                  >
+                    {state.data.interviewEntry.label}
+                  </Link>
+                ) : (
+                  <button className="btn secondary" disabled type="button">
+                    {state.data.interviewEntry.label}
+                  </button>
+                )}
+              </div>
+              <p className="notice">{state.data.interviewEntry.message}</p>
+            </>
           ) : null}
         </section>
       </section>

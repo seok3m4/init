@@ -10,6 +10,7 @@ import {
   type PublicApplicationInput,
   type PublicRecruitment,
 } from "./public-application-api";
+import { JobDescriptionViewer } from "./JobDescriptionViewer";
 
 type AsyncState<T> = {
   data?: T;
@@ -144,11 +145,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                 <DetailItem label="근무형태" value={state.data.employmentType} />
               </dl>
               <div className="description-box">
-                {state.data.jobDescription ? (
-                  <div dangerouslySetInnerHTML={{ __html: state.data.jobDescription }} />
-                ) : (
-                  "등록된 JD가 없습니다."
-                )}
+                <JobDescriptionViewer emptyMessage="등록된 JD가 없습니다." value={state.data.jobDescription} />
               </div>
             </section>
 
