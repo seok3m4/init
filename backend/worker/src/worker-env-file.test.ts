@@ -1,22 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import path from "node:path";
-import { loadWorkerEnvFiles } from "./worker-env-file";
+import { join } from "node:path";
 
-test("loadWorkerEnvFiles reads root env before worker env without overriding existing values", () => {
-  const root = mkdtempSync(path.join(tmpdir(), "worker-env-"));
-  const workerDir = path.join(root, "backend", "worker");
+interface WorkerEnvFileLoader {
+  loadWorkerEnvFiles(options: { cwd: string; env: NodeJS.ProcessEnv }): { loadedPaths: string[] };
+}
+
+test("loadWorkerEnvFiles loads the project root .env when worker runs from backend/worker", () => {
+  const root = mkdtempSync(join(tmpdir(), "worker-env-file-"));
+  const workerDir = join(root, "backend", "worker");
   mkdirSync(workerDir, { recursive: true });
-  writeFileSync(path.join(root, ".env"), "AWS_REGION=ap-northeast-2\nOPENAI_MODEL=gpt-4o-mini\n", "utf8");
-  writeFileSync(path.join(workerDir, ".env"), "AWS_REGION=us-east-1\nAI_PROVIDER_MODE=openai\n", "utf8");
+  writeFileSync(
+    join(root, ".env"),
+    [
+      "SQS_QUEUE_URL=http://localhost:4566/000000000000/init-ai-jobs",
+      "AWS_REGION=ap-northeast-2",
+      "OPENAI_API_KEY=local-openai-key",
+      "S3_BUCKET=init-local-assets",
+    ].join("\n"),
+  );
 
-  const env: NodeJS.ProcessEnv = { OPENAI_MODEL: "preconfigured-model" };
-  const loaded = loadWorkerEnvFiles(env, workerDir);
+  try {
+    const env: NodeJS.ProcessEnv = {};
+    const { loadWorkerEnvFiles } = require("./worker-env-file") as WorkerEnvFileLoader;
 
-  assert.equal(loaded.length, 2);
-  assert.equal(env.AWS_REGION, "ap-northeast-2");
-  assert.equal(env.OPENAI_MODEL, "preconfigured-model");
-  assert.equal(env.AI_PROVIDER_MODE, "openai");
+    const result = loadWorkerEnvFiles({ cwd: workerDir, env });
+
+    assert.deepEqual(result.loadedPaths, [join(root, ".env")]);
+    assert.equal(env.SQS_QUEUE_URL, "http://localhost:4566/000000000000/init-ai-jobs");
+    assert.equal(env.AWS_REGION, "ap-northeast-2");
+    assert.equal(env.OPENAI_API_KEY, "local-openai-key");
+    assert.equal(env.S3_BUCKET, "init-local-assets");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

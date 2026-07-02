@@ -16,6 +16,7 @@ export const interviewApiRoutes = {
   interviewRuntime: "applications/:applicationId/interview",
   recruitingQuestions: "interviews/:sessionId/questions",
   recruitingAnswers: "interviews/:sessionId/answers",
+  media: "interviews/:sessionId/media",
   recruitingNextQuestion: "interviews/:sessionId/next-question",
   recruitingComplete: "interviews/:sessionId/complete",
   recruitingStt: "interviews/:sessionId/stt",

@@ -29,9 +29,19 @@ export interface CompletedFollowUpProcess {
   policy: "MOCK" | "RECRUITING";
 }
 
-export interface CreateFollowUpQuestionInput {
+export type FollowUpQuestionPolicy = "MOCK" | "RECRUITING";
+
+export interface GeneratedFollowUpQuestion {
+  followUpId: number;
+  answerId: number;
+  content: string;
+  generationStatus: string;
+  policy: FollowUpQuestionPolicy;
+}
+
+export interface CreateRuntimeFollowUpQuestionInput {
   session: RuntimeInterviewSession;
-  sourceQuestionId: number;
+  sourceAnswer: InterviewAnswer;
   content: string;
 }
 
@@ -57,5 +67,9 @@ export interface InterviewRepository {
   findLatestAnswer(sessionId: number): MaybePromise<InterviewAnswer | undefined>;
   createAnswer(input: CreateInterviewAnswerInput): MaybePromise<InterviewAnswer>;
   findCompletedFollowUpProcess(processLogId: number): MaybePromise<CompletedFollowUpProcess | undefined>;
-  createFollowUpQuestion(input: CreateFollowUpQuestionInput): MaybePromise<InterviewQuestion>;
+  findGeneratedFollowUpQuestion(
+    answerId: number,
+    policy: FollowUpQuestionPolicy,
+  ): MaybePromise<GeneratedFollowUpQuestion | undefined>;
+  createRuntimeFollowUpQuestion(input: CreateRuntimeFollowUpQuestionInput): MaybePromise<InterviewQuestion>;
 }

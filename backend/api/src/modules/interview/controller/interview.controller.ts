@@ -1,19 +1,21 @@
-﻿import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import type { CurrentUser } from "@init/common";
 import { type RequestLike } from "../../../shared/response-envelope";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { resolveCurrentCandidate, CandidateDomainError } from "../../candidate";
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
-import {
-  AiInterviewRequestDto,
-  InsertFollowUpQuestionDto,
-  SaveInterviewAnswerDto,
-  StartMockInterviewDto,
-} from "../dto/interview.runtime.dto";
+import { AiInterviewRequestDto, InsertFollowUpQuestionDto, SaveInterviewAnswerDto, StartMockInterviewDto } from "../dto/interview.runtime.dto";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "../interview.routes";
 import { InterviewService } from "../service/interview.service";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
+type UploadedInterviewMediaFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
 
 @UseGuards(JwtAuthGuard)
 @Controller(interviewApiRoutePrefix)
@@ -60,17 +62,25 @@ export class InterviewController {
     return this.handle(() => this.interviewService.completeMockInterview(Number(sessionId), resolveCurrentCandidate(request.currentUser)));
   }
 
+  @Post(interviewApiRoutes.mockStt)
   requestMockStt(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() => this.interviewService.requestMockStt(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)));
   }
 
+  @Post(interviewApiRoutes.mockFollowUpQuestion)
   requestMockFollowUpQuestion(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() =>
@@ -125,6 +135,30 @@ export class InterviewController {
     );
   }
 
+  @Post(interviewApiRoutes.media)
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor("file"))
+  uploadInterviewMedia(
+    @Req() request: CandidateRequest,
+    @Param("sessionId") sessionId: string,
+    @UploadedFile() file?: UploadedInterviewMediaFile,
+  ) {
+    return this.handle(() =>
+      this.interviewService.uploadInterviewMedia(
+        Number(sessionId),
+        file
+          ? {
+              originalName: file.originalname,
+              mimeType: file.mimetype,
+              sizeBytes: file.size,
+              buffer: file.buffer,
+            }
+          : undefined,
+        resolveCurrentCandidate(request.currentUser),
+      ),
+    );
+  }
+
   @Post(interviewApiRoutes.recruitingNextQuestion)
   moveRecruitingNextQuestion(@Req() request: CandidateRequest, @Param("sessionId") sessionId: string) {
     return this.handle(() =>
@@ -139,9 +173,13 @@ export class InterviewController {
     );
   }
 
+  @Post(interviewApiRoutes.recruitingStt)
   requestRecruitingStt(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() =>
@@ -149,9 +187,13 @@ export class InterviewController {
     );
   }
 
+  @Post(interviewApiRoutes.recruitingFollowUpQuestion)
   requestRecruitingFollowUpQuestion(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() =>

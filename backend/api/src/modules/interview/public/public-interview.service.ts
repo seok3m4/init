@@ -9,6 +9,7 @@ import {
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
 import { AiInterviewRequestDto, SaveInterviewAnswerDto } from "../dto/interview.runtime.dto";
 import { InterviewService } from "../service/interview.service";
+import type { UploadedInterviewMediaFile } from "../service/interview.service";
 import {
   PUBLIC_APPLICATION_ACCESS_VERIFIER,
   type PublicApplicationAccessVerifier,
@@ -113,6 +114,11 @@ export class PublicInterviewService {
   saveAnswer(sessionId: number, dto: SaveInterviewAnswerDto, access: PublicInterviewAccess) {
     this.assertAccessSession(sessionId, access);
     return this.interviewService.saveRecruitingAnswer(sessionId, dto, this.toCurrentCandidateUser(access));
+  }
+
+  uploadMedia(sessionId: number, file: UploadedInterviewMediaFile | undefined, access: PublicInterviewAccess) {
+    this.assertAccessSession(sessionId, access);
+    return this.interviewService.uploadInterviewMedia(sessionId, file, this.toCurrentCandidateUser(access));
   }
 
   moveNextQuestion(sessionId: number, access: PublicInterviewAccess) {

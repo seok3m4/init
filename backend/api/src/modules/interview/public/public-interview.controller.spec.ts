@@ -23,6 +23,7 @@ assertRoute("getRuntime", "applications/:applicationId/interview", RequestMethod
 assertRoute("saveDeviceCheck", "interviews/:sessionId/device-check", RequestMethod.POST);
 assertRoute("listQuestions", "interviews/:sessionId/questions", RequestMethod.GET);
 assertRoute("saveAnswer", "interviews/:sessionId/answers", RequestMethod.POST);
+assertRoute("uploadMedia", "interviews/:sessionId/media", RequestMethod.POST);
 assertRoute("moveNextQuestion", "interviews/:sessionId/next-question", RequestMethod.POST);
 assertRoute("completeInterview", "interviews/:sessionId/complete", RequestMethod.PATCH);
 assertRoute("requestStt", "interviews/:sessionId/stt", RequestMethod.POST);

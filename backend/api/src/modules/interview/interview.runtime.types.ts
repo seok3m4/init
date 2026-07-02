@@ -103,7 +103,7 @@ export interface CompleteInterviewResult {
 export interface AiHandoffResult {
   accepted: true;
   processType: "STT" | "FOLLOW_UP";
-  status: "PENDING";
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
   sessionId: number;
   applicationId?: number;
   answerId: number;
@@ -112,6 +112,9 @@ export interface AiHandoffResult {
   fileAssetId?: number;
   videoFileId?: number;
   audioFileId?: number;
+  processLogId?: number;
+  inputRef?: string;
+  queued?: boolean;
   callbackTopic: string;
 }
 
