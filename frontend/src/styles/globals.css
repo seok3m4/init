@@ -524,6 +524,121 @@ textarea:focus {
   white-space: pre-line;
 }
 
+.info-toggle-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.info-toggle-button {
+  width: 100%;
+  margin: 0;
+  padding: 12px 16px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.info-toggle-button:hover {
+  background: #fafafe;
+}
+
+.info-toggle-button:focus-visible {
+  outline: 3px solid rgba(110, 91, 246, 0.18);
+  outline-offset: -3px;
+}
+
+.info-toggle-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-toggle-chevron {
+  color: var(--ink-300);
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.info-toggle-panel.is-open .info-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.info-toggle-body {
+  padding: 0 16px 16px;
+}
+
+.info-toggle-body .description-box {
+  margin: 0;
+}
+
+.posting-extra-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.posting-extra-field {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.posting-extra-field.is-enabled {
+  background: #fff;
+  border-color: #dedaff;
+}
+
+.posting-extra-check {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  width: fit-content;
+  gap: 8px;
+  color: var(--ink-700);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.posting-extra-check input {
+  width: 16px;
+  min-height: 16px;
+  accent-color: var(--brand-strong);
+}
+
+.posting-extra-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.posting-extra-summary-item {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.posting-extra-summary-item dt {
+  margin: 0 0 5px;
+  color: var(--ink-300);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.posting-extra-summary-item dd {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: 13.5px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .jd-editor {
   overflow: hidden;
   background: #f4f4f5;
