@@ -29,6 +29,9 @@ interface PrismaAiResultClient {
   evaluationReport: {
     upsert(args: unknown): Promise<unknown>;
   };
+  evaluationCriterion: {
+    findUnique(args: unknown): Promise<{ criterionId: bigint } | null>;
+  };
   reportScore: {
     deleteMany(args: unknown): Promise<unknown>;
     create(args: unknown): Promise<unknown>;
@@ -235,11 +238,12 @@ export class PrismaAiResultRepository implements AiResultRepository {
     });
 
     for (const score of scores) {
+      const criterionId = await this.resolveCriterionId(score.criterionId);
       await this.prisma.reportScore.create({
         data: {
           scoreId: this.nextId(),
           reportId: BigInt(reportId),
-          criterionId: BigInt(score.criterionId),
+          criterionId,
           score: score.score,
           rationale: score.rationale,
           evidences: {
@@ -255,5 +259,13 @@ export class PrismaAiResultRepository implements AiResultRepository {
         }
       });
     }
+  }
+
+  private async resolveCriterionId(criterionId: number): Promise<bigint | null> {
+    const criterion = await this.prisma.evaluationCriterion.findUnique({
+      where: { criterionId: BigInt(criterionId) },
+      select: { criterionId: true }
+    });
+    return criterion ? BigInt(criterionId) : null;
   }
 }

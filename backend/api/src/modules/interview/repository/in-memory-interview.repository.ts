@@ -225,6 +225,13 @@ export class InMemoryInterviewRepository implements InterviewRepository {
     return this.cloneAnswer(answer);
   }
 
+  saveAnswerTranscript(answerId: number, transcript: string): void {
+    const answer = this.answers.find((candidate) => candidate.answerId === answerId);
+    if (answer) {
+      answer.transcript = transcript;
+    }
+  }
+
   private questionSortOrder(questionId: number): number {
     return this.questions.find((question) => question.questionId === questionId)?.sortOrder ?? questionId;
   }

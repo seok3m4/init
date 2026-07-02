@@ -248,10 +248,16 @@ export function isCandidateFacingMockFeedbackSafe(feedback: CandidateMockReportF
 export function isCandidateRecruitingReportLimited(report: CandidateRecruitingReportView): boolean {
   return (
     report.visibilityPolicy.candidateFacingOnly &&
-    report.visibilityPolicy.excludesDetailedScores &&
-    report.visibilityPolicy.excludesEvaluationEvidence &&
     report.visibilityPolicy.excludesInternalMemo &&
-    report.visibilityPolicy.excludesManualEvaluation
+    report.visibilityPolicy.excludesManualEvaluation &&
+    !/(합격|탈락|pass|fail|hire|reject)/i.test([
+      report.summary,
+      report.candidateMessage,
+      ...report.scores.flatMap((score) => [
+        score.rationale,
+        ...score.evidences.map((evidence) => evidence.evidenceText),
+      ]),
+    ].join(" "))
   );
 }
 
