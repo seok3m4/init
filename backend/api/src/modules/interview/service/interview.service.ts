@@ -21,6 +21,7 @@ import {
   SaveInterviewAnswerResult,
   StartMockInterviewResult,
 } from "../interview.runtime.types";
+import { AiJobDispatcherService } from "../../report/service/ai-job-dispatcher.service";
 import { INTERVIEW_REPOSITORY, type FollowUpQuestionPolicy, type InterviewRepository } from "../repository/interview.repository";
 import {
   InMemoryInterviewMediaStorageAdapter,
@@ -41,6 +42,9 @@ export class InterviewService {
   constructor(
     @Inject(CandidateService) private readonly candidateService: CandidateService,
     @Inject(INTERVIEW_REPOSITORY) private readonly interviewRepository: InterviewRepository,
+    @Optional()
+    @Inject(AiJobDispatcherService)
+    private readonly aiJobDispatcher?: AiJobDispatcherService,
     @Optional()
     @Inject(INTERVIEW_MEDIA_STORAGE)
     private readonly mediaStorage: InterviewMediaStoragePort = new InMemoryInterviewMediaStorageAdapter(),
@@ -146,12 +150,12 @@ export class InterviewService {
 
   async requestMockStt(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getOwnedMockSession(sessionId, currentUser);
-    return this.createAiHandoff(session, dto, "STT");
+    return this.createAiHandoff(session, dto, "STT", currentUser);
   }
 
   async requestMockFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getOwnedMockSession(sessionId, currentUser);
-    return this.createAiHandoff(session, dto, "FOLLOW_UP");
+    return this.createAiHandoff(session, dto, "FOLLOW_UP", currentUser);
   }
 
   async listRecruitingQuestions(sessionId: number, currentUser: CurrentCandidateUser) {
@@ -194,12 +198,12 @@ export class InterviewService {
 
   async requestRecruitingStt(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
-    return this.createAiHandoff(session, dto, "STT");
+    return this.createAiHandoff(session, dto, "STT", currentUser);
   }
 
   async requestRecruitingFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getRecruitingRuntimeSession(sessionId, currentUser);
-    return this.createAiHandoff(session, dto, "FOLLOW_UP");
+    return this.createAiHandoff(session, dto, "FOLLOW_UP", currentUser);
   }
 
   async uploadInterviewMedia(
@@ -390,6 +394,21 @@ export class InterviewService {
     if (!answer) {
       const answeredCount = await this.countAnswers(session.sessionId);
       if (session.currentQuestionIndex > 0 && answeredCount === session.currentQuestionIndex) {
+        const answeredQuestionIndex = session.currentQuestionIndex - 1;
+        const answeredQuestionId = session.questionIds[answeredQuestionIndex];
+        if (answeredQuestionId) {
+          const answeredQuestion = await this.requiredQuestion(answeredQuestionId);
+          const previousAnswer = await this.interviewRepository.findAnswer(session.sessionId, answeredQuestionId);
+          if (previousAnswer) {
+            await this.insertGeneratedFollowUpQuestionIfReady(
+              session,
+              answeredQuestion,
+              previousAnswer,
+              answeredQuestionIndex,
+            );
+          }
+        }
+
         return this.envelope({
           sessionId: session.sessionId,
           previousQuestionId: session.questionIds[session.currentQuestionIndex - 1],
@@ -424,16 +443,17 @@ export class InterviewService {
     session: RuntimeInterviewSession,
     previousQuestion: InterviewQuestion,
     answer: InterviewAnswer,
-  ): Promise<void> {
+    insertAfterIndex = session.currentQuestionIndex,
+  ): Promise<boolean> {
     if (previousQuestion.questionType === "FOLLOW_UP") {
-      return;
+      return false;
     }
 
-    const nextQuestionId = session.questionIds[session.currentQuestionIndex + 1];
+    const nextQuestionId = session.questionIds[insertAfterIndex + 1];
     if (nextQuestionId) {
       const nextQuestion = await this.interviewRepository.findQuestion(nextQuestionId);
       if (nextQuestion?.questionType === "FOLLOW_UP") {
-        return;
+        return false;
       }
     }
 
@@ -441,7 +461,7 @@ export class InterviewService {
     const generatedFollowUp = await this.interviewRepository.findGeneratedFollowUpQuestion(answer.answerId, policy);
     const content = generatedFollowUp?.content.trim();
     if (!content) {
-      return;
+      return false;
     }
 
     const followUpQuestion = await this.interviewRepository.createRuntimeFollowUpQuestion({
@@ -450,12 +470,13 @@ export class InterviewService {
       content,
     });
     if (session.questionIds.includes(followUpQuestion.questionId)) {
-      return;
+      return false;
     }
 
-    session.questionIds.splice(session.currentQuestionIndex + 1, 0, followUpQuestion.questionId);
+    session.questionIds.splice(insertAfterIndex + 1, 0, followUpQuestion.questionId);
     session.updatedAt = new Date().toISOString();
     await this.interviewRepository.saveRuntimeSession(session);
+    return true;
   }
 
   private async completeRuntimeSession(
@@ -490,14 +511,42 @@ export class InterviewService {
     session: RuntimeInterviewSession,
     dto: AiInterviewRequestDto,
     processType: "STT" | "FOLLOW_UP",
+    currentUser: CurrentCandidateUser,
   ): Promise<{ data: AiHandoffResult; meta: { traceId: string; timestamp: string } }> {
     this.assertNotCompleted(session);
+    const requestBody = this.toRequestBody(dto ?? {}, "aiRequest") as AiInterviewRequestDto;
     const answer = await this.resolveAnswerForAi(session, dto);
     const fileId = answer.audioFileId ?? answer.videoFileId;
+    const callbackTopic =
+      processType === "STT"
+        ? "ai.interview.stt.requested"
+        : "ai.interview.follow-up-question.requested";
+    const dispatched = this.aiJobDispatcher
+      ? await this.aiJobDispatcher.dispatch({
+          processType,
+          input: {
+            kind: this.aiJobKind(session.interviewType, processType),
+            requestedBy: {
+              userId: currentUser.userId,
+              userType: currentUser.userType,
+              candidateId: currentUser.candidateId,
+            },
+            payload: await this.buildAiJobPayload(session, answer, requestBody, processType),
+          },
+          refs: {
+            sessionId: session.sessionId,
+            applicationId: session.applicationId,
+          },
+        })
+      : undefined;
+
     return this.envelope({
       accepted: true,
       processType,
-      status: "PENDING",
+      status: dispatched?.status ?? "PENDING",
+      queued: dispatched?.queued,
+      processLogId: dispatched?.processLogId,
+      inputRef: dispatched?.inputRef,
       sessionId: session.sessionId,
       applicationId: session.applicationId,
       answerId: answer.answerId,
@@ -506,11 +555,57 @@ export class InterviewService {
       fileAssetId: fileId,
       videoFileId: answer.videoFileId,
       audioFileId: answer.audioFileId,
-      callbackTopic:
-        processType === "STT"
-          ? "ai.interview.stt.requested"
-          : "ai.interview.follow-up-question.requested",
+      callbackTopic,
     });
+  }
+
+  private aiJobKind(interviewType: RuntimeInterviewSession["interviewType"], processType: "STT" | "FOLLOW_UP"): string {
+    if (processType === "STT") {
+      return interviewType === "MOCK" ? "MOCK_INTERVIEW_STT" : "RECRUITING_INTERVIEW_STT";
+    }
+    return interviewType === "MOCK" ? "MOCK_FOLLOW_UP" : "RECRUITING_FOLLOW_UP";
+  }
+
+  private async buildAiJobPayload(
+    session: RuntimeInterviewSession,
+    answer: InterviewAnswer,
+    requestBody: AiInterviewRequestDto,
+    processType: "STT" | "FOLLOW_UP",
+  ): Promise<Record<string, unknown>> {
+    if (processType === "STT") {
+      const audioFileId = requestBody.audioFileId ?? requestBody.fileAssetId ?? answer.audioFileId ?? answer.videoFileId;
+      const audioS3Key = requestBody.audioS3Key;
+      if (!audioFileId || !audioS3Key) {
+        throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "STT audio file reference is required.", 400, [
+          { field: "audioFileId", reason: "audioFileId or fileAssetId is required" },
+          { field: "audioS3Key", reason: "audioS3Key is required" },
+        ]);
+      }
+
+      return {
+        answerId: answer.answerId,
+        audioFileId,
+        audioS3Key,
+        sessionId: session.sessionId,
+      };
+    }
+
+    const previousQuestion = requestBody.previousQuestion ?? (await this.requiredQuestion(answer.questionId)).content;
+    const transcript = requestBody.transcript ?? answer.transcript;
+    if (!transcript?.trim()) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Transcript is required for follow-up question.", 400, [
+        { field: "transcript", reason: "transcript is required" },
+      ]);
+    }
+
+    return {
+      answerId: answer.answerId,
+      previousQuestion,
+      transcript,
+      jobDescription: session.interviewType === "RECRUITING" ? requestBody.jobDescription : undefined,
+      documentSummary: session.interviewType === "RECRUITING" ? requestBody.documentSummary : undefined,
+      sessionId: session.sessionId,
+    };
   }
 
   private async resolveAnswerForAi(session: RuntimeInterviewSession, dto: AiInterviewRequestDto): Promise<InterviewAnswer> {

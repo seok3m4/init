@@ -2,6 +2,11 @@ import { Module } from "@nestjs/common";
 import { PrismaService } from "../../shared/prisma.service";
 import { AuthModule } from "../auth/auth.module";
 import { CandidateModule } from "../candidate";
+import { InMemoryReportRepository } from "../report/repository/in-memory-report.repository";
+import { PrismaReportRepository } from "../report/repository/prisma-report.repository";
+import { REPORT_REPOSITORY } from "../report/repository/report.repository";
+import { AiJobDispatcherService } from "../report/service/ai-job-dispatcher.service";
+import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "../report/service/ai-job-queue.publisher";
 import { InterviewController } from "./controller/interview.controller";
 import { DefaultPublicApplicationAccessVerifier, PUBLIC_APPLICATION_ACCESS_VERIFIER } from "./public/public-application-access.verifier";
 import { PublicInterviewAccessGuard } from "./public/public-interview-access.guard";
@@ -13,6 +18,24 @@ import { INTERVIEW_REPOSITORY } from "./repository/interview.repository";
 import { PrismaInterviewRepository } from "./repository/prisma-interview.repository";
 import { INTERVIEW_MEDIA_STORAGE, S3InterviewMediaStorageAdapter } from "./service/interview-media-storage.adapter";
 import { InterviewService } from "./service/interview.service";
+
+const usePrismaReportRepository = process.env.NODE_ENV !== "test" && Boolean(process.env.DATABASE_URL);
+
+const reportRepositoryProviders = usePrismaReportRepository
+  ? [
+      {
+        provide: REPORT_REPOSITORY,
+        inject: [PrismaService],
+        useFactory: (prisma: PrismaService) => new PrismaReportRepository(prisma),
+      },
+    ]
+  : [
+      InMemoryReportRepository,
+      {
+        provide: REPORT_REPOSITORY,
+        useExisting: InMemoryReportRepository,
+      },
+    ];
 
 @Module({
   imports: [AuthModule, CandidateModule],
@@ -29,6 +52,12 @@ import { InterviewService } from "./service/interview.service";
         return new PrismaInterviewRepository(prisma);
       },
     },
+    AiJobDispatcherService,
+    {
+      provide: AI_JOB_QUEUE_PUBLISHER,
+      useFactory: () => createAiJobQueuePublisher(),
+    },
+    ...reportRepositoryProviders,
     InterviewService,
     {
       provide: INTERVIEW_MEDIA_STORAGE,

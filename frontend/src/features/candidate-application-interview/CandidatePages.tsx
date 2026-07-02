@@ -128,11 +128,6 @@ type LastSavedAnswer = {
   videoFileId?: number;
   videoS3Key?: string;
 };
-type AiPipelineDebugState = {
-  processType: AiInterviewHandoffResponse["processType"];
-  requestPayload: Record<string, unknown>;
-  responsePayload: Record<string, unknown>;
-};
 type AutoAiStepStatus = "IDLE" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 type AutoAiPipelineState = {
   answerId: number;
@@ -1435,8 +1430,6 @@ function InterviewRuntimePanel({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<LastSavedAnswer>();
-  const [aiHandoff, setAiHandoff] = useState<AiInterviewHandoffResponse>();
-  const [aiPipelineDebug, setAiPipelineDebug] = useState<AiPipelineDebugState>();
   const [autoAiPipeline, setAutoAiPipeline] = useState<AutoAiPipelineState>();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
@@ -2126,8 +2119,6 @@ function InterviewRuntimePanel({
         videoS3Key: result.data.videoFile?.storageKey,
       };
       setLastAnswer(savedAnswer);
-      setAiHandoff(undefined);
-      setAiPipelineDebug(undefined);
       setAutoAiPipeline({
         answerId: savedAnswer.answerId,
         sttStatus: "PENDING",
@@ -2148,8 +2139,8 @@ function InterviewRuntimePanel({
         : result.data.nextQuestionAvailable === false;
       setMessage(
         isLastSavedQuestion
-          ? `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요.`
-          : `답변이 저장되었습니다. 답변 번호는 ${result.data.answer.answerId}번입니다. 다음 질문 버튼으로 이동해주세요.`,
+          ? "답변이 저장되었습니다. 면접 완료 버튼을 눌러 제출을 마무리해주세요."
+          : "답변이 저장되었습니다. 다음 질문을 준비하고 있습니다.",
       );
       await runAutomaticAiPipeline(savedAnswer, question);
       if (shouldAutoAdvance) {
@@ -2261,7 +2252,7 @@ function InterviewRuntimePanel({
       }));
 
       if (isFollowUpAnswer) {
-        setMessage("STT 처리가 완료되었습니다. 꼬리질문 답변에는 추가 꼬리질문을 생성하지 않습니다.");
+        setMessage("답변 처리가 완료되었습니다. 다음 질문으로 이동해주세요.");
         return;
       }
 
@@ -2317,8 +2308,8 @@ function InterviewRuntimePanel({
 
       setMessage(
         followUpQuestion
-          ? "STT와 꼬리질문 생성이 완료되었습니다. 생성된 꼬리질문을 확인해주세요."
-          : "STT가 완료됐고 꼬리질문 작업 결과를 확인했습니다.",
+          ? "다음 질문이 준비되었습니다."
+          : "답변 처리가 완료되었습니다.",
       );
     } catch (pipelineError) {
       setAutoAiPipeline((current) => ({
@@ -2351,49 +2342,7 @@ function InterviewRuntimePanel({
           ? await api.requestMockFollowUpQuestion(data.runtime.sessionId, request)
           : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, request);
 
-    setAiHandoff(result.data);
-    setAiPipelineDebug({
-      processType: result.data.processType,
-      requestPayload: buildAiPipelineRequestPayload(data.runtime.sessionId, mode, processType, request),
-      responsePayload: buildAiPipelineResponsePayload(result.data, data.runtime.sessionId, targetAnswer),
-    });
-
     return result.data;
-  }
-
-  async function handleRequestAiPipeline(processType: "STT" | "FOLLOW_UP") {
-    if (!data || !lastAnswer) {
-      setMessage("AI 처리로 넘길 저장된 답변이 아직 없습니다.");
-      return;
-    }
-
-    setBusy(true);
-    setMessage("");
-    try {
-      const api = runtimeApi;
-      const request = buildAiInterviewRequest(processType, lastAnswer, data.runtime.jobDescription, mode);
-      const result =
-        processType === "STT"
-          ? mode === "mock"
-            ? await api.requestMockStt(data.runtime.sessionId, request)
-            : await api.requestRecruitingStt(data.runtime.sessionId, request)
-          : mode === "mock"
-            ? await api.requestMockFollowUpQuestion(data.runtime.sessionId, request)
-            : await api.requestRecruitingFollowUpQuestion(data.runtime.sessionId, request);
-      setAiHandoff(result.data);
-      setAiPipelineDebug({
-        processType: result.data.processType,
-        requestPayload: buildAiPipelineRequestPayload(data.runtime.sessionId, mode, processType, request),
-        responsePayload: buildAiPipelineResponsePayload(result.data, data.runtime.sessionId, lastAnswer),
-      });
-      setMessage(
-        `${formatProcessTypeLabel(result.data.processType)} 요청 준비 완료: sessionId=${result.data.sessionId ?? data.runtime.sessionId}, answerId=${result.data.answerId ?? lastAnswer.answerId}, fileAssetId=${result.data.fileAssetId ?? result.data.fileId ?? lastAnswer.fileAssetId ?? "-"}`,
-      );
-    } catch (submitError) {
-      setMessage(toErrorMessage(submitError));
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function handleQuestionTimeExpired() {
@@ -2488,7 +2437,6 @@ function InterviewRuntimePanel({
   }
 
   const runtimeTitle = mode === "recruiting" ? "채용 AI 면접 진행" : "AI 모의면접 진행";
-  const statusThirdLine = mode === "mock" ? "꼬리질문 생성 가능" : "업로드 상태 정상";
   const answeredQuestionCount = data
     ? data.questions.questions.filter((question) => question.answered || answeredQuestionIds.has(question.questionId)).length
     : 0;
@@ -2511,8 +2459,40 @@ function InterviewRuntimePanel({
       autoAiPipeline?.followUpStatus === "COMPLETED" &&
       autoAiPipeline?.followUpQuestion,
   );
+  const answerProcessingBusy = Boolean(
+    autoAiPipeline?.sttStatus === "PENDING" ||
+      autoAiPipeline?.sttStatus === "RUNNING" ||
+      autoAiPipeline?.followUpStatus === "PENDING" ||
+      autoAiPipeline?.followUpStatus === "RUNNING",
+  );
+  const answerProcessingFailed = Boolean(
+    autoAiPipeline?.error ||
+      autoAiPipeline?.sttStatus === "FAILED" ||
+      autoAiPipeline?.followUpStatus === "FAILED",
+  );
+  const answerProcessingLabel = answerProcessingFailed
+    ? "답변 처리 확인 필요"
+    : generatedFollowUpReady
+      ? "다음 질문 준비 완료"
+      : answerProcessingBusy
+        ? "다음 질문 준비 중"
+        : lastAnswer
+          ? "답변 저장 완료"
+          : "답변 대기";
+  const answerProcessingReady = Boolean(lastAnswer && !answerProcessingBusy && !answerProcessingFailed);
+  const currentBaseQuestionWaitingForFollowUp = Boolean(
+    currentQuestionAnswered &&
+      currentQuestion?.questionType !== "FOLLOW_UP" &&
+      lastAnswer?.questionId === currentQuestion?.questionId &&
+      !generatedFollowUpReady,
+  );
   const canMoveNextQuestion = Boolean(
-    data && currentQuestionAnswered && (!isCurrentQuestionLast || generatedFollowUpReady) && !recording,
+    data &&
+      currentQuestionAnswered &&
+      !answerProcessingBusy &&
+      !currentBaseQuestionWaitingForFollowUp &&
+      (!isCurrentQuestionLast || generatedFollowUpReady) &&
+      !recording,
   );
   const canCompleteInterview = Boolean(
     data &&
@@ -2634,12 +2614,6 @@ function InterviewRuntimePanel({
               <div className={`question-voice-status ${questionSpeechSupported ? "" : "unsupported"}`} aria-live="polite">
                 {questionSpeechStatus}
               </div>
-              {currentQuestionAnswered && autoAiPipeline?.followUpQuestion ? (
-                <div className="candidate-follow-up-prompt">
-                  <span>생성된 꼬리질문</span>
-                  <p>{autoAiPipeline.followUpQuestion}</p>
-                </div>
-              ) : null}
             </section>
 
             <section className="iv-grid">
@@ -2666,92 +2640,13 @@ function InterviewRuntimePanel({
                     <span style={{ width: `${microphoneLevel}%` }} />
                   </div>
                   <div className="status-line"><span className="ok">✓</span> 네트워크 정상</div>
-                  <div className="status-line"><span className={lastAnswer ? "ok" : "wait"}>{lastAnswer ? "✓" : "!"}</span> {statusThirdLine}</div>
+                  <div className="status-line"><span className={answerProcessingReady ? "ok" : "wait"}>{answerProcessingReady ? "✓" : "!"}</span> {answerProcessingLabel}</div>
                   <div className="status-line"><span className={recordedFileName || answer.videoFile ? "ok" : "wait"}>{recordedFileName || answer.videoFile ? "✓" : "!"}</span> 답변 파일 {recordedFileName || answer.videoFile ? "준비 완료" : "대기"}</div>
                 </div>
                 <dl className="candidate-runtime-meta">
-                  <Definition label="세션" value={`#${data.runtime.sessionId}`} />
                   <Definition label="진행" value={`${answeredQuestionCount}/${data.runtime.totalQuestions}`} />
                   <Definition label="상태" value={<StatusPill value={data.runtime.status} />} />
                 </dl>
-                <div className="candidate-ai-handoff">
-                  <div className="candidate-ai-handoff__head">
-                    <p>E AI 연결값</p>
-                    <span>{lastAnswer ? "답변 저장됨" : "답변 대기"}</span>
-                  </div>
-                  <dl>
-                    <Definition label="sessionId" value={data.runtime.sessionId} />
-                    <Definition label="answerId" value={lastAnswer?.answerId ?? "-"} />
-                    <Definition label="fileAssetId" value={lastAnswer?.fileAssetId ?? "-"} />
-                    <Definition label="questionId" value={lastAnswer?.questionId ?? currentQuestion?.questionId ?? "-"} />
-                  </dl>
-                  <div className="candidate-ai-handoff__auto">
-                    <div className="status-line">
-                      <span className={autoAiStatusTone(autoAiPipeline?.sttStatus)}>
-                        {autoAiPipeline?.sttStatus === "COMPLETED" ? "✓" : "!"}
-                      </span>
-                      STT {formatAutoAiStatus(autoAiPipeline?.sttStatus)}
-                      {autoAiPipeline?.sttProcessLogId ? <small>#{autoAiPipeline.sttProcessLogId}</small> : null}
-                    </div>
-                    <div className="status-line">
-                      <span className={autoAiStatusTone(autoAiPipeline?.followUpStatus)}>
-                        {autoAiPipeline?.followUpStatus === "COMPLETED" ? "✓" : "!"}
-                      </span>
-                      꼬리질문 {formatAutoAiStatus(autoAiPipeline?.followUpStatus)}
-                      {autoAiPipeline?.followUpProcessLogId ? <small>#{autoAiPipeline.followUpProcessLogId}</small> : null}
-                    </div>
-                    {autoAiPipeline?.transcript ? (
-                      <div className="candidate-ai-handoff__insight">
-                        <strong>STT 텍스트</strong>
-                        <p>{autoAiPipeline.transcript}</p>
-                      </div>
-                    ) : null}
-                    {autoAiPipeline?.followUpQuestion ? (
-                      <div className="candidate-ai-handoff__insight">
-                        <strong>생성된 꼬리질문</strong>
-                        <p>{autoAiPipeline.followUpQuestion}</p>
-                      </div>
-                    ) : null}
-                    {autoAiPipeline?.error ? (
-                      <p className="candidate-ai-handoff__error">{autoAiPipeline.error}</p>
-                    ) : null}
-                  </div>
-                  <div className="candidate-ai-handoff__actions">
-                    <button
-                      className="btn secondary compact"
-                      type="button"
-                      disabled={busy || !lastAnswer}
-                      onClick={() => void handleRequestAiPipeline("STT")}
-                    >
-                      STT 연결 확인
-                    </button>
-                    <button
-                      className="btn secondary compact"
-                      type="button"
-                      disabled={busy || !lastAnswer}
-                      onClick={() => void handleRequestAiPipeline("FOLLOW_UP")}
-                    >
-                      꼬리질문 연결 확인
-                    </button>
-                  </div>
-                  {aiHandoff ? (
-                    <p className="candidate-ai-handoff__result">
-                      {formatProcessTypeLabel(aiHandoff.processType)} · {aiHandoff.callbackTopic ?? "-"} · fileAssetId {aiHandoff.fileAssetId ?? aiHandoff.fileId ?? "-"}
-                    </p>
-                  ) : null}
-                  {aiPipelineDebug ? (
-                    <div className="candidate-ai-handoff__payloads">
-                      <PipelinePayloadPreview
-                        title={`${formatProcessTypeLabel(aiPipelineDebug.processType)} 요청 payload`}
-                        payload={aiPipelineDebug.requestPayload}
-                      />
-                      <PipelinePayloadPreview
-                        title={`${formatProcessTypeLabel(aiPipelineDebug.processType)} 응답 payload`}
-                        payload={aiPipelineDebug.responsePayload}
-                      />
-                    </div>
-                  ) : null}
-                </div>
               </aside>
             </section>
 
@@ -3459,49 +3354,6 @@ function buildAiInterviewRequest(
   }) as AiInterviewRequest;
 }
 
-function buildAiPipelineRequestPayload(
-  sessionId: number,
-  mode: RuntimeMode,
-  processType: AiInterviewHandoffResponse["processType"],
-  request: AiInterviewRequest,
-): Record<string, unknown> {
-  return compactPayload({
-    target: mode === "mock" ? "candidate.mock-interview" : "candidate.recruiting-interview",
-    processType,
-    sessionId,
-    answerId: request.answerId,
-    fileAssetId: request.fileAssetId,
-    audioFileId: request.audioFileId,
-    audioS3Key: request.audioS3Key,
-    previousQuestion: request.previousQuestion,
-    transcript: request.transcript,
-    jobDescription: request.jobDescription,
-    documentSummary: request.documentSummary,
-  });
-}
-
-function buildAiPipelineResponsePayload(
-  response: AiInterviewHandoffResponse,
-  sessionId: number,
-  lastAnswer: LastSavedAnswer,
-): Record<string, unknown> {
-  return compactPayload({
-    accepted: response.accepted,
-    processType: response.processType,
-    status: response.status,
-    callbackTopic: response.callbackTopic,
-    processLogId: response.processLogId,
-    inputRef: response.inputRef,
-    sessionId: response.sessionId ?? sessionId,
-    applicationId: response.applicationId,
-    answerId: response.answerId ?? lastAnswer.answerId,
-    questionId: response.questionId ?? lastAnswer.questionId,
-    fileAssetId: response.fileAssetId ?? response.fileId ?? lastAnswer.fileAssetId,
-    audioFileId: response.audioFileId ?? lastAnswer.audioFileId,
-    videoFileId: response.videoFileId ?? lastAnswer.videoFileId,
-  });
-}
-
 function buildReportGenerationSharePayload(handoff: CandidateReportGenerationHandoff): Record<string, unknown> {
   return {
     accepted: handoff.accepted,
@@ -3854,22 +3706,6 @@ function formatProcessTypeLabel(processType: string): string {
   };
 
   return labels[processType] ?? processType;
-}
-
-function formatAutoAiStatus(status?: AutoAiStepStatus): string {
-  const labels: Record<AutoAiStepStatus, string> = {
-    IDLE: "대기",
-    PENDING: "요청 대기",
-    RUNNING: "처리 중",
-    COMPLETED: "완료",
-    FAILED: "실패",
-  };
-
-  return status ? labels[status] : labels.IDLE;
-}
-
-function autoAiStatusTone(status?: AutoAiStepStatus): "ok" | "wait" {
-  return status === "COMPLETED" ? "ok" : "wait";
 }
 
 function useCandidateResource<T>(load: () => Promise<T>, dependencies: DependencyList) {

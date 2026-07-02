@@ -63,16 +63,22 @@ export class InterviewController {
   }
 
   requestMockStt(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() => this.interviewService.requestMockStt(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)));
   }
 
   requestMockFollowUpQuestion(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() =>
@@ -155,8 +161,11 @@ export class InterviewController {
   }
 
   requestRecruitingStt(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() =>
@@ -165,8 +174,11 @@ export class InterviewController {
   }
 
   requestRecruitingFollowUpQuestion(
+    @Req()
     request: CandidateRequest,
+    @Param("sessionId")
     sessionId: string,
+    @Body()
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() =>
