@@ -49,6 +49,10 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
     return Boolean(form.name.trim() && form.email.trim() && form.consentAgreed && !busy && state.data);
   }, [busy, form.consentAgreed, form.email, form.name, state.data]);
 
+  function updateField<K extends keyof PublicApplicationInput>(field: K, value: PublicApplicationInput[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!state.data) return;
@@ -140,7 +144,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                     required
                     value={form.name}
                     placeholder="김지원"
-                    onChange={(event) => setForm((current) => ({ ...current, name: event.currentTarget.value }))}
+                    onChange={(event) => updateField("name", event.currentTarget.value)}
                   />
                 </label>
                 <label>
@@ -150,7 +154,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                     type="email"
                     value={form.email}
                     placeholder="jiwon@example.com"
-                    onChange={(event) => setForm((current) => ({ ...current, email: event.currentTarget.value }))}
+                    onChange={(event) => updateField("email", event.currentTarget.value)}
                   />
                 </label>
                 <label>
@@ -158,7 +162,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                   <input
                     value={form.phone ?? ""}
                     placeholder="010-0000-0000"
-                    onChange={(event) => setForm((current) => ({ ...current, phone: event.currentTarget.value }))}
+                    onChange={(event) => updateField("phone", event.currentTarget.value)}
                   />
                 </label>
                 <label>
@@ -167,7 +171,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                     type="url"
                     value={form.portfolioUrl ?? ""}
                     placeholder="https://github.com/jiwon"
-                    onChange={(event) => setForm((current) => ({ ...current, portfolioUrl: event.currentTarget.value }))}
+                    onChange={(event) => updateField("portfolioUrl", event.currentTarget.value)}
                   />
                 </label>
                 <label>
@@ -175,7 +179,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                   <textarea
                     value={form.resumeText ?? ""}
                     placeholder="지원 직무와 관련된 경험, 프로젝트, 강조하고 싶은 내용을 입력해주세요."
-                    onChange={(event) => setForm((current) => ({ ...current, resumeText: event.currentTarget.value }))}
+                    onChange={(event) => updateField("resumeText", event.currentTarget.value)}
                   />
                 </label>
                 <label>
@@ -183,7 +187,7 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                     <input
                       checked={form.consentAgreed}
                       type="checkbox"
-                      onChange={(event) => setForm((current) => ({ ...current, consentAgreed: event.currentTarget.checked }))}
+                      onChange={(event) => updateField("consentAgreed", event.currentTarget.checked)}
                     />
                     개인정보 수집 및 채용 절차 이용에 동의합니다.
                   </span>
