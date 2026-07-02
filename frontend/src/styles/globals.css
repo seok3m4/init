@@ -1608,6 +1608,157 @@ td input {
   font-size: 12px;
 }
 
+.company-mypage-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.company-profile-card {
+  position: sticky;
+  top: 92px;
+  display: grid;
+  gap: 18px;
+}
+
+.company-logo-preview {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 34px;
+  font-weight: 850;
+  background: var(--brand-grad);
+  border: 1px solid var(--line-soft);
+  border-radius: 24px;
+}
+
+.company-logo-preview span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-position: center;
+  background-size: cover;
+}
+
+.company-profile-card-info {
+  display: grid;
+  gap: 8px;
+}
+
+.company-profile-card h2 {
+  margin: 0;
+  color: var(--ink-900);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.company-meta-list {
+  display: grid;
+  gap: 10px;
+}
+
+.company-meta-list div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.company-meta-list span {
+  color: var(--ink-300);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.company-meta-list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-800);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.company-mypage-main {
+  display: grid;
+  gap: 18px;
+}
+
+.company-profile-form {
+  display: grid;
+  gap: 18px;
+}
+
+.company-logo-upload {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.company-logo-drop {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.company-logo-drop input {
+  display: none;
+}
+
+.company-logo-drop span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-700);
+  font-size: 13.5px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-logo-drop strong {
+  flex: 0 0 auto;
+  color: var(--ink-300);
+  font-size: 12.5px;
+}
+
+.company-notification-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.company-notification-grid label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--ink-400);
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.company-notification-grid input {
+  width: 16px;
+  min-height: 16px;
+  accent-color: var(--brand-strong);
+}
+
 /* ============================================================
    EXPERIMENTAL: glassmorphism — 공고 목록 페이지(.glass-page) 한정.
    되돌리려면 이 블록 + CompanyPostingsPage 의 glass-page 클래스 제거.
@@ -2032,11 +2183,18 @@ td input {
   .grid-2,
   .kpi-row,
   .posting,
+  .company-mypage-layout,
+  .company-logo-upload,
+  .company-notification-grid,
   .csv-mapping-grid,
   .csv-summary-grid,
   .setup-card-grid,
   .glass-page .posting {
     grid-template-columns: 1fr;
+  }
+
+  .company-profile-card {
+    position: static;
   }
 
   .glass-page .metric {
