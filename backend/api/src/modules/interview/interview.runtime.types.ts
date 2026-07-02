@@ -10,6 +10,7 @@ export interface InterviewQuestion {
   interviewType: InterviewType;
   jobRole?: string;
   postingId?: number;
+  criterionId?: number;
   isActive: boolean;
 }
 
@@ -33,6 +34,7 @@ export interface InterviewAnswer {
   questionId: number;
   videoFileId?: number;
   audioFileId?: number;
+  transcript?: string;
   durationSeconds: number;
   submittedAt: string;
 }

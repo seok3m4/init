@@ -6,6 +6,16 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { deleteRecruitment, getRecruitment, updateRecruitment } from "./api";
 import { Breadcrumb } from "./CompanyRecruitingChrome";
+import { JobDescriptionEditor } from "./JobDescriptionEditor";
+import { PostingExtraInfoFields } from "./PostingExtraInfoFields";
+import {
+  composeJobDescriptionWithExtraInfo,
+  createEmptyPostingExtraInfo,
+  extractPostingExtraInfo,
+  postingExtraInfoFromApiFields,
+  postingExtraInfoToApiFields,
+  type PostingExtraInfo,
+} from "./posting-extra-info";
 import type { Recruitment } from "./types";
 
 type FormState = {
@@ -15,22 +25,25 @@ type FormState = {
   endsOn: string;
   status: "DRAFT" | "OPEN";
   jobDescription: string;
+  extraInfo: PostingExtraInfo;
 };
 
-const initialForm: FormState = {
-  title: "",
-  jobRole: "",
-  startsOn: "",
-  endsOn: "",
-  status: "OPEN",
-  jobDescription: "",
-};
+function createInitialForm(): FormState {
+  return {
+    title: "",
+    jobRole: "",
+    startsOn: "",
+    endsOn: "",
+    status: "OPEN",
+    jobDescription: "",
+    extraInfo: createEmptyPostingExtraInfo(),
+  };
+}
 
 export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: number }) {
   const router = useRouter();
   const [recruitment, setRecruitment] = useState<Recruitment | null>(null);
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [jdFileName, setJdFileName] = useState("");
+  const [form, setForm] = useState<FormState>(() => createInitialForm());
   const [message, setMessage] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -42,6 +55,8 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
       setMessage("");
       try {
         const result = await getRecruitment(recruitmentId);
+        const parsedJobDescription = extractPostingExtraInfo(result.data.jobDescription);
+        const extraInfo = postingExtraInfoFromApiFields(result.data, parsedJobDescription.extraInfo);
         setRecruitment(result.data);
         setForm({
           title: result.data.title,
@@ -49,7 +64,8 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
           startsOn: result.data.startsOn ?? "",
           endsOn: result.data.endsOn ?? "",
           status: result.data.status === "DRAFT" ? "DRAFT" : "OPEN",
-          jobDescription: result.data.jobDescription ?? "",
+          jobDescription: parsedJobDescription.jobDescription,
+          extraInfo,
         });
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "공고 설정을 불러오지 못했습니다.");
@@ -65,13 +81,16 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
     setLoading(true);
     setMessage("");
     try {
+      const jobDescription = composeJobDescriptionWithExtraInfo(form.jobDescription, form.extraInfo);
+      const extraInfoFields = postingExtraInfoToApiFields(form.extraInfo);
       await updateRecruitment(recruitmentId, {
         title: form.title,
         jobRole: form.jobRole,
         startsOn: form.startsOn || undefined,
         endsOn: form.endsOn || undefined,
         status: form.status,
-        jobDescription: form.jobDescription || undefined,
+        jobDescription: jobDescription || undefined,
+        ...extraInfoFields,
       });
       router.push(`/company/recruitments/${recruitmentId}`);
     } catch (error) {
@@ -177,35 +196,32 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
           <section className="panel">
             <div className="panel-head">
               <div>
-                <h2>JD 설정</h2>
-                <p>이번 저장은 텍스트 JD만 반영합니다.</p>
+                <h2>추가 공고 정보</h2>
+                <p>필요한 항목만 선택해서 지원자에게 보여줄 조건을 입력합니다.</p>
+              </div>
+            </div>
+            <PostingExtraInfoFields
+              value={form.extraInfo}
+              disabled={loading}
+              onChange={(value) => updateField("extraInfo", value)}
+            />
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>JD 등록</h2>
               </div>
             </div>
 
             <div className="creation-flow">
-              <label className="wide">
-                JD 직접 입력
-                <textarea
+              <div className="wide form-field">
+                <JobDescriptionEditor
                   value={form.jobDescription}
-                  onChange={(event) => updateField("jobDescription", event.target.value)}
-                  placeholder="담당 업무, 자격 요건, 우대 사항을 입력하세요."
+                  disabled={loading}
+                  onChange={(value) => updateField("jobDescription", value)}
                 />
-              </label>
-              <label className="wide">
-                JD 파일 (임시 UI)
-                <div className="upload-zone">
-                  <input
-                    accept=".txt,.pdf,.doc,.docx"
-                    type="file"
-                    onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
-                  />
-                  <span className="field-hint">
-                    {jdFileName
-                      ? `${jdFileName} 선택됨 · 파일 저장/파싱은 아직 연동 전입니다.`
-                      : "txt, pdf, doc, docx · 실제 업로드 저장은 후속 연동 예정인 임시 칸입니다."}
-                  </span>
-                </div>
-              </label>
+              </div>
             </div>
           </section>
 

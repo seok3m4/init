@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from "./api";
-import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
+import { Breadcrumb } from "./CompanyRecruitingChrome";
+import { JobDescriptionViewer } from "./JobDescriptionViewer";
+import { PostingExtraInfoSummary } from "./PostingExtraInfoFields";
+import { extractPostingExtraInfo, postingExtraInfoFromApiFields } from "./posting-extra-info";
+import { getPublicApplicationLinkState } from "./public-application-link";
 import { buildInterviewSettingsHref } from "./routes";
 import {
   getScreeningAutosaveFieldState,
@@ -26,6 +30,8 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const [screeningDrafts, setScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
   const [savedScreeningDrafts, setSavedScreeningDrafts] = useState<Record<number, ScreeningDraft>>({});
   const [autosaveState, setAutosaveState] = useState<ScreeningAutosaveState>({});
+  const [publicLinkOrigin, setPublicLinkOrigin] = useState("");
+  const [isRecruitmentInfoOpen, setIsRecruitmentInfoOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -57,6 +63,29 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPublicLinkOrigin(window.location.origin);
+  }, []);
+
+  async function handlePublicApplicationLinkCopy() {
+    if (!recruitment) {
+      return;
+    }
+
+    const state = getPublicApplicationLinkState(recruitment, publicLinkOrigin || window.location.origin);
+    if (!state.isAvailable) {
+      window.alert("OPEN 상태 공고에서만 공개 지원 링크를 복사할 수 있습니다.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(state.url);
+      window.alert("공개 지원 링크가 복사되었습니다.");
+    } catch {
+      window.alert("브라우저에서 복사를 허용하지 않았습니다. 링크를 직접 선택해 복사해주세요.");
+    }
+  }
 
   async function handleDecisionChange(applicant: Applicant, decision: ScreeningDecision) {
     const nextDraft = {
@@ -126,6 +155,10 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const completedInterviews = applicants.filter((item) => isCompleted(item.interviewStatus)).length;
   const reportCompleted = applicants.filter((item) => item.report && isCompleted(item.report.status)).length;
   const completionRate = applicants.length === 0 ? 0 : Math.round((completedInterviews / applicants.length) * 100);
+  const parsedJobDescription = extractPostingExtraInfo(recruitment?.jobDescription);
+  const postingExtraInfo = recruitment
+    ? postingExtraInfoFromApiFields(recruitment, parsedJobDescription.extraInfo)
+    : parsedJobDescription.extraInfo;
 
   return (
     <section className="app-page glass-page">
@@ -141,6 +174,9 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
             <p className="page-sub">공고 운영 현황과 다음 전형 대상자를 확인합니다.</p>
           </div>
           <div className="page-actions">
+            <button className="btn secondary" type="button" disabled={!recruitment} onClick={() => void handlePublicApplicationLinkCopy()}>
+              공개 지원 링크
+            </button>
             <Link className="btn secondary" href={`/company/recruitments/${recruitmentId}/settings`}>
               공고 설정
             </Link>
@@ -171,19 +207,37 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
               </div>
             </section>
 
-            <section className="panel">
-              <div className="panel-head">
+            <section className={`panel info-toggle-panel ${isRecruitmentInfoOpen ? "is-open" : ""}`}>
+              <button
+                aria-controls="recruitment-info-content"
+                aria-expanded={isRecruitmentInfoOpen}
+                className="panel-head info-toggle-button"
+                type="button"
+                onClick={() => setIsRecruitmentInfoOpen((current) => !current)}
+              >
                 <div>
                   <h2>공고 정보</h2>
                   <p>
                     {recruitment.jobRole} · {formatPeriod(recruitment)}
                   </p>
                 </div>
-                <StatusBadge value={recruitment.status} />
-              </div>
-              <div className="description-box">
-                {recruitment.jobDescription || "등록된 JD가 없습니다. 면접 설정은 C 역할 영역에서 별도 연결합니다."}
-              </div>
+                <span className="info-toggle-meta">
+                  <span className="info-toggle-chevron" aria-hidden="true">
+                    ▾
+                  </span>
+                </span>
+              </button>
+              {isRecruitmentInfoOpen ? (
+                <div className="info-toggle-body" id="recruitment-info-content">
+                  <PostingExtraInfoSummary value={postingExtraInfo} />
+                  <div className="description-box">
+                    <JobDescriptionViewer
+                      value={parsedJobDescription.jobDescription}
+                      emptyMessage="등록된 JD가 없습니다. 면접 설정은 C 역할 영역에서 별도 연결합니다."
+                    />
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className="panel">

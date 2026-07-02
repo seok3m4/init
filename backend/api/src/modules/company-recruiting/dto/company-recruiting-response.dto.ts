@@ -19,6 +19,21 @@ export class RecruitmentResponseDto {
   @ApiPropertyOptional({ nullable: true, example: "NestJS와 PostgreSQL 기반 API 개발" })
   jobDescription!: string | null;
 
+  @ApiPropertyOptional({ nullable: true, example: "경력 3년 이상" })
+  careerRequirement!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "대졸 이상" })
+  educationRequirement!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "연봉 4,000만원 이상" })
+  salaryInfo!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "판교" })
+  workLocation!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "정규직" })
+  employmentType!: string | null;
+
   @ApiPropertyOptional({ nullable: true, example: "2026-06-29" })
   startsOn!: string | null;
 

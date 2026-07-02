@@ -61,6 +61,7 @@ export class CompanyRecruitingService {
       title: dto.title.trim(),
       jobRole: dto.jobRole.trim(),
       jobDescription: dto.jobDescription?.trim() || null,
+      ...buildPostingExtraInfoInput(dto),
       startsOn,
       endsOn,
       status: (dto.status ?? PostingStatus.DRAFT) as PostingStatus,
@@ -87,6 +88,7 @@ export class CompanyRecruitingService {
       title: dto.title.trim(),
       jobRole: dto.jobRole.trim(),
       jobDescription: dto.jobDescription?.trim() || null,
+      ...buildPostingExtraInfoInput(dto),
       startsOn,
       endsOn,
       status: dto.status ? parseEditablePostingStatus(dto.status) : (posting.status as PostingStatus),
@@ -156,6 +158,11 @@ export class CompanyRecruitingService {
       title: buildCopyTitle(posting.title),
       jobRole: posting.jobRole,
       jobDescription: posting.jobDescription,
+      careerRequirement: posting.careerRequirement,
+      educationRequirement: posting.educationRequirement,
+      salaryInfo: posting.salaryInfo,
+      workLocation: posting.workLocation,
+      employmentType: posting.employmentType,
       startsOn: null,
       endsOn: null,
       status: PostingStatus.DRAFT,
@@ -485,6 +492,21 @@ function normalizeOptionalString(value: string | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function buildPostingExtraInfoInput(dto: CreateRecruitmentDto | UpdateRecruitmentDto) {
+  return {
+    careerRequirement: normalizeNullableString(dto.careerRequirement),
+    educationRequirement: normalizeNullableString(dto.educationRequirement),
+    salaryInfo: normalizeNullableString(dto.salaryInfo),
+    workLocation: normalizeNullableString(dto.workLocation),
+    employmentType: normalizeNullableString(dto.employmentType),
+  };
+}
+
+function normalizeNullableString(value: string | undefined) {
+  const normalized = normalizeOptionalString(value);
+  return normalized || null;
+}
+
 function validateApplicantName(name: string) {
   if (!isValidApplicantName(name.trim())) {
     throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "이름 형식을 확인해주세요.", [
@@ -520,6 +542,11 @@ function toRecruitmentResponse(posting: RecruitmentRecord) {
     title: posting.title,
     jobRole: posting.jobRole,
     jobDescription: posting.jobDescription,
+    careerRequirement: posting.careerRequirement,
+    educationRequirement: posting.educationRequirement,
+    salaryInfo: posting.salaryInfo,
+    workLocation: posting.workLocation,
+    employmentType: posting.employmentType,
     startsOn: posting.startsOn ? formatDate(posting.startsOn) : null,
     endsOn: posting.endsOn ? formatDate(posting.endsOn) : null,
     status: posting.status,

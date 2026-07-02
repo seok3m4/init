@@ -24,6 +24,7 @@ export interface DispatchReportGenerationCommand {
   reportId: number;
   reportType: ReportType;
   input: unknown;
+  refs?: AiProcessRefs;
 }
 
 export interface DispatchReportGenerationResult extends DispatchAiJobResult {
@@ -63,10 +64,11 @@ export class AiJobDispatcherService {
   }
 
   async dispatchReportGeneration(command: DispatchReportGenerationCommand): Promise<DispatchReportGenerationResult> {
-    const report = await this.repository.markReportGenerating(command.reportId, command.reportType);
+    const report = await this.repository.markReportGenerating(command.reportId, command.reportType, command.refs);
     const process = await this.dispatch({
       processType: "REPORT_GENERATE",
-      input: command.input
+      input: command.input,
+      refs: command.refs
     });
     const finalReport =
       process.status === "FAILED" && process.failure

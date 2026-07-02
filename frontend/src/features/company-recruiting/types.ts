@@ -34,6 +34,11 @@ export type Recruitment = {
   title: string;
   jobRole: string;
   jobDescription: string | null;
+  careerRequirement: string | null;
+  educationRequirement: string | null;
+  salaryInfo: string | null;
+  workLocation: string | null;
+  employmentType: string | null;
   startsOn: string | null;
   endsOn: string | null;
   status: "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
@@ -48,6 +53,11 @@ export type CreateRecruitmentInput = {
   title: string;
   jobRole: string;
   jobDescription?: string;
+  careerRequirement?: string | null;
+  educationRequirement?: string | null;
+  salaryInfo?: string | null;
+  workLocation?: string | null;
+  employmentType?: string | null;
   startsOn?: string;
   endsOn?: string;
   status: "DRAFT" | "OPEN";

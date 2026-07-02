@@ -6,6 +6,14 @@ import { FormEvent, useState } from "react";
 
 import { createRecruitment } from "./api";
 import { Breadcrumb } from "./CompanyRecruitingChrome";
+import { JobDescriptionEditor } from "./JobDescriptionEditor";
+import { PostingExtraInfoFields } from "./PostingExtraInfoFields";
+import {
+  composeJobDescriptionWithExtraInfo,
+  createEmptyPostingExtraInfo,
+  postingExtraInfoToApiFields,
+  type PostingExtraInfo,
+} from "./posting-extra-info";
 import { buildInterviewSettingsHref } from "./routes";
 
 type FormState = {
@@ -14,20 +22,23 @@ type FormState = {
   startsOn: string;
   endsOn: string;
   jobDescription: string;
+  extraInfo: PostingExtraInfo;
 };
 
-const initialForm: FormState = {
-  title: "",
-  jobRole: "",
-  startsOn: "",
-  endsOn: "",
-  jobDescription: "",
-};
+function createInitialForm(): FormState {
+  return {
+    title: "",
+    jobRole: "",
+    startsOn: "",
+    endsOn: "",
+    jobDescription: "",
+    extraInfo: createEmptyPostingExtraInfo(),
+  };
+}
 
 export function RecruitmentCreatePage() {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [jdFileName, setJdFileName] = useState("");
+  const [form, setForm] = useState<FormState>(() => createInitialForm());
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,13 +47,16 @@ export function RecruitmentCreatePage() {
     setLoading(true);
     setMessage("");
     try {
+      const jobDescription = composeJobDescriptionWithExtraInfo(form.jobDescription, form.extraInfo);
+      const extraInfoFields = postingExtraInfoToApiFields(form.extraInfo);
       const result = await createRecruitment({
         title: form.title,
         jobRole: form.jobRole,
         startsOn: form.startsOn || undefined,
         endsOn: form.endsOn || undefined,
         status: "DRAFT",
-        jobDescription: form.jobDescription || undefined,
+        jobDescription: jobDescription || undefined,
+        ...extraInfoFields,
       });
       router.push(buildInterviewSettingsHref(result.data.recruitmentId));
     } catch (error) {
@@ -116,35 +130,32 @@ export function RecruitmentCreatePage() {
           <section className="panel">
             <div className="panel-head">
               <div>
+                <h2>추가 공고 정보</h2>
+                <p>필요한 항목만 선택해서 지원자에게 보여줄 조건을 입력합니다.</p>
+              </div>
+            </div>
+            <PostingExtraInfoFields
+              value={form.extraInfo}
+              disabled={loading}
+              onChange={(value) => updateField("extraInfo", value)}
+            />
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
                 <h2>JD 등록</h2>
-                <p>이번 저장은 텍스트 JD 기준입니다.</p>
               </div>
             </div>
 
             <div className="creation-flow">
-              <label className="wide">
-                JD 직접 입력
-                <textarea
+              <div className="wide form-field">
+                <JobDescriptionEditor
                   value={form.jobDescription}
-                  onChange={(event) => updateField("jobDescription", event.target.value)}
-                  placeholder="담당 업무, 자격 요건, 우대 사항을 입력하세요."
+                  disabled={loading}
+                  onChange={(value) => updateField("jobDescription", value)}
                 />
-              </label>
-              <label className="wide">
-                JD 파일 (임시 UI)
-                <div className="upload-zone">
-                  <input
-                    accept=".txt,.pdf,.doc,.docx"
-                    type="file"
-                    onChange={(event) => setJdFileName(event.target.files?.[0]?.name ?? "")}
-                  />
-                  <span className="field-hint">
-                    {jdFileName
-                      ? `${jdFileName} 선택됨 · 파일 저장/파싱은 아직 연동 전입니다.`
-                      : "txt, pdf, doc, docx · 실제 업로드 저장은 후속 연동 예정인 임시 칸입니다."}
-                  </span>
-                </div>
-              </label>
+              </div>
             </div>
           </section>
 

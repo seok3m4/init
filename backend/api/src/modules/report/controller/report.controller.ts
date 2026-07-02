@@ -62,6 +62,16 @@ export class ReportController {
     });
   }
 
+  @Post(reportApiRoutes.applicationReportGenerate)
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiSecurity(candidateDevAuthSecurity)
+  requestApplicationReportGeneration(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
+    return this.handle(() => {
+      const currentUser = resolveCurrentCandidate(request.currentUser);
+      return this.reportService.requestApplicationReportGeneration(Number(applicationId), currentUser);
+    });
+  }
+
   @Get(reportApiRoutes.applicationStatus)
   getApplicationStatus(@Req() request: CandidateRequest, @Param("applicationId") applicationId: string) {
     return this.handle(() => {

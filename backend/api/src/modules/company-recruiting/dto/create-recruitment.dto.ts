@@ -21,6 +21,36 @@ export class CreateRecruitmentDto {
   @IsString()
   jobDescription?: string;
 
+  @ApiPropertyOptional({ example: "경력 3년 이상" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  careerRequirement?: string;
+
+  @ApiPropertyOptional({ example: "대졸 이상" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  educationRequirement?: string;
+
+  @ApiPropertyOptional({ example: "연봉 4,000만원 이상" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  salaryInfo?: string;
+
+  @ApiPropertyOptional({ example: "판교" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  workLocation?: string;
+
+  @ApiPropertyOptional({ example: "정규직" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  employmentType?: string;
+
   @ApiPropertyOptional({ example: "2026-06-29" })
   @IsOptional()
   @IsDateString()

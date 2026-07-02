@@ -78,6 +78,52 @@ function Convert-EnvFileToCommand {
   return ($commands -join '; ')
 }
 
+function Get-EnvFileValue {
+  param(
+    [string] $Path,
+    [string] $Name,
+    [string] $DefaultValue = ''
+  )
+
+  $line = Get-Content -Encoding UTF8 -LiteralPath $Path |
+    Where-Object { $_.Trim() -match "^$([regex]::Escape($Name))=" } |
+    Select-Object -First 1
+
+  if (-not $line) {
+    return $DefaultValue
+  }
+
+  $value = ($line -split '=', 2)[1].Trim().Trim('"').Trim("'")
+  if ($value) {
+    return $value
+  }
+
+  return $DefaultValue
+}
+
+function Get-ResourceNameFromUrl {
+  param(
+    [string] $Url,
+    [string] $DefaultValue
+  )
+
+  if (-not $Url) {
+    return $DefaultValue
+  }
+
+  $trimmed = $Url.TrimEnd('/')
+  if (-not $trimmed.Contains('/')) {
+    return $DefaultValue
+  }
+
+  $name = ($trimmed -split '/')[-1]
+  if ($name) {
+    return $name
+  }
+
+  return $DefaultValue
+}
+
 function Start-DevWindow {
   param(
     [string] $Title,
@@ -121,9 +167,62 @@ function Test-PortInUse {
   }
 }
 
+function Invoke-LocalstackCommand {
+  param([string[]] $Arguments)
+
+  $composeFile = Join-Path $Root 'infra/local/docker-compose.yml'
+  & docker compose --env-file $EnvFile -f $composeFile exec -T localstack awslocal --endpoint-url=http://localhost:4566 @Arguments
+}
+
+function Wait-LocalstackReady {
+  for ($attempt = 1; $attempt -le 30; $attempt++) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      $output = Invoke-LocalstackCommand -Arguments @('sqs', 'list-queues') 2>&1
+      $exitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($exitCode -eq 0) {
+      return
+    }
+
+    Start-Sleep -Seconds 2
+  }
+
+  throw 'LocalStack did not become ready in time.'
+}
+
+function Ensure-LocalstackResources {
+  $queueUrl = Get-EnvFileValue -Path $EnvFile -Name 'AI_SQS_QUEUE_URL' -DefaultValue (Get-EnvFileValue -Path $EnvFile -Name 'SQS_QUEUE_URL')
+  $queueName = Get-ResourceNameFromUrl -Url $queueUrl -DefaultValue 'init-ai-jobs'
+  $bucketName = Get-EnvFileValue -Path $EnvFile -Name 'S3_BUCKET_NAME' -DefaultValue (Get-EnvFileValue -Path $EnvFile -Name 'S3_BUCKET' -DefaultValue 'init-local-assets')
+
+  Write-Host "[local] Ensuring LocalStack queue: $queueName"
+  Wait-LocalstackReady
+  Invoke-LocalstackCommand -Arguments @('sqs', 'create-queue', '--queue-name', $queueName) | Out-Null
+
+  Write-Host "[local] Ensuring LocalStack bucket: $bucketName"
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $bucketOutput = Invoke-LocalstackCommand -Arguments @('s3', 'mb', "s3://$bucketName") 2>&1
+    $bucketExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($bucketExitCode -ne 0 -and ($bucketOutput -notmatch 'BucketAlreadyOwnedByYou|BucketAlreadyExists')) {
+    throw "Failed to ensure LocalStack bucket $bucketName`: $bucketOutput"
+  }
+}
+
 function Start-Infra {
   Write-Host '[local] Starting Docker infra: PostgreSQL, Redis, Mailpit, LocalStack'
-  docker compose -f (Join-Path $Root 'infra/local/docker-compose.yml') up -d
+  docker compose --env-file $EnvFile -f (Join-Path $Root 'infra/local/docker-compose.yml') up -d
+  Ensure-LocalstackResources
 }
 
 $envCommand = Convert-EnvFileToCommand -Path $EnvFile
