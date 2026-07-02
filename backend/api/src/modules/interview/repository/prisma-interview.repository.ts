@@ -203,6 +203,13 @@ export class PrismaInterviewRepository implements InterviewRepository {
   }
 
   private async queryQuestions(filter: InterviewQuestionFilter): Promise<InterviewQuestion[]> {
+    if (filter.interviewType === "RECRUITING" && filter.postingId !== undefined && !filter.questionTypes) {
+      const activeQuestionSetQuestions = await this.queryActiveQuestionSetQuestions(filter.postingId);
+      if (activeQuestionSetQuestions.length > 0) {
+        return activeQuestionSetQuestions;
+      }
+    }
+
     const where: Prisma.QuestionWhereInput = {
       isActive: true,
       postingId:
@@ -222,6 +229,36 @@ export class PrismaInterviewRepository implements InterviewRepository {
     return questions
       .map((question) => this.toQuestion(question, filter.interviewType))
       .sort((left, right) => left.sortOrder - right.sortOrder || left.questionId - right.questionId);
+  }
+
+  private async queryActiveQuestionSetQuestions(postingId: number): Promise<InterviewQuestion[]> {
+    const questionSet = await (this.prisma as any).interviewQuestionSet.findFirst({
+      where: { postingId: BigInt(postingId), status: "ACTIVE" },
+      orderBy: { questionSetId: "desc" },
+      include: {
+        items: {
+          orderBy: { sortOrder: "asc" },
+          include: { question: true },
+        },
+      },
+    });
+    if (!questionSet) return [];
+
+    const items = questionSet.items as ActiveQuestionSetItemRecord[];
+    return items
+      .filter(
+        (item: ActiveQuestionSetItemRecord): item is ActiveQuestionSetItemWithQuestion =>
+          Boolean(
+            item.question?.isActive &&
+              item.question.postingId !== null &&
+              Number(item.question.postingId) === postingId,
+          ),
+      )
+      .map((item) => ({
+        ...this.toQuestion(item.question, "RECRUITING"),
+        sortOrder: item.sortOrder,
+      }))
+      .sort((left: InterviewQuestion, right: InterviewQuestion) => left.sortOrder - right.sortOrder || left.questionId - right.questionId);
   }
 
   private async ensureMockFallbackQuestions(): Promise<void> {
@@ -382,6 +419,15 @@ type QuestionRecord = {
   questionType: PrismaQuestionType;
   content: string;
   isActive: boolean;
+};
+
+type ActiveQuestionSetItemRecord = {
+  sortOrder: number;
+  question: QuestionRecord | null;
+};
+
+type ActiveQuestionSetItemWithQuestion = ActiveQuestionSetItemRecord & {
+  question: QuestionRecord;
 };
 
 type AnswerRecord = {

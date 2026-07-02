@@ -169,6 +169,34 @@
 | content | TEXT NOT NULL | 실제 질문 문장 |
 | is_active | BOOLEAN NOT NULL DEFAULT TRUE | 현재 사용 가능한 질문인지 여부 |
 
+### interview_question_sets
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| question_set_id | BIGINT PRIMARY KEY | 질문 세트 PK |
+| posting_id | BIGINT NOT NULL | 질문 세트가 적용되는 채용 공고 FK |
+| title | VARCHAR(200) NOT NULL | 질문 세트 이름 |
+| status | VARCHAR(30) NOT NULL DEFAULT 'ACTIVE' | 질문 세트 상태. 같은 공고에는 하나의 ACTIVE만 유지 |
+| created_by_process_log_id | BIGINT | AI 질문 세트 구성 job에서 확정된 경우 연결되는 ai_process_logs FK |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 생성 시각 |
+| updated_at | TIMESTAMP NOT NULL | 수정 시각 |
+
+### interview_question_set_items
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| question_set_item_id | BIGINT PRIMARY KEY | 질문 세트 항목 PK |
+| question_set_id | BIGINT NOT NULL | 소속 질문 세트 FK |
+| question_id | BIGINT NOT NULL | 소비할 질문 FK |
+| criterion_id | BIGINT | 질문이 연결된 평가 기준 FK |
+| sort_order | INTEGER NOT NULL | 면접 런타임 질문 순서 |
+
+질문 세트 런타임 소비 정책:
+
+- D 담당 채용 면접 런타임은 세션 생성 시 공고의 `ACTIVE` 질문 세트가 있으면 `interview_question_set_items.sort_order` 순서로 질문을 소비한다.
+- `ACTIVE` 질문 세트가 없으면 기존 공고별 활성 `question_bank` 질문을 사용한다.
+- 세션 생성 이후 질문 세트 변경은 이미 생성된 세션에 소급 적용하지 않는다.
+
 ### interview_time_policies
 
 | Column | Definition | Description |
