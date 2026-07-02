@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { getRecruitment, publishRecruitment } from "./api";
 import { Breadcrumb, StatusBadge } from "./CompanyRecruitingChrome";
+import { JobDescriptionViewer } from "./JobDescriptionViewer";
 import type { Recruitment } from "./types";
 
 const setupItems = [
@@ -94,7 +95,12 @@ export function RecruitmentInterviewSettingsBridgePage({ recruitmentId }: { recr
             </div>
             {recruitment ? <StatusBadge value={recruitment.status} /> : null}
           </div>
-          <div className="description-box">{recruitment?.jobDescription || "등록된 JD가 없습니다. 공고 설정에서 JD를 보완할 수 있습니다."}</div>
+          <div className="description-box">
+            <JobDescriptionViewer
+              value={recruitment?.jobDescription}
+              emptyMessage="등록된 JD가 없습니다. 공고 설정에서 JD를 보완할 수 있습니다."
+            />
+          </div>
         </section>
 
         <section className="panel">
