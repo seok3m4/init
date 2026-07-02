@@ -3,6 +3,8 @@ import {
   createEmptyPostingExtraInfo,
   extractPostingExtraInfo,
   hasPostingExtraInfo,
+  postingExtraInfoFromApiFields,
+  postingExtraInfoToApiFields,
 } from "./posting-extra-info";
 
 const extraInfo = createEmptyPostingExtraInfo();
@@ -45,4 +47,22 @@ const markerCount = (recomposed.match(/data-init-posting-extra-info="true"/g) ??
 
 if (markerCount !== 1) {
   throw new Error("Recomposing an existing JD should not duplicate the extra info block.");
+}
+
+const apiFields = postingExtraInfoToApiFields(extraInfo);
+
+if (apiFields.careerRequirement !== "신입 / 경력 3년 이상" || apiFields.educationRequirement !== null) {
+  throw new Error("postingExtraInfoToApiFields should map enabled fields to API columns and disabled fields to null.");
+}
+
+const restoredFromApi = postingExtraInfoFromApiFields(
+  {
+    careerRequirement: "경력무관",
+    salaryInfo: "회사 내규에 따름",
+  },
+  extracted.extraInfo,
+);
+
+if (restoredFromApi.career.value !== "경력무관" || restoredFromApi.education.enabled) {
+  throw new Error("postingExtraInfoFromApiFields should prefer structured API values over legacy JD fallback.");
 }

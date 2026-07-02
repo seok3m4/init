@@ -17,6 +17,11 @@ export type CreatePostingInput = {
   title: string;
   jobRole: string;
   jobDescription: string | null;
+  careerRequirement: string | null;
+  educationRequirement: string | null;
+  salaryInfo: string | null;
+  workLocation: string | null;
+  employmentType: string | null;
   startsOn: Date | null;
   endsOn: Date | null;
   status: PostingStatus;
@@ -26,6 +31,11 @@ export type UpdatePostingInput = {
   title: string;
   jobRole: string;
   jobDescription: string | null;
+  careerRequirement: string | null;
+  educationRequirement: string | null;
+  salaryInfo: string | null;
+  workLocation: string | null;
+  employmentType: string | null;
   startsOn: Date | null;
   endsOn: Date | null;
   status: PostingStatus;
@@ -308,6 +318,11 @@ function buildPostingWhere(companyId: number, query: NormalizedListQuery): Prism
           OR: [
             { title: { contains: q, mode: "insensitive" } },
             { jobRole: { contains: q, mode: "insensitive" } },
+            { careerRequirement: { contains: q, mode: "insensitive" } },
+            { educationRequirement: { contains: q, mode: "insensitive" } },
+            { salaryInfo: { contains: q, mode: "insensitive" } },
+            { workLocation: { contains: q, mode: "insensitive" } },
+            { employmentType: { contains: q, mode: "insensitive" } },
           ],
         }
       : {}),
@@ -351,6 +366,11 @@ function mapPosting(posting: Prisma.PostingGetPayload<{ include: { _count: { sel
     title: posting.title,
     jobRole: posting.jobRole,
     jobDescription: posting.jobDescription,
+    careerRequirement: posting.careerRequirement,
+    educationRequirement: posting.educationRequirement,
+    salaryInfo: posting.salaryInfo,
+    workLocation: posting.workLocation,
+    employmentType: posting.employmentType,
     startsOn: posting.startsOn,
     endsOn: posting.endsOn,
     status: posting.status,

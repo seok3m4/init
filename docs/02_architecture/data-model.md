@@ -122,6 +122,11 @@
 | title | VARCHAR(200) NOT NULL | 공고 제목. 예: 2026 신입 백엔드 채용 |
 | job_role | VARCHAR(100) NOT NULL | 직무명. 예: Backend Developer |
 | job_description | TEXT | 직무 설명/JD |
+| career_requirement | VARCHAR(150) | 선택 입력 경력 조건. 예: 신입, 경력 3년 이상, 경력무관 |
+| education_requirement | VARCHAR(150) | 선택 입력 학력 조건. 예: 학력무관, 대졸 이상 |
+| salary_info | VARCHAR(150) | 선택 입력 급여 정보. 예: 회사 내규에 따름, 연봉 4,000만원 이상 |
+| work_location | VARCHAR(150) | 선택 입력 근무지역. 예: 서울, 판교, 원격 |
+| employment_type | VARCHAR(150) | 선택 입력 근무형태. 예: 정규직, 계약직, 인턴 |
 | starts_on | DATE | 지원 시작일 |
 | ends_on | DATE | 지원 마감일 |
 | status | VARCHAR(30) NOT NULL | 공고 상태: DRAFT, OPEN, CLOSING_SOON, CLOSED, ARCHIVED |

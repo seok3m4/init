@@ -21,6 +21,36 @@ export class UpdateRecruitmentDto {
   @IsString()
   jobDescription?: string;
 
+  @ApiPropertyOptional({ example: "경력무관" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  careerRequirement?: string;
+
+  @ApiPropertyOptional({ example: "학력무관" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  educationRequirement?: string;
+
+  @ApiPropertyOptional({ example: "회사 내규에 따름" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  salaryInfo?: string;
+
+  @ApiPropertyOptional({ example: "서울" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  workLocation?: string;
+
+  @ApiPropertyOptional({ example: "계약직" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  employmentType?: string;
+
   @ApiPropertyOptional({ example: "2026-06-29" })
   @IsOptional()
   @IsDateString()

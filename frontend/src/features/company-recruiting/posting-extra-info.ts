@@ -1,4 +1,10 @@
 export type PostingExtraInfoKey = "career" | "education" | "salary" | "location" | "employmentType";
+export type PostingExtraInfoApiKey =
+  | "careerRequirement"
+  | "educationRequirement"
+  | "salaryInfo"
+  | "workLocation"
+  | "employmentType";
 
 export type PostingExtraInfoField = {
   enabled: boolean;
@@ -9,33 +15,41 @@ export type PostingExtraInfo = Record<PostingExtraInfoKey, PostingExtraInfoField
 
 export type PostingExtraInfoFieldDefinition = {
   key: PostingExtraInfoKey;
+  apiKey: PostingExtraInfoApiKey;
   label: string;
   placeholder: string;
 };
 
+export type PostingExtraInfoApiFields = Partial<Record<PostingExtraInfoApiKey, string | null | undefined>>;
+
 export const postingExtraInfoFields: PostingExtraInfoFieldDefinition[] = [
   {
     key: "career",
+    apiKey: "careerRequirement",
     label: "경력",
     placeholder: "신입 / 경력 3년 이상 / 경력무관",
   },
   {
     key: "education",
+    apiKey: "educationRequirement",
     label: "학력",
     placeholder: "학력무관 / 고졸 / 초대졸 / 대졸 이상",
   },
   {
     key: "salary",
+    apiKey: "salaryInfo",
     label: "급여",
     placeholder: "회사 내규에 따름 / 연봉 4,000만원 이상 / 협의 가능",
   },
   {
     key: "location",
+    apiKey: "workLocation",
     label: "근무지역",
     placeholder: "서울 / 판교 / 원격 / 하이브리드",
   },
   {
     key: "employmentType",
+    apiKey: "employmentType",
     label: "근무형태",
     placeholder: "정규직 / 계약직 / 인턴 / 프리랜서",
   },
@@ -85,8 +99,50 @@ export function extractPostingExtraInfo(jobDescription: string | null | undefine
   };
 }
 
+export function postingExtraInfoToApiFields(extraInfo: PostingExtraInfo): Record<PostingExtraInfoApiKey, string | null> {
+  return Object.fromEntries(
+    postingExtraInfoFields.map((field) => {
+      const value = extraInfo[field.key].enabled ? extraInfo[field.key].value.trim() : "";
+      return [field.apiKey, value || null];
+    }),
+  ) as Record<PostingExtraInfoApiKey, string | null>;
+}
+
+export function postingExtraInfoFromApiFields(
+  fields: PostingExtraInfoApiFields,
+  fallback: PostingExtraInfo = createEmptyPostingExtraInfo(),
+): PostingExtraInfo {
+  const hasApiValue = postingExtraInfoFields.some((field) => normalizeApiValue(fields[field.apiKey]));
+  const base = hasApiValue ? createEmptyPostingExtraInfo() : clonePostingExtraInfo(fallback);
+
+  for (const field of postingExtraInfoFields) {
+    const value = normalizeApiValue(fields[field.apiKey]);
+    if (value) {
+      base[field.key] = { enabled: true, value };
+    }
+  }
+
+  return base;
+}
+
 export function stripPostingExtraInfoBlock(jobDescription: string | null | undefined) {
   return (jobDescription ?? "").replace(extraInfoBlockPattern, "");
+}
+
+function clonePostingExtraInfo(extraInfo: PostingExtraInfo): PostingExtraInfo {
+  return Object.fromEntries(
+    postingExtraInfoFields.map((field) => [
+      field.key,
+      {
+        enabled: extraInfo[field.key].enabled,
+        value: extraInfo[field.key].value,
+      },
+    ]),
+  ) as PostingExtraInfo;
+}
+
+function normalizeApiValue(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function buildPostingExtraInfoHtml(extraInfo: PostingExtraInfo) {

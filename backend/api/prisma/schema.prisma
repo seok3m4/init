@@ -219,21 +219,26 @@ model CandidateProfile {
 }
 
 model Posting {
-  postingId      BigInt                 @id @default(autoincrement()) @map("posting_id")
-  companyId      BigInt                 @map("company_id")
-  title          String                 @db.VarChar(200)
-  jobRole        String                 @map("job_role") @db.VarChar(100)
-  jobDescription String?                @map("job_description")
-  startsOn       DateTime?              @map("starts_on") @db.Date
-  endsOn         DateTime?              @map("ends_on") @db.Date
-  status         PostingStatus          @default(DRAFT)
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
-  company        Company                @relation(fields: [companyId], references: [companyId])
-  criteria       EvaluationCriterion[]
-  questions      Question[]
-  applications   Application[]
-  questionSets   InterviewQuestionSet[]
+  postingId            BigInt                 @id @default(autoincrement()) @map("posting_id")
+  companyId            BigInt                 @map("company_id")
+  title                String                 @db.VarChar(200)
+  jobRole              String                 @map("job_role") @db.VarChar(100)
+  jobDescription       String?                @map("job_description")
+  careerRequirement    String?                @map("career_requirement") @db.VarChar(150)
+  educationRequirement String?                @map("education_requirement") @db.VarChar(150)
+  salaryInfo           String?                @map("salary_info") @db.VarChar(150)
+  workLocation         String?                @map("work_location") @db.VarChar(150)
+  employmentType       String?                @map("employment_type") @db.VarChar(150)
+  startsOn             DateTime?              @map("starts_on") @db.Date
+  endsOn               DateTime?              @map("ends_on") @db.Date
+  status               PostingStatus          @default(DRAFT)
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  company              Company                @relation(fields: [companyId], references: [companyId])
+  criteria             EvaluationCriterion[]
+  questions            Question[]
+  applications         Application[]
+  questionSets         InterviewQuestionSet[]
 
   @@index([companyId, status])
   @@map("postings")

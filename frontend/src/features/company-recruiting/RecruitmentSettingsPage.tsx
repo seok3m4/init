@@ -12,6 +12,8 @@ import {
   composeJobDescriptionWithExtraInfo,
   createEmptyPostingExtraInfo,
   extractPostingExtraInfo,
+  postingExtraInfoFromApiFields,
+  postingExtraInfoToApiFields,
   type PostingExtraInfo,
 } from "./posting-extra-info";
 import type { Recruitment } from "./types";
@@ -54,6 +56,7 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
       try {
         const result = await getRecruitment(recruitmentId);
         const parsedJobDescription = extractPostingExtraInfo(result.data.jobDescription);
+        const extraInfo = postingExtraInfoFromApiFields(result.data, parsedJobDescription.extraInfo);
         setRecruitment(result.data);
         setForm({
           title: result.data.title,
@@ -62,7 +65,7 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
           endsOn: result.data.endsOn ?? "",
           status: result.data.status === "DRAFT" ? "DRAFT" : "OPEN",
           jobDescription: parsedJobDescription.jobDescription,
-          extraInfo: parsedJobDescription.extraInfo,
+          extraInfo,
         });
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "공고 설정을 불러오지 못했습니다.");
@@ -79,6 +82,7 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
     setMessage("");
     try {
       const jobDescription = composeJobDescriptionWithExtraInfo(form.jobDescription, form.extraInfo);
+      const extraInfoFields = postingExtraInfoToApiFields(form.extraInfo);
       await updateRecruitment(recruitmentId, {
         title: form.title,
         jobRole: form.jobRole,
@@ -86,6 +90,7 @@ export function RecruitmentSettingsPage({ recruitmentId }: { recruitmentId: numb
         endsOn: form.endsOn || undefined,
         status: form.status,
         jobDescription: jobDescription || undefined,
+        ...extraInfoFields,
       });
       router.push(`/company/recruitments/${recruitmentId}`);
     } catch (error) {

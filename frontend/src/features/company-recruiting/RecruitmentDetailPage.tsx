@@ -7,7 +7,7 @@ import { getRecruitment, listRecruitmentApplicants, updateScreeningStatus } from
 import { Breadcrumb } from "./CompanyRecruitingChrome";
 import { JobDescriptionViewer } from "./JobDescriptionViewer";
 import { PostingExtraInfoSummary } from "./PostingExtraInfoFields";
-import { extractPostingExtraInfo } from "./posting-extra-info";
+import { extractPostingExtraInfo, postingExtraInfoFromApiFields } from "./posting-extra-info";
 import { getPublicApplicationLinkState } from "./public-application-link";
 import { buildInterviewSettingsHref } from "./routes";
 import {
@@ -156,6 +156,9 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
   const reportCompleted = applicants.filter((item) => item.report && isCompleted(item.report.status)).length;
   const completionRate = applicants.length === 0 ? 0 : Math.round((completedInterviews / applicants.length) * 100);
   const parsedJobDescription = extractPostingExtraInfo(recruitment?.jobDescription);
+  const postingExtraInfo = recruitment
+    ? postingExtraInfoFromApiFields(recruitment, parsedJobDescription.extraInfo)
+    : parsedJobDescription.extraInfo;
 
   return (
     <section className="app-page glass-page">
@@ -226,7 +229,7 @@ export function RecruitmentDetailPage({ recruitmentId }: { recruitmentId: number
               </button>
               {isRecruitmentInfoOpen ? (
                 <div className="info-toggle-body" id="recruitment-info-content">
-                  <PostingExtraInfoSummary value={parsedJobDescription.extraInfo} />
+                  <PostingExtraInfoSummary value={postingExtraInfo} />
                   <div className="description-box">
                     <JobDescriptionViewer
                       value={parsedJobDescription.jobDescription}

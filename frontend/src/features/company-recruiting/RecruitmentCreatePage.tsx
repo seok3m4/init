@@ -11,6 +11,7 @@ import { PostingExtraInfoFields } from "./PostingExtraInfoFields";
 import {
   composeJobDescriptionWithExtraInfo,
   createEmptyPostingExtraInfo,
+  postingExtraInfoToApiFields,
   type PostingExtraInfo,
 } from "./posting-extra-info";
 import { buildInterviewSettingsHref } from "./routes";
@@ -47,6 +48,7 @@ export function RecruitmentCreatePage() {
     setMessage("");
     try {
       const jobDescription = composeJobDescriptionWithExtraInfo(form.jobDescription, form.extraInfo);
+      const extraInfoFields = postingExtraInfoToApiFields(form.extraInfo);
       const result = await createRecruitment({
         title: form.title,
         jobRole: form.jobRole,
@@ -54,6 +56,7 @@ export function RecruitmentCreatePage() {
         endsOn: form.endsOn || undefined,
         status: "DRAFT",
         jobDescription: jobDescription || undefined,
+        ...extraInfoFields,
       });
       router.push(buildInterviewSettingsHref(result.data.recruitmentId));
     } catch (error) {
