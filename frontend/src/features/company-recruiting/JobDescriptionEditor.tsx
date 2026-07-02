@@ -75,21 +75,6 @@ export function JobDescriptionEditor({ value, onChange, disabled = false, upload
     editor.chain().focus().extendMarkRange("link").setLink({ href: nextUrl.trim() }).run();
   }
 
-  function addImageUrl() {
-    if (!editor || disabled) {
-      return;
-    }
-
-    const imageUrl = window.prompt("삽입할 이미지 URL을 입력하세요.");
-    const trimmedUrl = imageUrl?.trim();
-
-    if (!trimmedUrl) {
-      return;
-    }
-
-    editor.chain().focus().setImage({ src: trimmedUrl }).run();
-  }
-
   function openImageFilePicker() {
     if (!editor || disabled || isImageUploading) {
       return;
@@ -296,9 +281,6 @@ export function JobDescriptionEditor({ value, onChange, disabled = false, upload
         <div className="jd-toolbar-group">
           <button className="jd-toolbar-button" type="button" disabled={disabled} onClick={setLink}>
             링크
-          </button>
-          <button className="jd-toolbar-button" type="button" disabled={disabled} onClick={addImageUrl}>
-            이미지 URL
           </button>
           <button className="jd-toolbar-button" type="button" disabled={disabled || isImageUploading} onClick={openImageFilePicker}>
             {isImageUploading ? "업로드 중" : "이미지 업로드"}
