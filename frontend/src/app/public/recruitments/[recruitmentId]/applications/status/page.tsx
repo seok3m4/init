@@ -2,9 +2,16 @@ import { PublicApplicationStatusPage } from "@/features/company-recruiting/Publi
 
 type Props = {
   params: Promise<{ recruitmentId: string }>;
+  searchParams: Promise<{ token?: string }>;
 };
 
-export default async function PublicApplicationStatusRoute({ params }: Props) {
+export default async function PublicApplicationStatusRoute({ params, searchParams }: Props) {
   const { recruitmentId } = await params;
-  return <PublicApplicationStatusPage recruitmentId={Number(recruitmentId)} />;
+  const { token } = await searchParams;
+  return (
+    <PublicApplicationStatusPage
+      backHref={`/public/recruitments/${Number(recruitmentId)}/apply`}
+      token={token}
+    />
+  );
 }

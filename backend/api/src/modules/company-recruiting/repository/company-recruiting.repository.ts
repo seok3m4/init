@@ -77,6 +77,7 @@ export type CompanyRecruitingRepositoryPort = {
   findPostingForCompany(postingId: number, companyId: number): Promise<RecruitmentRecord | null>;
   findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null>;
   findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null>;
+  findPublicApplicationStatusById(applicationId: number): Promise<ApplicantRecord | null>;
   findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }>;
   findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }>;
   createApplication(input: CreateApplicationInput): Promise<ApplicantRecord>;
@@ -192,6 +193,14 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
       select: { applicationId: true },
     });
     return application ? { applicationId: Number(application.applicationId) } : null;
+  }
+
+  async findPublicApplicationStatusById(applicationId: number): Promise<ApplicantRecord | null> {
+    const application = await this.prisma.application.findUnique({
+      where: { applicationId: BigInt(applicationId) },
+      include: applicantInclude,
+    });
+    return application ? mapApplicant(application) : null;
   }
 
   async findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }> {

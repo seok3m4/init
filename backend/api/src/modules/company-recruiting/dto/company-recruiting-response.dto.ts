@@ -119,11 +119,69 @@ export class PublicApplicationResponseDto {
   @ApiProperty({ example: true })
   temporary!: boolean;
 
-  @ApiProperty({ example: "B_MODULE_PUBLIC_APPLICATION_AUTH_ADAPTER" })
-  temporaryBoundary!: string;
+  @ApiPropertyOptional({ nullable: true, example: null })
+  temporaryBoundary!: string | null;
 
-  @ApiProperty({ enum: ["NOT_SENT_TEMPORARY"], example: "NOT_SENT_TEMPORARY" })
+  @ApiProperty({ enum: ["SENT", "FAILED", "NOT_SENT_TEMPORARY"], example: "SENT" })
   magicLinkDeliveryStatus!: string;
+
+  @ApiProperty({ example: 604800 })
+  magicLinkExpiresInSeconds!: number;
+}
+
+export class PublicApplicationAccessLinkResponseDto {
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ enum: ["PENDING"], example: "PENDING" })
+  emailVerificationStatus!: string;
+
+  @ApiProperty({ enum: ["CHECK_EMAIL"], example: "CHECK_EMAIL" })
+  nextAction!: string;
+
+  @ApiProperty({ enum: ["SENT", "FAILED"], example: "SENT" })
+  magicLinkDeliveryStatus!: string;
+
+  @ApiProperty({ example: 604800 })
+  magicLinkExpiresInSeconds!: number;
+}
+
+export class PublicApplicationStatusResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ example: "김지원" })
+  name!: string;
+
+  @ApiProperty({ example: "Backend Developer" })
+  jobRole!: string;
+
+  @ApiProperty({ example: "SUBMITTED" })
+  applicationStatus!: string;
+
+  @ApiProperty({ example: "NOT_SUBMITTED" })
+  documentStatus!: string;
+
+  @ApiProperty({ example: "NOT_READY" })
+  interviewStatus!: string;
+
+  @ApiProperty({ example: "PENDING" })
+  reportStatus!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-06-29T00:00:00.000Z" })
+  submittedAt!: string | null;
+
+  @ApiProperty({ example: "2026-06-29T00:00:00.000Z" })
+  updatedAt!: string;
 }
 
 export class InterviewSessionSummaryDto {

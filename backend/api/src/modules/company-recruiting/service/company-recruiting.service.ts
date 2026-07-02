@@ -16,6 +16,7 @@ import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
 import type { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import type { ListQueryDto } from "../dto/list-query.dto";
+import type { RequestPublicApplicationAccessLinkDto } from "../dto/request-public-application-access-link.dto";
 import type { SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
 import type { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
@@ -192,6 +193,57 @@ export class CompanyRecruitingService {
       applicationStatus: application.applicationStatus,
       ...verification,
     };
+  }
+
+  async requestPublicApplicationAccessLink(recruitmentId: number, dto: RequestPublicApplicationAccessLinkDto) {
+    const posting = await this.repository.findOpenPostingForPublic(recruitmentId);
+    if (!posting) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공개 지원 가능한 공고를 찾을 수 없습니다.");
+    }
+
+    const email = normalizeEmail(dto.email);
+    if (!isValidEmail(email)) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "이메일 형식이 올바르지 않습니다.", [
+        { field: "email", reason: "INVALID_EMAIL" },
+      ]);
+    }
+
+    const application = await this.repository.findApplicationByPostingAndEmail(recruitmentId, email);
+    if (!application) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "해당 이메일로 제출된 지원서를 찾을 수 없습니다.");
+    }
+
+    const verification = await this.publicApplicationAuthAdapter.requestEmailVerification({
+      applicationId: application.applicationId,
+      recruitmentId,
+      email,
+    });
+
+    return {
+      recruitmentId,
+      email,
+      emailVerificationStatus: verification.emailVerificationStatus,
+      nextAction: verification.nextAction,
+      magicLinkDeliveryStatus: verification.magicLinkDeliveryStatus,
+      magicLinkExpiresInSeconds: verification.magicLinkExpiresInSeconds,
+    };
+  }
+
+  async getPublicApplicationStatusByMagicLink(token: string) {
+    const payload = await this.publicApplicationAuthAdapter.verifyApplicationStatusToken(token);
+    if (!payload) {
+      throw new CompanyRecruitingException(401, ERROR_CODES.COMMON_UNAUTHORIZED, "매직링크가 만료되었거나 유효하지 않습니다.");
+    }
+
+    const application = await this.repository.findPublicApplicationStatusById(payload.applicationId);
+    if (!application) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원서를 찾을 수 없습니다.");
+    }
+    if (application.postingId !== payload.recruitmentId || normalizeEmail(application.candidate.user.email) !== normalizeEmail(payload.email)) {
+      throw new CompanyRecruitingException(401, ERROR_CODES.COMMON_UNAUTHORIZED, "매직링크가 지원서 정보와 일치하지 않습니다.");
+    }
+
+    return toPublicApplicationStatusResponse(application);
   }
 
   async deleteRecruitment(user: CurrentUser, recruitmentId: number) {
@@ -730,6 +782,22 @@ function toApplicantEvaluationResponse(application: ApplicantRecord) {
           })),
         }
       : null,
+  };
+}
+
+function toPublicApplicationStatusResponse(application: ApplicantRecord) {
+  return {
+    applicationId: application.applicationId,
+    recruitmentId: application.postingId,
+    email: application.candidate.user.email,
+    name: application.candidate.user.name,
+    jobRole: application.posting.jobRole,
+    applicationStatus: application.applicationStatus,
+    documentStatus: application.documentStatus,
+    interviewStatus: application.interviewStatus,
+    reportStatus: application.reportStatus,
+    submittedAt: application.submittedAt?.toISOString() ?? null,
+    updatedAt: application.updatedAt.toISOString(),
   };
 }
 

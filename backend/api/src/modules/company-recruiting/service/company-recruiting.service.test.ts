@@ -129,6 +129,10 @@ function createRepository(overrides: Record<string, unknown> = {}) {
       calls.findApplicationByPostingAndEmail = [postingId, email];
       return null;
     },
+    async findPublicApplicationStatusById(applicationId: number) {
+      calls.findPublicApplicationStatusById = [applicationId];
+      return applicationId === applicant.applicationId ? applicant : null;
+    },
     async findOrCreateCandidate(input: unknown) {
       calls.findOrCreateCandidate = [input];
       return { candidateId: 44 };
@@ -227,7 +231,15 @@ function createInvitationAdapter() {
   };
 }
 
-function createPublicApplicationAuthAdapter() {
+function createPublicApplicationAuthAdapter(
+  tokenPayload: { applicationId: number; recruitmentId: number; email: string; purpose: "PUBLIC_APPLICATION_STATUS"; createdAt: string } | null = {
+    applicationId: 77,
+    recruitmentId: 101,
+    email: "kim@example.com",
+    purpose: "PUBLIC_APPLICATION_STATUS",
+    createdAt: "2026-06-29T00:00:00.000Z",
+  },
+) {
   const calls: Record<string, unknown[]> = {};
   return {
     calls,
@@ -236,10 +248,15 @@ function createPublicApplicationAuthAdapter() {
       return {
         emailVerificationStatus: "PENDING" as const,
         nextAction: "CHECK_EMAIL" as const,
-        temporary: true as const,
-        temporaryBoundary: "B_MODULE_PUBLIC_APPLICATION_AUTH_ADAPTER" as const,
-        magicLinkDeliveryStatus: "NOT_SENT_TEMPORARY" as const,
+        temporary: false as const,
+        temporaryBoundary: null,
+        magicLinkDeliveryStatus: "SENT" as const,
+        magicLinkExpiresInSeconds: 604800,
       };
+    },
+    async verifyApplicationStatusToken(token: string) {
+      calls.verifyApplicationStatusToken = [token];
+      return tokenPayload;
     },
   };
 }
@@ -391,9 +408,51 @@ describe("CompanyRecruitingService", () => {
     assert.equal(result.applicationStatus, "SUBMITTED");
     assert.equal(result.emailVerificationStatus, "PENDING");
     assert.equal(result.nextAction, "CHECK_EMAIL");
-    assert.equal(result.temporary, true);
-    assert.equal(result.temporaryBoundary, "B_MODULE_PUBLIC_APPLICATION_AUTH_ADAPTER");
-    assert.equal(result.magicLinkDeliveryStatus, "NOT_SENT_TEMPORARY");
+    assert.equal(result.temporary, false);
+    assert.equal(result.temporaryBoundary, null);
+    assert.equal(result.magicLinkDeliveryStatus, "SENT");
+    assert.equal(result.magicLinkExpiresInSeconds, 604800);
+  });
+
+  it("returns public application status only after magic link token verification", async () => {
+    const repository = createRepository();
+    const invitationAdapter = createInvitationAdapter();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
+    const service = new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter);
+
+    const result = await (service as unknown as { getPublicApplicationStatusByMagicLink(token: string): Promise<unknown> })
+      .getPublicApplicationStatusByMagicLink("valid-token");
+
+    assert.deepEqual(publicApplicationAuthAdapter.calls.verifyApplicationStatusToken, ["valid-token"]);
+    assert.deepEqual(repository.calls.findPublicApplicationStatusById, [77]);
+    assert.deepEqual(result, {
+      applicationId: 77,
+      recruitmentId: 101,
+      email: "kim@example.com",
+      name: "Kim Applicant",
+      jobRole: "Backend",
+      applicationStatus: "SUBMITTED",
+      documentStatus: "NOT_SUBMITTED",
+      interviewStatus: "NOT_READY",
+      reportStatus: "PENDING",
+      submittedAt: null,
+      updatedAt: "2026-06-29T00:00:00.000Z",
+    });
+  });
+
+  it("rejects public application status when magic link token is invalid", async () => {
+    const repository = createRepository();
+    const invitationAdapter = createInvitationAdapter();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter(null);
+    const service = new CompanyRecruitingService(repository, invitationAdapter, publicApplicationAuthAdapter);
+
+    await assert.rejects(
+      () =>
+        (service as unknown as { getPublicApplicationStatusByMagicLink(token: string): Promise<unknown> })
+          .getPublicApplicationStatusByMagicLink("expired-token"),
+      /매직링크/,
+    );
+    assert.equal(repository.calls.findPublicApplicationStatusById, undefined);
   });
 
   it("rejects duplicate public application emails", async () => {

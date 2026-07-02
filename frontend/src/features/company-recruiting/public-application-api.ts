@@ -38,8 +38,32 @@ export type PublicApplicationResult = {
   emailVerificationStatus: "PENDING";
   nextAction: "CHECK_EMAIL";
   temporary: boolean;
-  temporaryBoundary: string;
-  magicLinkDeliveryStatus: "NOT_SENT_TEMPORARY";
+  temporaryBoundary: string | null;
+  magicLinkDeliveryStatus: "SENT" | "FAILED" | "NOT_SENT_TEMPORARY";
+  magicLinkExpiresInSeconds: number;
+};
+
+export type PublicApplicationAccessLinkResult = {
+  recruitmentId: number;
+  email: string;
+  emailVerificationStatus: "PENDING";
+  nextAction: "CHECK_EMAIL";
+  magicLinkDeliveryStatus: "SENT" | "FAILED";
+  magicLinkExpiresInSeconds: number;
+};
+
+export type PublicApplicationStatus = {
+  applicationId: number;
+  recruitmentId: number;
+  email: string;
+  name: string;
+  jobRole: string;
+  applicationStatus: string;
+  documentStatus: string;
+  interviewStatus: string;
+  reportStatus: string;
+  submittedAt: string | null;
+  updatedAt: string;
 };
 
 export async function getPublicRecruitment(recruitmentId: number) {
@@ -51,6 +75,18 @@ export async function submitPublicApplication(recruitmentId: number, input: Publ
     method: "POST",
     body: input,
   });
+}
+
+export async function requestPublicApplicationAccessLink(recruitmentId: number, email: string) {
+  return request<PublicApplicationAccessLinkResult>(`/public/recruitments/${recruitmentId}/applications/access-link`, {
+    method: "POST",
+    body: { email },
+  });
+}
+
+export async function getPublicApplicationStatus(token: string) {
+  const searchParams = new URLSearchParams({ token });
+  return request<PublicApplicationStatus>(`/public/applications/status?${searchParams.toString()}`);
 }
 
 async function request<T>(

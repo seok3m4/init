@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   getPublicRecruitment,
+  requestPublicApplicationAccessLink,
   submitPublicApplication,
   type PublicApplicationInput,
   type PublicRecruitment,
@@ -30,7 +31,9 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
   const [form, setForm] = useState<PublicApplicationInput>(initialForm);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [deliveryStatus, setDeliveryStatus] = useState<"SENT" | "FAILED" | "NOT_SENT_TEMPORARY" | "">("");
 
   const loadRecruitment = useCallback(async () => {
     setState({ loading: true });
@@ -70,17 +73,35 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
         resumeText: emptyToUndefined(form.resumeText),
       });
       setSubmittedEmail(result.data.email);
-      setMessage(
-        result.data.temporary
-          ? "지원서가 접수되었습니다. 이메일 인증과 매직 링크 발송은 현재 임시 처리 상태입니다."
-          : "지원서가 접수되었습니다. 이메일 확인 후 지원 현황과 면접 안내를 확인할 수 있습니다.",
-      );
+      setDeliveryStatus(result.data.magicLinkDeliveryStatus);
+      setMessage(buildDeliveryMessage(result.data.magicLinkDeliveryStatus));
       setForm(initialForm);
     } catch (error) {
       setMessage(toErrorMessage(error));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleResendAccessLink() {
+    if (!submittedEmail) return;
+    setResending(true);
+    setMessage("");
+    try {
+      const result = await requestPublicApplicationAccessLink(recruitmentId, submittedEmail);
+      setDeliveryStatus(result.data.magicLinkDeliveryStatus);
+      setMessage(buildDeliveryMessage(result.data.magicLinkDeliveryStatus));
+    } catch (error) {
+      setMessage(toErrorMessage(error));
+    } finally {
+      setResending(false);
+    }
+  }
+
+  function resetSubmittedState() {
+    setSubmittedEmail("");
+    setDeliveryStatus("");
+    setMessage("");
   }
 
   return (
@@ -143,16 +164,20 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
                   <p className="notice">{message || "지원서가 접수되었습니다. 이메일 안내를 확인해주세요."}</p>
                   <dl className="detail-list">
                     <DetailItem label="지원 이메일" value={submittedEmail} />
-                    <DetailItem label="다음 단계" value="이메일 인증 / 매직링크 확인" />
+                    <DetailItem label="메일 발송 상태" value={formatDeliveryStatus(deliveryStatus)} />
+                    <DetailItem label="다음 단계" value="이메일 매직링크 확인" />
                     <DetailItem label="면접 안내" value="면접 세션이 준비되면 지원 현황 화면에서 확인" />
                   </dl>
                   <div className="empty">
-                    실제 메일 발송 연동 후에는 이 단계에서 지원자 이메일로 매직링크가 발송되고, 지원자는 링크를 눌러
-                    지원 현황 화면으로 다시 들어오게 됩니다.
+                    지원 현황은 이메일로 받은 매직링크에서만 확인할 수 있습니다. 링크가 만료되었거나 메일을 받지 못했다면
+                    아래 버튼으로 다시 요청해주세요.
                   </div>
                   <div className="form-actions">
-                    <button className="btn secondary" type="button" onClick={() => setSubmittedEmail("")}>
+                    <button className="btn secondary" type="button" onClick={resetSubmittedState}>
                       다른 이메일로 지원
+                    </button>
+                    <button className="btn primary" disabled={resending} type="button" onClick={handleResendAccessLink}>
+                      {resending ? "발송 중" : "매직링크 다시 보내기"}
                     </button>
                   </div>
                 </div>
@@ -253,6 +278,23 @@ function formatDateRange(startsOn: string | null, endsOn: string | null) {
 function emptyToUndefined(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function buildDeliveryMessage(status: "SENT" | "FAILED" | "NOT_SENT_TEMPORARY") {
+  if (status === "SENT") {
+    return "지원서가 접수되었습니다. 이메일로 보낸 매직링크에서 지원 현황과 면접 안내를 확인할 수 있습니다.";
+  }
+  if (status === "FAILED") {
+    return "지원서가 접수되었지만 메일 발송에 실패했습니다. 매직링크 다시 보내기를 눌러 재요청해주세요.";
+  }
+  return "지원서가 접수되었습니다. 이메일 인증과 매직링크 발송은 현재 임시 처리 상태입니다.";
+}
+
+function formatDeliveryStatus(status: "SENT" | "FAILED" | "NOT_SENT_TEMPORARY" | "") {
+  if (status === "SENT") return "발송 완료";
+  if (status === "FAILED") return "발송 실패";
+  if (status === "NOT_SENT_TEMPORARY") return "임시 미발송";
+  return "-";
 }
 
 function toErrorMessage(error: unknown) {

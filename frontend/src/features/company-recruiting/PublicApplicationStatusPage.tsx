@@ -1,8 +1,37 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 
-export function PublicApplicationStatusPage({ recruitmentId }: { recruitmentId: number }) {
+import { getPublicApplicationStatus, type PublicApplicationStatus } from "./public-application-api";
+
+type AsyncState<T> = {
+  data?: T;
+  loading: boolean;
+  error?: string;
+};
+
+export function PublicApplicationStatusPage({ token, backHref = "/" }: { token?: string; backHref?: string }) {
+  const [state, setState] = useState<AsyncState<PublicApplicationStatus>>({ loading: Boolean(token) });
+
+  const loadStatus = useCallback(async () => {
+    if (!token) {
+      setState({ loading: false });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const result = await getPublicApplicationStatus(token);
+      setState({ data: result.data, loading: false });
+    } catch (error) {
+      setState({ loading: false, error: toErrorMessage(error) });
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
+
   return (
     <main className="app-shell">
       <section className="app-page glass-page">
@@ -12,25 +41,62 @@ export function PublicApplicationStatusPage({ recruitmentId }: { recruitmentId: 
             <h1>지원 현황 확인</h1>
             <p className="page-sub">이 화면은 이메일로 받은 매직링크를 통해 접근하는 지원자 전용 화면입니다.</p>
           </div>
-          <Link className="btn secondary" href={`/public/recruitments/${recruitmentId}/apply`}>
-            지원 폼으로
+          <Link className="btn secondary" href={backHref}>
+            돌아가기
           </Link>
         </header>
+
+        {state.loading ? <p className="notice">지원 현황을 확인하는 중입니다.</p> : null}
+        {state.error ? <p className="notice danger">{state.error}</p> : null}
 
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>매직링크 연동 대기</h2>
+              <h2>{state.data ? `${state.data.name}님의 지원 현황` : "매직링크 확인"}</h2>
               <p>지원 현황은 이메일 소유 확인이 끝난 지원자에게만 공개됩니다.</p>
             </div>
           </div>
-          <div className="empty">
-            현재는 이메일 입력만으로 다른 지원자의 현황이 노출되지 않도록 직접 조회 기능을 막아두었습니다. A/Auth의
-            매직링크 토큰 발급과 검증 방식이 확정되면, 이메일 링크로 이 화면에 들어온 지원자에게만 지원 상태와 면접
-            안내를 표시합니다.
-          </div>
+          {!token ? (
+            <div className="empty">
+              지원 현황은 이메일로 받은 매직링크에서만 확인할 수 있습니다. 지원서를 제출한 뒤 받은 메일의 링크로 다시
+              접속해주세요.
+            </div>
+          ) : null}
+          {state.data ? (
+            <dl className="detail-list">
+              <DetailItem label="지원자" value={state.data.name} />
+              <DetailItem label="이메일" value={state.data.email} />
+              <DetailItem label="직무" value={state.data.jobRole} />
+              <DetailItem label="지원 상태" value={state.data.applicationStatus} />
+              <DetailItem label="서류 상태" value={state.data.documentStatus} />
+              <DetailItem label="면접 상태" value={state.data.interviewStatus} />
+              <DetailItem label="리포트 상태" value={state.data.reportStatus} />
+              <DetailItem label="최종 갱신" value={formatDateTime(state.data.updatedAt)} />
+            </dl>
+          ) : null}
         </section>
       </section>
     </main>
   );
+}
+
+function DetailItem({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{value || "-"}</dd>
+    </>
+  );
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function toErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "요청 처리 중 오류가 발생했습니다.";
 }
