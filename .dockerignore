@@ -1,0 +1,29 @@
+.git
+.github
+.DS_Store
+
+# Local environment files. Keep .env.example tracked and available outside Docker.
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/.next
+dist
+**/dist
+build
+coverage
+.understand-anything
+*.tsbuildinfo
+
+# Logs and local-only artifacts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+nogitdocs

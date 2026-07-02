@@ -252,8 +252,14 @@ verify_dev_auth_seed() {
 verify_docker() {
   step "verify-docker"
 
-  local dockerfiles
-  dockerfiles="$(find "$ROOT" -type f -name 'Dockerfile*' ! -path '*/node_modules/*' ! -path '*/.git/*' | sort)"
+  local docker_root dockerfiles
+  docker_root="$ROOT/infra/docker"
+  if [[ ! -d "$docker_root" ]]; then
+    echo "[skip] no Dockerfile found"
+    return 0
+  fi
+
+  dockerfiles="$(find "$docker_root" -maxdepth 1 -type f -name '*.Dockerfile' | sort)"
   if [[ -z "$dockerfiles" ]]; then
     echo "[skip] no Dockerfile found"
     return 0
@@ -265,10 +271,10 @@ verify_docker() {
     echo "[ok] Dockerfile syntax baseline: $file"
     if [[ "$BUILD_DOCKER" -eq 1 ]]; then
       command -v docker >/dev/null 2>&1 || { echo "[fail] docker command is not available"; return 1; }
-      local context tag
-      context="$(dirname "$file")"
-      tag="init-local-$(basename "$context" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/-/g')"
-      docker build -f "$file" -t "$tag" "$context"
+      local tag_name tag
+      tag_name="$(basename "$file" .Dockerfile | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/-/g')"
+      tag="init-local-$tag_name"
+      docker build -f "$file" -t "$tag" "$ROOT"
     fi
   done <<< "$dockerfiles"
 
