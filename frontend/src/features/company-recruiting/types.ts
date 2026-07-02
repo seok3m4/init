@@ -49,6 +49,18 @@ export type Recruitment = {
 
 export type RecruitmentStatus = Recruitment["status"];
 
+export type JobDescriptionImageUploadResponse = {
+  fileId: number;
+  ownerUserId: number;
+  storageKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: "UPLOADED" | "PROCESSING" | "READY" | "FAILED" | "DELETED";
+  createdAt: string;
+  url: string;
+};
+
 export type CreateRecruitmentInput = {
   title: string;
   jobRole: string;

@@ -746,6 +746,17 @@ textarea:focus {
   cursor: pointer;
 }
 
+.jd-file-input {
+  display: none;
+}
+
+.jd-upload-message {
+  margin: 10px 18px 0;
+  color: #c8392f;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
 .jd-editor-shell {
   min-height: 620px;
   padding: 54px min(8vw, 78px) 68px;

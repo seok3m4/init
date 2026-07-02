@@ -9,6 +9,7 @@ import type {
   CreateRecruitmentInput,
   InvitationResult,
   InviteApplicantInput,
+  JobDescriptionImageUploadResponse,
   Recruitment,
   RecruitmentStatus,
   UpdateScreeningStatusInput,
@@ -74,6 +75,13 @@ export async function deleteRecruitment(recruitmentId: number) {
   });
 }
 
+export async function uploadJobDescriptionImage(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return requestFormData<JobDescriptionImageUploadResponse>("/company/recruitments/jd-images", formData);
+}
+
 export async function listRecruitmentApplicants(recruitmentId: number, query: ListQuery = {}) {
   return request<{ items: Applicant[] }>(`/company/recruitments/${recruitmentId}/applicants`, { query });
 }
@@ -131,6 +139,23 @@ async function request<T>(
       "Content-Type": "application/json",
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const payload = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
+  if (!response.ok || "error" in payload) {
+    const message = "error" in payload ? payload.error.message : "요청 처리 중 오류가 발생했습니다.";
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+async function requestFormData<T>(path: string, body: FormData): Promise<ApiEnvelope<T>> {
+  const url = new URL(`/api/v1${path}`, API_BASE_URL);
+
+  const response = await authFetch(url.toString(), {
+    method: "POST",
+    body,
   });
 
   const payload = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
