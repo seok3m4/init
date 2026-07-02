@@ -12,6 +12,7 @@ import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
 import type { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import type { ListQueryDto } from "../dto/list-query.dto";
+import type { SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
 import type { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 import type { CompanyRecruitingRepositoryPort } from "../repository/company-recruiting.repository";
@@ -128,6 +129,55 @@ export class CompanyRecruitingService {
       throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공개 지원 가능한 공고를 찾을 수 없습니다.");
     }
     return toPublicRecruitmentResponse(posting);
+  }
+
+  async submitPublicApplication(recruitmentId: number, dto: SubmitPublicApplicationDto) {
+    const posting = await this.repository.findOpenPostingForPublic(recruitmentId);
+    if (!posting) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "공개 지원 가능한 공고를 찾을 수 없습니다.");
+    }
+    if (!dto.consentAgreed) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "개인정보 수집 및 채용 절차 이용 동의가 필요합니다.", [
+        { field: "consentAgreed", reason: "REQUIRED" },
+      ]);
+    }
+
+    validateApplicantName(dto.name);
+    const email = normalizeEmail(dto.email);
+    if (!isValidEmail(email)) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "이메일 형식이 올바르지 않습니다.", [
+        { field: "email", reason: "INVALID_EMAIL" },
+      ]);
+    }
+
+    const duplicate = await this.repository.findApplicationByPostingAndEmail(recruitmentId, email);
+    if (duplicate) {
+      throw new CompanyRecruitingException(409, ERROR_CODES.COMMON_CONFLICT, "이미 이 공고에 지원한 이메일입니다.", [
+        { field: "email", reason: "DUPLICATED_IN_RECRUITMENT" },
+      ]);
+    }
+
+    const candidate = await this.repository.findOrCreatePublicCandidate({
+      name: dto.name.trim(),
+      email,
+      phone: normalizeNullableString(dto.phone),
+      portfolioUrl: normalizeNullableString(dto.portfolioUrl),
+      summary: normalizeNullableString(dto.resumeText),
+    });
+    const application = await this.repository.createApplication({
+      postingId: recruitmentId,
+      candidateId: candidate.candidateId,
+      screeningMemo: null,
+    });
+
+    return {
+      applicationId: application.applicationId,
+      recruitmentId: application.postingId,
+      email,
+      applicationStatus: application.applicationStatus,
+      emailVerificationStatus: "PENDING" as const,
+      nextAction: "CHECK_EMAIL" as const,
+    };
   }
 
   async deleteRecruitment(user: CurrentUser, recruitmentId: number) {

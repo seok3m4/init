@@ -1,9 +1,10 @@
-import { Controller, Get, Inject, Param, ParseIntPipe, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, ParseIntPipe, Post, Req } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 
 import { ok, type RequestLike } from "../../../shared/response-envelope";
 import { ApiEnvelopeResponse, ApiErrorResponses, ApiOperationId, ApiParamId } from "../../../swagger/swagger.decorators";
-import { PublicRecruitmentResponseDto } from "../dto/company-recruiting-response.dto";
+import { PublicApplicationResponseDto, PublicRecruitmentResponseDto } from "../dto/company-recruiting-response.dto";
+import { SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
 import { CompanyRecruitingService } from "../service/company-recruiting.service";
 
 @ApiTags("Public Recruitment")
@@ -22,6 +23,20 @@ export class PublicRecruitmentController {
     @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
   ) {
     const data = await this.companyRecruitingService.getPublicRecruitment(recruitmentId);
+    return ok(request, data);
+  }
+
+  @Post(":recruitmentId/applications")
+  @ApiOperationId("API-087")
+  @ApiOperation({ summary: "공개 지원 폼 제출" })
+  @ApiParamId("recruitmentId", "채용 공고 ID")
+  @ApiEnvelopeResponse(PublicApplicationResponseDto, 201)
+  async submitPublicApplication(
+    @Req() request: RequestLike,
+    @Param("recruitmentId", ParseIntPipe) recruitmentId: number,
+    @Body() dto: SubmitPublicApplicationDto,
+  ) {
+    const data = await this.companyRecruitingService.submitPublicApplication(recruitmentId, dto);
     return ok(request, data);
   }
 }

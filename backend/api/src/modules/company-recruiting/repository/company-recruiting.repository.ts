@@ -47,6 +47,11 @@ export type CreateCandidateInput = {
   phone: string | null;
 };
 
+export type CreatePublicCandidateInput = CreateCandidateInput & {
+  portfolioUrl: string | null;
+  summary: string | null;
+};
+
 export type CreateApplicationInput = {
   postingId: number;
   candidateId: number;
@@ -68,6 +73,7 @@ export type CompanyRecruitingRepositoryPort = {
   findOpenPostingForPublic(postingId: number): Promise<PublicRecruitmentRecord | null>;
   findApplicationByPostingAndEmail(postingId: number, email: string): Promise<{ applicationId: number } | null>;
   findOrCreateCandidate(input: CreateCandidateInput): Promise<{ candidateId: number }>;
+  findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }>;
   createApplication(input: CreateApplicationInput): Promise<ApplicantRecord>;
   listApplicationsForPosting(
     postingId: number,
@@ -219,6 +225,59 @@ export class PrismaCompanyRecruitingRepository implements CompanyRecruitingRepos
         data: {
           userId: user.userId,
           summary: "Registered by company recruiter.",
+        },
+      });
+      return { candidateId: Number(profile.candidateId) };
+    });
+  }
+
+  async findOrCreatePublicCandidate(input: CreatePublicCandidateInput): Promise<{ candidateId: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({
+        where: { email: input.email },
+        include: { candidateProfile: true },
+      });
+
+      if (existingUser?.candidateProfile) {
+        if (input.portfolioUrl || input.summary) {
+          await tx.candidateProfile.update({
+            where: { candidateId: existingUser.candidateProfile.candidateId },
+            data: {
+              ...(input.portfolioUrl ? { portfolioUrl: input.portfolioUrl } : {}),
+              ...(input.summary ? { summary: input.summary } : {}),
+            },
+          });
+        }
+        return { candidateId: Number(existingUser.candidateProfile.candidateId) };
+      }
+
+      if (existingUser) {
+        const profile = await tx.candidateProfile.create({
+          data: {
+            userId: existingUser.userId,
+            portfolioUrl: input.portfolioUrl,
+            summary: input.summary || "Submitted through public application form.",
+          },
+        });
+        return { candidateId: Number(profile.candidateId) };
+      }
+
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          passwordHash: null,
+          userType: UserType.CANDIDATE,
+          name: input.name,
+          phone: input.phone,
+          status: UserStatus.PENDING,
+          authProvider: AuthProvider.LOCAL,
+        },
+      });
+      const profile = await tx.candidateProfile.create({
+        data: {
+          userId: user.userId,
+          portfolioUrl: input.portfolioUrl,
+          summary: input.summary || "Submitted through public application form.",
         },
       });
       return { candidateId: Number(profile.candidateId) };

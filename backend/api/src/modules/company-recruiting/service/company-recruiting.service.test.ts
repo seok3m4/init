@@ -133,6 +133,10 @@ function createRepository(overrides: Record<string, unknown> = {}) {
       calls.findOrCreateCandidate = [input];
       return { candidateId: 44 };
     },
+    async findOrCreatePublicCandidate(input: unknown) {
+      calls.findOrCreatePublicCandidate = [input];
+      return { candidateId: 44 };
+    },
     async createApplication(input: unknown) {
       calls.createApplication = [input];
       return {
@@ -330,6 +334,73 @@ describe("CompanyRecruitingService", () => {
     assert.equal(result.status, "OPEN");
     assert.equal("companyId" in result, false);
     assert.equal("applicantCount" in result, false);
+  });
+
+  it("stores public applications as pending candidate applications", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    const result = await service.submitPublicApplication(101, {
+      name: "김지원",
+      email: " JIWON@EXAMPLE.COM ",
+      phone: "010-0000-0000",
+      portfolioUrl: "https://github.com/jiwon",
+      resumeText: "백엔드 프로젝트 경험이 있습니다.",
+      consentAgreed: true,
+    });
+
+    assert.deepEqual(repository.calls.findOpenPostingForPublic, [101]);
+    assert.deepEqual(repository.calls.findApplicationByPostingAndEmail, [101, "jiwon@example.com"]);
+    assert.deepEqual(repository.calls.findOrCreatePublicCandidate, [
+      {
+        name: "김지원",
+        email: "jiwon@example.com",
+        phone: "010-0000-0000",
+        portfolioUrl: "https://github.com/jiwon",
+        summary: "백엔드 프로젝트 경험이 있습니다.",
+      },
+    ]);
+    assert.deepEqual(repository.calls.createApplication, [{ postingId: 101, candidateId: 44, screeningMemo: null }]);
+    assert.equal(result.email, "jiwon@example.com");
+    assert.equal(result.applicationStatus, "SUBMITTED");
+    assert.equal(result.emailVerificationStatus, "PENDING");
+    assert.equal(result.nextAction, "CHECK_EMAIL");
+  });
+
+  it("rejects duplicate public application emails", async () => {
+    const repository = createRepository({
+      async findApplicationByPostingAndEmail() {
+        return { applicationId: 77 };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "jiwon@example.com",
+          consentAgreed: true,
+        }),
+      /이미 이 공고에 지원한 이메일입니다/,
+    );
+    assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+  });
+
+  it("requires consent for public application submission", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "jiwon@example.com",
+          consentAgreed: false,
+        }),
+      /동의가 필요합니다/,
+    );
+    assert.equal(repository.calls.findApplicationByPostingAndEmail, undefined);
   });
 
   it("updates recruitment settings for the current company only", async () => {
