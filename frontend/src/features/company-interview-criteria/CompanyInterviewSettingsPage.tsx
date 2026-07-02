@@ -74,6 +74,12 @@ type QuestionSetPreviewItem = {
   content: string;
 };
 
+type QuestionSetConfirmSummary = {
+  confirmableCount: number;
+  missingCriteriaCount: number;
+  totalCriteriaCount: number;
+};
+
 const QUESTION_TYPE_OPTIONS: Array<{ value: QuestionType; label: string }> = [
   { value: "INTRO", label: "도입" },
   { value: "TECHNICAL", label: "기술" },
@@ -239,6 +245,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
   }, [criteriaDrafts, settings]);
 
   const questionSetPreview = useMemo(() => buildQuestionSetPreview(settings), [settings]);
+  const questionSetPreviewSummary = useMemo(() => buildQuestionSetPreviewSummary(questionSetPreview), [questionSetPreview]);
 
   function addCriteriaDraft() {
     if (!settings || selectedTagId === "") return;
@@ -711,7 +718,7 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
         sourceProcessLogId: notice.processLogId,
         items,
       });
-      setMessage("면접 질문 세트가 확정되었습니다.");
+      setMessage(`면접 질문 세트가 확정되었습니다. 저장된 질문 ${items.length}개`);
     } catch (error) {
       setAiJobError(error instanceof Error ? error.message : "질문 세트 확정에 실패했습니다.");
     } finally {
@@ -1141,18 +1148,33 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                   <div className="panel-head">
                     <div>
                       <h2>면접 질문 세트 미리보기</h2>
-                      <p>평가 기준별 첫 번째 활성 질문을 기준으로 구성합니다.</p>
+                      <p>평가 기준별 첫 번째 활성 질문을 기준으로 구성합니다. 연결된 질문이 없는 기준은 확정 대상에서 제외됩니다.</p>
+                      {questionSetPreview.length > 0 ? (
+                        <p>
+                          확정 가능 질문 {questionSetPreviewSummary.confirmableCount}개
+                          {questionSetPreviewSummary.missingCriteriaCount > 0
+                            ? ` · 누락 기준 ${questionSetPreviewSummary.missingCriteriaCount}개`
+                            : " · 모든 기준 연결 완료"}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="posting-list question-list">
                     {questionSetPreview.map((item) => (
                       <article className="posting" key={item.criterionId}>
-                        <div className="logo-chip">{item.questionType ?? "NONE"}</div>
+                        <div className="logo-chip">
+                          {item.questionType ? getQuestionTypeLabel(item.questionType) : "미연결"}
+                        </div>
                         <div>
                           <h3>{item.content}</h3>
                           <p>{item.criterionLabel}</p>
+                          {item.questionId === null ? (
+                            <p>질문 뱅크에 활성 질문을 추가하면 질문 세트에 포함할 수 있습니다.</p>
+                          ) : null}
                         </div>
-                        <StatusBadge value={item.questionId === null ? "READY" : "SELECTED"} />
+                        <span className={`badge ${item.questionId === null ? "warning" : "success"}`}>
+                          {item.questionId === null ? "질문 없음" : "확정 가능"}
+                        </span>
                       </article>
                     ))}
                     {questionSetPreview.length === 0 ? (
@@ -1204,6 +1226,15 @@ function buildQuestionSetPreview(settings: InterviewSettings | null): QuestionSe
         content: question?.content ?? "연결된 활성 질문이 없습니다.",
       };
     });
+}
+
+function buildQuestionSetPreviewSummary(items: QuestionSetPreviewItem[]) {
+  const confirmableCount = items.filter((item) => item.questionId !== null).length;
+
+  return {
+    confirmableCount,
+    missingCriteriaCount: Math.max(items.length - confirmableCount, 0),
+  };
 }
 
 function validateQuestionForm(
@@ -1387,17 +1418,31 @@ function AiJobPreview({
 
   return (
     <div className="posting-list">
+      {questionSetPreview.length > 0 ? (
+        <QuestionSetConfirmNotice summary={buildQuestionSetConfirmSummary(settings, questionSetPreview)} />
+      ) : null}
       {questionSetPreview.map((group, index) => {
-        const confirmableCount = buildQuestionSetConfirmItems(settings, [group]).length;
+        const groupSummary = buildQuestionSetConfirmSummary(settings, [group]);
+        const firstConfirmableQuestion = buildQuestionSetConfirmItems(settings, [group]).length > 0;
         return (
           <div className="posting" key={`${group.criterionTitle}-${index}`}>
-            <div className="logo-chip">{group.questions.length}</div>
+            <div className="logo-chip">{firstConfirmableQuestion ? "포함" : "누락"}</div>
             <div>
               <h3>{group.criterionTitle}</h3>
-              <p>{group.questions.map((question) => question.content).join(" / ")}</p>
-              {confirmableCount < group.questions.length ? <p>질문 뱅크에 저장된 질문만 확정됩니다.</p> : null}
+              <p>
+                {group.questions.length > 0
+                  ? group.questions.map((question) => question.content).join(" / ")
+                  : "AI가 제안한 질문이 없습니다."}
+              </p>
+              {groupSummary.confirmableCount > 0 ? (
+                <p>질문 뱅크의 활성 질문 {groupSummary.confirmableCount}개가 확정 대상입니다.</p>
+              ) : (
+                <p>질문 뱅크에 연결된 활성 질문이 없어 확정 대상에서 제외됩니다.</p>
+              )}
             </div>
-            <span className="badge info">미리보기</span>
+            <span className={`badge ${firstConfirmableQuestion ? "success" : "warning"}`}>
+              {firstConfirmableQuestion ? "확정 가능" : "질문 없음"}
+            </span>
           </div>
         );
       })}
@@ -1412,6 +1457,25 @@ function AiJobPreview({
         </button>
       ) : null}
       {questionSetPreview.length === 0 ? <div className="empty">표시할 질문 세트 결과가 없습니다.</div> : null}
+    </div>
+  );
+}
+
+function QuestionSetConfirmNotice({ summary }: { summary: QuestionSetConfirmSummary }) {
+  if (summary.confirmableCount === 0) {
+    return (
+      <div className="empty">
+        질문 세트로 확정할 수 있는 활성 질문이 없습니다. 질문 뱅크에 평가 기준과 연결된 활성 질문을 먼저 추가해주세요.
+      </div>
+    );
+  }
+
+  return (
+    <div className="empty">
+      확정 시 활성 질문 {summary.confirmableCount}개가 저장됩니다.
+      {summary.missingCriteriaCount > 0
+        ? ` 연결된 질문이 없는 평가 기준 ${summary.missingCriteriaCount}개는 이번 질문 세트에서 제외됩니다.`
+        : " 모든 평가 기준에 확정 가능한 질문이 연결되어 있습니다."}
     </div>
   );
 }
@@ -1547,6 +1611,23 @@ function buildQuestionSetConfirmItems(settings: InterviewSettings, groups: Gener
   return items;
 }
 
+function buildQuestionSetConfirmSummary(settings: InterviewSettings, groups: GeneratedQuestionSetCandidate[]): QuestionSetConfirmSummary {
+  const items = buildQuestionSetConfirmItems(settings, groups);
+  const matchedCriterionIds = new Set(items.map((item) => item.criterionId).filter((criterionId): criterionId is number => Number.isInteger(criterionId)));
+  const groupCriterionIds = new Set(
+    groups
+      .map((group) => group.criterionId ?? findCriterionIdByTitle(settings, group.criterionTitle))
+      .filter((criterionId): criterionId is number => Number.isInteger(criterionId)),
+  );
+  const totalCriteriaCount = groupCriterionIds.size || groups.length;
+
+  return {
+    confirmableCount: items.length,
+    missingCriteriaCount: Math.max(totalCriteriaCount - matchedCriterionIds.size, 0),
+    totalCriteriaCount,
+  };
+}
+
 function findQuestionForCandidate(
   settings: InterviewSettings,
   candidate: GeneratedQuestionCandidate,
@@ -1577,6 +1658,10 @@ function findCriterionIdByTitle(settings: InterviewSettings, title: string | und
     settings.criteria.find((criterion) => normalizedTitle.includes(normalizeText(criterion.tagName)))?.criterionId ??
     settings.criteria.find((criterion) => normalizeText(criterion.category) === normalizedTitle)?.criterionId
   );
+}
+
+function getQuestionTypeLabel(type: QuestionType) {
+  return QUESTION_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type;
 }
 
 function toOptionalNumber(value: string | undefined) {
