@@ -11,4 +11,4 @@ CREATE TABLE "interview_time_policies" (
 
 ALTER TABLE "interview_time_policies"
     ADD CONSTRAINT "interview_time_policies_posting_id_fkey"
-    FOREIGN KEY ("posting_id") REFERENCES "postings"("posting_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    FOREIGN KEY ("posting_id") REFERENCES "postings"("posting_id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -328,7 +328,7 @@ model InterviewTimePolicy {
   retryAllowed       Boolean  @default(false) @map("retry_allowed")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
-  posting            Posting  @relation(fields: [postingId], references: [postingId])
+  posting            Posting  @relation(fields: [postingId], references: [postingId], onDelete: Cascade)
 
   @@map("interview_time_policies")
 }
