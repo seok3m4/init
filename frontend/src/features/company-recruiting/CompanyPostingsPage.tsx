@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { copyRecruitment, listRecruitmentApplicants, listRecruitments } from "./api";
+import { listRecruitmentApplicants, listRecruitments } from "./api";
 import { StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment, RecruitmentStatus } from "./types";
+import { getCompanyPostingActions } from "./company-posting-actions";
 import { getCompanyProfile } from "../company-profile/api";
 import { getCompanyDisplayName, getCompanyInitial, getCompanyLogoUrl } from "../company-profile/company-profile-display";
 import type { CompanyProfile } from "../company-profile/types";
@@ -90,20 +91,6 @@ export function CompanyPostingsPage() {
     await loadRecruitments(q, statusFilter);
   }
 
-  async function handleCopy(recruitment: Recruitment) {
-    setLoading(true);
-    setMessage("");
-    try {
-      const result = await copyRecruitment(recruitment.recruitmentId);
-      setMessage(`${result.data.title} 공고가 DRAFT로 복사되었습니다.`);
-      await loadRecruitments(q, statusFilter);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "공고 복사에 실패했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // KPI는 list 응답에서 파생 가능한 값만 사용한다.
   const activeCount = items.filter((item) => ACTIVE_STATUSES.includes(item.status)).length;
   const totalApplicants = items.reduce((sum, item) => sum + item.applicantCount, 0);
@@ -186,6 +173,7 @@ export function CompanyPostingsPage() {
               {items.map((item) => {
                 const stat = completion[item.recruitmentId];
                 const rate = stat?.rate ?? 0;
+                const actions = getCompanyPostingActions(item);
                 return (
                   <article className="posting" key={item.recruitmentId}>
                     <div className={`logo-chip ${companyLogoUrl ? "has-image" : ""}`}>
@@ -211,14 +199,11 @@ export function CompanyPostingsPage() {
                       </span>
                     </div>
                     <div className="posting-actions">
-                      {item.status === "CLOSED" ? (
-                        <button className="btn secondary" type="button" disabled={loading} onClick={() => void handleCopy(item)}>
-                          복사
-                        </button>
+                      {actions.includes("manage") ? (
+                        <Link className="btn secondary" href={`/company/recruitments/${item.recruitmentId}`}>
+                          관리
+                        </Link>
                       ) : null}
-                      <Link className="btn secondary" href={`/company/recruitments/${item.recruitmentId}`}>
-                        관리
-                      </Link>
                     </div>
                   </article>
                 );
