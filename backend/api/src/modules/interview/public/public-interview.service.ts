@@ -152,7 +152,7 @@ export class PublicInterviewService {
   }
 
   private runtimePath(applicationId: number, sessionId: number): string {
-    return `/public/applications/${applicationId}/interview?sessionId=${sessionId}`;
+    return `/public/applications/${applicationId}/interview/runtime?sessionId=${sessionId}`;
   }
 
   private assertPositiveIntegerId(value: number, field: string): void {

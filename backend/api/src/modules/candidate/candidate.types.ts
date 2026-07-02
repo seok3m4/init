@@ -280,6 +280,7 @@ export interface CandidateRepository {
   saveConsentRecords(applicationId: number, consentTypes: ConsentType[]): Promise<ConsentRecord[]>;
   findInterviewSession(sessionId: number): Promise<InterviewSession | undefined>;
   findInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined>;
+  ensureInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined>;
   saveDeviceCheck(sessionId: number, deviceCheck: Omit<InterviewDeviceCheck, "status" | "checkedAt">): Promise<InterviewSession>;
   updateApplicationInterviewStatus(applicationId: number, status: InterviewStatus): Promise<Application>;
   updateApplicationReportStatus(applicationId: number, status: ReportStatus): Promise<Application>;

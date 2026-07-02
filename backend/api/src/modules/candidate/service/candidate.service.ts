@@ -376,7 +376,7 @@ export class CandidateService {
       ]);
     }
 
-    const session = await this.repository.findInterviewSessionByApplication(application.applicationId);
+    const session = await this.repository.ensureInterviewSessionByApplication(application.applicationId);
     if (!session) {
       throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview session was not found.", 404, [
         { field: "applicationId", reason: "interview session not found" },

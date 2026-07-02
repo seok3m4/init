@@ -177,6 +177,18 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     return this.interviewSessions.find((session) => session.applicationId === applicationId);
   }
 
+  async ensureInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
+    const existing = await this.findInterviewSessionByApplication(applicationId);
+    if (existing) return existing;
+
+    const application = await this.findApplication(applicationId);
+    if (!application) return undefined;
+
+    const session = this.createRecruitingInterviewSession(application, new Date().toISOString());
+    this.interviewSessions.push(session);
+    return session;
+  }
+
   async saveDeviceCheck(
     sessionId: number,
     deviceCheck: { cameraGranted: boolean; microphoneGranted: boolean; networkStable: boolean },

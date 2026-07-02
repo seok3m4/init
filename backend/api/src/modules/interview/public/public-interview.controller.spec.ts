@@ -65,7 +65,7 @@ test("public interview start issues access token and runtime calls use that cont
   assert.ok(started.data.publicAccessToken);
   assert.equal(
     started.data.runtimePath,
-    `/public/applications/${submitted.application.applicationId}/interview?sessionId=${started.data.sessionId}`,
+    `/public/applications/${submitted.application.applicationId}/interview/runtime?sessionId=${started.data.sessionId}`,
   );
 
   const access = tokenService.verify(started.data.publicAccessToken);
@@ -113,6 +113,20 @@ test("public interview start requires a verified application token", async () =>
     () => controller.startPublicInterview(String(submitted.application.applicationId), {}),
     (error: unknown) => error instanceof HttpException && error.getStatus() === 400,
   );
+});
+
+test("public interview start creates the recruiting session when it does not exist yet", async () => {
+  const { candidateRepository, controller } = createPublicInterviewFixture();
+  const submitted = await submitRecruitingApplication(candidateRepository);
+  (candidateRepository as unknown as { interviewSessions: unknown[] }).interviewSessions.length = 0;
+
+  const started = await controller.startPublicInterview(String(submitted.application.applicationId), {
+    token: `application:${submitted.application.applicationId}`,
+  });
+
+  assert.equal(started.data.applicationId, submitted.application.applicationId);
+  assert.equal(started.data.interviewSessionStatus, "NOT_READY");
+  assert.ok(started.data.sessionId > 0);
 });
 
 test("public interview start rejects tokens for a different application", async () => {
