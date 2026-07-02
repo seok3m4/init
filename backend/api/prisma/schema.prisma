@@ -170,6 +170,7 @@ model Company {
   name                       String     @db.VarChar(150)
   businessRegistrationNumber String     @unique @map("business_registration_number") @db.VarChar(10)
   verificationStatus         String     @map("verification_status") @db.VarChar(30)
+  logoFileId                 BigInt?    @map("logo_file_id")
   industry                   String?    @db.VarChar(100)
   profile                    String?
   talentProfile              String?    @map("talent_profile")
@@ -177,6 +178,7 @@ model Company {
   createdAt                  DateTime   @default(now()) @map("created_at")
   updatedAt                  DateTime   @updatedAt @map("updated_at")
   owner                      User       @relation("CompanyOwner", fields: [ownerUserId], references: [userId])
+  logoFile                   FileAsset? @relation("CompanyLogo", fields: [logoFileId], references: [fileId])
   postings                   Posting[]
   questions                  Question[]
 
@@ -193,6 +195,7 @@ model FileAsset {
   status            String                @db.VarChar(30)
   createdAt         DateTime              @default(now()) @map("created_at")
   owner             User                  @relation(fields: [ownerUserId], references: [userId])
+  companyLogos      Company[]             @relation("CompanyLogo")
   candidateProfiles CandidateProfile[]
   documents         ApplicationDocument[]
   videoAnswers      InterviewAnswer[]     @relation("VideoFile")

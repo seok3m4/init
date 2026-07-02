@@ -81,6 +81,7 @@
 | name | VARCHAR(150) NOT NULL | 회사명 |
 | business_registration_number | VARCHAR(10) NOT NULL UNIQUE | 사업자등록번호. DB에는 숫자만 정규화하여 저장하는 것을 권장 |
 | verification_status | VARCHAR(30) NOT NULL | 사업자/회사 검증 상태: PENDING, VERIFIED, REJECTED |
+| logo_file_id | BIGINT | 회사 로고 파일 메타데이터 FK. 원본 파일은 S3에 저장하고 DB에는 `file_assets` 참조만 저장 |
 | industry | VARCHAR(100) | 산업군: IT, 제조, 금융, 교육 등 |
 | profile | TEXT | 회사 소개글 |
 | talent_profile | TEXT | 회사가 원하는 인재상. AI 평가 기준/질문 생성 참고 정보 |

@@ -63,12 +63,6 @@ export async function publishRecruitment(recruitmentId: number) {
   });
 }
 
-export async function copyRecruitment(recruitmentId: number) {
-  return request<Recruitment>(`/company/recruitments/${recruitmentId}/copy`, {
-    method: "POST",
-  });
-}
-
 export async function deleteRecruitment(recruitmentId: number) {
   return request<Recruitment>(`/company/recruitments/${recruitmentId}`, {
     method: "DELETE",

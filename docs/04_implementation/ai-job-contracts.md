@@ -258,10 +258,22 @@ STT 입력:
   ],
   "reviewRequired": true,
   "reviewStatus": "PENDING_REVIEW",
-  "targetTables": ["question_bank"],
+  "targetTables": ["question_bank", "interview_question_sets"],
   "postingId": 2
 }
 ```
+
+## C 면접 설정 화면 적용 규칙
+
+C 화면은 E worker가 반환한 draft output을 자동 저장하지 않는다. 화면은 아래 규칙으로 미리보기와 수동 적용 상태만 관리한다.
+
+| Output field | C 화면 표시 | 사용자 적용 | 중복/빈 결과 처리 |
+| --- | --- | --- | --- |
+| `criteriaSuggestions[]` | 평가 기준 추천 목록 | 사용자가 태그를 선택하거나 자동 매칭된 태그를 확인한 뒤 평가 기준 draft에 추가 | 이미 선택된 태그는 `적용됨`으로 표시하고 중복 추가하지 않는다. 적용 시 배점 합계가 100을 넘으면 적용을 막는다. |
+| `questionCandidates[]` | JD 질문 후보 목록 | 사용자가 평가 기준을 선택한 뒤 기존 `POST /company/interviews/questions`로 질문 뱅크에 저장 | 같은 공고에 동일한 활성 질문이 있으면 `저장됨`으로 표시하고 중복 저장하지 않는다. |
+| `questionSetPreview[]` | 평가 기준별 질문 세트 후보 | 사용자가 후보별 포함/제외를 선택한 뒤 기존 `POST /company/interviews/question-sets/confirm`으로 확정 | 질문 뱅크의 활성 질문과 매칭되지 않는 후보는 확정 대상에서 제외한다. 선택된 확정 대상이 없으면 확정을 막는다. |
+
+AI 결과가 비어 있거나 `guardrail.result=BLOCKED`이면 C 화면은 최종 저장을 시도하지 않고 한글 안내 문구와 재요청 흐름을 제공한다. `failure.category`, `failure.reason`, `failure.retryable`은 사용자 문구 변환에 사용하며 원문을 그대로 장문 노출하지 않는다.
 
 리포트 생성 완료 출력:
 

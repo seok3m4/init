@@ -21,6 +21,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       companyId: 1,
       isPublic: true,
       companyName: "Init Labs",
+      companyLogoUrl: null,
       companyIndustry: "SaaS",
       companyProfile: "AI 기반 채용 워크플로우를 만드는 B2B SaaS 팀입니다.",
       title: "Backend Developer",
@@ -41,6 +42,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       companyId: 2,
       isPublic: true,
       companyName: "Jungle Works",
+      companyLogoUrl: null,
       companyIndustry: "Mobile Platform",
       companyProfile: "지원자 경험을 모바일 중심으로 개선하는 프로덕트 팀입니다.",
       title: "Android Developer",
@@ -61,6 +63,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       companyId: 3,
       isPublic: true,
       companyName: "Closed Company",
+      companyLogoUrl: null,
       companyIndustry: "Web Platform",
       companyProfile: "마감된 공고를 보유한 예시 회사입니다.",
       title: "Closed Frontend Developer",
@@ -81,6 +84,7 @@ export class InMemoryCandidateRepository implements CandidateRepository {
       companyId: 4,
       isPublic: false,
       companyName: "Private Company",
+      companyLogoUrl: null,
       companyIndustry: "Internal Platform",
       companyProfile: "초대 전용 공고를 보유한 예시 회사입니다.",
       title: "Private Backend Developer",
@@ -131,6 +135,13 @@ export class InMemoryCandidateRepository implements CandidateRepository {
     return this.applications.find((application) => application.applicationId === applicationId);
   }
 
+  async findCandidateUserId(candidateId: number): Promise<number | undefined> {
+    if (candidateId === DEV_CANDIDATE_USER.candidateId) {
+      return DEV_CANDIDATE_USER.userId;
+    }
+    return candidateId;
+  }
+
   async listDocuments(applicationId: number): Promise<ApplicationDocument[]> {
     return this.documents.filter((document) => document.applicationId === applicationId);
   }
@@ -168,6 +179,18 @@ export class InMemoryCandidateRepository implements CandidateRepository {
 
   async findInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
     return this.interviewSessions.find((session) => session.applicationId === applicationId);
+  }
+
+  async ensureInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
+    const existing = await this.findInterviewSessionByApplication(applicationId);
+    if (existing) return existing;
+
+    const application = await this.findApplication(applicationId);
+    if (!application) return undefined;
+
+    const session = this.createRecruitingInterviewSession(application, new Date().toISOString());
+    this.interviewSessions.push(session);
+    return session;
   }
 
   async saveDeviceCheck(

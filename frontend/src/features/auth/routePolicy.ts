@@ -5,7 +5,7 @@ export type RouteAccess =
   | { kind: "public" }
   | { kind: "protected"; allowedUserTypes: UserType[] };
 
-const publicRoutes = ["/", "/login", "/signup", "/password/reset"] as const;
+const publicRoutes = ["/", "/login", "/signup", "/password/reset", "/public"] as const;
 const protectedRoutePrefixes: Array<{ prefix: string; allowedUserTypes: UserType[] }> = [
   { prefix: "/company", allowedUserTypes: ["COMPANY"] },
   { prefix: "/candidate", allowedUserTypes: ["CANDIDATE"] },
