@@ -16,11 +16,17 @@ import type { CreateApplicantDto } from "../dto/create-applicant.dto";
 import type { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
 import type { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import type { ListQueryDto } from "../dto/list-query.dto";
-import type { SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
+import type { PublicApplicationStatusLookupDto, SubmitPublicApplicationDto } from "../dto/submit-public-application.dto";
 import type { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import type { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
 import type { CompanyRecruitingRepositoryPort } from "../repository/company-recruiting.repository";
-import type { ApplicantRecord, NormalizedListQuery, PublicRecruitmentRecord, RecruitmentRecord } from "../company-recruiting.types";
+import type {
+  ApplicantRecord,
+  NormalizedListQuery,
+  PublicApplicationStatusRecord,
+  PublicRecruitmentRecord,
+  RecruitmentRecord,
+} from "../company-recruiting.types";
 
 class CompanyRecruitingException extends SharedApiException {
   constructor(status: number, code: ErrorCode, message: string, details: Array<Record<string, unknown>> = []) {
@@ -187,6 +193,22 @@ export class CompanyRecruitingService {
       applicationStatus: application.applicationStatus,
       ...verification,
     };
+  }
+
+  async getPublicApplicationStatus(recruitmentId: number, dto: PublicApplicationStatusLookupDto) {
+    const email = normalizeEmail(dto.email);
+    if (!isValidEmail(email)) {
+      throw new CompanyRecruitingException(400, ERROR_CODES.COMMON_VALIDATION_FAILED, "이메일 형식이 올바르지 않습니다.", [
+        { field: "email", reason: "INVALID_EMAIL" },
+      ]);
+    }
+
+    const application = await this.repository.findPublicApplicationStatusByPostingAndEmail(recruitmentId, email);
+    if (!application) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원 내역을 찾을 수 없습니다.");
+    }
+
+    return toPublicApplicationStatusResponse(application);
   }
 
   async deleteRecruitment(user: CurrentUser, recruitmentId: number) {
@@ -639,6 +661,55 @@ function toPublicRecruitmentResponse(posting: PublicRecruitmentRecord) {
     startsOn: posting.startsOn ? formatDate(posting.startsOn) : null,
     endsOn: posting.endsOn ? formatDate(posting.endsOn) : null,
     status: posting.status,
+  };
+}
+
+function toPublicApplicationStatusResponse(application: PublicApplicationStatusRecord) {
+  const latestReport = application.evaluationReports[0] ?? null;
+  const latestSession = application.interviewSessions[0] ?? null;
+  return {
+    applicationId: application.applicationId,
+    recruitmentId: application.postingId,
+    candidateName: application.candidate.user.name,
+    email: application.candidate.user.email,
+    recruitment: {
+      companyName: application.posting.companyName,
+      title: application.posting.title,
+      jobRole: application.posting.jobRole,
+      status: application.posting.status,
+      startsOn: application.posting.startsOn ? formatDate(application.posting.startsOn) : null,
+      endsOn: application.posting.endsOn ? formatDate(application.posting.endsOn) : null,
+    },
+    statuses: {
+      applicationStatus: application.applicationStatus,
+      documentStatus: application.documentStatus,
+      interviewStatus: latestSession?.status ?? application.interviewStatus,
+      reportStatus: latestReport?.status ?? application.reportStatus,
+    },
+    interviewAccess: buildPublicInterviewAccess(latestSession),
+  };
+}
+
+function buildPublicInterviewAccess(session: PublicApplicationStatusRecord["interviewSessions"][number] | null) {
+  if (!session) {
+    return {
+      status: "NOT_READY",
+      nextAction: "WAIT_FOR_INTERVIEW_INVITATION",
+      sessionId: null,
+      interviewType: null,
+      temporary: true,
+      temporaryBoundary: "B_MODULE_PUBLIC_APPLICATION_STATUS_ACCESS",
+    };
+  }
+
+  const nextAction = session.status === "COMPLETED" ? "VIEW_RESULT" : "START_INTERVIEW";
+  return {
+    status: session.status,
+    nextAction,
+    sessionId: session.sessionId,
+    interviewType: session.interviewType,
+    temporary: true,
+    temporaryBoundary: "B_MODULE_PUBLIC_APPLICATION_STATUS_ACCESS",
   };
 }
 

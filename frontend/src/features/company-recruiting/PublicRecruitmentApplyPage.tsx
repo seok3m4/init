@@ -102,6 +102,16 @@ export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: n
         {state.loading ? <p className="notice">공고 정보를 불러오는 중입니다.</p> : null}
         {state.error ? <p className="notice danger">{state.error}</p> : null}
         {message ? <p className={submittedEmail ? "notice" : "notice danger"}>{message}</p> : null}
+        {submittedEmail ? (
+          <div className="form-actions">
+            <Link
+              className="btn primary"
+              href={`/public/recruitments/${recruitmentId}/applications/status?email=${encodeURIComponent(submittedEmail)}`}
+            >
+              내 지원 현황 보기
+            </Link>
+          </div>
+        ) : null}
 
         {state.data ? (
           <div className="grid-2">

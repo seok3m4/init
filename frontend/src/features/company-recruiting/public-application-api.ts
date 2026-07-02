@@ -42,6 +42,35 @@ export type PublicApplicationResult = {
   magicLinkDeliveryStatus: "NOT_SENT_TEMPORARY";
 };
 
+export type PublicApplicationStatus = {
+  applicationId: number;
+  recruitmentId: number;
+  candidateName: string;
+  email: string;
+  recruitment: {
+    companyName: string;
+    title: string;
+    jobRole: string;
+    status: string;
+    startsOn: string | null;
+    endsOn: string | null;
+  };
+  statuses: {
+    applicationStatus: string;
+    documentStatus: string;
+    interviewStatus: string;
+    reportStatus: string;
+  };
+  interviewAccess: {
+    status: string;
+    nextAction: "WAIT_FOR_INTERVIEW_INVITATION" | "START_INTERVIEW" | "VIEW_RESULT";
+    sessionId: number | null;
+    interviewType: string | null;
+    temporary: boolean;
+    temporaryBoundary: string;
+  };
+};
+
 export async function getPublicRecruitment(recruitmentId: number) {
   return request<PublicRecruitment>(`/public/recruitments/${recruitmentId}`);
 }
@@ -50,6 +79,13 @@ export async function submitPublicApplication(recruitmentId: number, input: Publ
   return request<PublicApplicationResult>(`/public/recruitments/${recruitmentId}/applications`, {
     method: "POST",
     body: input,
+  });
+}
+
+export async function lookupPublicApplicationStatus(recruitmentId: number, email: string) {
+  return request<PublicApplicationStatus>(`/public/recruitments/${recruitmentId}/applications/status`, {
+    method: "POST",
+    body: { email },
   });
 }
 

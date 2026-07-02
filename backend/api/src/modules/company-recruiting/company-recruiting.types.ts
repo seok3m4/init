@@ -102,3 +102,12 @@ export type ApplicantRecord = {
     completedAt: Date | null;
   }>;
 };
+
+export type PublicApplicationStatusRecord = Omit<ApplicantRecord, "screeningDecision" | "screeningMemo" | "posting"> & {
+  posting: ApplicantRecord["posting"] & {
+    companyName: string;
+    status: string;
+    startsOn: Date | null;
+    endsOn: Date | null;
+  };
+};

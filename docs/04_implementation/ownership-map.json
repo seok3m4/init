@@ -77,10 +77,11 @@
     "B": [
       "^frontend/src/features/company-recruiting/",
       "^frontend/src/app/(layout\\.tsx|page\\.tsx|company/recruitments/|company/applicants/|company/applications/)",
-      "^frontend/src/app/public/recruitments/\\[recruitmentId\\]/apply/",
+      "^frontend/src/app/public/recruitments/\\[recruitmentId\\]/",
       "^frontend/src/styles/",
       "^frontend/public/logo-init\\.png$",
-      "^backend/api/src/modules/company-recruiting/"
+      "^backend/api/src/modules/company-recruiting/",
+      "^docs/03_contracts/(api-index|api-spec)\\.md$"
     ],
     "C": [
       "^frontend/src/features/company-interview-criteria/",

@@ -126,6 +126,83 @@ export class PublicApplicationResponseDto {
   magicLinkDeliveryStatus!: string;
 }
 
+export class PublicApplicationRecruitmentSummaryDto {
+  @ApiProperty({ example: "크래프톤" })
+  companyName!: string;
+
+  @ApiProperty({ example: "2026 신입 백엔드 채용" })
+  title!: string;
+
+  @ApiProperty({ example: "Backend Developer" })
+  jobRole!: string;
+
+  @ApiProperty({ enum: ["DRAFT", "OPEN", "CLOSING_SOON", "CLOSED"], example: "OPEN" })
+  status!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-06-29" })
+  startsOn!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "2026-07-15" })
+  endsOn!: string | null;
+}
+
+export class PublicApplicationStatusSummaryDto {
+  @ApiProperty({ example: "SUBMITTED" })
+  applicationStatus!: string;
+
+  @ApiProperty({ example: "NOT_SUBMITTED" })
+  documentStatus!: string;
+
+  @ApiProperty({ example: "NOT_READY" })
+  interviewStatus!: string;
+
+  @ApiProperty({ example: "PENDING" })
+  reportStatus!: string;
+}
+
+export class PublicApplicationInterviewAccessDto {
+  @ApiProperty({ example: "NOT_READY" })
+  status!: string;
+
+  @ApiProperty({ enum: ["WAIT_FOR_INTERVIEW_INVITATION", "START_INTERVIEW", "VIEW_RESULT"], example: "WAIT_FOR_INTERVIEW_INVITATION" })
+  nextAction!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: 10 })
+  sessionId!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: "RECRUITING" })
+  interviewType!: string | null;
+
+  @ApiProperty({ example: true })
+  temporary!: boolean;
+
+  @ApiProperty({ example: "B_MODULE_PUBLIC_APPLICATION_STATUS_ACCESS" })
+  temporaryBoundary!: string;
+}
+
+export class PublicApplicationStatusResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+
+  @ApiProperty({ example: 101 })
+  recruitmentId!: number;
+
+  @ApiProperty({ example: "김지원" })
+  candidateName!: string;
+
+  @ApiProperty({ example: "candidate@example.com" })
+  email!: string;
+
+  @ApiProperty({ type: PublicApplicationRecruitmentSummaryDto })
+  recruitment!: PublicApplicationRecruitmentSummaryDto;
+
+  @ApiProperty({ type: PublicApplicationStatusSummaryDto })
+  statuses!: PublicApplicationStatusSummaryDto;
+
+  @ApiProperty({ type: PublicApplicationInterviewAccessDto })
+  interviewAccess!: PublicApplicationInterviewAccessDto;
+}
+
 export class InterviewSessionSummaryDto {
   @ApiProperty({ example: 10 })
   sessionId!: number;
