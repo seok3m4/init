@@ -344,6 +344,7 @@ export class PrismaInterviewRepository implements InterviewRepository {
       sortOrder: this.questionSortOrder(question.questionType),
       interviewType: interviewType ?? (question.postingId === null ? "MOCK" : "RECRUITING"),
       postingId: question.postingId === null ? undefined : Number(question.postingId),
+      criterionId: question.criterionId === null ? undefined : Number(question.criterionId),
       isActive: question.isActive,
     };
   }
@@ -355,6 +356,7 @@ export class PrismaInterviewRepository implements InterviewRepository {
       questionId: Number(answer.questionId ?? 0),
       videoFileId: answer.videoFileId ? Number(answer.videoFileId) : undefined,
       audioFileId: answer.audioFileId ? Number(answer.audioFileId) : undefined,
+      transcript: answer.transcript ?? undefined,
       durationSeconds: answer.durationSeconds ?? 0,
       submittedAt: (answer.submittedAt ?? new Date()).toISOString(),
     };

@@ -9,6 +9,7 @@ import { ReportsController } from "./controller/reports.controller";
 import { CANDIDATE_REPORT_REPOSITORY } from "./repository/candidate-report.repository";
 import { InMemoryCandidateReportRepository } from "./repository/in-memory-candidate-report.repository";
 import { InMemoryReportRepository } from "./repository/in-memory-report.repository";
+import { PrismaCandidateReportRepository } from "./repository/prisma-candidate-report.repository";
 import { PrismaReportRepository } from "./repository/prisma-report.repository";
 import { REPORT_REPOSITORY } from "./repository/report.repository";
 import { AiJobDispatcherService } from "./service/ai-job-dispatcher.service";
@@ -37,6 +38,17 @@ const repositoryProviders = usePrismaRepository
       },
     ];
 
+const candidateReportRepositoryProvider = usePrismaRepository
+  ? {
+      provide: CANDIDATE_REPORT_REPOSITORY,
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService) => new PrismaCandidateReportRepository(prisma),
+    }
+  : {
+      provide: CANDIDATE_REPORT_REPOSITORY,
+      useClass: InMemoryCandidateReportRepository,
+    };
+
 @Module({
   imports: [AuthModule, CandidateModule, InterviewModule],
   controllers: [ReportsController, ReportController],
@@ -49,10 +61,7 @@ const repositoryProviders = usePrismaRepository
     },
     AiReportPipelineService,
     GuardrailService,
-    {
-      provide: CANDIDATE_REPORT_REPOSITORY,
-      useClass: InMemoryCandidateReportRepository,
-    },
+    candidateReportRepositoryProvider,
     MockAiReportProvider,
     ReportService,
     ...repositoryProviders,

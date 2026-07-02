@@ -170,8 +170,10 @@ test("PrismaAiResultRepository stores report scores without completing a report"
 
   assert.equal(calls[0].model, "reportScore");
   assert.equal(calls[0].method, "deleteMany");
-  assert.equal(calls[1].model, "reportScore");
-  assert.equal(calls[1].method, "create");
+  assert.equal(calls[1].model, "evaluationCriterion");
+  assert.equal(calls[1].method, "findUnique");
+  assert.equal(calls[2].model, "reportScore");
+  assert.equal(calls[2].method, "create");
   assert.equal(calls.some((call) => call.model === "evaluationReport"), false);
 });
 
@@ -306,9 +308,11 @@ test("PrismaAiResultRepository stores generated reports after guardrail pass", a
   assert.equal(calls[0].args.update.status, "COMPLETED");
   assert.equal(calls[1].model, "reportScore");
   assert.equal(calls[1].method, "deleteMany");
-  assert.equal(calls[2].model, "reportScore");
-  assert.equal(calls[2].method, "create");
-  assert.equal(calls[2].args.data.evidences.create[0].sourceType, "INTERVIEW_ANSWER");
+  assert.equal(calls[2].model, "evaluationCriterion");
+  assert.equal(calls[2].method, "findUnique");
+  assert.equal(calls[3].model, "reportScore");
+  assert.equal(calls[3].method, "create");
+  assert.equal(calls[3].args.data.evidences.create[0].sourceType, "INTERVIEW_ANSWER");
 });
 
 test("PrismaAiResultRepository marks generated reports failed with retryability", async () => {
@@ -348,6 +352,12 @@ function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) 
     evaluationReport: {
       async upsert(args: any) {
         calls.push({ model: "evaluationReport", method: "upsert", args });
+      }
+    },
+    evaluationCriterion: {
+      async findUnique(args: any) {
+        calls.push({ model: "evaluationCriterion", method: "findUnique", args });
+        return { criterionId: args.where.criterionId };
       }
     },
     reportScore: {

@@ -128,15 +128,22 @@ export class PrismaReportRepository implements ReportRepository {
     return this.toProcessSnapshot(processLog);
   }
 
-  async markReportGenerating(reportId: number, reportType: ReportType): Promise<EvaluationReportSnapshot> {
+  async markReportGenerating(
+    reportId: number,
+    reportType: ReportType,
+    refs?: AiProcessRefs
+  ): Promise<EvaluationReportSnapshot> {
+    const refData = this.reportRefData(refs);
     const report = await this.prisma.evaluationReport.upsert({
       where: { reportId: BigInt(reportId) },
       create: {
         reportId: BigInt(reportId),
+        ...refData,
         reportType,
         status: "GENERATING"
       },
       update: {
+        ...refData,
         reportType,
         status: "GENERATING",
         failureCategory: null,
@@ -188,11 +195,12 @@ export class PrismaReportRepository implements ReportRepository {
 
     for (const score of scores) {
       const scoreId = this.nextId();
+      const criterionId = score.criterionId ? await this.resolveCriterionId(score.criterionId) : null;
       await this.prisma.reportScore.create({
         data: {
           scoreId,
           reportId: BigInt(reportId),
-          criterionId: score.criterionId ? BigInt(score.criterionId) : null,
+          criterionId,
           score: score.score,
           rationale: score.rationale,
           evidences: {
@@ -285,6 +293,21 @@ export class PrismaReportRepository implements ReportRepository {
       where: { processLogId: latestProcess.processLogId },
       data: { outputRef: JSON.stringify(value) }
     });
+  }
+
+  private reportRefData(refs?: AiProcessRefs): { applicationId?: bigint; sessionId?: bigint } {
+    return {
+      ...(refs?.applicationId !== undefined ? { applicationId: BigInt(refs.applicationId) } : {}),
+      ...(refs?.sessionId !== undefined ? { sessionId: BigInt(refs.sessionId) } : {}),
+    };
+  }
+
+  private async resolveCriterionId(criterionId: number): Promise<bigint | null> {
+    const criterion = await this.prisma.evaluationCriterion.findUnique({
+      where: { criterionId: BigInt(criterionId) },
+      select: { criterionId: true }
+    });
+    return criterion ? BigInt(criterionId) : null;
   }
 
   private processSnapshot(processLogId: bigint, step: ReportPipelineStep, status: ProcessLogSnapshot["status"]): ProcessLogSnapshot {

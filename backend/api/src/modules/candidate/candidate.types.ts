@@ -256,6 +256,7 @@ export interface CandidateInterviewRuntimeView {
   status: InterviewStatus;
   showQuestionText: boolean;
   canRecord: boolean;
+  jobDescription?: string;
   nextQuestionEndpoint: string;
   answerUploadEndpoint: string;
 }

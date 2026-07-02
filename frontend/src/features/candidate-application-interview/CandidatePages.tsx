@@ -20,9 +20,13 @@ import {
   type CandidateJobQuery,
   type CandidateMockInterviewHistoryItem,
   type CandidateReportGenerationHandoff,
+  type CandidateAiProcessView,
   type CandidateMockReportFeedback,
   type CandidateMockReportMedia,
   type CandidateMockReportSummary,
+  type CandidateReportAnswerView,
+  type CandidateReportEvidenceView,
+  type CandidateReportScoreView,
   type CandidateRecruitingReportView,
   type InterviewRuntimeSessionView,
   type QuestionType,
@@ -90,6 +94,7 @@ type RuntimePageSession = {
   status: InterviewRuntimeSessionView["status"];
   showQuestionText: boolean;
   canRecord: boolean;
+  jobDescription?: string;
   totalQuestions: number;
   answeredCount: number;
   currentQuestion?: RuntimeQuestionView;
@@ -1074,6 +1079,9 @@ export function CandidateMockReportDetailPage({ reportId }: { reportId: number }
 }
 
 export function CandidateApplicationReportPage({ applicationId }: { applicationId: number }) {
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reportHandoff, setReportHandoff] = useState<CandidateReportGenerationHandoff>();
   const load = useCallback(async (): Promise<ApplicationReportData> => {
     const api = getCandidateApi();
     const [statusResult, reportResult] = await Promise.allSettled([
@@ -1089,6 +1097,23 @@ export function CandidateApplicationReportPage({ applicationId }: { applicationI
   }, [applicationId]);
   const { data, loading, error, refresh } = useCandidateResource(load, [applicationId]);
 
+  async function handleGenerateApplicationReport() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await getCandidateApi().requestApplicationReportGeneration(applicationId);
+      setReportHandoff(result.data);
+      setMessage(
+        `REPORT_GENERATE queued=${String(result.data.queued)} processLogId=${result.data.processLogId} reportId=${result.data.reportId}`,
+      );
+      refresh();
+    } catch (generateError) {
+      setMessage(toErrorMessage(generateError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <CandidatePageShell active="applications">
       <CandidatePageHead
@@ -1099,11 +1124,19 @@ export function CandidateApplicationReportPage({ applicationId }: { applicationI
           <div className="toolbar">
             <StatusPill value="채용 리포트" />
             <StatusPill value="지원자 제한 조회" />
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={busy || data?.status?.interviewStatus !== "COMPLETED"}
+              onClick={() => void handleGenerateApplicationReport()}
+            >
+              AI 분석 요청
+            </button>
             <button className="btn secondary" type="button" onClick={refresh}>새로고침</button>
           </div>
         }
       />
-      <StatusNotice loading={loading} error={error} />
+      <StatusNotice loading={loading || busy} error={error} message={message} />
       <section className="panel">
         <div className="panel-head">
           <div>
@@ -1113,6 +1146,17 @@ export function CandidateApplicationReportPage({ applicationId }: { applicationI
         </div>
         {data?.status ? <ApplicationStatusView status={data.status} /> : <p className="notice danger">{data?.statusError ?? "전형 상태를 불러오지 못했습니다."}</p>}
       </section>
+      {reportHandoff ? (
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>E 리포트 생성 연결</h2>
+              <p>REPORT_GENERATE 큐 발행 결과와 worker가 참조할 ID를 확인합니다.</p>
+            </div>
+          </div>
+          <ReportGenerationHandoffView handoff={reportHandoff} />
+        </section>
+      ) : null}
       <section className="panel">
         <div className="panel-head">
           <div>
@@ -2099,6 +2143,7 @@ function InterviewRuntimePanel({
         audioS3Key: lastAnswer.audioS3Key,
         previousQuestion: lastAnswer.questionText,
         transcript: lastAnswer.transcript,
+        jobDescription: mode === "recruiting" ? data.runtime.jobDescription : undefined,
       }) as AiInterviewRequest;
       const result =
         processType === "STT"
@@ -2814,13 +2859,16 @@ function MockFeedbackView({ feedback }: { feedback: CandidateMockReportFeedback 
     <div className="detail-stack">
       <dl className="candidate-feature__summary">
         <Definition label="상태" value={<StatusPill value={feedback.status} />} />
+        {feedback.totalScore !== undefined ? <Definition label="총점" value={`${feedback.totalScore}점`} /> : null}
         <Definition label="생성 시각" value={feedback.generatedAt ? formatDateTime(feedback.generatedAt) : "-"} />
         <Definition label="공개 범위" value={feedback.visibilityPolicy.candidateFacingOnly ? "지원자용" : "확인 필요"} />
       </dl>
+      {feedback.aiProcess ? <AiProcessSummaryView process={feedback.aiProcess} /> : null}
       <p className="description-box">{feedback.summary ?? "리포트 생성 중입니다."}</p>
       <ListBlock title="강점" items={feedback.strengths} />
       <ListBlock title="개선점" items={feedback.improvements} />
       <ListBlock title="다음 연습" items={feedback.nextPractice} />
+      <ReportScoreList scores={feedback.scores ?? []} />
     </div>
   );
 }
@@ -2868,6 +2916,7 @@ function MockMediaAnswerCard({ item, questionNumber }: { item: CandidateMockRepo
         <div className="script-box report-answer-card__script">
           <strong>스크립트</strong>
           <p>{item.transcript ?? (item.transcriptStatus === "AVAILABLE" ? "스크립트를 불러오는 중입니다." : "STT 처리 대기 중입니다.")}</p>
+          <FollowUpQuestionList questions={item.followUpQuestions} />
           <dl className="report-answer-meta">
             <Definition label="답변 시간" value={`${item.durationSeconds}s`} />
             <Definition label="영상 파일" value={item.videoFile?.originalName ?? "-"} />
@@ -2907,10 +2956,124 @@ function RecruitingReportView({ report }: { report: CandidateRecruitingReportVie
         <Definition label="상태" value={<StatusPill value={report.status} />} />
         <Definition label="회사" value={report.companyName} />
         <Definition label="공고" value={report.jobTitle} />
+        {report.reportId ? <Definition label="리포트 ID" value={`#${report.reportId}`} /> : null}
+        {report.totalScore !== undefined ? <Definition label="총점" value={`${report.totalScore}점`} /> : null}
+        <Definition label="생성 시각" value={report.generatedAt ? formatDateTime(report.generatedAt) : "-"} />
         <Definition label="다음 단계" value={report.nextStepLabel} />
       </dl>
+      {report.aiProcess ? <AiProcessSummaryView process={report.aiProcess} /> : null}
       <p className="description-box">{report.candidateMessage}</p>
       {report.summary ? <p className="description-box">{report.summary}</p> : null}
+      <ReportScoreList scores={report.scores} />
+      <ReportAnswerInsightList answers={report.answers} />
+    </div>
+  );
+}
+
+function AiProcessSummaryView({ process }: { process: CandidateAiProcessView }) {
+  return (
+    <dl className="candidate-feature__summary compact report-ai-process">
+      <Definition label="AI 작업" value={formatProcessTypeLabel(process.processType)} />
+      <Definition label="작업 상태" value={<StatusPill value={process.status} />} />
+      <Definition label="processLogId" value={`#${process.processLogId}`} />
+      <Definition label="요청 시각" value={formatDateTime(process.createdAt)} />
+      {process.failureReason ? <Definition label="실패 사유" value={process.failureReason} /> : null}
+    </dl>
+  );
+}
+
+function ReportScoreList({ scores }: { scores: CandidateReportScoreView[] }) {
+  if (!scores.length) {
+    return <p className="empty">표시할 평가 점수가 아직 없습니다.</p>;
+  }
+
+  return (
+    <div>
+      <h3 className="candidate-section-title">AI 평가 결과</h3>
+      <div className="report-score-list">
+        {scores.map((score) => (
+          <article className="report-score-card" key={score.scoreId}>
+            <div className="report-score-card__head">
+              <strong>{score.criterionName ?? `평가 항목 #${score.criterionId ?? score.scoreId}`}</strong>
+              <span>{score.score}점</span>
+            </div>
+            {score.rationale ? <p>{score.rationale}</p> : null}
+            <EvidenceList evidences={score.evidences} />
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReportAnswerInsightList({ answers }: { answers: CandidateReportAnswerView[] }) {
+  if (!answers.length) {
+    return <p className="empty">표시할 면접 답변이 아직 없습니다.</p>;
+  }
+
+  const sortedAnswers = [...answers].sort((left, right) => (left.sortOrder ?? left.answerId) - (right.sortOrder ?? right.answerId));
+  return (
+    <div>
+      <h3 className="candidate-section-title">답변별 STT / 꼬리질문</h3>
+      <div className="report-answer-insight-list">
+        {sortedAnswers.map((answer, index) => (
+          <article className="report-answer-insight-card" key={answer.answerId}>
+            <div className="report-answer-card__head">
+              <div>
+                <span>질문 {index + 1}</span>
+                <strong>{answer.questionContent ?? `질문 #${answer.questionId}`}</strong>
+              </div>
+              {answer.questionType ? <StatusPill value={formatQuestionTypeLabel(answer.questionType)} /> : null}
+            </div>
+            <div className="script-box">
+              <strong>STT 텍스트</strong>
+              <p>{answer.transcript ?? (answer.transcriptStatus === "AVAILABLE" ? "스크립트를 불러오는 중입니다." : "STT 처리 대기 중입니다.")}</p>
+            </div>
+            <FollowUpQuestionList questions={answer.followUpQuestions} />
+            <EvidenceList evidences={answer.evidences} />
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FollowUpQuestionList({ questions }: { questions: CandidateReportAnswerView["followUpQuestions"] }) {
+  if (!questions.length) {
+    return null;
+  }
+
+  return (
+    <div className="report-follow-up-list">
+      <strong>꼬리질문</strong>
+      <ul>
+        {questions.map((question) => (
+          <li key={question.followUpId}>
+            <span>{question.content}</span>
+            <small>{question.policy} · {formatStatusLabel(question.generationStatus)}</small>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function EvidenceList({ evidences }: { evidences: CandidateReportEvidenceView[] }) {
+  if (!evidences.length) {
+    return null;
+  }
+
+  return (
+    <div className="report-evidence-list">
+      <strong>근거</strong>
+      <ul>
+        {evidences.map((evidence) => (
+          <li key={evidence.evidenceId}>
+            <span>{evidence.evidenceText}</span>
+            <small>{evidence.sourceType}{evidence.answerId ? ` · 답변 #${evidence.answerId}` : ""}</small>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -2928,8 +3091,13 @@ function ReportGenerationHandoffView({ handoff }: { handoff: CandidateReportGene
         <StatusPill value={handoff.status} />
       </div>
       <dl className="candidate-feature__summary">
+        <Definition label="queued" value={String(handoff.queued)} />
+        <Definition label="processLogId" value={handoff.processLogId} />
+        <Definition label="reportStatus" value={handoff.reportStatus} />
         <Definition label="reportId" value={handoff.reportId} />
         <Definition label="sessionId" value={handoff.sessionId} />
+        {handoff.applicationId ? <Definition label="applicationId" value={handoff.applicationId} /> : null}
+        <Definition label="reportType" value={handoff.reportType} />
         <Definition label="answerIds" value={formatIdList(handoff.answerIds)} />
         <Definition label="fileIds" value={formatIdList(handoff.fileIds)} />
       </dl>
@@ -2963,6 +3131,8 @@ function buildAiPipelineRequestPayload(
     audioS3Key: request.audioS3Key,
     previousQuestion: request.previousQuestion,
     transcript: request.transcript,
+    jobDescription: request.jobDescription,
+    documentSummary: request.documentSummary,
   });
 }
 
@@ -2991,14 +3161,19 @@ function buildAiPipelineResponsePayload(
 function buildReportGenerationSharePayload(handoff: CandidateReportGenerationHandoff): Record<string, unknown> {
   return {
     accepted: handoff.accepted,
+    queued: handoff.queued,
     processType: handoff.processType,
     status: handoff.status,
+    reportStatus: handoff.reportStatus,
     callbackTopic: handoff.callbackTopic,
+    processLogId: handoff.processLogId,
     reportId: handoff.reportId,
     sessionId: handoff.sessionId,
+    applicationId: handoff.applicationId,
     reportType: handoff.reportType,
     answerIds: handoff.answerIds,
     fileIds: handoff.fileIds,
+    inputRef: handoff.inputRef,
   };
 }
 
@@ -3358,6 +3533,7 @@ function toRecruitingRuntimeSession(
     status: runtime.status,
     showQuestionText: runtime.showQuestionText,
     canRecord: runtime.canRecord,
+    ...(runtime.jobDescription ? { jobDescription: runtime.jobDescription } : {}),
     totalQuestions: questions.questions.length,
     answeredCount: questions.questions.filter((question) => question.answered).length,
     currentQuestion,

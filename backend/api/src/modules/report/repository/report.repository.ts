@@ -35,7 +35,11 @@ export interface ReportRepository {
   markProcessRunning(processLogId: number): Promise<ProcessLogSnapshot>;
   markProcessCompleted(processLogId: number): Promise<ProcessLogSnapshot>;
   markProcessFailed(processLogId: number, failure: FailureReason): Promise<ProcessLogSnapshot>;
-  markReportGenerating(reportId: number, reportType: ReportType): Promise<EvaluationReportSnapshot>;
+  markReportGenerating(
+    reportId: number,
+    reportType: ReportType,
+    refs?: AiProcessRefs
+  ): Promise<EvaluationReportSnapshot>;
   markReportCompleted(reportId: number, summary: string, totalScore: number): Promise<EvaluationReportSnapshot>;
   markReportFailed(reportId: number, failure: FailureReason): Promise<EvaluationReportSnapshot>;
   saveContext(reportId: number, context: EvaluationContext): Promise<void>;
