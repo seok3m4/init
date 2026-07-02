@@ -1199,6 +1199,7 @@ export class CandidateService {
     return {
       jobId: job.jobId,
       companyName: job.companyName,
+      companyLogoUrl: job.companyLogoUrl,
       title: job.title,
       jobGroup: job.jobGroup,
       jobRole: job.jobRole,

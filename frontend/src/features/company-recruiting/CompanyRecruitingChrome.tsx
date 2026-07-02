@@ -2,12 +2,17 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { GnbAvatar, GnbLogoutButton } from "../auth/GnbAccountControls";
+import { COMPANY_MYPAGE_ROUTE } from "../company-profile/routes";
 
 type CompanyNavSection = "postings" | "mypage";
 
 export function CompanyNav({ active }: { active?: CompanyNavSection }) {
+  const pathname = usePathname();
+  const current = active ?? (pathname?.startsWith(COMPANY_MYPAGE_ROUTE) ? "mypage" : "postings");
+
   return (
     <header className="gnb">
       <div className="gnb-inner">
@@ -15,15 +20,15 @@ export function CompanyNav({ active }: { active?: CompanyNavSection }) {
           <Image src="/logo-init.png" alt="init" width={1010} height={375} priority />
         </Link>
         <nav className="gnb-menu" aria-label="기업 메뉴">
-          <div className={`gnb-item ${active === "postings" ? "active" : ""}`}>
-            <Link className="gnb-link" href="/company/recruitments" aria-current={active === "postings" ? "page" : undefined}>
+          <div className={`gnb-item ${current === "postings" ? "active" : ""}`}>
+            <Link className="gnb-link" href="/company/recruitments" aria-current={current === "postings" ? "page" : undefined}>
               공고 목록
             </Link>
           </div>
-          <div className={`gnb-item ${active === "mypage" ? "active" : ""}`}>
-            <span className="gnb-link gnb-soon" aria-disabled="true" title="준비 중">
+          <div className={`gnb-item ${current === "mypage" ? "active" : ""}`}>
+            <Link className="gnb-link" href={COMPANY_MYPAGE_ROUTE} aria-current={current === "mypage" ? "page" : undefined}>
               마이페이지
-            </span>
+            </Link>
           </div>
         </nav>
         <div className="gnb-right">

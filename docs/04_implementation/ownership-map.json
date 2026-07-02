@@ -49,6 +49,17 @@
       "roles": ["A", "B", "D", "E"]
     },
     {
+      "name": "company logo candidate exposure bridge",
+      "patterns": [
+        "^docs/03_contracts/api-spec\\.md$",
+        "^backend/api/src/modules/candidate/candidate\\.types\\.ts$",
+        "^backend/api/src/modules/candidate/service/candidate\\.service(\\.spec)?\\.ts$",
+        "^backend/api/src/modules/candidate/repository/(in-memory-candidate|prisma-candidate)\\.repository(\\.test)?\\.ts$",
+        "^frontend/src/features/candidate-application-interview/(api\\.ts|contract\\.spec\\.ts|views\\.tsx|CandidatePages\\.module\\.css)$"
+      ],
+      "roles": ["B", "D"]
+    },
+    {
       "name": "candidate-facing interview report bridge",
       "patterns": [
         "^backend/api/src/modules/report/candidate-report\\.types\\.ts$",
@@ -97,10 +108,13 @@
     ],
     "B": [
       "^frontend/src/features/company-recruiting/",
+      "^frontend/src/features/company-profile/",
       "^frontend/src/app/(layout\\.tsx|page\\.tsx|company/recruitments/|company/applicants/|company/applications/)",
+      "^frontend/src/app/company/mypage/",
       "^frontend/src/styles/",
       "^frontend/public/logo-init\\.png$",
-      "^backend/api/src/modules/company-recruiting/"
+      "^backend/api/src/modules/company-recruiting/",
+      "^backend/api/src/modules/company-profile/"
     ],
     "C": [
       "^frontend/src/features/company-interview-criteria/",

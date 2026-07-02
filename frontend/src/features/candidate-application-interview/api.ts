@@ -80,6 +80,7 @@ export interface CandidateJobQuery {
 export interface CandidateJobSummary {
   jobId: number;
   companyName: string;
+  companyLogoUrl: string | null;
   title: string;
   jobGroup: string;
   jobRole: string;

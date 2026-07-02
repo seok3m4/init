@@ -26,7 +26,7 @@ import {
   type ReportStatus,
 } from "../candidate.types";
 
-type PostingWithCompany = Prisma.PostingGetPayload<{ include: { company: true } }>;
+type PostingWithCompany = Prisma.PostingGetPayload<{ include: { company: { include: { logoFile: true } } } }>;
 type ApplicationRecord = Prisma.ApplicationGetPayload<Record<string, never>>;
 type ApplicationDocumentRecord = Prisma.ApplicationDocumentGetPayload<Record<string, never>>;
 type ConsentRecordModel = Prisma.ConsentRecordGetPayload<Record<string, never>>;
@@ -44,7 +44,7 @@ export class PrismaCandidateRepository implements CandidateRepository {
           in: [PrismaPostingStatus.OPEN, PrismaPostingStatus.CLOSING_SOON],
         },
       },
-      include: { company: true },
+      include: { company: { include: { logoFile: true } } },
       orderBy: { createdAt: "desc" },
     });
     return postings.map((posting) => this.toCandidateJob(posting));
@@ -53,7 +53,7 @@ export class PrismaCandidateRepository implements CandidateRepository {
   async findJob(jobId: number): Promise<CandidateJob | undefined> {
     const posting = await this.prisma.posting.findUnique({
       where: { postingId: BigInt(jobId) },
-      include: { company: true },
+      include: { company: { include: { logoFile: true } } },
     });
     return posting ? this.toCandidateJob(posting) : undefined;
   }
@@ -344,6 +344,7 @@ export class PrismaCandidateRepository implements CandidateRepository {
       companyId: Number(posting.companyId),
       isPublic: posting.status !== PrismaPostingStatus.DRAFT && posting.status !== PrismaPostingStatus.ARCHIVED,
       companyName: posting.company.name,
+      companyLogoUrl: posting.company.logoFile ? buildPublicFileUrl(posting.company.logoFile.storageKey) : null,
       companyIndustry: posting.company.industry ?? "미입력",
       companyProfile: posting.company.profile ?? "",
       title: posting.title,
@@ -444,4 +445,22 @@ export class PrismaCandidateRepository implements CandidateRepository {
 
 function isPrismaUniqueConstraintError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
+function buildPublicFileUrl(storageKey: string) {
+  const baseUrl = process.env.S3_PUBLIC_BASE_URL ?? buildDefaultS3PublicBaseUrl();
+  return `${baseUrl.replace(/\/+$/, "")}/${encodeStorageKeyPath(storageKey)}`;
+}
+
+function buildDefaultS3PublicBaseUrl() {
+  const bucket = process.env.S3_BUCKET_NAME ?? process.env.S3_BUCKET ?? "";
+  const region = process.env.AWS_REGION ?? "ap-northeast-2";
+  if (process.env.AWS_ENDPOINT_URL && bucket) {
+    return `${process.env.AWS_ENDPOINT_URL.replace(/\/+$/, "")}/${bucket}`;
+  }
+  return bucket ? `https://${bucket}.s3.${region}.amazonaws.com` : "";
+}
+
+function encodeStorageKeyPath(storageKey: string) {
+  return storageKey.split("/").map(encodeURIComponent).join("/");
 }
