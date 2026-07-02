@@ -107,12 +107,42 @@ function createRepository(overrides: Record<string, unknown> = {}) {
         applicantCount: 0,
       };
     },
+    async findOpenPostingForPublic(postingId: number) {
+      calls.findOpenPostingForPublic = [postingId];
+      return {
+        postingId,
+        companyName: "INIT Corp",
+        title: "Backend Developer",
+        jobRole: "Backend",
+        jobDescription: "Build APIs",
+        careerRequirement: "경력무관",
+        educationRequirement: "학력무관",
+        salaryInfo: "회사 내규에 따름",
+        workLocation: "서울",
+        employmentType: "정규직",
+        startsOn: new Date("2026-06-29T00:00:00.000Z"),
+        endsOn: new Date("2026-07-15T00:00:00.000Z"),
+        status: "OPEN",
+      };
+    },
     async findApplicationByPostingAndEmail(postingId: number, email: string) {
       calls.findApplicationByPostingAndEmail = [postingId, email];
       return null;
     },
+    async findUserAccountByEmail(email: string) {
+      calls.findUserAccountByEmail = [email];
+      return null;
+    },
+    async findPublicApplicationStatusById(applicationId: number) {
+      calls.findPublicApplicationStatusById = [applicationId];
+      return applicationId === applicant.applicationId ? applicant : null;
+    },
     async findOrCreateCandidate(input: unknown) {
       calls.findOrCreateCandidate = [input];
+      return { candidateId: 44 };
+    },
+    async findOrCreatePublicCandidate(input: unknown) {
+      calls.findOrCreatePublicCandidate = [input];
       return { candidateId: 44 };
     },
     async createApplication(input: unknown) {
@@ -193,27 +223,32 @@ function createApplicantRecord(overrides: Partial<ApplicantRecord> = {}): Applic
   };
 }
 
-function createInvitationAdapter() {
+function createPublicApplicationAuthAdapter(
+  tokenPayload: { applicationId: number; recruitmentId: number; email: string; purpose: "PUBLIC_APPLICATION_STATUS"; createdAt: string } | null = {
+    applicationId: 77,
+    recruitmentId: 101,
+    email: "kim@example.com",
+    purpose: "PUBLIC_APPLICATION_STATUS",
+    createdAt: "2026-06-29T00:00:00.000Z",
+  },
+) {
   const calls: Record<string, unknown[]> = {};
   return {
     calls,
-    async requestInvitation(input: unknown) {
-      calls.requestInvitation = [input];
+    async requestEmailVerification(input: unknown) {
+      calls.requestEmailVerification = [input];
       return {
-        invitationId: "temp-invitation-77",
-        applicationId: 77,
-        availableFrom: new Date("2026-06-30T00:00:00.000Z"),
-        availableUntil: new Date("2026-07-02T00:00:00.000Z"),
-        message: "응시 안내입니다.",
-        deliveryStatus: "REQUESTED" as const,
-        temporary: true as const,
-        temporaryBoundary: "B_MODULE_IN_MEMORY_INVITATION_ADAPTER" as const,
-        sessionConnection: {
-          status: "REQUESTED_FROM_D_MODULE" as const,
-          interviewType: "RECRUITING" as const,
-          temporary: true as const,
-        },
+        emailVerificationStatus: "PENDING" as const,
+        nextAction: "CHECK_EMAIL" as const,
+        temporary: false as const,
+        temporaryBoundary: null,
+        magicLinkDeliveryStatus: "SENT" as const,
+        magicLinkExpiresInSeconds: 604800,
       };
+    },
+    async verifyApplicationStatusToken(token: string) {
+      calls.verifyApplicationStatusToken = [token];
+      return tokenPayload;
     },
   };
 }
@@ -286,7 +321,7 @@ describe("CompanyRecruitingService", () => {
         };
       },
     });
-    const service = new CompanyRecruitingService(repository, createInvitationAdapter(), storageAdapter, {
+    const service = new CompanyRecruitingService(repository, storageAdapter, {
       jdImagePublicBaseUrl: "https://cdn.example.com/assets",
       jdImageMaxUploadBytes: 5 * 1024 * 1024,
     });
@@ -327,7 +362,7 @@ describe("CompanyRecruitingService", () => {
   it("rejects JD editor image uploads with unsupported MIME types", async () => {
     const storageAdapter = createStorageAdapter();
     const repository = createRepository();
-    const service = new CompanyRecruitingService(repository, createInvitationAdapter(), storageAdapter);
+    const service = new CompanyRecruitingService(repository, storageAdapter);
 
     await assert.rejects(
       service.uploadJobDescriptionImage(companyUser, {
@@ -349,7 +384,7 @@ describe("CompanyRecruitingService", () => {
   it("rejects JD editor image uploads over the configured size limit", async () => {
     const storageAdapter = createStorageAdapter();
     const repository = createRepository();
-    const service = new CompanyRecruitingService(repository, createInvitationAdapter(), storageAdapter, {
+    const service = new CompanyRecruitingService(repository, storageAdapter, {
       jdImageMaxUploadBytes: 4,
     });
 
@@ -422,6 +457,206 @@ describe("CompanyRecruitingService", () => {
         take: 20,
       },
     ]);
+  });
+
+  it("exposes only public recruitment fields for OPEN postings", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    const result = await service.getPublicRecruitment(101);
+
+    assert.deepEqual(repository.calls.findOpenPostingForPublic, [101]);
+    assert.equal(result.recruitmentId, 101);
+    assert.equal(result.companyName, "INIT Corp");
+    assert.equal(result.status, "OPEN");
+    assert.equal("companyId" in result, false);
+    assert.equal("applicantCount" in result, false);
+  });
+
+  it("stores public applications as pending candidate applications", async () => {
+    const repository = createRepository();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
+    const service = new CompanyRecruitingService(repository, undefined, {}, publicApplicationAuthAdapter);
+
+    const result = await service.submitPublicApplication(101, {
+      name: "김지원",
+      email: " JIWON@EXAMPLE.COM ",
+      phone: "010-0000-0000",
+      portfolioUrl: "https://github.com/jiwon",
+      resumeText: "백엔드 프로젝트 경험이 있습니다.",
+      consentAgreed: true,
+    });
+
+    assert.deepEqual(repository.calls.findOpenPostingForPublic, [101]);
+    assert.deepEqual(repository.calls.findApplicationByPostingAndEmail, [101, "jiwon@example.com"]);
+    assert.deepEqual(repository.calls.findOrCreatePublicCandidate, [
+      {
+        name: "김지원",
+        email: "jiwon@example.com",
+        phone: "010-0000-0000",
+        portfolioUrl: "https://github.com/jiwon",
+        summary: "백엔드 프로젝트 경험이 있습니다.",
+      },
+    ]);
+    assert.deepEqual(repository.calls.createApplication, [{ postingId: 101, candidateId: 44, screeningMemo: null }]);
+    assert.deepEqual(publicApplicationAuthAdapter.calls.requestEmailVerification, [
+      {
+        applicationId: 77,
+        recruitmentId: 101,
+        email: "jiwon@example.com",
+      },
+    ]);
+    assert.equal(result.email, "jiwon@example.com");
+    assert.equal(result.applicationStatus, "SUBMITTED");
+    assert.equal(result.emailVerificationStatus, "PENDING");
+    assert.equal(result.nextAction, "CHECK_EMAIL");
+    assert.equal(result.temporary, false);
+    assert.equal(result.temporaryBoundary, null);
+    assert.equal(result.magicLinkDeliveryStatus, "SENT");
+    assert.equal(result.magicLinkExpiresInSeconds, 604800);
+  });
+
+  it("returns public application status only after magic link token verification", async () => {
+    const repository = createRepository();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
+    const service = new CompanyRecruitingService(repository, undefined, {}, publicApplicationAuthAdapter);
+
+    const result = await (service as unknown as { getPublicApplicationStatusByMagicLink(token: string): Promise<unknown> })
+      .getPublicApplicationStatusByMagicLink("valid-token");
+
+    assert.deepEqual(publicApplicationAuthAdapter.calls.verifyApplicationStatusToken, ["valid-token"]);
+    assert.deepEqual(repository.calls.findPublicApplicationStatusById, [77]);
+    assert.deepEqual(result, {
+      applicationId: 77,
+      recruitmentId: 101,
+      email: "kim@example.com",
+      name: "Kim Applicant",
+      jobRole: "Backend",
+      applicationStatus: "SUBMITTED",
+      documentStatus: "NOT_SUBMITTED",
+      interviewStatus: "NOT_READY",
+      reportStatus: "PENDING",
+      interviewEntry: {
+        href: "/public/applications/77/interview",
+        label: "면접 시작",
+        enabled: true,
+        integrationStatus: "D_PUBLIC_CONTEXT_PENDING",
+        temporary: true,
+        temporaryBoundary: "B_MODULE_PUBLIC_INTERVIEW_ADAPTER",
+        message: "면접 시작은 D public interview access context 연동 후 활성화됩니다.",
+      },
+      submittedAt: null,
+      updatedAt: "2026-06-29T00:00:00.000Z",
+    });
+  });
+
+  it("rejects public application status when magic link token is invalid", async () => {
+    const repository = createRepository();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter(null);
+    const service = new CompanyRecruitingService(repository, undefined, {}, publicApplicationAuthAdapter);
+
+    await assert.rejects(
+      () =>
+        (service as unknown as { getPublicApplicationStatusByMagicLink(token: string): Promise<unknown> })
+          .getPublicApplicationStatusByMagicLink("expired-token"),
+      /매직링크/,
+    );
+    assert.equal(repository.calls.findPublicApplicationStatusById, undefined);
+  });
+
+  it("verifies public application magic token for D public interview start", async () => {
+    const repository = createRepository();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
+    const service = new CompanyRecruitingService(repository, undefined, {}, publicApplicationAuthAdapter);
+
+    const result = await service.verifyPublicApplicationTokenForInterviewStart("valid-token");
+
+    assert.deepEqual(publicApplicationAuthAdapter.calls.verifyApplicationStatusToken, ["valid-token"]);
+    assert.deepEqual(repository.calls.findPublicApplicationStatusById, [77]);
+    assert.deepEqual(result, { applicationId: 77 });
+  });
+
+  it("rejects duplicate public application emails", async () => {
+    const repository = createRepository({
+      async findApplicationByPostingAndEmail() {
+        return { applicationId: 77 };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "jiwon@example.com",
+          consentAgreed: true,
+        }),
+      /이미 이 공고에 지원한 이메일입니다/,
+    );
+    assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+  });
+
+  it("rejects public submissions for existing accounts before mutating candidate profiles", async () => {
+    const repository = createRepository({
+      async findUserAccountByEmail(email: string) {
+        repository.calls.findUserAccountByEmail = [email];
+        return { userId: 88, userType: "CANDIDATE", hasCandidateProfile: true };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "existing@example.com",
+          portfolioUrl: "https://attacker.example.com",
+          resumeText: "변조 시도",
+          consentAgreed: true,
+        }),
+      /이미 가입된 이메일/,
+    );
+    assert.deepEqual(repository.calls.findUserAccountByEmail, ["existing@example.com"]);
+    assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+    assert.equal(repository.calls.createApplication, undefined);
+  });
+
+  it("rejects public submissions with company account emails", async () => {
+    const repository = createRepository({
+      async findUserAccountByEmail(email: string) {
+        repository.calls.findUserAccountByEmail = [email];
+        return { userId: 99, userType: "COMPANY", hasCandidateProfile: false };
+      },
+    });
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "company@example.com",
+          consentAgreed: true,
+        }),
+      /지원자 계정이 아닌 이메일/,
+    );
+    assert.equal(repository.calls.findOrCreatePublicCandidate, undefined);
+    assert.equal(repository.calls.createApplication, undefined);
+  });
+
+  it("requires consent for public application submission", async () => {
+    const repository = createRepository();
+    const service = new CompanyRecruitingService(repository);
+
+    await assert.rejects(
+      () =>
+        service.submitPublicApplication(101, {
+          name: "김지원",
+          email: "jiwon@example.com",
+          consentAgreed: false,
+        }),
+      /동의가 필요합니다/,
+    );
+    assert.equal(repository.calls.findApplicationByPostingAndEmail, undefined);
   });
 
   it("updates recruitment settings for the current company only", async () => {
@@ -591,223 +826,6 @@ describe("CompanyRecruitingService", () => {
         error.code === "COMMON_VALIDATION_FAILED",
     );
     assert.equal(repository.calls.createPosting, undefined);
-  });
-
-  it("rejects duplicate applicant email within the same recruitment", async () => {
-    const repository = createRepository({
-      async findApplicationByPostingAndEmail() {
-        return { applicationId: 123 };
-      },
-    });
-    const service = new CompanyRecruitingService(repository);
-
-    await assert.rejects(
-      service.registerApplicant(companyUser, {
-        recruitmentId: 101,
-        name: "Kim Applicant",
-        email: "KIM@example.com",
-        jobRole: "Backend",
-        phone: "010-0000-0000",
-      }),
-      (error: unknown) =>
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "COMMON_CONFLICT",
-    );
-  });
-
-  it("creates an application with B-owned initial statuses", async () => {
-    const repository = createRepository();
-    const service = new CompanyRecruitingService(repository);
-
-    const result = await service.registerApplicant(companyUser, {
-      recruitmentId: 101,
-      name: "Kim Applicant",
-      email: "KIM@example.com",
-      jobRole: "Backend",
-      phone: "010-0000-0000",
-    });
-
-    assert.equal(result.applicationStatus, "SUBMITTED");
-    assert.equal(result.documentStatus, "NOT_SUBMITTED");
-    assert.equal(result.interviewStatus, "NOT_READY");
-    assert.equal(result.reportStatus, "PENDING");
-    assert.equal(result.screeningDecision, "UNDECIDED");
-    assert.deepEqual(repository.calls.findApplicationByPostingAndEmail, [101, "kim@example.com"]);
-    assert.deepEqual(repository.calls.createApplication, [
-      {
-        postingId: 101,
-        candidateId: 44,
-        screeningMemo: null,
-      },
-    ]);
-  });
-
-  it("bulk-registers valid applicant rows and reports a success summary", async () => {
-    const bulkCalls: Record<string, unknown[]> = {};
-    const repository = createRepository({
-      async findOrCreateCandidate(input: { name: string; email: string; phone: string | null }) {
-        bulkCalls.findOrCreateCandidate = [...(bulkCalls.findOrCreateCandidate ?? []), input];
-        return { candidateId: input.email === "lee@example.com" ? 45 : 46 };
-      },
-      async createApplication(input: { postingId: number; candidateId: number; screeningMemo: string | null }) {
-        bulkCalls.createApplication = [...(bulkCalls.createApplication ?? []), input];
-        return createApplicantRecord({
-          applicationId: input.candidateId === 45 ? 78 : 79,
-          candidateId: input.candidateId,
-          candidate: {
-            candidateId: input.candidateId,
-            user: {
-              userId: input.candidateId + 100,
-              email: input.candidateId === 45 ? "lee@example.com" : "park@example.com",
-              name: input.candidateId === 45 ? "이서연" : "박지훈",
-              phone: input.candidateId === 45 ? "010-1111-1111" : "010-2222-2222",
-            },
-          },
-        });
-      },
-    });
-    const service = new CompanyRecruitingService(repository);
-
-    const result = await service.bulkRegisterApplicants(companyUser, {
-      recruitmentId: 101,
-      applicants: [
-        { rowNumber: 2, name: "이서연", email: "LEE@example.com", jobRole: "Backend", phone: "010-1111-1111" },
-        { rowNumber: 3, name: "박지훈", email: "park@example.com", jobRole: "Backend", phone: "010-2222-2222" },
-      ],
-    });
-
-    assert.deepEqual(result.summary, { totalRows: 2, successCount: 2, failedCount: 0 });
-    assert.equal(result.successes[0]?.rowNumber, 2);
-    assert.equal(result.successes[0]?.applicant.email, "lee@example.com");
-    assert.deepEqual(result.failures, []);
-    assert.deepEqual(bulkCalls.findOrCreateCandidate, [
-      { name: "이서연", email: "lee@example.com", phone: "010-1111-1111" },
-      { name: "박지훈", email: "park@example.com", phone: "010-2222-2222" },
-    ]);
-    assert.deepEqual(bulkCalls.createApplication, [
-      { postingId: 101, candidateId: 45, screeningMemo: null },
-      { postingId: 101, candidateId: 46, screeningMemo: null },
-    ]);
-  });
-
-  it("bulk-registers only valid rows and returns row-level failures", async () => {
-    const createdEmails: string[] = [];
-    const repository = createRepository({
-      async findApplicationByPostingAndEmail(_postingId: number, email: string) {
-        if (email === "exists@example.com") {
-          return { applicationId: 123 };
-        }
-        return null;
-      },
-      async findOrCreateCandidate(input: { email: string }) {
-        createdEmails.push(input.email);
-        return { candidateId: 45 };
-      },
-      async createApplication() {
-        return createApplicantRecord({
-          applicationId: 78,
-          candidate: {
-            candidateId: 45,
-            user: {
-              userId: 145,
-              email: "valid@example.com",
-              name: "정상지원",
-              phone: null,
-            },
-          },
-        });
-      },
-    });
-    const service = new CompanyRecruitingService(repository);
-
-    const result = await service.bulkRegisterApplicants(companyUser, {
-      recruitmentId: 101,
-      applicants: [
-        { rowNumber: 2, name: "", email: "missing@example.com", jobRole: "Backend" },
-        { rowNumber: 3, name: "형식오류", email: "invalid-email", jobRole: "Backend" },
-        { rowNumber: 4, name: "기존중복", email: "exists@example.com", jobRole: "Backend" },
-        { rowNumber: 5, name: "정상지원", email: "valid@example.com", jobRole: "Backend" },
-        { rowNumber: 6, name: "CSV중복", email: "VALID@example.com", jobRole: "Backend" },
-        { rowNumber: 7, name: "중복1", email: "bad-name-number@example.com", jobRole: "Backend" },
-        { rowNumber: 8, name: "이,서연", email: "bad-name-comma@example.com", jobRole: "Backend" },
-      ],
-    });
-
-    assert.deepEqual(result.summary, { totalRows: 7, successCount: 1, failedCount: 6 });
-    assert.deepEqual(createdEmails, ["valid@example.com"]);
-    assert.deepEqual(
-      result.failures.map((failure) => ({ rowNumber: failure.rowNumber, reason: failure.reason, field: failure.field })),
-      [
-        { rowNumber: 2, reason: "MISSING_REQUIRED_FIELD", field: "name" },
-        { rowNumber: 3, reason: "INVALID_EMAIL", field: "email" },
-        { rowNumber: 4, reason: "DUPLICATED_IN_RECRUITMENT", field: "email" },
-        { rowNumber: 6, reason: "DUPLICATED_IN_CSV", field: "email" },
-        { rowNumber: 7, reason: "INVALID_NAME", field: "name" },
-        { rowNumber: 8, reason: "INVALID_NAME", field: "name" },
-      ],
-    );
-  });
-
-  it("rejects invalid applicant names in direct registration", async () => {
-    const repository = createRepository();
-    const service = new CompanyRecruitingService(repository);
-
-    await assert.rejects(
-      service.registerApplicant(companyUser, {
-        recruitmentId: 101,
-        name: "중복1",
-        email: "bad-name@example.com",
-        jobRole: "Backend",
-      }),
-      (error: unknown) =>
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "COMMON_VALIDATION_FAILED",
-    );
-    assert.equal(repository.calls.findOrCreateCandidate, undefined);
-  });
-
-  it("requests invitations through the temporary B adapter boundary", async () => {
-    const repository = createRepository();
-    const invitationAdapter = createInvitationAdapter();
-    const service = new CompanyRecruitingService(repository, invitationAdapter);
-
-    const result = await service.inviteApplicant(companyUser, {
-      applicantId: 77,
-      availableFrom: "2026-06-30T00:00:00.000Z",
-      availableUntil: "2026-07-02T00:00:00.000Z",
-      message: "응시 안내입니다.",
-    });
-
-    assert.equal(result.temporary, true);
-    assert.equal(result.temporaryBoundary, "B_MODULE_IN_MEMORY_INVITATION_ADAPTER");
-    assert.equal(result.sessionConnection.status, "REQUESTED_FROM_D_MODULE");
-    assert.deepEqual(repository.calls.findApplicationForCompany, [77, 7]);
-    assert.equal((invitationAdapter.calls.requestInvitation[0] as { application: ApplicantRecord }).application.applicationId, 77);
-  });
-
-  it("rejects invalid invitation periods before calling the adapter", async () => {
-    const repository = createRepository();
-    const invitationAdapter = createInvitationAdapter();
-    const service = new CompanyRecruitingService(repository, invitationAdapter);
-
-    await assert.rejects(
-      service.inviteApplicant(companyUser, {
-        applicantId: 77,
-        availableFrom: "2026-07-02T00:00:00.000Z",
-        availableUntil: "2026-06-30T00:00:00.000Z",
-        message: "응시 안내입니다.",
-      }),
-      (error: unknown) =>
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "COMMON_VALIDATION_FAILED",
-    );
-    assert.equal(invitationAdapter.calls.requestInvitation, undefined);
   });
 
   it("returns evaluation detail with report absence as none or generating", async () => {

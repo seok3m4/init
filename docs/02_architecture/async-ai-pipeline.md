@@ -70,4 +70,4 @@ sequenceDiagram
 - `FAILED` 상태는 `failure.category`, `failure.reason`, `failure.retryable`을 포함한다.
 - worker의 `finalSave`는 guardrail `PASS` 또는 `REGENERATED` 이후에만 실행된다.
 - `BLOCKED` 결과는 최종 저장 없이 `ai_guardrail_logs`와 `ai_process_logs.status=FAILED`로 기록한다.
-- C 화면에서 소비하는 AI draft output은 자동 저장하지 않는다. 평가 기준 추천은 `criteriaSuggestions`, JD 질문 생성은 `questionCandidates`, 질문 세트 구성은 `questionSetPreview`를 미리보기로 표시하고 사용자가 선택한 항목만 기존 C 저장 API로 반영한다.
+- C 화면에서 소비하는 AI draft output은 자동 저장하지 않는다. 평가 기준 추천은 `criteriaSuggestions`, JD 질문 생성은 `questionCandidates`, 질문 세트 구성은 `questionSetPreview`를 미리보기로 표시하고 사용자가 선택한 항목만 기존 C 저장 API로 반영한다. 질문 세트 preview는 후보별 포함/제외 선택을 거친 뒤 질문 뱅크의 활성 질문과 매칭되는 항목만 확정한다.

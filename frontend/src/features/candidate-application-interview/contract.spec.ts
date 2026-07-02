@@ -1,8 +1,10 @@
 ﻿import type {
   ApiErrorBody,
   CandidateApplicationSummary,
+  CandidateJobDetail,
   CandidateJobListPostingStatus,
   CandidateJobQuery,
+  CandidateJobSummary,
   CandidateMockReportFeedback,
   CandidateMockReportSummary,
   CandidateRecruitingReportView,
@@ -24,6 +26,7 @@ import {
   isCandidateFacingMockFeedbackSafe,
   isCandidateInterviewStartEnabled,
   isCandidateRecruitingReportLimited,
+  shouldShowInterviewDeviceSetup,
   toRuntimeQuestionSpeechText,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
@@ -135,6 +138,34 @@ const applicationSummary: CandidateApplicationSummary = {
   canStartInterview: true,
 };
 
+const candidateJobSummary: CandidateJobSummary = {
+  jobId: 1,
+  companyName: "Init Labs",
+  companyLogoUrl: "https://cdn.example.com/assets/company/1/profile-logo/init.png",
+  title: "Backend Developer",
+  jobGroup: "Engineering",
+  jobRole: "Backend",
+  location: "Seoul",
+  careerLevel: "Junior",
+  employmentType: "Full-time",
+  postingStatus: "OPEN",
+  startsOn: "2026-07-01",
+  endsOn: "2026-07-31",
+  canApply: true,
+  alreadyApplied: false,
+};
+
+const candidateJobDetail: CandidateJobDetail = {
+  ...candidateJobSummary,
+  companyId: 1,
+  isPublic: true,
+  companyIndustry: "SaaS",
+  companyProfile: "AI recruiting workflow",
+  jobDescription: "NestJS API",
+  techStacks: ["Node.js", "NestJS"],
+  createdAt: "2026-07-01T00:00:00.000Z",
+};
+
 const mockReport: CandidateMockReportSummary = {
   sessionId: 10001,
   reportId: 10001,
@@ -200,6 +231,21 @@ const mockInterviewHref = getMockInterviewHref({ sessionId: 10001 });
 const mockReportHref = getMockReportHref(mockReport);
 const mockFeedbackIsSafe = isCandidateFacingMockFeedbackSafe(mockFeedback);
 const recruitingReportIsLimited = isCandidateRecruitingReportLimited(recruitingReport);
+const recruitingReadyShowsDeviceSetup = shouldShowInterviewDeviceSetup({
+  mode: "recruiting",
+  setupCompleted: false,
+  runtimeStatus: "READY",
+});
+const recruitingInProgressSkipsDeviceSetup = shouldShowInterviewDeviceSetup({
+  mode: "recruiting",
+  setupCompleted: false,
+  runtimeStatus: "IN_PROGRESS",
+});
+const completedInterviewSkipsDeviceSetup = shouldShowInterviewDeviceSetup({
+  mode: "recruiting",
+  setupCompleted: false,
+  runtimeStatus: "COMPLETED",
+});
 
 const mockInterviewsPath = candidateApiPaths.mockInterviews;
 const mockRuntimePath = candidateApiPaths.mockRuntime(10001);
@@ -273,6 +319,8 @@ void answerRequest;
 void questionSpeechText;
 void audioPromptSpeechText;
 void applicationSummary;
+void candidateJobSummary;
+void candidateJobDetail;
 void mockReport;
 void mockFeedback;
 void recruitingReport;
@@ -283,6 +331,9 @@ void mockInterviewHref;
 void mockReportHref;
 void mockFeedbackIsSafe;
 void recruitingReportIsLimited;
+void recruitingReadyShowsDeviceSetup;
+void recruitingInProgressSkipsDeviceSetup;
+void completedInterviewSkipsDeviceSetup;
 void mockInterviewsPath;
 void mockRuntimePath;
 void mockQuestionsPath;

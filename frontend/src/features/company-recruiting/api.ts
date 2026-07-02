@@ -3,12 +3,7 @@ import type {
   ApiErrorEnvelope,
   Applicant,
   ApplicantEvaluation,
-  BulkApplicantRegistrationResult,
-  BulkCreateApplicantsInput,
-  CreateApplicantInput,
   CreateRecruitmentInput,
-  InvitationResult,
-  InviteApplicantInput,
   JobDescriptionImageUploadResponse,
   Recruitment,
   RecruitmentStatus,
@@ -63,12 +58,6 @@ export async function publishRecruitment(recruitmentId: number) {
   });
 }
 
-export async function copyRecruitment(recruitmentId: number) {
-  return request<Recruitment>(`/company/recruitments/${recruitmentId}/copy`, {
-    method: "POST",
-  });
-}
-
 export async function deleteRecruitment(recruitmentId: number) {
   return request<Recruitment>(`/company/recruitments/${recruitmentId}`, {
     method: "DELETE",
@@ -84,27 +73,6 @@ export async function uploadJobDescriptionImage(file: File) {
 
 export async function listRecruitmentApplicants(recruitmentId: number, query: ListQuery = {}) {
   return request<{ items: Applicant[] }>(`/company/recruitments/${recruitmentId}/applicants`, { query });
-}
-
-export async function createApplicant(input: CreateApplicantInput) {
-  return request<Applicant>("/company/applicants", {
-    method: "POST",
-    body: input,
-  });
-}
-
-export async function bulkCreateApplicants(input: BulkCreateApplicantsInput) {
-  return request<BulkApplicantRegistrationResult>("/company/applicants/bulk", {
-    method: "POST",
-    body: input,
-  });
-}
-
-export async function inviteApplicant(input: InviteApplicantInput) {
-  return request<InvitationResult>("/company/applicants/invitations", {
-    method: "POST",
-    body: input,
-  });
 }
 
 export async function getApplicantEvaluation(applicantId: number) {

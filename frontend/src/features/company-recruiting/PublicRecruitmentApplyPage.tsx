@@ -1,0 +1,299 @@
+"use client";
+
+import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  getPublicRecruitment,
+  requestPublicApplicationAccessLink,
+  submitPublicApplication,
+  type PublicApplicationInput,
+  type PublicRecruitment,
+} from "./public-application-api";
+import { JobDescriptionViewer } from "./JobDescriptionViewer";
+
+type AsyncState<T> = {
+  data?: T;
+  loading: boolean;
+  error?: string;
+};
+
+const initialForm: PublicApplicationInput = {
+  name: "",
+  email: "",
+  phone: "",
+  portfolioUrl: "",
+  resumeText: "",
+  consentAgreed: false,
+};
+
+export function PublicRecruitmentApplyPage({ recruitmentId }: { recruitmentId: number }) {
+  const [state, setState] = useState<AsyncState<PublicRecruitment>>({ loading: true });
+  const [form, setForm] = useState<PublicApplicationInput>(initialForm);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [deliveryStatus, setDeliveryStatus] = useState<"SENT" | "FAILED" | "NOT_SENT_TEMPORARY" | "">("");
+
+  const loadRecruitment = useCallback(async () => {
+    setState({ loading: true });
+    try {
+      const result = await getPublicRecruitment(recruitmentId);
+      setState({ data: result.data, loading: false });
+    } catch (error) {
+      setState({ loading: false, error: toErrorMessage(error) });
+    }
+  }, [recruitmentId]);
+
+  useEffect(() => {
+    void loadRecruitment();
+  }, [loadRecruitment]);
+
+  const canSubmit = useMemo(() => {
+    return Boolean(form.name.trim() && form.email.trim() && form.consentAgreed && !busy && state.data);
+  }, [busy, form.consentAgreed, form.email, form.name, state.data]);
+
+  function updateField<K extends keyof PublicApplicationInput>(field: K, value: PublicApplicationInput[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!state.data) return;
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await submitPublicApplication(recruitmentId, {
+        ...form,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: emptyToUndefined(form.phone),
+        portfolioUrl: emptyToUndefined(form.portfolioUrl),
+        resumeText: emptyToUndefined(form.resumeText),
+      });
+      setSubmittedEmail(result.data.email);
+      setDeliveryStatus(result.data.magicLinkDeliveryStatus);
+      setMessage(buildDeliveryMessage(result.data.magicLinkDeliveryStatus));
+      setForm(initialForm);
+    } catch (error) {
+      setMessage(toErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResendAccessLink() {
+    if (!submittedEmail) return;
+    setResending(true);
+    setMessage("");
+    try {
+      const result = await requestPublicApplicationAccessLink(recruitmentId, submittedEmail);
+      setDeliveryStatus(result.data.magicLinkDeliveryStatus);
+      setMessage(buildDeliveryMessage(result.data.magicLinkDeliveryStatus));
+    } catch (error) {
+      setMessage(toErrorMessage(error));
+    } finally {
+      setResending(false);
+    }
+  }
+
+  function resetSubmittedState() {
+    setSubmittedEmail("");
+    setDeliveryStatus("");
+    setMessage("");
+  }
+
+  return (
+    <main className="app-shell">
+      <section className="app-page glass-page">
+        <header className="page-head">
+          <div>
+            <p className="eyebrow">PUBLIC APPLICATION</p>
+            <h1>{state.data?.title ?? "공개 지원"}</h1>
+            <p className="page-sub">
+              {state.data ? `${state.data.companyName} · ${state.data.jobRole}` : "공개 지원 공고 정보를 불러오고 있습니다."}
+            </p>
+          </div>
+          <Link className="btn secondary" href="/">
+            INIT 홈
+          </Link>
+        </header>
+
+        {state.loading ? <p className="notice">공고 정보를 불러오는 중입니다.</p> : null}
+        {state.error ? <p className="notice danger">{state.error}</p> : null}
+        {message && !submittedEmail ? <p className="notice danger">{message}</p> : null}
+
+        {state.data ? (
+          <div className="grid-2">
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>공고 정보</h2>
+                  <p>지원 전 공고 내용을 확인해주세요.</p>
+                </div>
+              </div>
+              <dl className="detail-list">
+                <DetailItem label="회사" value={state.data.companyName} />
+                <DetailItem label="직무" value={state.data.jobRole} />
+                <DetailItem label="채용 기간" value={formatDateRange(state.data.startsOn, state.data.endsOn)} />
+                <DetailItem label="경력" value={state.data.careerRequirement} />
+                <DetailItem label="학력" value={state.data.educationRequirement} />
+                <DetailItem label="급여" value={state.data.salaryInfo} />
+                <DetailItem label="근무지역" value={state.data.workLocation} />
+                <DetailItem label="근무형태" value={state.data.employmentType} />
+              </dl>
+              <div className="description-box">
+                <JobDescriptionViewer emptyMessage="등록된 JD가 없습니다." value={state.data.jobDescription} />
+              </div>
+            </section>
+
+            {submittedEmail ? (
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>지원서 접수 완료</h2>
+                    <p>입력한 이메일로 지원 현황과 면접 안내를 다시 확인할 수 있습니다.</p>
+                  </div>
+                </div>
+                <div className="creation-flow">
+                  <p className="notice">{message || "지원서가 접수되었습니다. 이메일 안내를 확인해주세요."}</p>
+                  <dl className="detail-list">
+                    <DetailItem label="지원 이메일" value={submittedEmail} />
+                    <DetailItem label="메일 발송 상태" value={formatDeliveryStatus(deliveryStatus)} />
+                    <DetailItem label="다음 단계" value="이메일 매직링크 확인" />
+                    <DetailItem label="면접 안내" value="면접 세션이 준비되면 지원 현황 화면에서 확인" />
+                  </dl>
+                  <div className="empty">
+                    지원 현황은 이메일로 받은 매직링크에서만 확인할 수 있습니다. 링크가 만료되었거나 메일을 받지 못했다면
+                    아래 버튼으로 다시 요청해주세요.
+                  </div>
+                  <div className="form-actions">
+                    <button className="btn secondary" type="button" onClick={resetSubmittedState}>
+                      다른 이메일로 지원
+                    </button>
+                    <button className="btn primary" disabled={resending} type="button" onClick={handleResendAccessLink}>
+                      {resending ? "발송 중" : "매직링크 다시 보내기"}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <form aria-label="공개 지원 폼" className="panel" onSubmit={handleSubmit}>
+                <div className="panel-head">
+                  <div>
+                    <h2>지원 정보</h2>
+                    <p>접수 후 이메일 인증과 지원 현황 안내가 이어집니다.</p>
+                  </div>
+                </div>
+                <div className="creation-flow">
+                  <label>
+                    이름 *
+                    <input
+                      required
+                      value={form.name}
+                      placeholder="김지원"
+                      onChange={(event) => updateField("name", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    이메일 *
+                    <input
+                      required
+                      type="email"
+                      value={form.email}
+                      placeholder="jiwon@example.com"
+                      onChange={(event) => updateField("email", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    연락처
+                    <input
+                      value={form.phone ?? ""}
+                      placeholder="010-0000-0000"
+                      onChange={(event) => updateField("phone", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    포트폴리오 URL
+                    <input
+                      type="url"
+                      value={form.portfolioUrl ?? ""}
+                      placeholder="https://github.com/jiwon"
+                      onChange={(event) => updateField("portfolioUrl", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    자기소개 / 추가 설명
+                    <textarea
+                      value={form.resumeText ?? ""}
+                      placeholder="지원 직무와 관련된 경험, 프로젝트, 강조하고 싶은 내용을 입력해주세요."
+                      onChange={(event) => updateField("resumeText", event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    <span className="inline-check">
+                      <input
+                        checked={form.consentAgreed}
+                        type="checkbox"
+                        onChange={(event) => updateField("consentAgreed", event.currentTarget.checked)}
+                      />
+                      개인정보 수집 및 채용 절차 이용에 동의합니다.
+                    </span>
+                  </label>
+                  <div className="form-actions">
+                    <button className="btn primary" disabled={!canSubmit} type="submit">
+                      {busy ? "제출 중" : "지원서 제출"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
+        ) : null}
+      </section>
+    </main>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{value || "-"}</dd>
+    </>
+  );
+}
+
+function formatDateRange(startsOn: string | null, endsOn: string | null) {
+  if (!startsOn && !endsOn) return "상시";
+  if (startsOn && endsOn) return `${startsOn} - ${endsOn}`;
+  return startsOn ? `${startsOn}부터` : `${endsOn}까지`;
+}
+
+function emptyToUndefined(value?: string) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function buildDeliveryMessage(status: "SENT" | "FAILED" | "NOT_SENT_TEMPORARY") {
+  if (status === "SENT") {
+    return "지원서가 접수되었습니다. 이메일로 보낸 매직링크에서 지원 현황과 면접 안내를 확인할 수 있습니다.";
+  }
+  if (status === "FAILED") {
+    return "지원서가 접수되었지만 메일 발송에 실패했습니다. 매직링크 다시 보내기를 눌러 재요청해주세요.";
+  }
+  return "지원서가 접수되었습니다. 이메일 인증과 매직링크 발송은 현재 임시 처리 상태입니다.";
+}
+
+function formatDeliveryStatus(status: "SENT" | "FAILED" | "NOT_SENT_TEMPORARY" | "") {
+  if (status === "SENT") return "발송 완료";
+  if (status === "FAILED") return "발송 실패";
+  if (status === "NOT_SENT_TEMPORARY") return "임시 미발송";
+  return "-";
+}
+
+function toErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "요청 처리 중 오류가 발생했습니다.";
+}

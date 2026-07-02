@@ -56,6 +56,7 @@ export interface CandidateJob {
   companyId: number;
   isPublic: boolean;
   companyName: string;
+  companyLogoUrl: string | null;
   companyIndustry: string;
   companyProfile: string;
   title: string;
@@ -75,6 +76,7 @@ export interface CandidateJob {
 export interface CandidateJobSummary {
   jobId: number;
   companyName: string;
+  companyLogoUrl: string | null;
   title: string;
   jobGroup: string;
   jobRole: string;
@@ -274,11 +276,13 @@ export interface CandidateRepository {
   findFileAsset(fileId: number): Promise<FileAsset | undefined>;
   listApplications(candidateId: number): Promise<Application[]>;
   findApplication(applicationId: number): Promise<Application | undefined>;
+  findCandidateUserId(candidateId: number): Promise<number | undefined>;
   listDocuments(applicationId: number): Promise<ApplicationDocument[]>;
   listConsentRecords(applicationId: number): Promise<ConsentRecord[]>;
   saveConsentRecords(applicationId: number, consentTypes: ConsentType[]): Promise<ConsentRecord[]>;
   findInterviewSession(sessionId: number): Promise<InterviewSession | undefined>;
   findInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined>;
+  ensureInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined>;
   saveDeviceCheck(sessionId: number, deviceCheck: Omit<InterviewDeviceCheck, "status" | "checkedAt">): Promise<InterviewSession>;
   updateApplicationInterviewStatus(applicationId: number, status: InterviewStatus): Promise<Application>;
   updateApplicationReportStatus(applicationId: number, status: ReportStatus): Promise<Application>;

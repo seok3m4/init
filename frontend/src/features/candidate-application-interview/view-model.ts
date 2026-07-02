@@ -74,6 +74,8 @@ export interface InterviewAnswerFormState {
   durationSeconds: number;
 }
 
+export type InterviewDeviceSetupMode = "mock" | "recruiting";
+
 export const requiredApplicationConsents: ConsentType[] = [
   "PRIVACY_COLLECTION",
   "AI_DOCUMENT_ANALYSIS",
@@ -273,6 +275,17 @@ export function isCandidateInterviewStartEnabled(
   state: Pick<CandidateApplicationSummary, "consentCompleted" | "deviceCheckCompleted" | "interviewStatus">,
 ): boolean {
   return state.consentCompleted && state.deviceCheckCompleted && state.interviewStatus === "READY";
+}
+
+export function shouldShowInterviewDeviceSetup(state: {
+  mode: InterviewDeviceSetupMode;
+  setupCompleted: boolean;
+  runtimeStatus: InterviewRuntimeSessionView["status"];
+}): boolean {
+  if (state.setupCompleted) return false;
+  if (state.mode === "mock") return true;
+
+  return state.runtimeStatus !== "IN_PROGRESS" && state.runtimeStatus !== "COMPLETED";
 }
 
 export function hasPortfolioArtifact(state: Pick<CandidateApplicationFormState, "portfolioFileId" | "portfolioUrl">) {

@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { copyRecruitment, listRecruitmentApplicants, listRecruitments } from "./api";
+import { listRecruitmentApplicants, listRecruitments } from "./api";
 import { StatusBadge } from "./CompanyRecruitingChrome";
 import type { Recruitment, RecruitmentStatus } from "./types";
+import { getCompanyPostingActions } from "./company-posting-actions";
+import { getCompanyProfile } from "../company-profile/api";
+import { getCompanyDisplayName, getCompanyInitial, getCompanyLogoUrl } from "../company-profile/company-profile-display";
+import type { CompanyProfile } from "../company-profile/types";
 
 type StatusFilter = "ALL" | RecruitmentStatus;
 
@@ -19,6 +23,7 @@ export function CompanyPostingsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [items, setItems] = useState<Recruitment[]>([]);
   const [completion, setCompletion] = useState<Record<number, CompletionStat>>({});
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -61,9 +66,19 @@ export function CompanyPostingsPage() {
     }
   }, []);
 
+  const loadCompanyProfile = useCallback(async () => {
+    try {
+      const profile = await getCompanyProfile();
+      setCompanyProfile(profile);
+    } catch {
+      setCompanyProfile(null);
+    }
+  }, []);
+
   useEffect(() => {
     void loadRecruitments("", "ALL");
-  }, [loadRecruitments]);
+    void loadCompanyProfile();
+  }, [loadCompanyProfile, loadRecruitments]);
 
   useEffect(() => {
     if (items.length > 0) {
@@ -76,20 +91,6 @@ export function CompanyPostingsPage() {
     await loadRecruitments(q, statusFilter);
   }
 
-  async function handleCopy(recruitment: Recruitment) {
-    setLoading(true);
-    setMessage("");
-    try {
-      const result = await copyRecruitment(recruitment.recruitmentId);
-      setMessage(`${result.data.title} 공고가 DRAFT로 복사되었습니다.`);
-      await loadRecruitments(q, statusFilter);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "공고 복사에 실패했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // KPI는 list 응답에서 파생 가능한 값만 사용한다.
   const activeCount = items.filter((item) => ACTIVE_STATUSES.includes(item.status)).length;
   const totalApplicants = items.reduce((sum, item) => sum + item.applicantCount, 0);
@@ -100,13 +101,17 @@ export function CompanyPostingsPage() {
   const nearestDday = closingItems.length
     ? Math.min(...closingItems.map((item) => daysUntil(item.endsOn) as number))
     : null;
+  const companyDisplayName = getCompanyDisplayName(companyProfile);
+  const companyLogoUrl = getCompanyLogoUrl(companyProfile);
 
   return (
     <section className="app-page glass-page">
         <div className="page-head">
           <div>
             <h1>공고 목록</h1>
-            <p className="page-sub">진행 중인 채용 공고를 한눈에 관리합니다.</p>
+            <p className="page-sub">
+              {companyDisplayName ? `${companyDisplayName}의 채용 공고를 한눈에 관리합니다.` : "진행 중인 채용 공고를 한눈에 관리합니다."}
+            </p>
           </div>
           <Link className="btn primary" href="/company/recruitments/new">
             + 공고 생성
@@ -168,15 +173,19 @@ export function CompanyPostingsPage() {
               {items.map((item) => {
                 const stat = completion[item.recruitmentId];
                 const rate = stat?.rate ?? 0;
+                const actions = getCompanyPostingActions(item);
                 return (
                   <article className="posting" key={item.recruitmentId}>
-                    <div className="logo-chip">{companyInitial(item.title)}</div>
+                    <div className={`logo-chip ${companyLogoUrl ? "has-image" : ""}`}>
+                      {companyLogoUrl ? <span style={{ backgroundImage: `url(${companyLogoUrl})` }} aria-hidden="true" /> : getCompanyInitial(companyProfile, item.title)}
+                    </div>
                     <div className="posting-info">
                       <div className="posting-title-row">
                         <h3>{item.title}</h3>
                         <StatusBadge value={item.status} />
                       </div>
                       <p>
+                        {companyDisplayName ? `${companyDisplayName} · ` : ""}
                         {item.jobRole} · {formatPeriod(item)} · <b className="dday">{ddayLabel(item.endsOn)}</b>
                       </p>
                     </div>
@@ -190,14 +199,11 @@ export function CompanyPostingsPage() {
                       </span>
                     </div>
                     <div className="posting-actions">
-                      {item.status === "CLOSED" ? (
-                        <button className="btn secondary" type="button" disabled={loading} onClick={() => void handleCopy(item)}>
-                          복사
-                        </button>
+                      {actions.includes("manage") ? (
+                        <Link className="btn secondary" href={`/company/recruitments/${item.recruitmentId}`}>
+                          관리
+                        </Link>
                       ) : null}
-                      <Link className="btn secondary" href={`/company/recruitments/${item.recruitmentId}`}>
-                        관리
-                      </Link>
                     </div>
                   </article>
                 );
@@ -214,13 +220,6 @@ function formatPeriod(item: Recruitment) {
     return "기간 미정";
   }
   return `${item.startsOn ?? "시작 미정"} ~ ${item.endsOn ?? "마감 미정"}`;
-}
-
-// 공고 제목의 [회사명] 접두사에서 이니셜을 뽑는다. 없으면 제목 첫 글자.
-function companyInitial(title: string): string {
-  const bracket = title.match(/^\s*\[([^\]]+)\]/);
-  const source = (bracket ? bracket[1] : title).trim();
-  return source.charAt(0).toUpperCase() || "·";
 }
 
 function daysUntil(endsOn: string | null): number | null {

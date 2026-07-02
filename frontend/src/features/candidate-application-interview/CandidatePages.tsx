@@ -5,7 +5,7 @@ import "./CandidatePages.module.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DependencyList, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { DependencyList, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAccessToken } from "../../api/client";
 import { GnbAvatar, GnbLogoutButton } from "../auth/GnbAccountControls";
@@ -36,6 +36,8 @@ import {
   type RuntimeQuestionView,
   type SaveInterviewAnswerRequest,
   createCandidateApiClient,
+  createPublicInterviewApiClient,
+  type InterviewRuntimeApiClient,
 } from "./api";
 import { candidateApplicationInterviewRoutes } from "./routes";
 import {
@@ -59,6 +61,7 @@ import {
   inferPortfolioLinkType,
   isAllowedInterviewMediaMimeType,
   requiredInterviewConsents,
+  shouldShowInterviewDeviceSetup,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
   toRuntimeQuestionSpeechText,
@@ -71,6 +74,7 @@ import { CandidateApplicationView, CandidateJobDetailView, CandidateJobsView } f
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 const DEMO_CANDIDATE_ID = 1;
+export const PUBLIC_INTERVIEW_ACCESS_TOKEN_STORAGE_KEY = "init.publicInterviewAccessToken";
 const INTERVIEW_QUESTION_TIME_LIMIT_SECONDS = 90;
 const questionTypeOptions: QuestionType[] = ["INTRO", "TECHNICAL", "EXPERIENCE", "SITUATION", "CLOSING"];
 
@@ -826,6 +830,45 @@ export function CandidateInterviewPage({ applicationId }: { applicationId: numbe
   return <InterviewRuntimePanel mode="recruiting" resource={resource} />;
 }
 
+export function PublicCandidateInterviewPage({ applicationId }: { applicationId: number }) {
+  const router = useRouter();
+  const api = useMemo(() => getPublicInterviewApi(), []);
+  const load = useCallback(async (): Promise<RuntimePageData> => {
+    const runtimeResult = await api.getInterviewRuntime(applicationId);
+    if (runtimeResult.data.status !== "IN_PROGRESS") {
+      const emptyQuestions: RuntimeQuestionListResponse = {
+        sessionId: runtimeResult.data.sessionId,
+        interviewType: runtimeResult.data.interviewType,
+        showQuestionText: runtimeResult.data.showQuestionText,
+        questions: [],
+      };
+
+      return {
+        runtime: toRecruitingRuntimeSession(runtimeResult.data, emptyQuestions),
+        questions: emptyQuestions,
+      };
+    }
+
+    const questionsResult = await api.listRecruitingQuestions(runtimeResult.data.sessionId);
+    return {
+      runtime: toRecruitingRuntimeSession(runtimeResult.data, questionsResult.data),
+      questions: questionsResult.data,
+    };
+  }, [api, applicationId]);
+  const resource = useCandidateResource(load, [applicationId]);
+
+  return (
+    <InterviewRuntimePanel
+      mode="recruiting"
+      resource={resource}
+      apiClient={api}
+      onRecruitingComplete={(completedApplicationId) => {
+        router.push(candidateApplicationInterviewRoutes.publicInterviewComplete(completedApplicationId));
+      }}
+    />
+  );
+}
+
 export function CandidateMockInterviewStartPage() {
   const router = useRouter();
   const [state, setState] = useState<StartMockInterviewState>(defaultStartMockInterviewState);
@@ -1378,12 +1421,17 @@ export function CandidateMyPage() {
 function InterviewRuntimePanel({
   mode,
   resource,
+  apiClient,
+  onRecruitingComplete,
 }: {
   mode: RuntimeMode;
   resource: ReturnType<typeof useCandidateResource<RuntimePageData>>;
+  apiClient?: InterviewRuntimeApiClient;
+  onRecruitingComplete?: (applicationId: number, sessionId: number) => void;
 }) {
   const { data, loading, error, refresh } = resource;
   const router = useRouter();
+  const runtimeApi = apiClient ?? getCandidateApi();
   const currentQuestion = data?.runtime.currentQuestion;
   const [answer, setAnswer] = useState<InterviewAnswerFormState>(defaultInterviewAnswerFormState);
   const [message, setMessage] = useState("");
@@ -1919,7 +1967,7 @@ function InterviewRuntimePanel({
       setBusy(true);
       setMessage("");
       try {
-        const api = getCandidateApi();
+        const api = runtimeApi;
         await api.saveDeviceCheck(
           data.runtime.sessionId,
           toDeviceCheckRequest({
@@ -2065,7 +2113,7 @@ function InterviewRuntimePanel({
     setBusy(true);
     setMessage("");
     try {
-      const api = getCandidateApi();
+      const api = runtimeApi;
       const result =
         mode === "mock"
           ? await api.saveMockAnswer(data.runtime.sessionId, request)
@@ -2293,7 +2341,7 @@ function InterviewRuntimePanel({
       throw new Error("면접 런타임 정보를 찾지 못했습니다.");
     }
 
-    const api = getCandidateApi();
+    const api = runtimeApi;
     const request = buildAiInterviewRequest(processType, targetAnswer, data.runtime.jobDescription, mode);
     const result =
       processType === "STT"
@@ -2323,7 +2371,7 @@ function InterviewRuntimePanel({
     setBusy(true);
     setMessage("");
     try {
-      const api = getCandidateApi();
+      const api = runtimeApi;
       const request = buildAiInterviewRequest(processType, lastAnswer, data.runtime.jobDescription, mode);
       const result =
         processType === "STT"
@@ -2511,7 +2559,7 @@ function InterviewRuntimePanel({
     setBusy(true);
     setMessage("");
     try {
-      const api = getCandidateApi();
+      const api = runtimeApi;
       await (mode === "mock"
         ? api.moveMockNextQuestion(data.runtime.sessionId)
         : api.moveRecruitingNextQuestion(data.runtime.sessionId));
@@ -2537,13 +2585,17 @@ function InterviewRuntimePanel({
     setBusy(true);
     setMessage("");
     try {
-      const api = getCandidateApi();
+      const api = runtimeApi;
       const result = await (mode === "mock"
         ? api.completeMockInterview(data.runtime.sessionId)
         : api.completeRecruitingInterview(data.runtime.sessionId));
       stopQuestionSpeech();
       setMessage(`면접이 완료되었습니다. ${result.data.answeredCount}/${result.data.totalQuestions} 답변 제출`);
       if (mode === "recruiting" && data.runtime.applicationId) {
+        if (onRecruitingComplete) {
+          onRecruitingComplete(data.runtime.applicationId, result.data.sessionId);
+          return;
+        }
         router.push(candidateApplicationInterviewRoutes.applicationReport(data.runtime.applicationId));
         return;
       }
@@ -2579,6 +2631,13 @@ function InterviewRuntimePanel({
       answeredQuestionCount >= data.runtime.totalQuestions &&
       !recording,
   );
+  const showDeviceSetup = data
+    ? shouldShowInterviewDeviceSetup({
+        mode,
+        setupCompleted,
+        runtimeStatus: data.runtime.status,
+      })
+    : false;
   const formattedRemainingTime = formatInterviewCountdown(remainingSeconds);
   const timerDanger = remainingSeconds <= 10;
 
@@ -2593,7 +2652,7 @@ function InterviewRuntimePanel({
 
       <section className="iv-body">
         <StatusNotice loading={loading || busy} error={error} message={message} />
-        {data && !setupCompleted && mode === "mock" ? (
+        {showDeviceSetup ? (
           <section className="candidate-device-setup">
             <div className="candidate-device-setup__head">
               <div>
@@ -3951,6 +4010,27 @@ function getCandidateApi() {
     baseUrl: API_BASE_URL,
     headers: getCandidateHeaders(),
   });
+}
+
+export function setPublicInterviewAccessToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) {
+    window.sessionStorage.setItem(PUBLIC_INTERVIEW_ACCESS_TOKEN_STORAGE_KEY, token);
+    return;
+  }
+  window.sessionStorage.removeItem(PUBLIC_INTERVIEW_ACCESS_TOKEN_STORAGE_KEY);
+}
+
+function getPublicInterviewApi() {
+  return createPublicInterviewApiClient({
+    baseUrl: API_BASE_URL,
+    publicAccessToken: readPublicInterviewAccessToken(),
+  });
+}
+
+function readPublicInterviewAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage.getItem(PUBLIC_INTERVIEW_ACCESS_TOKEN_STORAGE_KEY);
 }
 
 function getCandidateHeaders(): HeadersInit {

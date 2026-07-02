@@ -138,6 +138,7 @@ async function run() {
   assert.equal(defaultJobs.meta.page.page, 1);
   assert.equal(defaultJobs.meta.page.limit, 20);
   assert.equal(defaultJobs.data.items.length, 2);
+  assert.equal(defaultJobs.data.items[0]?.companyLogoUrl, null);
 
   const allJobs = await service.listJobs({ page: 1, limit: 20, sort: "createdAt", order: "desc" });
   assert.equal(allJobs.data.items.length, 2);
@@ -206,6 +207,7 @@ async function run() {
 
   const detail = await service.getJobDetail(2, currentUser);
   assert.equal(detail.data.companyName, "Jungle Works");
+  assert.equal(detail.data.companyLogoUrl, null);
   assert.equal(detail.data.companyIndustry, "Mobile Platform");
   assert.equal(detail.data.canApply, true);
   assert.equal(detail.data.alreadyApplied, false);
@@ -213,6 +215,7 @@ async function run() {
 
   const applyView = await service.getApplyView(2, currentUser);
   assert.equal(applyView.data.job.jobId, 2);
+  assert.equal(applyView.data.job.companyLogoUrl, null);
   assert.equal(applyView.data.documentPolicy.storageProvider, "S3");
   assert.equal(applyView.data.documentPolicy.metadataOnly, true);
   assert.equal(applyView.data.documentPolicy.maxSizeBytes, 20 * 1024 * 1024);

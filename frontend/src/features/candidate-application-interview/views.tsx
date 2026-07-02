@@ -97,7 +97,7 @@ export function CandidateJobsView({ jobs, query, totalItems, onQueryChange }: Ca
         {jobs.map((job, index) => (
           <article className="candidate-jobcard" key={job.jobId} role="listitem">
             <div className="candidate-jobcard__head">
-              <span className="candidate-jobcard__logo">{companyLogoLabel(index)}</span>
+              <CompanyLogoMark companyLogoUrl={job.companyLogoUrl} fallbackLabel={companyLogoLabel(index)} />
               <div>
                 <h2>{job.companyName}</h2>
               </div>
@@ -138,7 +138,7 @@ export function CandidateJobDetailView({ job }: CandidateJobDetailViewProps) {
         </header>
         <div className="candidate-modal__body candidate-job-detail-body">
           <div className="candidate-job-detail-title">
-            <span className="candidate-jobcard__logo">{companyLogoLabelFromName(job.companyName)}</span>
+            <CompanyLogoMark companyLogoUrl={job.companyLogoUrl} fallbackLabel={companyLogoLabelFromName(job.companyName)} />
             <div>
               <h1 id="candidate-job-detail-heading">{job.companyName}</h1>
               <p>{job.title} · <StatusBadge status={job.postingStatus} /></p>
@@ -393,6 +393,24 @@ function StatusCheck({
 
 function StatusBadge({ status }: { status: CandidateJobSummary["postingStatus"] }) {
   return <span className="candidate-detail-status" data-status={status}>{statusLabel[status]}</span>;
+}
+
+function CompanyLogoMark({
+  companyLogoUrl,
+  fallbackLabel,
+}: {
+  companyLogoUrl: string | null;
+  fallbackLabel: string;
+}) {
+  if (companyLogoUrl) {
+    return (
+      <span className="candidate-jobcard__logo has-image" aria-label="회사 로고">
+        <span style={{ backgroundImage: `url(${companyLogoUrl})` }} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return <span className="candidate-jobcard__logo">{fallbackLabel}</span>;
 }
 
 function toOptionalPostingStatus(value: string): CandidateJobListPostingStatus | undefined {

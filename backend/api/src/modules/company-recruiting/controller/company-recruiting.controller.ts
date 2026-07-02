@@ -26,15 +26,10 @@ import { CompanyRecruitingService } from "../service/company-recruiting.service"
 import {
   ApplicantEvaluationResponseDto,
   ApplicantResponseDto,
-  BulkApplicantRegistrationResponseDto,
-  InvitationResponseDto,
   JdImageUploadResponseDto,
   RecruitmentResponseDto,
 } from "../dto/company-recruiting-response.dto";
-import { BulkCreateApplicantsDto } from "../dto/bulk-create-applicants.dto";
-import { CreateApplicantDto } from "../dto/create-applicant.dto";
 import { CreateRecruitmentDto } from "../dto/create-recruitment.dto";
-import { InviteApplicantDto } from "../dto/invite-applicant.dto";
 import { ListQueryDto } from "../dto/list-query.dto";
 import { UpdateRecruitmentDto } from "../dto/update-recruitment.dto";
 import { UpdateScreeningStatusDto } from "../dto/update-screening-status.dto";
@@ -187,30 +182,6 @@ export class CompanyRecruitingController {
     return okList(request, result.items, result.page);
   }
 
-  @Post("applicants")
-  @ApiOperationId("API-015")
-  @ApiOperation({ summary: "지원자 직접 등록" })
-  @ApiEnvelopeResponse(ApplicantResponseDto, 201)
-  async registerApplicant(
-    @Req() request: CompanyRequest,
-    @Body() dto: CreateApplicantDto,
-  ) {
-    const data = await this.companyRecruitingService.registerApplicant(request.currentUser, dto);
-    return ok(request, data);
-  }
-
-  @Post("applicants/bulk")
-  @ApiOperationId("API-085")
-  @ApiOperation({ summary: "지원자 CSV 일괄 등록" })
-  @ApiEnvelopeResponse(BulkApplicantRegistrationResponseDto)
-  async bulkRegisterApplicants(
-    @Req() request: CompanyRequest,
-    @Body() dto: BulkCreateApplicantsDto,
-  ) {
-    const data = await this.companyRecruitingService.bulkRegisterApplicants(request.currentUser, dto);
-    return ok(request, data);
-  }
-
   @Get("applicants")
   @ApiOperationId("API-018")
   @ApiOperation({ summary: "지원자 목록 조회" })
@@ -222,18 +193,6 @@ export class CompanyRecruitingController {
     const recruitmentId = Number(query.recruitmentId);
     const result = await this.companyRecruitingService.listRecruitmentApplicants(request.currentUser, recruitmentId, query);
     return okList(request, result.items, result.page);
-  }
-
-  @Post("applicants/invitations")
-  @ApiOperationId("API-016")
-  @ApiOperation({ summary: "지원자 초대 메일 발송 요청" })
-  @ApiEnvelopeResponse(InvitationResponseDto)
-  async inviteApplicant(
-    @Req() request: CompanyRequest,
-    @Body() dto: InviteApplicantDto,
-  ) {
-    const data = await this.companyRecruitingService.inviteApplicant(request.currentUser, dto);
-    return ok(request, data);
   }
 
   @Get("applicants/:applicantId/evaluation")

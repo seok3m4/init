@@ -5,6 +5,7 @@ import { AiModule } from "./ai/ai.module";
 import { AuthModule } from "./auth/auth.module";
 import { CandidateModule } from "./candidate";
 import { CompanyInterviewModule } from "./company-interview/company-interview.module";
+import { CompanyProfileModule } from "./company-profile/company-profile.module";
 import { CompanyRecruitingModule } from "./company-recruiting/company-recruiting.module";
 import { HealthController } from "./health/controller/health.controller";
 import { InterviewModule } from "./interview";
@@ -14,6 +15,7 @@ import { ReportModule } from "./report/report.module";
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     AuthModule,
+    CompanyProfileModule,
     CompanyRecruitingModule,
     CandidateModule,
     InterviewModule,
