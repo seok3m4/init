@@ -28,7 +28,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | Table | PK | Columns | Purpose | Outgoing FK |
 | --- |--- |--- |--- |--- |
 | users | user_id | 11 | 서비스 계정과 인증 방식 |  |
-| companies | company_id | 11 | 기업 프로필과 평가 정책 |  |
+| companies | company_id | 12 | 기업 프로필과 평가 정책 | logo_file_id -> file_assets.file_id |
 | file_assets | file_id | 8 | 업로드 파일 메타데이터 | owner_user_id -> users.user_id |
 | candidate_profiles | candidate_id | 8 | 지원자 프로필과 기본 이력서 | user_id -> users.user_id / default_resume_file_id -> file_assets.file_id |
 | postings | posting_id | 10 | 채용 공고/JD | company_id -> companies.company_id |
@@ -55,6 +55,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | From | Column | To | Constraint |
 | --- |--- |--- |--- |
 | FK | owner_user_id | users.user_id | fk_companies_owner_user |
+| companies | logo_file_id | file_assets.file_id | fk_companies_logo_file |
 | file_assets | owner_user_id | users.user_id | fk_file_assets_owner_user |
 | candidate_profiles | user_id | users.user_id | fk_candidate_profiles_user |
 | candidate_profiles | default_resume_file_id | file_assets.file_id | fk_candidate_profiles_default_resume |

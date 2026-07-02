@@ -62,6 +62,9 @@ CREATE TABLE companies (
     -- 사업자/회사 검증 상태: PENDING, VERIFIED, REJECTED
     verification_status VARCHAR(30) NOT NULL,
 
+    -- 회사 로고 파일 메타데이터 FK. 원본 파일은 S3에 저장하고 DB에는 file_assets 참조만 저장
+    logo_file_id BIGINT,
+
     -- 산업군: IT, 제조, 금융, 교육 등
     industry VARCHAR(100),
 
@@ -622,6 +625,10 @@ CREATE TABLE embeddings (
 ALTER TABLE companies
     ADD CONSTRAINT fk_companies_owner_user
     FOREIGN KEY (owner_user_id) REFERENCES users(user_id);
+
+ALTER TABLE companies
+    ADD CONSTRAINT fk_companies_logo_file
+    FOREIGN KEY (logo_file_id) REFERENCES file_assets(file_id);
 
 ALTER TABLE file_assets
     ADD CONSTRAINT fk_file_assets_owner_user
