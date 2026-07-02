@@ -78,6 +78,14 @@ export class PrismaCandidateRepository implements CandidateRepository {
     return application ? this.toApplication(application) : undefined;
   }
 
+  async findCandidateUserId(candidateId: number): Promise<number | undefined> {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateId: BigInt(candidateId) },
+      select: { userId: true },
+    });
+    return profile ? Number(profile.userId) : undefined;
+  }
+
   async listDocuments(applicationId: number): Promise<ApplicationDocument[]> {
     const documents = await this.prisma.applicationDocument.findMany({
       where: { applicationId: BigInt(applicationId) },
@@ -128,7 +136,12 @@ export class PrismaCandidateRepository implements CandidateRepository {
       orderBy: { sessionId: "desc" },
       include: { application: true },
     });
-    if (existing) return this.toInterviewSession(existing);
+    return existing ? this.toInterviewSession(existing) : undefined;
+  }
+
+  async ensureInterviewSessionByApplication(applicationId: number): Promise<InterviewSession | undefined> {
+    const existing = await this.findInterviewSessionByApplication(applicationId);
+    if (existing) return existing;
 
     const application = await this.prisma.application.findUnique({ where: { applicationId: BigInt(applicationId) } });
     if (!application) return undefined;
