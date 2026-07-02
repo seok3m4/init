@@ -1,8 +1,10 @@
 import type {
   ApiErrorBody,
   CandidateApplicationSummary,
+  CandidateJobDetail,
   CandidateJobListPostingStatus,
   CandidateJobQuery,
+  CandidateJobSummary,
   CandidateMockReportFeedback,
   CandidateMockReportSummary,
   CandidateRecruitingReportView,
@@ -133,6 +135,34 @@ const applicationSummary: CandidateApplicationSummary = {
   consentCompleted: true,
   deviceCheckCompleted: true,
   canStartInterview: true,
+};
+
+const candidateJobSummary: CandidateJobSummary = {
+  jobId: 1,
+  companyName: "Init Labs",
+  companyLogoUrl: "https://cdn.example.com/assets/company/1/profile-logo/init.png",
+  title: "Backend Developer",
+  jobGroup: "Engineering",
+  jobRole: "Backend",
+  location: "Seoul",
+  careerLevel: "Junior",
+  employmentType: "Full-time",
+  postingStatus: "OPEN",
+  startsOn: "2026-07-01",
+  endsOn: "2026-07-31",
+  canApply: true,
+  alreadyApplied: false,
+};
+
+const candidateJobDetail: CandidateJobDetail = {
+  ...candidateJobSummary,
+  companyId: 1,
+  isPublic: true,
+  companyIndustry: "SaaS",
+  companyProfile: "AI recruiting workflow",
+  jobDescription: "NestJS API",
+  techStacks: ["Node.js", "NestJS"],
+  createdAt: "2026-07-01T00:00:00.000Z",
 };
 
 const mockReport: CandidateMockReportSummary = {
@@ -271,6 +301,8 @@ void answerRequest;
 void questionSpeechText;
 void audioPromptSpeechText;
 void applicationSummary;
+void candidateJobSummary;
+void candidateJobDetail;
 void mockReport;
 void mockFeedback;
 void recruitingReport;

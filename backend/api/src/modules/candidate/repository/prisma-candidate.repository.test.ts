@@ -24,9 +24,55 @@ describe("PrismaCandidateRepository", () => {
           in: ["OPEN", "CLOSING_SOON"],
         },
       },
-      include: { company: true },
+      include: { company: { include: { logoFile: true } } },
       orderBy: { createdAt: "desc" },
     });
+  });
+
+  it("maps company logo file storage key to a public candidate job logo URL", async () => {
+    const originalPublicBaseUrl = process.env.S3_PUBLIC_BASE_URL;
+    process.env.S3_PUBLIC_BASE_URL = "https://cdn.example.com/assets";
+    const createdAt = new Date("2026-07-01T00:00:00.000Z");
+    const prisma = {
+      posting: {
+        async findMany() {
+          return [
+            {
+              postingId: 101n,
+              companyId: 7n,
+              status: "OPEN",
+              startsOn: new Date("2026-07-01T00:00:00.000Z"),
+              endsOn: new Date("2026-07-31T00:00:00.000Z"),
+              createdAt,
+              title: "Backend Developer",
+              jobRole: "Backend",
+              jobDescription: "NestJS API",
+              company: {
+                name: "Init Labs",
+                industry: "SaaS",
+                profile: "AI recruiting workflow",
+                logoFile: {
+                  storageKey: "company/7/profile-logo/init logo.png",
+                },
+              },
+            },
+          ];
+        },
+      },
+    };
+    const repository = new PrismaCandidateRepository(prisma as never);
+
+    try {
+      const jobs = await repository.listJobs();
+
+      assert.equal(jobs[0]?.companyLogoUrl, "https://cdn.example.com/assets/company/7/profile-logo/init%20logo.png");
+    } finally {
+      if (originalPublicBaseUrl === undefined) {
+        delete process.env.S3_PUBLIC_BASE_URL;
+      } else {
+        process.env.S3_PUBLIC_BASE_URL = originalPublicBaseUrl;
+      }
+    }
   });
 
   it("lists applications only for the logged-in candidate id", async () => {
