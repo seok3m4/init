@@ -243,17 +243,6 @@ export class InMemoryInterviewRepository implements InterviewRepository {
 
   createRuntimeFollowUpQuestion(input: CreateRuntimeFollowUpQuestionInput): InterviewQuestion {
     const sourceQuestion = this.questions.find((question) => question.questionId === input.sourceAnswer.questionId);
-    const existing = this.questions.find(
-      (question) =>
-        question.questionType === "FOLLOW_UP" &&
-        question.interviewType === input.session.interviewType &&
-        question.postingId === sourceQuestion?.postingId &&
-        question.content === input.content,
-    );
-    if (existing) {
-      return this.cloneQuestion(existing);
-    }
-
     const followUpQuestion: InterviewQuestion = {
       questionId: Math.max(...this.questions.map((question) => question.questionId), 0) + 1,
       questionType: "FOLLOW_UP",

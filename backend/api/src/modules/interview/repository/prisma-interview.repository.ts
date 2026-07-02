@@ -246,18 +246,6 @@ export class PrismaInterviewRepository implements InterviewRepository {
       postingId = application?.postingId ?? null;
     }
 
-    const existing = await this.prisma.question.findFirst({
-      where: {
-        companyId,
-        postingId,
-        questionType: PrismaQuestionType.FOLLOW_UP,
-        content: input.content,
-      },
-    });
-    if (existing) {
-      return this.toQuestion(existing, input.session.interviewType);
-    }
-
     const question = await this.prisma.question.create({
       data: {
         companyId,

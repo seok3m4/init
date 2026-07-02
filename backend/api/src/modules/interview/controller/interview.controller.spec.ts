@@ -180,7 +180,7 @@ async function runControllerRuntimeAssertions() {
   assert.equal(secondMock.data.currentQuestion?.questionType, "TECHNICAL");
   assert.equal(secondMock.data.isLastQuestion, true);
 
-  await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
+  const secondMockAnswer = await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
     questionId: secondMock.data.currentQuestion?.questionId ?? 0,
     audioFile: {
       storageKey: "candidate/1/mock-answer-2.webm",
@@ -191,10 +191,33 @@ async function runControllerRuntimeAssertions() {
     durationSeconds: 30,
   });
 
+  interviewRepository.saveGeneratedFollowUpQuestionForTest(
+    secondMockAnswer.data.answer.answerId,
+    "MOCK",
+    "방금 답변에서 NestJS와 PostgreSQL 프로젝트를 언급했는데, 본인이 직접 맡은 역할을 더 구체적으로 설명해 주세요.",
+  );
+
+  const lastMockFollowUp = await controller.moveMockNextQuestion(validCandidateRequest, String(mockStarted.data.sessionId));
+  assert.equal(lastMockFollowUp.data.previousQuestionId, secondMock.data.currentQuestion?.questionId);
+  assert.equal(lastMockFollowUp.data.currentQuestion?.questionType, "FOLLOW_UP");
+  assert.equal(lastMockFollowUp.data.isLastQuestion, true);
+  assert.notEqual(lastMockFollowUp.data.currentQuestion?.questionId, nextMock.data.currentQuestion?.questionId);
+
+  await controller.saveMockAnswer(validCandidateRequest, String(mockStarted.data.sessionId), {
+    questionId: lastMockFollowUp.data.currentQuestion?.questionId ?? 0,
+    audioFile: {
+      storageKey: "candidate/1/mock-answer-2-follow-up.webm",
+      originalName: "mock-answer-2-follow-up.webm",
+      mimeType: "audio/webm",
+      sizeBytes: 2048,
+    },
+    durationSeconds: 30,
+  });
+
   const completedMock = await controller.completeMockInterview(validCandidateRequest, String(mockStarted.data.sessionId));
   assert.equal(completedMock.data.status, "COMPLETED");
-  assert.equal(completedMock.data.answeredCount, 3);
-  assert.equal(completedMock.data.totalQuestions, 3);
+  assert.equal(completedMock.data.answeredCount, 4);
+  assert.equal(completedMock.data.totalQuestions, 4);
 
   const mockHistory = await controller.listMockInterviewHistory(validCandidateRequest);
   assert.equal(mockHistory.data.items[0]?.sessionId, mockStarted.data.sessionId);
