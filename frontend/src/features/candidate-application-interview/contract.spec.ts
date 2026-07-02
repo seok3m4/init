@@ -26,6 +26,7 @@ import {
   isCandidateFacingMockFeedbackSafe,
   isCandidateInterviewStartEnabled,
   isCandidateRecruitingReportLimited,
+  shouldShowInterviewDeviceSetup,
   toRuntimeQuestionSpeechText,
   toDeviceCheckRequest,
   toCreatePortfolioLinkRequest,
@@ -230,6 +231,21 @@ const mockInterviewHref = getMockInterviewHref({ sessionId: 10001 });
 const mockReportHref = getMockReportHref(mockReport);
 const mockFeedbackIsSafe = isCandidateFacingMockFeedbackSafe(mockFeedback);
 const recruitingReportIsLimited = isCandidateRecruitingReportLimited(recruitingReport);
+const recruitingReadyShowsDeviceSetup = shouldShowInterviewDeviceSetup({
+  mode: "recruiting",
+  setupCompleted: false,
+  runtimeStatus: "READY",
+});
+const recruitingInProgressSkipsDeviceSetup = shouldShowInterviewDeviceSetup({
+  mode: "recruiting",
+  setupCompleted: false,
+  runtimeStatus: "IN_PROGRESS",
+});
+const completedInterviewSkipsDeviceSetup = shouldShowInterviewDeviceSetup({
+  mode: "recruiting",
+  setupCompleted: false,
+  runtimeStatus: "COMPLETED",
+});
 
 const mockInterviewsPath = candidateApiPaths.mockInterviews;
 const mockRuntimePath = candidateApiPaths.mockRuntime(10001);
@@ -313,6 +329,9 @@ void mockInterviewHref;
 void mockReportHref;
 void mockFeedbackIsSafe;
 void recruitingReportIsLimited;
+void recruitingReadyShowsDeviceSetup;
+void recruitingInProgressSkipsDeviceSetup;
+void completedInterviewSkipsDeviceSetup;
 void mockInterviewsPath;
 void mockRuntimePath;
 void mockQuestionsPath;

@@ -311,6 +311,28 @@ export class CompanyRecruitingService {
     return toPublicApplicationStatusResponse(application, this.publicInterviewEntryAdapter.buildEntry(application));
   }
 
+  async verifyPublicApplicationTokenForInterviewStart(token: string, verifySecret?: string | null) {
+    const expectedSecret = process.env.PUBLIC_APPLICATION_TOKEN_VERIFY_SECRET;
+    if (expectedSecret && verifySecret !== expectedSecret) {
+      throw new CompanyRecruitingException(401, ERROR_CODES.COMMON_UNAUTHORIZED, "공개 지원 토큰 검증 권한이 없습니다.");
+    }
+
+    const payload = await this.publicApplicationAuthAdapter.verifyApplicationStatusToken(token);
+    if (!payload) {
+      throw new CompanyRecruitingException(401, ERROR_CODES.COMMON_UNAUTHORIZED, "매직링크가 만료되었거나 유효하지 않습니다.");
+    }
+
+    const application = await this.repository.findPublicApplicationStatusById(payload.applicationId);
+    if (!application) {
+      throw new CompanyRecruitingException(404, ERROR_CODES.COMMON_NOT_FOUND, "지원서를 찾을 수 없습니다.");
+    }
+    if (application.postingId !== payload.recruitmentId || normalizeEmail(application.candidate.user.email) !== normalizeEmail(payload.email)) {
+      throw new CompanyRecruitingException(401, ERROR_CODES.COMMON_UNAUTHORIZED, "매직링크가 지원서 정보와 일치하지 않습니다.");
+    }
+
+    return { applicationId: application.applicationId };
+  }
+
   async deleteRecruitment(user: CurrentUser, recruitmentId: number) {
     const companyId = requireCompanyId(user);
     const posting = await this.repository.findPostingForCompany(recruitmentId, companyId);

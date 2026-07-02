@@ -75,6 +75,15 @@ export type PublicApplicationStatus = {
   updatedAt: string;
 };
 
+export type PublicInterviewStartResult = {
+  applicationId: number;
+  sessionId: number;
+  interviewStatus: string;
+  interviewSessionStatus: string;
+  runtimePath: string;
+  publicAccessToken: string;
+};
+
 export async function getPublicRecruitment(recruitmentId: number) {
   return request<PublicRecruitment>(`/public/recruitments/${recruitmentId}`);
 }
@@ -96,6 +105,13 @@ export async function requestPublicApplicationAccessLink(recruitmentId: number, 
 export async function getPublicApplicationStatus(token: string) {
   const searchParams = new URLSearchParams({ token });
   return request<PublicApplicationStatus>(`/public/applications/status?${searchParams.toString()}`);
+}
+
+export async function startPublicApplicationInterview(applicationId: number, token: string) {
+  return request<PublicInterviewStartResult>(`/public/applications/${applicationId}/interview/start`, {
+    method: "POST",
+    body: { token },
+  });
 }
 
 async function request<T>(

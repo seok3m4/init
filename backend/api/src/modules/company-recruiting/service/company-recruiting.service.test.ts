@@ -592,6 +592,19 @@ describe("CompanyRecruitingService", () => {
     assert.equal(repository.calls.findPublicApplicationStatusById, undefined);
   });
 
+  it("verifies public application magic token for D public interview start", async () => {
+    const repository = createRepository();
+    const invitationAdapter = createInvitationAdapter();
+    const publicApplicationAuthAdapter = createPublicApplicationAuthAdapter();
+    const service = new CompanyRecruitingService(repository, invitationAdapter, undefined, {}, publicApplicationAuthAdapter);
+
+    const result = await service.verifyPublicApplicationTokenForInterviewStart("valid-token");
+
+    assert.deepEqual(publicApplicationAuthAdapter.calls.verifyApplicationStatusToken, ["valid-token"]);
+    assert.deepEqual(repository.calls.findPublicApplicationStatusById, [77]);
+    assert.deepEqual(result, { applicationId: 77 });
+  });
+
   it("rejects duplicate public application emails", async () => {
     const repository = createRepository({
       async findApplicationByPostingAndEmail() {

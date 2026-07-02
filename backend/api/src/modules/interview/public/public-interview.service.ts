@@ -3,6 +3,7 @@ import {
   CandidateDomainError,
   CandidateService,
   type ApiResponse,
+  type ConsentType,
   type CurrentCandidateUser,
 } from "../../candidate";
 import { DeviceCheckDto } from "../dto/interview.device-check.dto";
@@ -17,6 +18,12 @@ import {
   type PublicInterviewAccess,
   PublicInterviewAccessTokenService,
 } from "./public-interview-access-token.service";
+
+const PUBLIC_INTERVIEW_REQUIRED_CONSENTS: ConsentType[] = [
+  "PRIVACY_COLLECTION",
+  "AI_DOCUMENT_ANALYSIS",
+  "AI_INTERVIEW_RECORDING",
+];
 
 @Injectable()
 export class PublicInterviewService {
@@ -48,6 +55,7 @@ export class PublicInterviewService {
     }
 
     const { application, session, currentUser } = await this.candidateService.getPublicRecruitingInterviewContext(applicationId);
+    await this.saveRequiredInterviewConsent(application.applicationId, currentUser);
     const publicAccessToken = this.accessTokenService.issue({
       applicationId: application.applicationId,
       sessionId: session.sessionId,
@@ -67,7 +75,9 @@ export class PublicInterviewService {
 
   async beginPublicInterview(applicationId: number, access: PublicInterviewAccess) {
     this.assertAccessApplication(applicationId, access);
-    const result = await this.interviewService.startInterview(applicationId, this.toCurrentCandidateUser(access));
+    const currentUser = this.toCurrentCandidateUser(access);
+    await this.saveRequiredInterviewConsent(applicationId, currentUser);
+    const result = await this.interviewService.startInterview(applicationId, currentUser);
     return {
       ...result,
       data: {
@@ -153,6 +163,14 @@ export class PublicInterviewService {
 
   private runtimePath(applicationId: number, sessionId: number): string {
     return `/public/applications/${applicationId}/interview/runtime?sessionId=${sessionId}`;
+  }
+
+  private async saveRequiredInterviewConsent(applicationId: number, currentUser: CurrentCandidateUser): Promise<void> {
+    await this.candidateService.saveInterviewConsent(
+      applicationId,
+      { consentTypes: PUBLIC_INTERVIEW_REQUIRED_CONSENTS },
+      currentUser,
+    );
   }
 
   private assertPositiveIntegerId(value: number, field: string): void {

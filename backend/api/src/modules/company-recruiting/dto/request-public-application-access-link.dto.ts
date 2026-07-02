@@ -15,3 +15,11 @@ export class PublicApplicationStatusQueryDto {
   @MaxLength(512)
   token!: string;
 }
+
+export class VerifyPublicApplicationTokenDto {
+  @ApiProperty({ example: "magic-link-token" })
+  @IsString()
+  @MinLength(20)
+  @MaxLength(512)
+  token!: string;
+}

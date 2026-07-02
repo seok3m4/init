@@ -210,6 +210,11 @@ export class PublicApplicationStatusResponseDto {
   updatedAt!: string;
 }
 
+export class PublicApplicationTokenVerificationResponseDto {
+  @ApiProperty({ example: 77 })
+  applicationId!: number;
+}
+
 export class JdImageUploadResponseDto {
   @ApiProperty({ example: 123 })
   fileId!: number;
