@@ -108,10 +108,13 @@
     ],
     "B": [
       "^frontend/src/features/company-recruiting/",
+      "^frontend/src/features/company-profile/",
       "^frontend/src/app/(layout\\.tsx|page\\.tsx|company/recruitments/|company/applicants/|company/applications/)",
+      "^frontend/src/app/company/mypage/",
       "^frontend/src/styles/",
       "^frontend/public/logo-init\\.png$",
-      "^backend/api/src/modules/company-recruiting/"
+      "^backend/api/src/modules/company-recruiting/",
+      "^backend/api/src/modules/company-profile/"
     ],
     "C": [
       "^frontend/src/features/company-interview-criteria/",
