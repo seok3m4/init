@@ -110,11 +110,7 @@ jobs:
         id: detect
         shell: bash
         run: |
-          mapfile -t files < <(find . -type f -name 'Dockerfile*' \
-            ! -path './.git/*' \
-            ! -path '*/node_modules/*' \
-            ! -path '*/.next/*' \
-            ! -path '*/dist/*' | sort)
+          mapfile -t files < <(find infra/docker -type f -name '*.Dockerfile' | sort)
 
           if [ "${#files[@]}" -eq 0 ]; then
             echo "has_dockerfiles=false" >> "$GITHUB_OUTPUT"
@@ -130,12 +126,11 @@ jobs:
         shell: bash
         run: |
           while IFS= read -r dockerfile; do
-            context="$(dirname "$dockerfile")"
-            name="$(echo "$context" | sed 's#^\./##; s#[^A-Za-z0-9_.-]#-#g' | tr '[:upper:]' '[:lower:]')"
+            name="$(basename "$dockerfile" .Dockerfile | sed 's#[^A-Za-z0-9_.-]#-#g' | tr '[:upper:]' '[:lower:]')"
             if [ -z "$name" ] || [ "$name" = "." ]; then
               name="root"
             fi
-            docker build -f "$dockerfile" -t "init-ci-${name}:latest" "$context"
+            docker build -f "$dockerfile" -t "init-ci-${name}:latest" .
           done < /tmp/dockerfiles.txt
 
   frontend:

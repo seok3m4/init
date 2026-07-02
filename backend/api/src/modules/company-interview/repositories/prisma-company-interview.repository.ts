@@ -293,7 +293,12 @@ export class PrismaCompanyInterviewRepository
     const questionSet = await (this.prisma as any).interviewQuestionSet.findFirst({
       where: { postingId: BigInt(postingId), status: 'ACTIVE' },
       orderBy: { questionSetId: 'desc' },
-      include: { items: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        items: {
+          orderBy: { sortOrder: 'asc' },
+          include: { question: true },
+        },
+      },
     });
 
     return questionSet ? mapQuestionSet(questionSet) : undefined;
@@ -406,6 +411,15 @@ function mapQuestionSet(questionSet: {
     questionId: bigint;
     criterionId: bigint | null;
     sortOrder: number;
+    question?: {
+      questionId: bigint;
+      companyId: bigint;
+      postingId: bigint | null;
+      criterionId: bigint | null;
+      questionType: QuestionType;
+      content: string;
+      isActive: boolean;
+    };
   }>;
 }): QuestionSetRecord {
   return {
@@ -422,6 +436,7 @@ function mapQuestionSet(questionSet: {
       questionId: Number(item.questionId),
       criterionId: item.criterionId === null ? null : Number(item.criterionId),
       sortOrder: item.sortOrder,
+      question: item.question ? mapQuestion(item.question) : undefined,
     })),
   };
 }
