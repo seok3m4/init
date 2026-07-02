@@ -351,6 +351,10 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
     );
   }
 
+  function updateTimePolicySeconds(field: TimePolicyField, value: string) {
+    updateTimePolicyDraft(field, toDigitsOnly(value));
+  }
+
   function resetTimePolicyDraft() {
     if (!settings) return;
     setTimePolicyError("");
@@ -822,55 +826,29 @@ export function CompanyInterviewSettingsPage({ postingId }: { postingId?: number
                 >
                   <label style={{ gap: "6px", minWidth: 0 }}>
                     준비 시간
-                    <select
-                      aria-label="준비 시간 초"
-                      style={{ minHeight: "40px", width: "100%" }}
-                      value={timePolicyDraft.preparationTimeMode}
-                      onChange={(event) => updateTimePolicyPreset("preparationTimeSec", event.target.value)}
-                    >
-                      <option value="0">0초</option>
-                      <option value="30">30초</option>
-                      <option value="60">60초</option>
-                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
-                    </select>
-                    {timePolicyDraft.preparationTimeMode === CUSTOM_TIME_OPTION ? (
-                      <input
-                        aria-label="준비 시간 직접 입력"
-                        inputMode="numeric"
-                        maxLength={3}
-                        placeholder="초 단위"
-                        style={{ minHeight: "40px", width: "100%" }}
-                        type="text"
-                        value={timePolicyDraft.preparationTimeSec}
-                        onChange={(event) => updateTimePolicyDraft("preparationTimeSec", event.target.value)}
-                      />
-                    ) : null}
+                    <TimePolicySecondsControl
+                      ariaLabel="준비 시간 초"
+                      customAriaLabel="준비 시간 직접 입력"
+                      maxLength={3}
+                      mode={timePolicyDraft.preparationTimeMode}
+                      options={PREPARATION_TIME_OPTIONS}
+                      value={timePolicyDraft.preparationTimeSec}
+                      onModeChange={(value) => updateTimePolicyPreset("preparationTimeSec", value)}
+                      onValueChange={(value) => updateTimePolicySeconds("preparationTimeSec", value)}
+                    />
                   </label>
                   <label style={{ gap: "6px", minWidth: 0 }}>
                     답변 시간
-                    <select
-                      aria-label="답변 시간 초"
-                      style={{ minHeight: "40px", width: "100%" }}
-                      value={timePolicyDraft.answerTimeMode}
-                      onChange={(event) => updateTimePolicyPreset("answerTimeSec", event.target.value)}
-                    >
-                      <option value="60">60초</option>
-                      <option value="90">90초</option>
-                      <option value="120">120초</option>
-                      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
-                    </select>
-                    {timePolicyDraft.answerTimeMode === CUSTOM_TIME_OPTION ? (
-                      <input
-                        aria-label="답변 시간 직접 입력"
-                        inputMode="numeric"
-                        maxLength={4}
-                        placeholder="초 단위"
-                        style={{ minHeight: "40px", width: "100%" }}
-                        type="text"
-                        value={timePolicyDraft.answerTimeSec}
-                        onChange={(event) => updateTimePolicyDraft("answerTimeSec", event.target.value)}
-                      />
-                    ) : null}
+                    <TimePolicySecondsControl
+                      ariaLabel="답변 시간 초"
+                      customAriaLabel="답변 시간 직접 입력"
+                      maxLength={4}
+                      mode={timePolicyDraft.answerTimeMode}
+                      options={ANSWER_TIME_OPTIONS}
+                      value={timePolicyDraft.answerTimeSec}
+                      onModeChange={(value) => updateTimePolicyPreset("answerTimeSec", value)}
+                      onValueChange={(value) => updateTimePolicySeconds("answerTimeSec", value)}
+                    />
                   </label>
                   <label
                     style={{
@@ -1329,6 +1307,77 @@ function Metric({ label, value, compact = false }: { label: string; value: numbe
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function TimePolicySecondsControl({
+  ariaLabel,
+  customAriaLabel,
+  maxLength,
+  mode,
+  options,
+  value,
+  onModeChange,
+  onValueChange,
+}: {
+  ariaLabel: string;
+  customAriaLabel: string;
+  maxLength: number;
+  mode: string;
+  options: string[];
+  value: string;
+  onModeChange: (value: string) => void;
+  onValueChange: (value: string) => void;
+}) {
+  if (mode === CUSTOM_TIME_OPTION) {
+    return (
+      <div style={{ position: "relative", width: "100%" }}>
+        <input
+          aria-label={customAriaLabel}
+          inputMode="numeric"
+          maxLength={maxLength}
+          placeholder="초"
+          style={{ minHeight: "40px", width: "100%", paddingRight: "34px" }}
+          type="text"
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
+        />
+        <span
+          aria-hidden="true"
+          style={{
+            color: "#6b7280",
+            pointerEvents: "none",
+            position: "absolute",
+            right: "12px",
+            top: "50%",
+            transform: "translateY(-50%)",
+          }}
+        >
+          초
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      aria-label={ariaLabel}
+      style={{ minHeight: "40px", width: "100%" }}
+      value={mode}
+      onChange={(event) => onModeChange(event.target.value)}
+    >
+      {value.trim() !== "" && !options.includes(value.trim()) && mode !== CUSTOM_TIME_OPTION ? (
+        <option hidden value={value.trim()}>
+          {value.trim()}초
+        </option>
+      ) : null}
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}초
+        </option>
+      ))}
+      <option value={CUSTOM_TIME_OPTION}>직접 입력</option>
+    </select>
   );
 }
 
@@ -1854,9 +1903,9 @@ function normalizeCriteriaOrder(criteria: CriteriaDraft[]): CriteriaDraft[] {
 function toTimePolicyDraft(settings: InterviewSettings): TimePolicyDraft {
   return {
     preparationTimeSec: String(settings.timePolicy.preparationTimeSec),
-    preparationTimeMode: getTimePolicyMode(String(settings.timePolicy.preparationTimeSec), PREPARATION_TIME_OPTIONS),
+    preparationTimeMode: String(settings.timePolicy.preparationTimeSec),
     answerTimeSec: String(settings.timePolicy.answerTimeSec),
-    answerTimeMode: getTimePolicyMode(String(settings.timePolicy.answerTimeSec), ANSWER_TIME_OPTIONS),
+    answerTimeMode: String(settings.timePolicy.answerTimeSec),
     retryAllowed: settings.timePolicy.retryAllowed,
   };
 }
@@ -1869,8 +1918,8 @@ function toTimePolicyComparable(draft: TimePolicyDraft) {
   };
 }
 
-function getTimePolicyMode(value: string, options: string[]) {
-  return options.includes(value.trim()) ? value.trim() : CUSTOM_TIME_OPTION;
+function toDigitsOnly(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function validateCriteriaDrafts(criteria: CriteriaDraft[]) {
