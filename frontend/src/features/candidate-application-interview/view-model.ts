@@ -39,6 +39,7 @@ export interface CandidateResumeUploadState {
   originalName: string;
   mimeType: UploadResumeRequest["mimeType"] | "";
   sizeBytes: number;
+  file?: File;
 }
 
 export interface CandidatePortfolioLinkFormState {
@@ -633,7 +634,7 @@ export function toCreatePortfolioLinkRequest(state: CandidatePortfolioLinkFormSt
 
 export function createResumeUploadStateFromFile(
   candidateId: number,
-  file: Pick<File, "name" | "type" | "size">,
+  file: File,
 ): CandidateResumeUploadState {
   return {
     candidateId,
@@ -641,6 +642,7 @@ export function createResumeUploadStateFromFile(
     originalName: file.name,
     mimeType: isAllowedCandidateDocumentMimeType(file.type) ? file.type : "",
     sizeBytes: file.size,
+    file,
   };
 }
 
