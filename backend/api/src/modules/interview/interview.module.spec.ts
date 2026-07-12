@@ -5,6 +5,7 @@ import { CandidateModule } from "../candidate";
 import { PaymentModule } from "../payment/payment.module";
 import { InterviewController } from "./controller/interview.controller";
 import { InterviewModule } from "./interview.module";
+import { NCS_EVALUATION_SNAPSHOT_RESOLVER } from "./ncs-evaluation/ncs-evaluation-snapshot";
 import { INTERVIEW_REPOSITORY } from "./repository/interview.repository";
 import { InterviewService } from "./service/interview.service";
 
@@ -17,6 +18,11 @@ assert.ok(imports.includes(CandidateModule));
 assert.ok(imports.includes(PaymentModule));
 assert.ok(controllers.includes(InterviewController));
 assert.ok(providers.includes(InterviewService));
+assert.ok(
+  providers.some(
+    (provider) => typeof provider === "object" && provider !== null && Reflect.get(provider, "provide") === NCS_EVALUATION_SNAPSHOT_RESOLVER,
+  ),
+);
 assert.ok(providers.some((provider) => typeof provider === "object" && provider !== null && Reflect.get(provider, "provide") === INTERVIEW_REPOSITORY));
 assert.ok(exportsMetadata.includes(INTERVIEW_REPOSITORY));
 assert.ok(exportsMetadata.includes(InterviewService));

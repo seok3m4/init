@@ -118,6 +118,20 @@ export interface AiHandoffResult {
   callbackTopic: string;
 }
 
+export interface NcsEvaluationHandoffResult {
+  accepted: true;
+  processType: "REPORT_GENERATE";
+  step: "NCS_ANSWER_EVALUATION";
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  queued: boolean;
+  processLogId: number;
+  sessionId: number;
+  questionId: number;
+  answerId?: number;
+  inputRef: string;
+  callbackTopic: "ai.interview.ncs-answer-evaluation.requested";
+}
+
 export type RealtimeInterviewProvider = "mock" | "openai";
 
 export interface RealtimeInterviewSessionResult {

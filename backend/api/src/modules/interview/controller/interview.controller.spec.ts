@@ -26,6 +26,7 @@ type InterviewControllerRoute =
   | "moveMockNextQuestion"
   | "completeMockInterview"
   | "requestMockStt"
+  | "requestMockNcsEvaluation"
   | "requestMockFollowUpQuestion"
   | "insertMockFollowUpQuestion"
   | "createMockRealtimeSession"
@@ -76,6 +77,7 @@ assertRoute("saveMockAnswer", interviewApiRoutes.mockAnswers, RequestMethod.POST
 assertRoute("moveMockNextQuestion", interviewApiRoutes.mockNextQuestion, RequestMethod.POST);
 assertRoute("completeMockInterview", interviewApiRoutes.mockComplete, RequestMethod.PATCH);
 assertRoute("requestMockStt", interviewApiRoutes.mockStt, RequestMethod.POST);
+assertRoute("requestMockNcsEvaluation", interviewApiRoutes.mockNcsEvaluations, RequestMethod.POST, 202);
 assertRoute("requestMockFollowUpQuestion", interviewApiRoutes.mockFollowUpQuestion, RequestMethod.POST);
 assertRoute("insertMockFollowUpQuestion", interviewApiRoutes.mockFollowUpQuestionInsert, RequestMethod.POST);
 assertRoute("createMockRealtimeSession", interviewApiRoutes.mockRealtimeSession, RequestMethod.POST);

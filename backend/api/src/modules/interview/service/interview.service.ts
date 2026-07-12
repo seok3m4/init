@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import {
   CandidateDomainError,
   CandidateService,
@@ -11,6 +12,7 @@ import {
   AiInterviewRequestDto,
   CreateRealtimeInterviewSessionDto,
   InsertFollowUpQuestionDto,
+  NcsEvaluationRequestDto,
   RuntimeFileAssetDto,
   SaveInterviewAnswerDto,
   StartMockInterviewDto,
@@ -25,12 +27,19 @@ import {
   InterviewRuntimeView,
   InsertFollowUpQuestionResult,
   NextInterviewQuestionResult,
+  NcsEvaluationHandoffResult,
   RealtimeInterviewProvider,
   RealtimeInterviewSessionResult,
   RuntimeInterviewSession,
   SaveInterviewAnswerResult,
   StartMockInterviewResult,
 } from "../interview.runtime.types";
+import { BuiltInNcsEvaluationSnapshotResolver } from "../ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver";
+import {
+  NCS_EVALUATION_SNAPSHOT_RESOLVER,
+  type NcsEvaluationSnapshot,
+  type NcsEvaluationSnapshotResolver,
+} from "../ncs-evaluation/ncs-evaluation-snapshot";
 import { AiJobDispatcherService } from "../../report/service/ai-job-dispatcher.service";
 import {
   CandidateMockInterviewPassService,
@@ -68,6 +77,18 @@ type AnswerRequestBody = {
   retryAnswerId?: number;
 };
 
+type ValidatedNcsEvaluationRequest =
+  | {
+      questionId: number;
+      answerSource: "STORED_ANSWER";
+      answerId: number;
+    }
+  | {
+      questionId: number;
+      answerSource: "TEXT_INPUT";
+      transcript: string;
+    };
+
 type OpenAiRealtimeClientSecretResponse = {
   value?: string;
   expires_at?: number;
@@ -94,6 +115,9 @@ export class InterviewService {
     @Optional()
     @Inject(CandidateMockInterviewPassService)
     private readonly mockInterviewPasses?: CandidateMockInterviewPassPort,
+    @Optional()
+    @Inject(NCS_EVALUATION_SNAPSHOT_RESOLVER)
+    private readonly ncsEvaluationSnapshotResolver: NcsEvaluationSnapshotResolver = new BuiltInNcsEvaluationSnapshotResolver(),
   ) {}
 
   async listOwnedMockInterviewSessions(currentUser: CurrentCandidateUser): Promise<RuntimeInterviewSession[]> {
@@ -203,6 +227,15 @@ export class InterviewService {
   async requestMockFollowUpQuestion(sessionId: number, dto: AiInterviewRequestDto, currentUser: CurrentCandidateUser) {
     const session = await this.getOwnedMockSession(sessionId, currentUser);
     return this.createAiHandoff(session, dto, "FOLLOW_UP", currentUser);
+  }
+
+  async requestMockNcsEvaluation(
+    sessionId: number,
+    dto: NcsEvaluationRequestDto,
+    currentUser: CurrentCandidateUser,
+  ): Promise<{ data: NcsEvaluationHandoffResult; meta: { traceId: string; timestamp: string } }> {
+    const session = await this.getOwnedMockSession(sessionId, currentUser);
+    return this.createNcsEvaluationHandoff(session, dto, currentUser);
   }
 
   async createMockRealtimeSession(
@@ -723,6 +756,199 @@ export class InterviewService {
       audioFileId: answer.audioFileId,
       callbackTopic,
     });
+  }
+
+  private async createNcsEvaluationHandoff(
+    session: RuntimeInterviewSession,
+    dto: NcsEvaluationRequestDto,
+    currentUser: CurrentCandidateUser,
+  ): Promise<{ data: NcsEvaluationHandoffResult; meta: { traceId: string; timestamp: string } }> {
+    this.assertNcsEvaluationSessionState(session);
+    const request = this.assertNcsEvaluationRequest(dto);
+    if (!session.questionIds.includes(request.questionId)) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview question was not found in the session.", 404, [
+        { field: "questionId", reason: "question does not belong to the selected session" },
+      ]);
+    }
+
+    const question = await this.requiredQuestion(request.questionId);
+    const evaluationSnapshot = this.ncsEvaluationSnapshotResolver.resolve(question);
+    if (!evaluationSnapshot) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "NCS evaluation snapshot is unavailable for the question.", 409, [
+        { field: "questionId", reason: `question type ${question.questionType} is not assessable` },
+      ]);
+    }
+
+    const source = await this.resolveNcsEvaluationTranscript(session, request);
+    const deduplicationKey = this.buildNcsEvaluationDeduplicationKey(
+      session.sessionId,
+      request.questionId,
+      source.transcript,
+      source.answerId,
+      evaluationSnapshot,
+    );
+    if (!this.aiJobDispatcher) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "AI evaluation dispatcher is unavailable.", 409, [
+        { field: "aiJobDispatcher", reason: "NCS evaluation queue is not configured" },
+      ]);
+    }
+
+    const dispatched = await this.aiJobDispatcher.dispatch({
+      processType: "REPORT_GENERATE",
+      input: {
+        kind: "MOCK_NCS_ANSWER_EVALUATION",
+        deduplicationKey,
+        requestedBy: {
+          userId: currentUser.userId,
+          userType: currentUser.userType,
+          candidateId: currentUser.candidateId,
+        },
+        payload: {
+          step: "NCS_ANSWER_EVALUATION",
+          sessionId: session.sessionId,
+          questionId: request.questionId,
+          ...(source.answerId !== undefined ? { answerId: source.answerId } : {}),
+          transcript: source.transcript,
+          evaluationSnapshot,
+        },
+      },
+      refs: {
+        sessionId: session.sessionId,
+      },
+    });
+
+    return this.envelope({
+      accepted: true,
+      processType: "REPORT_GENERATE",
+      step: "NCS_ANSWER_EVALUATION",
+      status: dispatched.status,
+      queued: dispatched.queued,
+      processLogId: dispatched.processLogId,
+      sessionId: session.sessionId,
+      questionId: request.questionId,
+      ...(source.answerId !== undefined ? { answerId: source.answerId } : {}),
+      inputRef: dispatched.inputRef,
+      callbackTopic: "ai.interview.ncs-answer-evaluation.requested",
+    });
+  }
+
+  private assertNcsEvaluationRequest(dto: NcsEvaluationRequestDto): ValidatedNcsEvaluationRequest {
+    const requestBody = this.toRequestBody(dto ?? {}, "ncsEvaluation");
+    const forbiddenFields = [
+      "evaluationSnapshot",
+      "ncsContext",
+      "behaviorPoints",
+      "evaluationPolicy",
+      "scoreMap",
+      "strategy",
+      "strategyId",
+    ];
+    const forbiddenField = forbiddenFields.find((field) => Object.hasOwn(requestBody, field));
+    if (forbiddenField) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "NCS evaluation configuration is server-owned.", 400, [
+        { field: forbiddenField, reason: "client-provided evaluation configuration is forbidden" },
+      ]);
+    }
+
+    if (!this.isPositiveInteger(requestBody.questionId)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "questionId is invalid.", 400, [
+        { field: "questionId", reason: "questionId must be a positive integer" },
+      ]);
+    }
+    if (!["STORED_ANSWER", "TEXT_INPUT"].includes(String(requestBody.answerSource))) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "answerSource is invalid.", 400, [
+        { field: "answerSource", reason: "answerSource must be STORED_ANSWER or TEXT_INPUT" },
+      ]);
+    }
+
+    const questionId = requestBody.questionId as number;
+    if (requestBody.answerSource === "STORED_ANSWER") {
+      if (!this.isPositiveInteger(requestBody.answerId)) {
+        throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "answerId is required for a stored answer.", 400, [
+          { field: "answerId", reason: "answerId must be a positive integer when answerSource is STORED_ANSWER" },
+        ]);
+      }
+      if (Object.hasOwn(requestBody, "transcript")) {
+        throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Stored answer transcript cannot be overridden.", 400, [
+          { field: "transcript", reason: "transcript is forbidden when answerSource is STORED_ANSWER" },
+        ]);
+      }
+      return {
+        questionId,
+        answerSource: "STORED_ANSWER",
+        answerId: requestBody.answerId,
+      };
+    }
+
+    if (Object.hasOwn(requestBody, "answerId")) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "answerId is forbidden for direct text input.", 400, [
+        { field: "answerId", reason: "answerId is forbidden when answerSource is TEXT_INPUT" },
+      ]);
+    }
+    if (typeof requestBody.transcript !== "string") {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "transcript is required for direct text input.", 400, [
+        { field: "transcript", reason: "transcript must be a string when answerSource is TEXT_INPUT" },
+      ]);
+    }
+    const transcript = requestBody.transcript.trim();
+    if (transcript.length < 1 || transcript.length > 20_000) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "transcript length is invalid.", 400, [
+        { field: "transcript", reason: "trimmed transcript length must be between 1 and 20000 characters" },
+      ]);
+    }
+    return {
+      questionId,
+      answerSource: "TEXT_INPUT",
+      transcript,
+    };
+  }
+
+  private async resolveNcsEvaluationTranscript(
+    session: RuntimeInterviewSession,
+    request: ValidatedNcsEvaluationRequest,
+  ): Promise<{ transcript: string; answerId?: number }> {
+    if (request.answerSource === "TEXT_INPUT") {
+      return { transcript: request.transcript };
+    }
+
+    const answer = await this.interviewRepository.findAnswerById(session.sessionId, request.answerId);
+    if (!answer || answer.questionId !== request.questionId) {
+      throw new CandidateDomainError("COMMON_NOT_FOUND", "Interview answer was not found for the question.", 404, [
+        { field: "answerId", reason: "answer must belong to both the selected session and question" },
+      ]);
+    }
+    const transcript = answer.transcript?.trim();
+    if (!transcript) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Stored answer transcript is not ready.", 409, [
+        { field: "transcript", reason: "STT transcript must be completed before evaluation" },
+      ]);
+    }
+    return {
+      transcript,
+      answerId: answer.answerId,
+    };
+  }
+
+  private buildNcsEvaluationDeduplicationKey(
+    sessionId: number,
+    questionId: number,
+    transcript: string,
+    answerId: number | undefined,
+    evaluationSnapshot: NcsEvaluationSnapshot,
+  ): string {
+    const sourceIdentity = answerId === undefined
+      ? "transcript:" + createHash("sha256").update(transcript).digest("hex")
+      : "answer:" + answerId;
+    const canonicalKey = [sessionId, questionId, sourceIdentity, evaluationSnapshot.snapshotVersion].join(":");
+    return "ncs-evaluation:" + createHash("sha256").update(canonicalKey).digest("hex");
+  }
+
+  private assertNcsEvaluationSessionState(session: RuntimeInterviewSession): void {
+    if (!["IN_PROGRESS", "COMPLETED"].includes(session.status)) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview session is not available for evaluation.", 409, [
+        { field: "interviewStatus", reason: "current status is " + session.status },
+      ]);
+    }
   }
 
   private async createRealtimeSession(

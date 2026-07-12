@@ -9,6 +9,8 @@ import { REPORT_REPOSITORY } from "../report/repository/report.repository";
 import { AiJobDispatcherService } from "../report/service/ai-job-dispatcher.service";
 import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "../report/service/ai-job-queue.publisher";
 import { InterviewController } from "./controller/interview.controller";
+import { BuiltInNcsEvaluationSnapshotResolver } from "./ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver";
+import { NCS_EVALUATION_SNAPSHOT_RESOLVER } from "./ncs-evaluation/ncs-evaluation-snapshot";
 import { DefaultPublicApplicationAccessVerifier, PUBLIC_APPLICATION_ACCESS_VERIFIER } from "./public/public-application-access.verifier";
 import { PublicInterviewAccessGuard } from "./public/public-interview-access.guard";
 import { PublicInterviewAccessTokenService } from "./public/public-interview-access-token.service";
@@ -59,6 +61,11 @@ const reportRepositoryProviders = usePrismaReportRepository
       useFactory: () => createAiJobQueuePublisher(),
     },
     ...reportRepositoryProviders,
+    BuiltInNcsEvaluationSnapshotResolver,
+    {
+      provide: NCS_EVALUATION_SNAPSHOT_RESOLVER,
+      useExisting: BuiltInNcsEvaluationSnapshotResolver,
+    },
     InterviewService,
     {
       provide: INTERVIEW_MEDIA_STORAGE,

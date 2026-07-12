@@ -9,6 +9,7 @@ export const interviewApiRoutes = {
   mockNextQuestion: "mock-interviews/:sessionId/next-question",
   mockComplete: "mock-interviews/:sessionId/complete",
   mockStt: "mock-interviews/:sessionId/stt",
+  mockNcsEvaluations: "mock-interviews/:sessionId/ncs-evaluations",
   mockRealtimeSession: "mock-interviews/:sessionId/realtime-session",
   mockFollowUpQuestion: "mock-interviews/:sessionId/follow-up-question",
   mockFollowUpQuestionInsert: "mock-interviews/:sessionId/follow-up-questions/insert",

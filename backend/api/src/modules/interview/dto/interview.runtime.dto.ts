@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsPositive, IsString, Min } from "class-validator";
+import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsPositive, IsString, MaxLength, Min } from "class-validator";
 import type { QuestionType } from "../interview.runtime.types";
 
 export class RuntimeFileAssetDto {
@@ -118,6 +118,25 @@ export class AiInterviewRequestDto {
   @IsOptional()
   @IsString()
   documentSummary?: string;
+}
+
+export class NcsEvaluationRequestDto {
+  @IsInt()
+  @IsPositive()
+  questionId!: number;
+
+  @IsIn(["STORED_ANSWER", "TEXT_INPUT"])
+  answerSource!: "STORED_ANSWER" | "TEXT_INPUT";
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  answerId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20_000)
+  transcript?: string;
 }
 
 export class CreateRealtimeInterviewSessionDto {

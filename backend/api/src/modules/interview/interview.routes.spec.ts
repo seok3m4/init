@@ -10,6 +10,7 @@ assert.equal(interviewApiRoutes.mockAnswers, "mock-interviews/:sessionId/answers
 assert.equal(interviewApiRoutes.mockNextQuestion, "mock-interviews/:sessionId/next-question");
 assert.equal(interviewApiRoutes.mockComplete, "mock-interviews/:sessionId/complete");
 assert.equal(interviewApiRoutes.mockStt, "mock-interviews/:sessionId/stt");
+assert.equal(interviewApiRoutes.mockNcsEvaluations, "mock-interviews/:sessionId/ncs-evaluations");
 assert.equal(interviewApiRoutes.mockFollowUpQuestion, "mock-interviews/:sessionId/follow-up-question");
 assert.equal(interviewApiRoutes.mockFollowUpQuestionInsert, "mock-interviews/:sessionId/follow-up-questions/insert");
 assert.equal(interviewApiRoutes.mockRealtimeSession, "mock-interviews/:sessionId/realtime-session");

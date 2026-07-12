@@ -9,6 +9,7 @@ import {
   AiInterviewRequestDto,
   CreateRealtimeInterviewSessionDto,
   InsertFollowUpQuestionDto,
+  NcsEvaluationRequestDto,
   SaveInterviewAnswerDto,
   StartMockInterviewDto,
 } from "../dto/interview.runtime.dto";
@@ -79,6 +80,18 @@ export class InterviewController {
     dto: AiInterviewRequestDto,
   ) {
     return this.handle(() => this.interviewService.requestMockStt(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)));
+  }
+
+  @Post(interviewApiRoutes.mockNcsEvaluations)
+  @HttpCode(202)
+  requestMockNcsEvaluation(
+    @Req() request: CandidateRequest,
+    @Param("sessionId") sessionId: string,
+    @Body() dto: NcsEvaluationRequestDto,
+  ) {
+    return this.handle(() =>
+      this.interviewService.requestMockNcsEvaluation(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
+    );
   }
 
   @Post(interviewApiRoutes.mockFollowUpQuestion)
