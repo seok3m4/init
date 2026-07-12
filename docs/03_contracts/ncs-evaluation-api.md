@@ -206,3 +206,68 @@ Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERA
 5. `STORED_ANSWER`와 `TEXT_INPUT` 계약 테스트를 같은 fixture로 실행한다.
 
 M4 route는 `TEXT_INPUT`, M5 화상면접은 `STORED_ANSWER`를 사용하되 결과 DTO는 동일하게 유지한다.
+
+## M6 Mock Report Projection
+
+`GET /api/v1/candidate/mock-interview/reports/{reportId}/feedback` 응답은 검증을 통과한 화상면접 NCS 결과를 `ncsEvaluations` 배열로 투영한다.
+
+```json
+{
+  "data": {
+    "reportId": 101,
+    "totalScore": 78,
+    "ncsEvaluations": [
+      {
+        "processLogId": 9001,
+        "sessionId": 101,
+        "questionId": 501,
+        "answerId": 701,
+        "questionType": "EXPERIENCE",
+        "questionContent": "새로운 기술을 배워 적용한 경험을 설명해 주세요.",
+        "evaluationSnapshotVersion": "snapshot-hash-or-version",
+        "behaviorEvaluations": [
+          {
+            "behaviorPointId": "behavior-point-id",
+            "behaviorPointDescription": "학습한 내용을 실제 문제에 적용하고 결과를 확인한다.",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "rationale": "행동과 결과가 발화에서 연결됩니다.",
+            "supportingEvidenceIds": ["evidence-1"],
+            "contradictingEvidenceIds": [],
+            "missingEvidence": [],
+            "confidence": "HIGH"
+          }
+        ],
+        "evidences": [],
+        "coverage": {
+          "assessableBehaviorPointCount": 1,
+          "evaluatedBehaviorPointCount": 1,
+          "ratio": 1,
+          "status": "SUFFICIENT"
+        },
+        "followUp": {
+          "required": false,
+          "reason": null,
+          "missingEvidence": [],
+          "suggestedQuestion": null
+        }
+      }
+    ],
+    "visibilityPolicy": {
+      "candidateFacingOnly": true,
+      "excludesHiringDecision": true,
+      "excludesInternalScores": true,
+      "excludesCompanyMemo": true,
+      "ncsPracticeScoreExcludedFromTotal": true
+    }
+  }
+}
+```
+
+- `ncsEvaluations` 항목은 `COMPLETED` 상태이고 strict output 검증을 통과한 `STORED_ANSWER` 작업만 포함한다.
+- 같은 `answerId`를 재평가한 경우 가장 최근 유효 결과 하나만 노출한다.
+- `behaviorPointDescription`은 클라이언트 입력이 아닌 해당 process의 immutable evaluation snapshot에서 읽는다.
+- NCS 점수는 연습용 행동 근거 지표이며 기존 리포트 `totalScore`나 합격 판단에 가중하지 않는다.
+- NCS process는 `REPORT_GENERATE` type을 공유하지만 `kind=MOCK_NCS_ANSWER_EVALUATION`이므로 `MOCK_REPORT_GENERATE`의 상태 판정에서 제외한다.
+- 유효한 결과가 없으면 `ncsEvaluations` 배열은 빈 배열이며 기존 리포트는 그대로 노출한다.

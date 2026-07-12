@@ -2467,12 +2467,17 @@ AI 리포트 금지 기준:
   - 답변 분석 완료
 - 성공 응답/처리:
   - 피드백 결과 표시
+  - `ncsEvaluations`: 검증된 최신 `STORED_ANSWER` NCS 평가 배열. 문항/답변 ID, 질문, 행동 기준 설명·상태·단계·고정 점수, 발화 근거, coverage, 보완 질문을 포함한다.
+  - 같은 답변의 재평가는 가장 최근 유효 결과만 노출하며, `TEXT_INPUT` 결과는 화상면접 리포트에 합성하지 않는다.
+  - NCS 평가 점수는 기존 `totalScore`와 별도의 연습 지표로 노출하고 가중 합산하지 않는다.
+  - `visibilityPolicy.ncsPracticeScoreExcludedFromTotal=true`를 반환한다.
 - 오류/예외:
   - 답변 길이가 부족하면 피드백 범위를 제한하고 재시도를 안내한다.
 - 관련 ERD 테이블:
   - companies, candidate_profiles, applications, interview_sessions, interview_answers, evaluation_reports, report_scores, report_evidences, ai_process_logs, embeddings
 - 비고/미결:
   - 기업 선별용 판단 표현 사용 금지
+  - `REPORT_GENERATE` process는 `kind=MOCK_REPORT_GENERATE`만 리포트 생성 상태로 판정하며 `kind=MOCK_NCS_ANSWER_EVALUATION`을 제외한다.
 
 ### API-056 GET /candidate/mock-interview/reports/{reportId}/media
 - 도메인: 지원자 - 모의면접
