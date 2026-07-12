@@ -305,6 +305,7 @@ model Question {
   answers          InterviewAnswer[]
   questionSetItems InterviewQuestionSetItem[]
   sessionQuestions InterviewSessionQuestion[]
+  ncsEvaluationSnapshots NcsEvaluationSnapshot[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
 
   @@map("question_bank")
@@ -417,6 +418,7 @@ model InterviewSession {
   candidate             CandidateProfile                   @relation(fields: [candidateId], references: [candidateId])
   answers               InterviewAnswer[]
   sessionQuestions      InterviewSessionQuestion[]
+  ncsEvaluationSnapshots NcsEvaluationSnapshot[]
   evaluationReports     EvaluationReport[]
   aiProcessLogs         AiProcessLog[]
   clientPerformanceLogs ClientPerformanceLog[]
@@ -443,6 +445,23 @@ model InterviewSessionQuestion {
   @@unique([sessionId, questionId], map: "uq_interview_session_questions_question")
   @@index([questionId], map: "idx_interview_session_questions_question")
   @@map("interview_session_questions")
+}
+
+model NcsEvaluationSnapshot {
+  snapshotId      BigInt           @id @default(autoincrement()) @map("snapshot_id")
+  sessionId       BigInt           @map("session_id")
+  questionId      BigInt           @map("question_id")
+  contractVersion String           @map("contract_version") @db.VarChar(80)
+  snapshotVersion String           @map("snapshot_version") @db.VarChar(128)
+  jobRole         String?          @map("job_role") @db.VarChar(80)
+  snapshotJson    Json             @map("snapshot_json") @db.JsonB
+  createdAt       DateTime         @default(now()) @map("created_at")
+  session         InterviewSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  question        Question         @relation(fields: [questionId], references: [questionId], onDelete: Restrict)
+
+  @@unique([sessionId, questionId], map: "uk_ncs_evaluation_snapshots_session_question")
+  @@index([questionId], map: "idx_ncs_evaluation_snapshots_question")
+  @@map("ncs_evaluation_snapshots")
 }
 
 model CandidateMockInterviewPassLedger {

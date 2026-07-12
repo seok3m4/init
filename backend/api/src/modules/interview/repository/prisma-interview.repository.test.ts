@@ -4,6 +4,7 @@ import {
   InterviewType as PrismaInterviewType,
   QuestionType as PrismaQuestionType,
 } from "@prisma/client";
+import { BuiltInNcsEvaluationSnapshotResolver } from "../ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver";
 import { PrismaInterviewRepository } from "./prisma-interview.repository";
 
 describe("PrismaInterviewRepository", () => {
@@ -114,6 +115,52 @@ describe("PrismaInterviewRepository", () => {
 
     assert.deepEqual(session?.questionIds, [1202, 1201]);
     assert.equal(session?.currentQuestionIndex, 0);
+  });
+
+  it("atomically reuses the first persisted NCS evaluation snapshot", async () => {
+    const original = new BuiltInNcsEvaluationSnapshotResolver().resolve({
+      questionId: 1201,
+      questionType: "TECHNICAL",
+      content: "기술 대안을 비교한 경험을 설명해 주세요.",
+      sortOrder: 1,
+      interviewType: "MOCK",
+      jobRole: "백엔드 개발자",
+      isActive: true,
+    });
+    assert.ok(original);
+    const prisma = {
+      ncsEvaluationSnapshot: {
+        async upsert(args: Record<string, unknown>) {
+          const input = args as {
+            where: { sessionId_questionId: { sessionId: bigint; questionId: bigint } };
+            update: Record<string, never>;
+            create: { jobRole: string; snapshotVersion: string };
+          };
+          assert.deepEqual(input.where, {
+            sessionId_questionId: { sessionId: 9001n, questionId: 1201n },
+          });
+          assert.deepEqual(input.update, {});
+          assert.equal(input.create.jobRole, "보안 엔지니어");
+          return { snapshotJson: structuredClone(original) };
+        },
+      },
+    };
+    const replacement = new BuiltInNcsEvaluationSnapshotResolver().resolve({
+      questionId: 1201,
+      questionType: "TECHNICAL",
+      content: "기술 대안을 비교한 경험을 설명해 주세요.",
+      sortOrder: 1,
+      interviewType: "MOCK",
+      jobRole: "보안 엔지니어",
+      isActive: true,
+    });
+    assert.ok(replacement);
+    const repository = new PrismaInterviewRepository(prisma as never);
+
+    const reserved = await repository.reserveNcsEvaluationSnapshot(9001, 1201, replacement);
+
+    assert.equal(reserved.snapshotVersion, original.snapshotVersion);
+    assert.equal(reserved.jobRole, "백엔드 개발자");
   });
 });
 

@@ -19,6 +19,7 @@ export class RuntimeFileAssetDto {
 export class StartMockInterviewDto {
   @IsOptional()
   @IsString()
+  @MaxLength(80)
   jobRole?: string;
 
   @IsOptional()

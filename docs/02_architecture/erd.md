@@ -61,6 +61,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | consent_records | consent_id | 5 | 지원/면접 동의 이력 | application_id -> applications.application_id |
 | interview_sessions | session_id | 8 | 모의/채용 면접 세션 | application_id -> applications.application_id / candidate_id -> candidate_profiles.candidate_id |
 | interview_session_questions | session_question_id | 8 | 세션별 질문 순서와 비공개 질문 스냅샷 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id |
+| ncs_evaluation_snapshots | snapshot_id | 8 | 세션 질문별 NCS 평가 기준 불변 스냅샷 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id |
 | interview_answers | answer_id | 9 | 질문별 영상/음성/STT 답변 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / session_question_id -> interview_session_questions.session_question_id / video_file_id -> file_assets.file_id / audio_file_id -> file_assets.file_id |
 | follow_up_questions | follow_up_id | 5 | 답변 기반 꼬리질문 | answer_id -> interview_answers.answer_id |
 | evaluation_reports | report_id | 8 | 평가 리포트 헤더 | application_id -> applications.application_id / session_id -> interview_sessions.session_id |
@@ -70,6 +71,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | notifications | notification_id | 7 | 메일/인앱 알림 | user_id -> users.user_id / application_id -> applications.application_id |
 | ai_process_logs | process_log_id | 8 | AI 비동기 처리 로그 | application_id -> applications.application_id / session_id -> interview_sessions.session_id |
 | ai_guardrail_logs | guardrail_log_id | 6 | AI 안전 검증 로그 | process_log_id -> ai_process_logs.process_log_id |
+| ncs_evaluation_revisions | revision_id | 11 | 가드레일 통과 NCS 평가 불변 revision | process_log_id -> ai_process_logs.process_log_id / session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / answer_id -> interview_answers.answer_id |
 | embeddings | embedding_id | 15 | 검색/추천용 임베딩 | posting_id -> postings.posting_id / tag_id -> criterion_tags.tag_id / question_id -> question_bank.question_id / document_id -> application_documents.document_id / answer_id -> interview_answers.answer_id / report_id -> evaluation_reports.report_id |
 
 ## Relationships
@@ -102,6 +104,8 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | interview_sessions | candidate_id | candidate_profiles.candidate_id | fk_interview_sessions_candidate |
 | interview_session_questions | session_id | interview_sessions.session_id | fk_interview_session_questions_session |
 | interview_session_questions | question_id | question_bank.question_id | fk_interview_session_questions_question |
+| ncs_evaluation_snapshots | session_id | interview_sessions.session_id | fk_ncs_evaluation_snapshots_session |
+| ncs_evaluation_snapshots | question_id | question_bank.question_id | fk_ncs_evaluation_snapshots_question |
 | interview_answers | session_id | interview_sessions.session_id | fk_interview_answers_session |
 | interview_answers | question_id | question_bank.question_id | fk_interview_answers_question |
 | interview_answers | session_question_id | interview_session_questions.session_question_id | fk_interview_answers_session_question |
@@ -122,6 +126,10 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | ai_process_logs | application_id | applications.application_id | fk_ai_process_logs_application |
 | ai_process_logs | session_id | interview_sessions.session_id | fk_ai_process_logs_session |
 | ai_guardrail_logs | process_log_id | ai_process_logs.process_log_id | fk_ai_guardrail_logs_process |
+| ncs_evaluation_revisions | process_log_id | ai_process_logs.process_log_id | fk_ncs_evaluation_revisions_process |
+| ncs_evaluation_revisions | session_id | interview_sessions.session_id | fk_ncs_evaluation_revisions_session |
+| ncs_evaluation_revisions | question_id | question_bank.question_id | fk_ncs_evaluation_revisions_question |
+| ncs_evaluation_revisions | answer_id | interview_answers.answer_id | fk_ncs_evaluation_revisions_answer |
 | embeddings | posting_id | postings.posting_id | fk_embeddings_posting |
 | embeddings | tag_id | criterion_tags.tag_id | fk_embeddings_tag |
 | embeddings | question_id | question_bank.question_id | fk_embeddings_question |

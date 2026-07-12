@@ -3,11 +3,14 @@
 실제 PostgreSQL에서 다음 수직 경계를 검증한다.
 
 ```text
-동일 평가 요청 2회
+세션 질문별 NCS snapshot 최초 저장
+→ 다른 직무·버전으로 reserve해도 최초 snapshot 재사용
+→ 동일 평가 요청 2회
 → ai_process_logs 한 건 예약
 → local queue adapter
 → worker evidence-state 평가
 → guardrail PASS
+→ worker evaluationBasis와 입력 snapshot 일치
 → ncs_evaluation_revisions 한 건 저장
 → immutable revision 리포트 조회
 → 완료 message 재전달은 handler 재실행 없이 ack

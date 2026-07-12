@@ -46,7 +46,12 @@ import {
   CandidateMockInterviewPassService,
   type CandidateMockInterviewPassPort,
 } from "../../payment/service/candidate-mock-interview-pass.service";
-import { INTERVIEW_REPOSITORY, type FollowUpQuestionPolicy, type InterviewRepository } from "../repository/interview.repository";
+import {
+  INTERVIEW_REPOSITORY,
+  type CreateMockInterviewSessionInput,
+  type FollowUpQuestionPolicy,
+  type InterviewRepository,
+} from "../repository/interview.repository";
 import {
   InMemoryInterviewMediaStorageAdapter,
   INTERVIEW_MEDIA_STORAGE,
@@ -145,6 +150,8 @@ export class InterviewService {
     const requestBody = this.toRequestBody(dto, "mockInterview");
     const showQuestionText = requestBody.showQuestionText === true;
     const questionIds = await this.selectMockQuestionIds(dto);
+    const jobRole = this.normalizeMockJobRole(requestBody.jobRole);
+    const ncsEvaluationSnapshots = await this.buildInitialNcsEvaluationSnapshots(questionIds, jobRole);
     const now = new Date().toISOString();
     await this.mockInterviewPasses?.consumePass(currentUser.candidateId, 1, undefined, new Date(now));
     const session = await this.interviewRepository.createMockSession({
@@ -153,6 +160,7 @@ export class InterviewService {
       questionIds,
       startedAt: now,
       updatedAt: now,
+      ncsEvaluationSnapshots,
     });
 
     return this.envelope({
@@ -791,12 +799,21 @@ export class InterviewService {
     }
 
     const question = await this.requiredQuestion(request.questionId);
-    const evaluationSnapshot = this.ncsEvaluationSnapshotResolver.resolve(question);
-    if (!evaluationSnapshot) {
+    const persistedSnapshot = await this.interviewRepository.findNcsEvaluationSnapshot(
+      session.sessionId,
+      request.questionId,
+    );
+    const generatedSnapshot = persistedSnapshot ? undefined : this.ncsEvaluationSnapshotResolver.resolve(question);
+    if (!persistedSnapshot && !generatedSnapshot) {
       throw new CandidateDomainError("COMMON_CONFLICT", "NCS evaluation snapshot is unavailable for the question.", 409, [
         { field: "questionId", reason: `question type ${question.questionType} is not assessable` },
       ]);
     }
+    const evaluationSnapshot = persistedSnapshot ?? await this.interviewRepository.reserveNcsEvaluationSnapshot(
+      session.sessionId,
+      request.questionId,
+      generatedSnapshot!,
+    );
 
     const source = await this.resolveNcsEvaluationTranscript(session, request);
     this.assertNcsEvaluationInputQuality(source.transcript);
@@ -1551,6 +1568,38 @@ export class InterviewService {
       return (await this.interviewRepository.listQuestions({ interviewType: "MOCK" })).map((question) => question.questionId);
     }
     return questions.map((question) => question.questionId);
+  }
+
+  private normalizeMockJobRole(value: unknown): string | undefined {
+    if (value === undefined || value === null || value === "") return undefined;
+    if (typeof value !== "string") {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "jobRole is invalid.", 400, [
+        { field: "jobRole", reason: "jobRole must be a string" },
+      ]);
+    }
+    const jobRole = value.trim().replace(/\s+/g, " ");
+    if (!jobRole || jobRole.length > 80) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "jobRole is invalid.", 400, [
+        { field: "jobRole", reason: "trimmed jobRole length must be between 1 and 80 characters" },
+      ]);
+    }
+    return jobRole;
+  }
+
+  private async buildInitialNcsEvaluationSnapshots(
+    questionIds: number[],
+    jobRole?: string,
+  ): Promise<CreateMockInterviewSessionInput["ncsEvaluationSnapshots"]> {
+    const snapshots: NonNullable<CreateMockInterviewSessionInput["ncsEvaluationSnapshots"]> = [];
+    for (const questionId of questionIds) {
+      const question = await this.requiredQuestion(questionId);
+      const snapshot = this.ncsEvaluationSnapshotResolver.resolve({
+        ...question,
+        ...(jobRole ? { jobRole } : {}),
+      });
+      if (snapshot) snapshots.push({ questionId, snapshot });
+    }
+    return snapshots;
   }
 
   private async selectRecruitingQuestionIds(postingId: number): Promise<number[]> {

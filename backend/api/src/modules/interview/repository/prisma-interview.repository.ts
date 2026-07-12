@@ -7,6 +7,10 @@ import {
 } from "@prisma/client";
 import { PrismaService } from "../../../shared/prisma.service";
 import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from "../interview.runtime.types";
+import {
+  parseNcsEvaluationSnapshot,
+  type NcsEvaluationSnapshot,
+} from "../ncs-evaluation/ncs-evaluation-snapshot";
 import type {
   CompletedFollowUpProcess,
   CreateInterviewAnswerInput,
@@ -123,9 +127,68 @@ export class PrismaInterviewRepository implements InterviewRepository {
             sortOrder,
           })),
         },
+        ncsEvaluationSnapshots: input.ncsEvaluationSnapshots?.length
+          ? {
+              create: input.ncsEvaluationSnapshots.map((item) => ({
+                questionId: BigInt(item.questionId),
+                contractVersion: item.snapshot.contractVersion,
+                snapshotVersion: item.snapshot.snapshotVersion,
+                jobRole: item.snapshot.jobRole,
+                snapshotJson: toPrismaJson(item.snapshot),
+              })),
+            }
+          : undefined,
       },
     });
     return this.toRuntimeSession(session, input.questionIds);
+  }
+
+  async reserveNcsEvaluationSnapshot(
+    sessionId: number,
+    questionId: number,
+    snapshot: NcsEvaluationSnapshot,
+  ): Promise<NcsEvaluationSnapshot> {
+    const record = await this.prisma.ncsEvaluationSnapshot.upsert({
+      where: {
+        sessionId_questionId: {
+          sessionId: BigInt(sessionId),
+          questionId: BigInt(questionId),
+        },
+      },
+      update: {},
+      create: {
+        sessionId: BigInt(sessionId),
+        questionId: BigInt(questionId),
+        contractVersion: snapshot.contractVersion,
+        snapshotVersion: snapshot.snapshotVersion,
+        jobRole: snapshot.jobRole,
+        snapshotJson: toPrismaJson(snapshot),
+      },
+      select: { snapshotJson: true },
+    });
+    const persisted = parseNcsEvaluationSnapshot(record.snapshotJson);
+    if (!persisted) {
+      throw new Error(`Stored NCS evaluation snapshot is invalid for session ${sessionId}, question ${questionId}.`);
+    }
+    return persisted;
+  }
+
+  async findNcsEvaluationSnapshot(sessionId: number, questionId: number): Promise<NcsEvaluationSnapshot | undefined> {
+    const record = await this.prisma.ncsEvaluationSnapshot.findUnique({
+      where: {
+        sessionId_questionId: {
+          sessionId: BigInt(sessionId),
+          questionId: BigInt(questionId),
+        },
+      },
+      select: { snapshotJson: true },
+    });
+    if (!record) return undefined;
+    const snapshot = parseNcsEvaluationSnapshot(record.snapshotJson);
+    if (!snapshot) {
+      throw new Error(`Stored NCS evaluation snapshot is invalid for session ${sessionId}, question ${questionId}.`);
+    }
+    return snapshot;
   }
 
   async findRecruitingRuntimeSession(sessionId: number): Promise<RuntimeInterviewSession | undefined> {
@@ -623,6 +686,10 @@ function parseAiJobAnswerId(inputRef: string | null): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+function toPrismaJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 type QuestionRecord = {

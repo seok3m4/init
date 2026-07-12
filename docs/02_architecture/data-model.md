@@ -52,6 +52,7 @@
 | `consent_records` | `ConsentRecord` | D |
 | `interview_sessions` | `InterviewSession` | D/E |
 | `interview_session_questions` | `InterviewSessionQuestion` | D/E |
+| `ncs_evaluation_snapshots` | `NcsEvaluationSnapshot` | D/E |
 | `interview_answers` | `InterviewAnswer` | D/E |
 | `follow_up_questions` | `FollowUpQuestion` | E |
 | `evaluation_reports` | `EvaluationReport` | E |
@@ -73,7 +74,7 @@
 | Account | users, companies, candidate_profiles | 로그인 계정, 기업/지원자 프로필, 기본 파일 참조 |
 | Recruiting | postings, criterion_tags, evaluation_criteria, question_bank, interview_time_policies | 공고, JD, 평가 기준, 질문, 면접 시간 정책 관리 |
 | Application | applications, application_documents, consent_records | 지원서 제출, 서류 파싱, 동의 이력 |
-| Interview | interview_sessions, interview_session_questions, interview_answers, follow_up_questions | 모의/채용 AI 면접 실행, 세션별 질문 순서와 답변 |
+| Interview | interview_sessions, interview_session_questions, ncs_evaluation_snapshots, interview_answers, follow_up_questions | 모의/채용 AI 면접 실행, 세션별 질문·평가 기준 스냅샷과 답변 |
 | Report | evaluation_reports, report_scores, report_evidences, manual_evaluations | AI 평가 결과와 면접관 검토 |
 | AI Infra | ai_process_logs, ai_guardrail_logs, embeddings | AI 처리 상태, 안전성 검증, 검색/추천 |
 | Notification/File | notifications, file_assets | 알림과 업로드 파일 메타데이터 |
@@ -310,6 +311,21 @@
 - 런타임 꼬리질문을 삽입하면 같은 세션의 `sort_order`를 원자적으로 다시 저장한다.
 - 질문 뱅크 질문은 `question_id`만 사용하고, 세션 전용 비공개 질문은 `runtime_question_id`, `question_type`, `content`를 함께 사용한다.
 - 마이그레이션 이전 세션처럼 스냅샷이 없는 레거시 row만 기존 질문 복원 규칙을 fallback으로 사용한다.
+
+### ncs_evaluation_snapshots
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| snapshot_id | BIGINT PRIMARY KEY | 세션 질문별 NCS 평가 snapshot PK |
+| session_id | BIGINT NOT NULL | 모의면접 세션 FK |
+| question_id | BIGINT NOT NULL | 평가 대상 질문 FK |
+| contract_version | VARCHAR(80) NOT NULL | 제품 평가 계약 버전 |
+| snapshot_version | VARCHAR(128) NOT NULL | 프로필 내용 기반 결정적 snapshot 버전 |
+| job_role | VARCHAR(80) | 세션 시작 시 선택한 직무 |
+| snapshot_json | JSONB NOT NULL | NCS context, 행동 포인트, 고정 점수 정책의 불변 복사본 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 최초 snapshot 고정 시각 |
+
+`session_id + question_id`는 unique다. 세션 생성 시 평가 가능한 질문의 snapshot을 함께 저장하고, 마이그레이션 이전 세션은 최초 평가 요청에서만 row를 예약한다. 이후 프로필 코드나 질문 뱅크 변경은 기존 snapshot을 덮어쓰지 않는다.
 
 ### interview_answers
 

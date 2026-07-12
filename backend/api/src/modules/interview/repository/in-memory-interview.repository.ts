@@ -1,4 +1,5 @@
 import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from "../interview.runtime.types";
+import type { NcsEvaluationSnapshot } from "../ncs-evaluation/ncs-evaluation-snapshot";
 import type {
   CompletedFollowUpProcess,
   CreateInterviewAnswerInput,
@@ -125,6 +126,7 @@ export class InMemoryInterviewRepository implements InterviewRepository {
   private readonly answers: InterviewAnswer[] = [];
   private readonly followUpProcesses = new Map<number, CompletedFollowUpProcess>();
   private readonly followUpQuestions = new Map<string, GeneratedFollowUpQuestion>();
+  private readonly ncsEvaluationSnapshots = new Map<string, NcsEvaluationSnapshot>();
   private readonly reanswerRequiredFailures: Array<ReanswerRequiredFailure & { sessionId: number; answerId: number }> = [];
 
   listQuestions(filter: InterviewQuestionFilter = {}): InterviewQuestion[] {
@@ -169,7 +171,30 @@ export class InMemoryInterviewRepository implements InterviewRepository {
     };
 
     this.mockSessions.set(session.sessionId, this.cloneSession(session));
+    for (const item of input.ncsEvaluationSnapshots ?? []) {
+      this.ncsEvaluationSnapshots.set(
+        this.ncsSnapshotKey(session.sessionId, item.questionId),
+        structuredClone(item.snapshot),
+      );
+    }
     return this.cloneSession(session);
+  }
+
+  reserveNcsEvaluationSnapshot(
+    sessionId: number,
+    questionId: number,
+    snapshot: NcsEvaluationSnapshot,
+  ): NcsEvaluationSnapshot {
+    const key = this.ncsSnapshotKey(sessionId, questionId);
+    const existing = this.ncsEvaluationSnapshots.get(key);
+    if (existing) return structuredClone(existing);
+    this.ncsEvaluationSnapshots.set(key, structuredClone(snapshot));
+    return structuredClone(snapshot);
+  }
+
+  findNcsEvaluationSnapshot(sessionId: number, questionId: number): NcsEvaluationSnapshot | undefined {
+    const snapshot = this.ncsEvaluationSnapshots.get(this.ncsSnapshotKey(sessionId, questionId));
+    return snapshot ? structuredClone(snapshot) : undefined;
   }
 
   findRecruitingRuntimeSession(sessionId: number): RuntimeInterviewSession | undefined {
@@ -374,5 +399,9 @@ export class InMemoryInterviewRepository implements InterviewRepository {
 
   private followUpKey(answerId: number, policy: FollowUpQuestionPolicy): string {
     return `${policy}:${answerId}`;
+  }
+
+  private ncsSnapshotKey(sessionId: number, questionId: number): string {
+    return `${sessionId}:${questionId}`;
   }
 }

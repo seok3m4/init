@@ -1,4 +1,5 @@
 import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from "../interview.runtime.types";
+import type { NcsEvaluationSnapshot } from "../ncs-evaluation/ncs-evaluation-snapshot";
 
 export const INTERVIEW_REPOSITORY = Symbol("INTERVIEW_REPOSITORY");
 
@@ -10,6 +11,10 @@ export interface CreateMockInterviewSessionInput {
   questionIds: number[];
   startedAt: string;
   updatedAt: string;
+  ncsEvaluationSnapshots?: Array<{
+    questionId: number;
+    snapshot: NcsEvaluationSnapshot;
+  }>;
 }
 
 export interface CreateInterviewAnswerInput {
@@ -78,6 +83,12 @@ export interface InterviewRepository {
   listOwnedMockSessions(candidateId: number): MaybePromise<RuntimeInterviewSession[]>;
   findMockSession(sessionId: number): MaybePromise<RuntimeInterviewSession | undefined>;
   createMockSession(input: CreateMockInterviewSessionInput): MaybePromise<RuntimeInterviewSession>;
+  findNcsEvaluationSnapshot(sessionId: number, questionId: number): MaybePromise<NcsEvaluationSnapshot | undefined>;
+  reserveNcsEvaluationSnapshot(
+    sessionId: number,
+    questionId: number,
+    snapshot: NcsEvaluationSnapshot,
+  ): MaybePromise<NcsEvaluationSnapshot>;
   findRecruitingRuntimeSession(sessionId: number): MaybePromise<RuntimeInterviewSession | undefined>;
   saveRecruitingRuntimeSession(session: RuntimeInterviewSession): MaybePromise<RuntimeInterviewSession>;
   saveRuntimeSession(session: RuntimeInterviewSession): MaybePromise<RuntimeInterviewSession>;

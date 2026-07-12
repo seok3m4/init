@@ -10,7 +10,7 @@ import {
   type NcsEvaluationSnapshotResolver,
 } from "./ncs-evaluation-snapshot";
 
-const BUILT_IN_PROFILE_VERSION = "service-ncs-starter-v1";
+const BUILT_IN_PROFILE_VERSION = "service-ncs-starter-v2";
 
 interface BuiltInProfile {
   profileId: string;
@@ -24,6 +24,73 @@ interface BuiltInProfile {
   behaviorDescription: string;
   requiredEvidence: NcsEvaluationEvidenceType[];
 }
+
+interface JobRoleProfile {
+  profileId: string;
+  code: string;
+  displayName: string;
+  aliases: string[];
+  domainContext: string;
+}
+
+const JOB_ROLE_PROFILES: JobRoleProfile[] = [
+  {
+    profileId: "backend",
+    code: "BACKEND",
+    displayName: "백엔드 개발자",
+    aliases: ["백엔드 개발자", "백엔드", "backend", "backend developer"],
+    domainContext: "API, 데이터와 서버 운영",
+  },
+  {
+    profileId: "frontend",
+    code: "FRONTEND",
+    displayName: "프론트엔드 개발자",
+    aliases: ["프론트엔드 개발자", "프론트엔드", "frontend", "frontend developer"],
+    domainContext: "사용자 경험, 접근성과 브라우저 성능",
+  },
+  {
+    profileId: "fullstack",
+    code: "FULLSTACK",
+    displayName: "풀스택 개발자",
+    aliases: ["풀스택 개발자", "풀스택", "fullstack", "full stack developer"],
+    domainContext: "클라이언트와 서버 경계, 데이터 흐름과 통합",
+  },
+  {
+    profileId: "ai-ml",
+    code: "AI_ML",
+    displayName: "AI/ML 엔지니어",
+    aliases: ["AI/ML 엔지니어", "AI 엔지니어", "ML 엔지니어", "ai/ml", "machine learning engineer"],
+    domainContext: "데이터 품질, 모델 성능과 재현 가능한 실험",
+  },
+  {
+    profileId: "data",
+    code: "DATA",
+    displayName: "데이터 엔지니어",
+    aliases: ["데이터 엔지니어", "data engineer"],
+    domainContext: "데이터 파이프라인, 정합성과 처리 신뢰성",
+  },
+  {
+    profileId: "devops-sre",
+    code: "DEVOPS_SRE",
+    displayName: "DevOps/SRE",
+    aliases: ["DevOps/SRE", "DevOps", "SRE", "site reliability engineer"],
+    domainContext: "배포 안정성, 관측 가능성과 장애 복구",
+  },
+  {
+    profileId: "qa",
+    code: "QA",
+    displayName: "QA 엔지니어",
+    aliases: ["QA 엔지니어", "QA", "quality assurance engineer"],
+    domainContext: "재현 조건, 테스트 전략과 품질 위험",
+  },
+  {
+    profileId: "security",
+    code: "SECURITY",
+    displayName: "보안 엔지니어",
+    aliases: ["보안 엔지니어", "security engineer"],
+    domainContext: "위협, 보안 통제와 잔여 위험",
+  },
+];
 
 const PROFILES: Partial<Record<QuestionType, BuiltInProfile>> = {
   TECHNICAL: {
@@ -84,9 +151,23 @@ export class BuiltInNcsEvaluationSnapshotResolver implements NcsEvaluationSnapsh
       return undefined;
     }
 
+    const requestedJobRole = normalizeJobRoleLabel(question.jobRole);
+    const jobRoleProfile = resolveJobRoleProfile(requestedJobRole);
+    const jobRole = jobRoleProfile?.displayName ?? requestedJobRole;
+    const unitCode = jobRoleProfile ? roleUnitCode(question.questionType, jobRoleProfile.code) : profile.unitCode;
+    const elementCode = unitCode + "-01";
+    const profileId = jobRoleProfile ? `${jobRoleProfile.profileId}-${profile.profileId}` : profile.profileId;
+    const definition = jobRoleProfile
+      ? roleDefinition(question.questionType, jobRoleProfile.domainContext)
+      : profile.definition;
+    const behaviorDescription = jobRoleProfile
+      ? roleBehaviorDescription(question.questionType, jobRoleProfile.domainContext)
+      : profile.behaviorDescription;
+
     const snapshotWithoutVersion = {
       contractVersion: NCS_EVALUATION_PRODUCT_CONTRACT_VERSION,
       locale: "ko-KR" as const,
+      jobRole,
       question: {
         questionId: String(question.questionId),
         questionType: profile.questionType,
@@ -97,13 +178,13 @@ export class BuiltInNcsEvaluationSnapshotResolver implements NcsEvaluationSnapsh
         version: BUILT_IN_PROFILE_VERSION,
         categoryType: profile.categoryType,
         unit: {
-          code: profile.unitCode,
-          name: question.jobRole ? `${question.jobRole} - ${profile.unitName}` : profile.unitName,
+          code: unitCode,
+          name: jobRole ? `${jobRole} - ${profile.unitName}` : profile.unitName,
           level: null,
-          definition: profile.definition,
+          definition,
           elements: [
             {
-              elementCode: profile.elementCode,
+              elementCode,
               name: profile.elementName,
             },
           ],
@@ -111,9 +192,9 @@ export class BuiltInNcsEvaluationSnapshotResolver implements NcsEvaluationSnapsh
       },
       behaviorPoints: [
         {
-          behaviorPointId: `${profile.profileId}-bp-01`,
-          description: profile.behaviorDescription,
-          sourceElementCodes: [profile.elementCode],
+          behaviorPointId: `${profileId}-bp-01`,
+          description: behaviorDescription,
+          sourceElementCodes: [elementCode],
           observability: "INTERVIEW" as const,
           requiredEvidence: [...profile.requiredEvidence],
         },
@@ -134,4 +215,59 @@ export class BuiltInNcsEvaluationSnapshotResolver implements NcsEvaluationSnapsh
       snapshotVersion: `${BUILT_IN_PROFILE_VERSION}:${snapshotHash}`,
     };
   }
+}
+
+function resolveJobRoleProfile(jobRole: string | null): JobRoleProfile | undefined {
+  if (!jobRole) return undefined;
+  const normalized = normalizeJobRoleKey(jobRole);
+  return JOB_ROLE_PROFILES.find((profile) => profile.aliases.some((alias) => normalizeJobRoleKey(alias) === normalized));
+}
+
+function normalizeJobRoleLabel(value?: string): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized ? normalized.slice(0, 80) : null;
+}
+
+function normalizeJobRoleKey(value: string): string {
+  return value.toLocaleLowerCase("ko-KR").replace(/[\s/_-]+/g, "");
+}
+
+function roleUnitCode(questionType: QuestionType, roleCode: string): string {
+  const suffix = {
+    TECHNICAL: "TECHNICAL-DECISION",
+    EXPERIENCE: "LEARNING-APPLICATION",
+    SITUATION: "PROBLEM-SOLVING",
+    FOLLOW_UP: "EVIDENCE-COMPLETION",
+    INTRO: "INTRO",
+    CLOSING: "CLOSING",
+  }[questionType];
+  const category = questionType === "TECHNICAL" ? "JOB" : "BASIC";
+  return `SERVICE-${category}-${roleCode.replace(/_/g, "-")}-${suffix}`;
+}
+
+function roleDefinition(questionType: QuestionType, domainContext: string): string {
+  if (questionType === "TECHNICAL") {
+    return `${domainContext}의 제약에서 기술 대안을 비교하고 선택 근거와 검증 결과를 설명하는 능력`;
+  }
+  if (questionType === "EXPERIENCE") {
+    return `${domainContext}에 필요한 지식이나 도구를 학습하고 실제 문제에 적용한 과정을 설명하는 능력`;
+  }
+  if (questionType === "SITUATION") {
+    return `${domainContext}의 문제 상황을 구조화하고 실행 가능한 해결책과 확인 기준을 제시하는 능력`;
+  }
+  return `${domainContext}에 관한 추가 질문에 맞춰 기존 답변에서 부족했던 행동 근거를 보완하는 능력`;
+}
+
+function roleBehaviorDescription(questionType: QuestionType, domainContext: string): string {
+  if (questionType === "TECHNICAL") {
+    return `${domainContext}의 제약과 대안을 구분하고 선택 근거, 실행 행동과 검증 결과를 연결해 설명한다.`;
+  }
+  if (questionType === "EXPERIENCE") {
+    return `학습이 필요했던 상황과 ${domainContext}에 적용한 행동, 선택 이유, 결과와 회고를 구체적으로 설명한다.`;
+  }
+  if (questionType === "SITUATION") {
+    return `${domainContext}의 문제와 제약을 구분하고 해결 행동, 선택 근거와 확인할 결과를 연결해 설명한다.`;
+  }
+  return `${domainContext}에 대한 꼬리질문의 초점을 직접 다루며 부족한 행동, 근거와 결과를 보완한다.`;
 }

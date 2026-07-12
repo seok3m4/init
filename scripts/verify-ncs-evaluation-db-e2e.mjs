@@ -40,6 +40,9 @@ const { PrismaReportRepository } = requireFromRoot(
 const { PrismaCandidateReportRepository } = requireFromRoot(
   resolve(apiDist, "modules", "report", "repository", "prisma-candidate-report.repository.js"),
 );
+const { PrismaInterviewRepository } = requireFromRoot(
+  resolve(apiDist, "modules", "interview", "repository", "prisma-interview.repository.js"),
+);
 const { AiJobDispatcherService } = requireFromRoot(
   resolve(apiDist, "modules", "report", "service", "ai-job-dispatcher.service.js"),
 );
@@ -67,7 +70,21 @@ try {
   const transcript =
     "실행 계획에서 풀스캔을 확인하고 복합 인덱스를 적용했습니다. 조회 빈도와 쓰기 비용을 비교했고 같은 부하에서 p95가 줄었는지 결과를 확인했습니다.";
   const payload = productPayload(ids, transcript);
-  const idempotencyKey = `ncs-e2e:${ids.session}:${ids.answer}:snapshot-v1`;
+  const interviewRepository = new PrismaInterviewRepository(prisma);
+  const persistedSnapshot = await interviewRepository.findNcsEvaluationSnapshot(Number(ids.session), Number(ids.question));
+  assert.ok(persistedSnapshot);
+  assert.equal(persistedSnapshot.jobRole, "백엔드 개발자");
+  const replacementSnapshot = structuredClone(payload.evaluationSnapshot);
+  replacementSnapshot.jobRole = "보안 엔지니어";
+  replacementSnapshot.snapshotVersion = "ncs-db-e2e-tampered-replacement";
+  const reservedSnapshot = await interviewRepository.reserveNcsEvaluationSnapshot(
+    Number(ids.session),
+    Number(ids.question),
+    replacementSnapshot,
+  );
+  assert.equal(reservedSnapshot.snapshotVersion, "ncs-db-e2e-snapshot-v2");
+  assert.equal(reservedSnapshot.jobRole, "백엔드 개발자");
+  const idempotencyKey = `ncs-e2e:${ids.session}:${ids.answer}:snapshot-v2`;
   const messages = [];
   const dispatcher = new AiJobDispatcherService(new PrismaReportRepository(prisma), {
     async publish(message) {
@@ -110,7 +127,8 @@ try {
   assert.equal(revision.sessionId, ids.session);
   assert.equal(revision.questionId, ids.question);
   assert.equal(revision.answerId, ids.answer);
-  assert.equal(revision.snapshotVersion, "ncs-db-e2e-snapshot-v1");
+  assert.equal(revision.snapshotVersion, "ncs-db-e2e-snapshot-v2");
+  assert.equal(JSON.parse(revision.outputJson).evaluationBasis.jobRole, "백엔드 개발자");
 
   const revisionProcesses = await new PrismaCandidateReportRepository(prisma)
     .listNcsEvaluationRevisionProcessesBySession(Number(ids.session));
@@ -189,6 +207,20 @@ async function createFixture(client, fixture) {
       startedAt: new Date(),
     },
   });
+  const snapshot = productPayload(
+    fixture,
+    "실행 계획에서 풀스캔을 확인하고 복합 인덱스를 적용했습니다. 조회 빈도와 쓰기 비용을 비교했고 같은 부하에서 p95가 줄었는지 결과를 확인했습니다.",
+  ).evaluationSnapshot;
+  await client.ncsEvaluationSnapshot.create({
+    data: {
+      sessionId: fixture.session,
+      questionId: fixture.question,
+      contractVersion: snapshot.contractVersion,
+      snapshotVersion: snapshot.snapshotVersion,
+      jobRole: snapshot.jobRole,
+      snapshotJson: snapshot,
+    },
+  });
   await client.interviewAnswer.create({
     data: {
       answerId: fixture.answer,
@@ -211,8 +243,9 @@ function productPayload(fixture, transcript) {
     transcript,
     evaluationSnapshot: {
       contractVersion: "ncs-evaluation-product.v1",
-      snapshotVersion: "ncs-db-e2e-snapshot-v1",
+      snapshotVersion: "ncs-db-e2e-snapshot-v2",
       locale: "ko-KR",
+      jobRole: "백엔드 개발자",
       question: {
         questionId: String(fixture.question),
         questionType: "EXPERIENCE",

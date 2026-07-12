@@ -374,6 +374,32 @@ CREATE TABLE interview_session_questions (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE ncs_evaluation_snapshots (
+    -- 세션 질문별 NCS 평가 snapshot PK
+    snapshot_id BIGINT PRIMARY KEY,
+
+    -- 모의면접 세션 FK
+    session_id BIGINT NOT NULL,
+
+    -- 평가 대상 질문 FK
+    question_id BIGINT NOT NULL,
+
+    -- 제품 평가 계약 버전
+    contract_version VARCHAR(80) NOT NULL,
+
+    -- 결정적 평가 snapshot 버전
+    snapshot_version VARCHAR(128) NOT NULL,
+
+    -- 세션 시작 시 선택한 직무
+    job_role VARCHAR(80),
+
+    -- NCS context, 행동 포인트와 점수 정책 불변 복사본
+    snapshot_json JSONB NOT NULL,
+
+    -- 최초 snapshot 고정 시각
+    created_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE interview_answers (
     -- 질문별 답변 PK
     answer_id BIGINT PRIMARY KEY,
@@ -598,6 +624,41 @@ CREATE TABLE ai_guardrail_logs (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE ncs_evaluation_revisions (
+    -- immutable NCS 평가 revision PK
+    revision_id BIGINT PRIMARY KEY,
+
+    -- 가드레일을 통과한 원본 AI process
+    process_log_id BIGINT NOT NULL,
+
+    -- 모의면접 세션
+    session_id BIGINT NOT NULL,
+
+    -- 평가 질문
+    question_id BIGINT NOT NULL,
+
+    -- STORED_ANSWER 원본 답변
+    answer_id BIGINT,
+
+    -- 제품 평가 계약 버전
+    contract_version VARCHAR(80) NOT NULL,
+
+    -- 서버 소유 평가 snapshot 버전
+    snapshot_version VARCHAR(128) NOT NULL,
+
+    -- 평가 전략 식별자
+    strategy_id VARCHAR(120) NOT NULL,
+
+    -- canonical kind와 payload 불변 복사본
+    input_snapshot_json TEXT NOT NULL,
+
+    -- 가드레일 통과 제품 output 불변 복사본
+    output_json TEXT NOT NULL,
+
+    -- revision 생성 시각
+    created_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE embeddings (
     -- 임베딩 PK
     embedding_id BIGINT PRIMARY KEY,
@@ -731,6 +792,14 @@ ALTER TABLE interview_session_questions
     ADD CONSTRAINT fk_interview_session_questions_question
     FOREIGN KEY (question_id) REFERENCES question_bank(question_id);
 
+ALTER TABLE ncs_evaluation_snapshots
+    ADD CONSTRAINT fk_ncs_evaluation_snapshots_session
+    FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
+
+ALTER TABLE ncs_evaluation_snapshots
+    ADD CONSTRAINT fk_ncs_evaluation_snapshots_question
+    FOREIGN KEY (question_id) REFERENCES question_bank(question_id);
+
 ALTER TABLE interview_answers
     ADD CONSTRAINT fk_interview_answers_session
     FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
@@ -811,6 +880,22 @@ ALTER TABLE ai_guardrail_logs
     ADD CONSTRAINT fk_ai_guardrail_logs_process
     FOREIGN KEY (process_log_id) REFERENCES ai_process_logs(process_log_id);
 
+ALTER TABLE ncs_evaluation_revisions
+    ADD CONSTRAINT fk_ncs_evaluation_revisions_process
+    FOREIGN KEY (process_log_id) REFERENCES ai_process_logs(process_log_id);
+
+ALTER TABLE ncs_evaluation_revisions
+    ADD CONSTRAINT fk_ncs_evaluation_revisions_session
+    FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
+
+ALTER TABLE ncs_evaluation_revisions
+    ADD CONSTRAINT fk_ncs_evaluation_revisions_question
+    FOREIGN KEY (question_id) REFERENCES question_bank(question_id);
+
+ALTER TABLE ncs_evaluation_revisions
+    ADD CONSTRAINT fk_ncs_evaluation_revisions_answer
+    FOREIGN KEY (answer_id) REFERENCES interview_answers(answer_id);
+
 ALTER TABLE embeddings
     ADD CONSTRAINT fk_embeddings_posting
     FOREIGN KEY (posting_id) REFERENCES postings(posting_id);
@@ -859,8 +944,13 @@ CREATE UNIQUE INDEX uk_interview_session_questions_order ON interview_session_qu
 CREATE UNIQUE INDEX uk_interview_session_questions_question ON interview_session_questions(session_id, question_id);
 CREATE UNIQUE INDEX uk_interview_session_questions_runtime_question ON interview_session_questions(runtime_question_id);
 CREATE INDEX idx_interview_session_questions_question ON interview_session_questions(question_id);
+CREATE UNIQUE INDEX uk_ncs_evaluation_snapshots_session_question ON ncs_evaluation_snapshots(session_id, question_id);
+CREATE INDEX idx_ncs_evaluation_snapshots_question ON ncs_evaluation_snapshots(question_id);
 CREATE INDEX idx_interview_answers_session_question ON interview_answers(session_question_id);
 CREATE INDEX idx_evaluation_reports_application ON evaluation_reports(application_id);
 CREATE INDEX idx_ai_process_logs_application ON ai_process_logs(application_id);
+CREATE UNIQUE INDEX uk_ncs_evaluation_revisions_process ON ncs_evaluation_revisions(process_log_id);
+CREATE INDEX idx_ncs_evaluation_revisions_session_created ON ncs_evaluation_revisions(session_id, created_at);
+CREATE INDEX idx_ncs_evaluation_revisions_answer_created ON ncs_evaluation_revisions(answer_id, created_at);
 CREATE INDEX idx_embeddings_source_type ON embeddings(source_type);
 CREATE INDEX idx_embeddings_source_hash ON embeddings(source_text_hash);

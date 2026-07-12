@@ -8,6 +8,7 @@ import {
 } from "../../candidate";
 import { InterviewController } from "../controller/interview.controller";
 import { NcsEvaluationRequestDto } from "../dto/interview.runtime.dto";
+import { BuiltInNcsEvaluationSnapshotResolver } from "./built-in-ncs-evaluation-snapshot.resolver";
 import { InMemoryInterviewRepository } from "../repository/in-memory-interview.repository";
 import { InterviewService } from "../service/interview.service";
 import { InMemoryReportRepository } from "../../report/repository/in-memory-report.repository";
@@ -31,8 +32,12 @@ interface CanonicalNcsEvaluationInput {
     evaluationSnapshot: {
       contractVersion: string;
       snapshotVersion: string;
+      jobRole: string | null;
       ncsContext: {
         sourceKind: string;
+        unit: {
+          code: string;
+        };
       };
       evaluationPolicy: {
         allowNonverbalScore: boolean;
@@ -50,13 +55,19 @@ function createController() {
   return {
     controller: new InterviewController(service),
     queuePublisher,
+    interviewRepository,
   };
 }
 
-async function startMockInterview(controller: InterviewController, questionTypes: Array<"INTRO" | "TECHNICAL" | "EXPERIENCE">) {
+async function startMockInterview(
+  controller: InterviewController,
+  questionTypes: Array<"INTRO" | "TECHNICAL" | "EXPERIENCE">,
+  jobRole?: string,
+) {
   const started = await controller.startMockInterview(validCandidateRequest, {
     questionTypes,
     showQuestionText: true,
+    ...(jobRole ? { jobRole } : {}),
   });
   const questions = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
   return {
@@ -88,7 +99,7 @@ async function expectHttpError(
 describe("mock NCS evaluation API", () => {
   test("직접 입력을 trim한 canonical 평가 작업으로 전송한다", async () => {
     const { controller, queuePublisher } = createController();
-    const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"]);
+    const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"], "보안 엔지니어");
     const questionId = questionIds[0] ?? 0;
 
     const request = Object.assign(new NcsEvaluationRequestDto(), {
@@ -114,8 +125,33 @@ describe("mock NCS evaluation API", () => {
     assert.equal(input.payload.transcript, "복합 인덱스를 적용하고 동일 부하에서 p95를 다시 측정했습니다.");
     assert.equal(Object.hasOwn(input.payload, "answerId"), false);
     assert.equal(input.payload.evaluationSnapshot.contractVersion, "ncs-evaluation-product.v1");
+    assert.equal(input.payload.evaluationSnapshot.jobRole, "보안 엔지니어");
     assert.equal(input.payload.evaluationSnapshot.ncsContext.sourceKind, "SYNTHETIC_NCS_LIKE");
+    assert.equal(input.payload.evaluationSnapshot.ncsContext.unit.code, "SERVICE-JOB-SECURITY-TECHNICAL-DECISION");
     assert.equal(input.payload.evaluationSnapshot.evaluationPolicy.allowNonverbalScore, false);
+  });
+
+  test("세션 시작에 고정한 직무 snapshot은 이후 예약 요청으로 덮어쓰지 않는다", async () => {
+    const { controller, interviewRepository } = createController();
+    const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"], "백엔드 개발자");
+    const questionId = questionIds[0] ?? 0;
+    const original = interviewRepository.findNcsEvaluationSnapshot(sessionId, questionId);
+    assert.ok(original);
+
+    const replacement = new BuiltInNcsEvaluationSnapshotResolver().resolve({
+      questionId,
+      questionType: "TECHNICAL",
+      content: "기술 대안을 설명해 주세요.",
+      sortOrder: 1,
+      interviewType: "MOCK",
+      jobRole: "보안 엔지니어",
+      isActive: true,
+    });
+    assert.ok(replacement);
+
+    const reserved = interviewRepository.reserveNcsEvaluationSnapshot(sessionId, questionId, replacement);
+    assert.equal(reserved.snapshotVersion, original.snapshotVersion);
+    assert.equal(reserved.jobRole, "백엔드 개발자");
   });
 
   test("동일한 직접 입력 평가 요청은 기존 process를 재사용한다", async () => {
