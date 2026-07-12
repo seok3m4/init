@@ -1,10 +1,24 @@
 {
   "reportVersion": "ncs-evaluation-m2.v1",
-  "status": "AWAITING_CANDIDATES",
-  "experimentalCandidatesPassed": 0,
-  "provisionalLeader": "baseline-deterministic",
-  "recommendedStrategy": null,
+  "status": "READY_FOR_DECISION",
+  "experimentalCandidatesPassed": 4,
+  "provisionalLeader": "evidence-state",
+  "recommendedStrategy": "evidence-state",
   "candidates": [
+    {
+      "strategyId": "evidence-state",
+      "resultsPath": "backend/worker/src/experiments/ncs-evaluation/evidence-state/results.json",
+      "hardGatePassed": true,
+      "hardGateDetail": "PASS",
+      "exactStatusRate": 1,
+      "exactLevelRate": 1,
+      "expectedQuoteCoverage": 1,
+      "followUpDecisionRate": 1,
+      "repeatabilityRate": 1,
+      "p95LatencyMs": 0.7507999999999981,
+      "averageEstimatedCostUsd": 0,
+      "runCount": 240
+    },
     {
       "strategyId": "baseline-deterministic",
       "resultsPath": "backend/worker/src/experiments/ncs-evaluation/baseline/results.json",
@@ -16,6 +30,48 @@
       "followUpDecisionRate": 1,
       "repeatabilityRate": 1,
       "p95LatencyMs": 0.2394000000000034,
+      "averageEstimatedCostUsd": 0,
+      "runCount": 240
+    },
+    {
+      "strategyId": "hybrid-evidence-anchor-deterministic",
+      "resultsPath": "backend/worker/src/experiments/ncs-evaluation/hybrid/results.json",
+      "hardGatePassed": true,
+      "hardGateDetail": "PASS",
+      "exactStatusRate": 0.9803921568627451,
+      "exactLevelRate": 0.9803921568627451,
+      "expectedQuoteCoverage": 0.9789473684210527,
+      "followUpDecisionRate": 1,
+      "repeatabilityRate": 1,
+      "p95LatencyMs": 0.37300000000000466,
+      "averageEstimatedCostUsd": 0,
+      "runCount": 240
+    },
+    {
+      "strategyId": "common-rubric-deterministic",
+      "resultsPath": "backend/worker/src/experiments/ncs-evaluation/common-rubric/results.json",
+      "hardGatePassed": true,
+      "hardGateDetail": "PASS",
+      "exactStatusRate": 0.9607843137254902,
+      "exactLevelRate": 0.9607843137254902,
+      "expectedQuoteCoverage": 1,
+      "followUpDecisionRate": 1,
+      "repeatabilityRate": 1,
+      "p95LatencyMs": 0.9050000000000011,
+      "averageEstimatedCostUsd": 0,
+      "runCount": 240
+    },
+    {
+      "strategyId": "pairwise-anchor-deterministic",
+      "resultsPath": "backend/worker/src/experiments/ncs-evaluation/pairwise/results.json",
+      "hardGatePassed": true,
+      "hardGateDetail": "PASS",
+      "exactStatusRate": 0.9607843137254902,
+      "exactLevelRate": 0.9607843137254902,
+      "expectedQuoteCoverage": 0.9894736842105263,
+      "followUpDecisionRate": 1,
+      "repeatabilityRate": 1,
+      "p95LatencyMs": 0.3248999999999995,
       "averageEstimatedCostUsd": 0,
       "runCount": 240
     }

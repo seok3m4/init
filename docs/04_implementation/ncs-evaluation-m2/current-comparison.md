@@ -1,13 +1,17 @@
 # NCS Evaluation M2 Current Comparison
 
-- Status: `AWAITING_CANDIDATES`
-- Experimental candidates passing hard gates: 0
-- Provisional leader: `baseline-deterministic`
-- Recommended strategy: not decided
+- Status: `READY_FOR_DECISION`
+- Experimental candidates passing hard gates: 4
+- Provisional leader: `evidence-state`
+- Recommended strategy: `evidence-state`
 
 | Rank | Strategy | Hard gate | Exact level | Quote coverage | Follow-up | Repeatability | p95 latency | Avg. cost |
 | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | baseline-deterministic | PASS | 100.00% | 97.89% | 100.00% | 100.00% | 0.24ms | $0.000000 |
+| 1 | evidence-state | PASS | 100.00% | 100.00% | 100.00% | 100.00% | 0.75ms | $0.000000 |
+| 2 | baseline-deterministic | PASS | 100.00% | 97.89% | 100.00% | 100.00% | 0.24ms | $0.000000 |
+| 3 | hybrid-evidence-anchor-deterministic | PASS | 98.04% | 97.89% | 100.00% | 100.00% | 0.37ms | $0.000000 |
+| 4 | common-rubric-deterministic | PASS | 96.08% | 100.00% | 100.00% | 100.00% | 0.91ms | $0.000000 |
+| 5 | pairwise-anchor-deterministic | PASS | 96.08% | 98.95% | 100.00% | 100.00% | 0.32ms | $0.000000 |
 
 ## Decision Rule
 

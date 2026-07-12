@@ -160,7 +160,6 @@ function markdownFor(report) {
     "## Decision Rule",
     "",
     "Hard gate를 통과한 전략만 정확 단계, 근거 인용, 꼬리질문, 반복성, latency, 비용 순으로 비교한다. 실험 전략이 두 개 이상 통과하기 전에는 최종 채택하지 않는다.",
-    "",
   );
   return `${lines.join("\n")}\n`;
 }
