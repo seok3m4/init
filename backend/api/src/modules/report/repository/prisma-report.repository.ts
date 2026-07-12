@@ -404,7 +404,7 @@ export class PrismaReportRepository implements ReportRepository {
       status: processLog.status as QueuedAiProcessSnapshot["status"],
       inputRef: processLog.inputRef ?? "",
       outputRef: processLog.outputRef ?? undefined,
-      output: parseAiJobOutput(processLog.outputRef),
+      output: parseAiJobOutput(processLog.outputRef, processLog.inputRef),
       applicationId: processLog.applicationId ? Number(processLog.applicationId) : undefined,
       sessionId: processLog.sessionId ? Number(processLog.sessionId) : undefined,
       startedAt: processLog.startedAt?.toISOString(),

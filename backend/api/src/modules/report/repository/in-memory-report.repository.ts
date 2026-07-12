@@ -282,7 +282,7 @@ export class InMemoryReportRepository implements ReportRepository {
   private withParsedOutput(process: QueuedAiProcessSnapshot): QueuedAiProcessSnapshot {
     return {
       ...process,
-      output: parseAiJobOutput(process.outputRef)
+      output: parseAiJobOutput(process.outputRef, process.inputRef)
     };
   }
 }
