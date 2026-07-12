@@ -463,7 +463,7 @@ export function NcsTextPracticePage() {
                     <h2 id="ncs-result-title">답변 평가</h2>
                   </div>
                   <span className={styles.coverageBadge} data-tone={result.coverage.status.toLowerCase()}>
-                    근거 충족 {Math.round(result.coverage.ratio * 100)}%
+                    평가 가능 범위 {Math.round(result.coverage.ratio * 100)}%
                   </span>
                 </header>
 
