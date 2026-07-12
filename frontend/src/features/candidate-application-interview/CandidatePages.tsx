@@ -6008,7 +6008,7 @@ function InterviewRuntimePanel({
   );
 }
 
-function CandidatePageShell({ active, children }: { active: CandidateNavSection; children: ReactNode }) {
+export function CandidatePageShell({ active, children }: { active: CandidateNavSection; children: ReactNode }) {
   return (
     <main className="app-shell candidate-app">
       <CandidateNav active={active} />
@@ -6064,8 +6064,19 @@ function CandidateNav({ active }: { active: CandidateNavSection }) {
               AI 모의면접
             </Link>
             <div className="gnb-panel">
-              <Link className={active === "interview" ? "active" : ""} href={candidateApplicationInterviewRoutes.mockInterviewStart}>
+              <Link
+                className={pathname === candidateApplicationInterviewRoutes.mockInterviewStart ? "active" : ""}
+                href={candidateApplicationInterviewRoutes.mockInterviewStart}
+                aria-current={pathname === candidateApplicationInterviewRoutes.mockInterviewStart ? "page" : undefined}
+              >
                 면접시작
+              </Link>
+              <Link
+                className={pathname === candidateApplicationInterviewRoutes.mockNcsPractice ? "active" : ""}
+                href={candidateApplicationInterviewRoutes.mockNcsPractice}
+                aria-current={pathname === candidateApplicationInterviewRoutes.mockNcsPractice ? "page" : undefined}
+              >
+                NCS 텍스트 연습
               </Link>
               <Link className={active === "reports" ? "active" : ""} href={candidateApplicationInterviewRoutes.mockReports}>
                 평가 리포트
@@ -6310,7 +6321,7 @@ function CandidateNotificationCenter() {
   );
 }
 
-function CandidatePageHead({
+export function CandidatePageHead({
   eyebrow,
   title,
   description,
@@ -6333,7 +6344,7 @@ function CandidatePageHead({
   );
 }
 
-function StatusNotice({ loading, error, message }: { loading?: boolean; error?: string; message?: string }) {
+export function StatusNotice({ loading, error, message }: { loading?: boolean; error?: string; message?: string }) {
   if (error) {
     const loginRequired = error.includes("로그인");
     return (
@@ -7530,7 +7541,7 @@ function useCandidateResource<T>(load: () => Promise<T>, dependencies: Dependenc
   return { ...state, refresh };
 }
 
-function getCandidateApi() {
+export function getCandidateApi() {
   return createCandidateApiClient({
     baseUrl: getApiBaseUrl(),
     headers: getCandidateHeaders(),

@@ -3,6 +3,7 @@ export const candidateApplicationInterviewRoutes = {
   jobDetail: (jobId: number) => `/candidate/jobs/${jobId}`,
   apply: (jobId: number) => `/candidate/jobs/${jobId}/apply`,
   mockInterviewStart: "/candidate/mock-interview/start",
+  mockNcsPractice: "/candidate/mock-interview/ncs-practice",
   mockInterview: (sessionId: number) => `/candidate/mock-interviews/${sessionId}`,
   mockReports: "/candidate/mock-interview/reports",
   mockReportDetail: (reportId: number) => `/candidate/mock-interview/reports/${reportId}`,

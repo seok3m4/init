@@ -1122,6 +1122,11 @@ a.gnb-link:focus-visible {
   transform: translateY(0);
 }
 
+.gnb-item:last-child > .gnb-panel {
+  right: 0;
+  left: auto;
+}
+
 .gnb-panel::before {
   position: absolute;
   right: 0;
