@@ -1,6 +1,8 @@
 import { authFetch } from "../../api/client";
 import type {
+  NcsBehaviorEvaluation,
   NcsEvaluationHandoffResponse,
+  NcsEvaluationProductOutput,
   NcsEvaluationRequest,
 } from "./ncs-evaluation";
 
@@ -547,6 +549,22 @@ export interface CandidateReportScoreView {
   evidences: CandidateReportEvidenceView[];
 }
 
+export interface CandidateNcsBehaviorEvaluationView extends NcsBehaviorEvaluation {
+  behaviorPointDescription: string;
+}
+
+export interface CandidateNcsAnswerEvaluationView extends Omit<
+  NcsEvaluationProductOutput,
+  "answerId" | "behaviorEvaluations"
+> {
+  processLogId: number;
+  answerId: number;
+  questionType?: QuestionType;
+  questionContent?: string;
+  sortOrder?: number;
+  behaviorEvaluations: CandidateNcsBehaviorEvaluationView[];
+}
+
 export interface CandidateFollowUpQuestionView {
   followUpId: number;
   content: string;
@@ -604,11 +622,13 @@ export interface CandidateMockReportFeedback {
   improvements: string[];
   nextPractice: string[];
   scores?: CandidateReportScoreView[];
+  ncsEvaluations: CandidateNcsAnswerEvaluationView[];
   visibilityPolicy: {
     candidateFacingOnly: true;
     excludesHiringDecision: true;
     excludesInternalScores: true;
     excludesCompanyMemo: true;
+    ncsPracticeScoreExcludedFromTotal: true;
   };
 }
 

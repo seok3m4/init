@@ -676,11 +676,20 @@ export function isCandidateFacingMockFeedbackSafe(feedback: CandidateMockReportF
     ...feedback.strengths,
     ...feedback.improvements,
     ...feedback.nextPractice,
+    ...(feedback.ncsEvaluations ?? []).flatMap((evaluation) => [
+      evaluation.questionContent,
+      ...evaluation.behaviorEvaluations.flatMap((behavior) => [
+        behavior.behaviorPointDescription,
+        behavior.rationale,
+      ]),
+      ...evaluation.evidences.map((evidence) => evidence.quote),
+    ]),
   ].join(" ");
 
   return (
     feedback.visibilityPolicy.candidateFacingOnly &&
     feedback.visibilityPolicy.excludesHiringDecision &&
+    feedback.visibilityPolicy.ncsPracticeScoreExcludedFromTotal &&
     !/(합격|탈락|pass|fail|hire|reject)/i.test(text)
   );
 }

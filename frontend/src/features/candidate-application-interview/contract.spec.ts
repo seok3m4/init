@@ -1296,11 +1296,13 @@ const mockFeedback: CandidateMockReportFeedback = {
   improvements: ["예시는 더 간결하게 정리해보세요."],
   nextPractice: ["녹화된 답변을 다시 확인하세요."],
   scores: [],
+  ncsEvaluations: [],
   visibilityPolicy: {
     candidateFacingOnly: true,
     excludesHiringDecision: true,
     excludesInternalScores: true,
     excludesCompanyMemo: true,
+    ncsPracticeScoreExcludedFromTotal: true,
   },
 };
 

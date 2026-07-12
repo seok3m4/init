@@ -36,6 +36,7 @@ import {
   type CandidateInterviewRuntimeView,
   type CandidateJobQuery,
   type CandidateMockInterviewHistoryItem,
+  type CandidateNcsAnswerEvaluationView,
   type CandidateMockReportSummary,
   type CandidateMockReportFeedback,
   type CandidateMockReportMedia,
@@ -6698,6 +6699,7 @@ function isReportNotReadyMessage(message: string): boolean {
 
 function MockFeedbackView({ feedback }: { feedback: CandidateMockReportFeedback }) {
   const scores = feedback.scores ?? [];
+  const ncsEvaluations = feedback.ncsEvaluations ?? [];
   const improvementItems = feedback.improvements.length > 0
     ? feedback.improvements
     : buildMockReportImprovementItems(scores);
@@ -6718,8 +6720,154 @@ function MockFeedbackView({ feedback }: { feedback: CandidateMockReportFeedback 
       <ListBlock title="개선점" items={improvementItems} />
       <ListBlock title="다음 연습" items={nextPracticeItems} />
       <ReportScoreList scores={scores} />
+      <NcsReportEvaluationList evaluations={ncsEvaluations} />
     </div>
   );
+}
+
+type CandidateNcsEvidenceClaimType = CandidateNcsAnswerEvaluationView["evidences"][number]["claimType"];
+
+const candidateNcsEvidenceLabels: Record<CandidateNcsEvidenceClaimType, string> = {
+  SITUATION: "상황",
+  TASK: "역할",
+  ACTION: "행동",
+  RATIONALE: "선택 근거",
+  RESULT: "결과",
+  REFLECTION: "회고",
+  KNOWLEDGE: "지식",
+  CONSTRAINT: "제약",
+  TRADEOFF: "대안 비교",
+  CONTRADICTION: "상충 근거",
+};
+
+function NcsReportEvaluationList({ evaluations }: { evaluations: CandidateNcsAnswerEvaluationView[] }) {
+  if (!evaluations.length) return null;
+
+  const scored = evaluations.flatMap((evaluation) =>
+    evaluation.behaviorEvaluations.flatMap((behavior) => behavior.score ?? []),
+  );
+  const averageScore = scored.length
+    ? Math.round(scored.reduce((sum, score) => sum + score, 0) / scored.length)
+    : undefined;
+  const averageCoverage = Math.round(
+    (evaluations.reduce((sum, evaluation) => sum + evaluation.coverage.ratio, 0) / evaluations.length) * 100,
+  );
+
+  return (
+    <section className="candidate-ncs-report" aria-labelledby="candidate-ncs-report-title">
+      <header className="candidate-ncs-report__head">
+        <div>
+          <span>NCS</span>
+          <h3 id="candidate-ncs-report-title">행동 근거 평가</h3>
+          <p>발화에서 확인된 행동 근거를 문항별로 확인합니다.</p>
+        </div>
+        <dl className="candidate-ncs-report__summary">
+          <Definition label="평가 답변" value={`${evaluations.length}개`} />
+          <Definition label="행동 근거 평균" value={averageScore === undefined ? "평가 보류" : `${averageScore}점`} />
+          <Definition label="평균 근거 충족" value={`${averageCoverage}%`} />
+        </dl>
+      </header>
+      <p className="candidate-ncs-report__policy">연습용 NCS 점수는 종합 리포트 총점에 합산하지 않습니다.</p>
+      <div className="candidate-ncs-report__list">
+        {evaluations.map((evaluation, index) => (
+          <NcsReportEvaluationItem evaluation={evaluation} questionNumber={index + 1} key={evaluation.processLogId} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NcsReportEvaluationItem({
+  evaluation,
+  questionNumber,
+}: {
+  evaluation: CandidateNcsAnswerEvaluationView;
+  questionNumber: number;
+}) {
+  const scored = evaluation.behaviorEvaluations.flatMap((behavior) => behavior.score ?? []);
+  const score = scored.length ? Math.round(scored.reduce((sum, item) => sum + item, 0) / scored.length) : undefined;
+
+  return (
+    <article className="candidate-ncs-report-item">
+      <header className="candidate-ncs-report-item__head">
+        <div>
+          <span>문항 {questionNumber} · {evaluation.questionType ? formatQuestionTypeLabel(evaluation.questionType) : "직무 역량"}</span>
+          <h4>{evaluation.questionContent ?? `질문 #${evaluation.questionId}`}</h4>
+        </div>
+        <div className="candidate-ncs-report-item__metrics">
+          <strong>{score === undefined ? "평가 보류" : `${score}점`}</strong>
+          <span>{ncsCoverageLabel(evaluation.coverage.status)} {Math.round(evaluation.coverage.ratio * 100)}%</span>
+        </div>
+      </header>
+
+      <div className="candidate-ncs-report-item__grid">
+        <section aria-label="행동 기준">
+          <h5>행동 기준</h5>
+          <ul className="candidate-ncs-behavior-list">
+            {evaluation.behaviorEvaluations.map((behavior) => (
+              <li data-status={behavior.status} key={behavior.behaviorPointId}>
+                <div>
+                  <strong>{behavior.behaviorPointDescription}</strong>
+                  <span>{ncsBehaviorStatusLabel(behavior.status)} · {behavior.score === null ? "점수 없음" : `${behavior.score}점`}</span>
+                </div>
+                <p>{behavior.rationale}</p>
+                {behavior.missingEvidence.length ? (
+                  <p className="candidate-ncs-missing-evidence">
+                    <b>보완</b>
+                    {behavior.missingEvidence.map((evidence) => (
+                      <em key={evidence}>{candidateNcsEvidenceLabels[evidence]}</em>
+                    ))}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section aria-label="발화 근거">
+          <h5>발화 근거</h5>
+          {evaluation.evidences.length ? (
+            <ul className="candidate-ncs-evidence-list">
+              {evaluation.evidences.map((evidence) => (
+                <li key={evidence.evidenceId}>
+                  <span>{candidateNcsEvidenceLabels[evidence.claimType]}</span>
+                  <blockquote>{evidence.quote}</blockquote>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="candidate-ncs-report-item__empty">직접 인용할 수 있는 발화 근거가 없습니다.</p>
+          )}
+        </section>
+      </div>
+
+      {evaluation.followUp.required ? (
+        <div className="candidate-ncs-report-item__follow-up">
+          <span>다음 연습 질문</span>
+          <strong>{evaluation.followUp.suggestedQuestion}</strong>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function ncsBehaviorStatusLabel(status: CandidateNcsAnswerEvaluationView["behaviorEvaluations"][number]["status"]): string {
+  return {
+    INSUFFICIENT_EVIDENCE: "근거 부족",
+    NOT_DEMONSTRATED: "확인되지 않음",
+    LIMITED: "제한적",
+    DEVELOPING: "발전 중",
+    DEMONSTRATED: "충분히 확인",
+    STRONGLY_DEMONSTRATED: "명확히 확인",
+  }[status];
+}
+
+function ncsCoverageLabel(status: CandidateNcsAnswerEvaluationView["coverage"]["status"]): string {
+  return {
+    SUFFICIENT: "근거 충족",
+    LOW: "근거 보완",
+    INSUFFICIENT: "근거 부족",
+  }[status];
 }
 
 function buildMockReportImprovementItems(scores: CandidateReportScoreView[]): string[] {
