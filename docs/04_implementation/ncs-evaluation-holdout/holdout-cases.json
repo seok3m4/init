@@ -1,0 +1,356 @@
+{
+  "datasetVersion": "ncs-evaluation-holdout.v1",
+  "contractVersion": "ncs-evaluation-m0.v1",
+  "description": "STT 변형, 동의어, 부정과 자기 정정을 포함한 evidence-state 독립 회귀 세트",
+  "scoreMap": {
+    "1": 25,
+    "2": 50,
+    "3": 70,
+    "4": 85,
+    "5": 100
+  },
+  "defaultEvaluationPolicy": {
+    "scoreMap": {
+      "1": 25,
+      "2": 50,
+      "3": 70,
+      "4": 85,
+      "5": 100
+    },
+    "minimumSupportingEvidence": 1,
+    "insufficientEvidenceScore": null,
+    "allowSensitiveAttributes": false,
+    "allowNonverbalScore": false
+  },
+  "contexts": [
+    {
+      "contextId": "HOLDOUT-DB",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-HOLDOUT-DB",
+        "questionType": "EXPERIENCE",
+        "content": "데이터 접근 지연을 분석하고 개선한 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "HOLDOUT-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "HOLDOUT-DB-01",
+          "name": "데이터베이스 성능 개선",
+          "level": 5,
+          "definition": "데이터 접근 병목을 확인하고 대안을 적용한 뒤 결과와 부작용을 검증한다.",
+          "elements": [
+            { "elementCode": "HOLDOUT-DB-01-E1", "name": "접근 지연 분석과 개선" }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-HOLDOUT-DB",
+          "description": "측정으로 병목을 확인하고 쓰기 영향을 고려한 개선안을 적용해 결과를 검증한다.",
+          "sourceElementCodes": ["HOLDOUT-DB-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "TRADEOFF"]
+        }
+      ]
+    },
+    {
+      "contextId": "HOLDOUT-OPS",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-HOLDOUT-OPS",
+        "questionType": "EXPERIENCE",
+        "content": "서비스 오류를 분석하고 복구한 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "HOLDOUT-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "HOLDOUT-OPS-01",
+          "name": "서비스 장애 대응",
+          "level": 5,
+          "definition": "오류 징후를 분석해 원인을 좁히고 안전하게 복구한 뒤 재발을 방지한다.",
+          "elements": [
+            { "elementCode": "HOLDOUT-OPS-01-E1", "name": "오류 분석과 복구" }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-HOLDOUT-OPS",
+          "description": "오류 징후와 로그로 원인을 좁히고 선택 근거가 있는 복구와 재발 방지를 수행한다.",
+          "sourceElementCodes": ["HOLDOUT-OPS-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+        }
+      ]
+    },
+    {
+      "contextId": "HOLDOUT-COMM",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-HOLDOUT-COMM",
+        "questionType": "EXPERIENCE",
+        "content": "우선순위가 다른 구성원과 합의를 만든 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "HOLDOUT-SYNTHETIC-1",
+        "categoryType": "OCCUPATIONAL_BASIC",
+        "unit": {
+          "code": "HOLDOUT-COMM-01",
+          "name": "의사소통능력",
+          "level": null,
+          "definition": "서로 다른 관점과 근거를 확인하고 공동 목표에 맞는 합의를 형성한다.",
+          "elements": [
+            { "elementCode": "HOLDOUT-COMM-01-E1", "name": "관점 확인과 합의" }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-HOLDOUT-COMM",
+          "description": "양쪽 관점과 근거를 확인하고 공동 목표와 객관적 기준으로 합의를 형성한다.",
+          "sourceElementCodes": ["HOLDOUT-COMM-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "H-DB-001",
+      "contextId": "HOLDOUT-DB",
+      "tags": ["stt", "no-punctuation", "strong"],
+      "answer": {
+        "answerId": "A-H-DB-001",
+        "transcript": "상품 검색 API p95가 1.4초까지 느려져 실행계획을 확인했습니다 쿼리 조건의 풀 스캔이 원인이라 판단했고 조회 빈도와 쓰기 비용을 비교해 복합 인덱스를 적용했습니다 같은 부하에서 280밀리초로 줄었고 쓰기 지연은 3퍼센트 증가해 이 값을 배포 체크리스트에 넣었습니다"
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-DB",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["실행계획을 확인", "쓰기 비용을 비교", "280밀리초로 줄었", "체크리스트에 넣"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-DB-002",
+      "contextId": "HOLDOUT-DB",
+      "tags": ["synonym", "stt", "demonstrated"],
+      "answer": {
+        "answerId": "A-H-DB-002",
+        "transcript": "DB 대기 지연이 커져 SQL 실행 방식을 검토했습니다. 쓰기 부하를 고려해 색인을 추가했고 같은 요청에서 처리 시간이 절반으로 단축됐습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-DB",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["SQL 실행 방식을 검토", "쓰기 부하를 고려해 색인을 추가", "절반으로 단축"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-DB-003",
+      "contextId": "HOLDOUT-DB",
+      "tags": ["negation", "not-demonstrated"],
+      "answer": {
+        "answerId": "A-H-DB-003",
+        "transcript": "실행 계획은 확인하지 않았고 모든 컬럼에 인덱스를 추가했습니다. 전후 측정은 하지 않았습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-DB",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["확인하지 않았", "전후 측정은 하지 않았"],
+            "missingEvidence": ["ACTION", "RATIONALE", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-DB-004",
+      "contextId": "HOLDOUT-DB",
+      "tags": ["irrelevant", "fluent", "insufficient"],
+      "answer": {
+        "answerId": "A-H-DB-004",
+        "transcript": "브랜드 캠페인의 색상과 문구를 정리해 발표 자료를 완성했고 참석자 반응이 좋았습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-DB",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "H-OPS-001",
+      "contextId": "HOLDOUT-OPS",
+      "tags": ["self-correction", "demonstrated"],
+      "answer": {
+        "answerId": "A-H-OPS-001",
+        "transcript": "처음에는 서버를 재시작해야 한다고 생각했습니다. 하지만 실제 로그와 배포 시점을 비교해 설정 변경이 원인이라고 판단했습니다. 데이터 손실을 피하려고 설정을 롤백했고 오류율이 정상화됐습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-OPS",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["실제 로그와 배포 시점을 비교", "설정을 롤백", "오류율이 정상화"],
+            "missingEvidence": ["REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-OPS-002",
+      "contextId": "HOLDOUT-OPS",
+      "tags": ["stt", "filler", "insufficient"],
+      "answer": {
+        "answerId": "A-H-OPS-002",
+        "transcript": "음... 어... 네..."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-OPS",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "H-OPS-003",
+      "contextId": "HOLDOUT-OPS",
+      "tags": ["stt", "no-punctuation", "strong"],
+      "answer": {
+        "answerId": "A-H-OPS-003",
+        "transcript": "오류 경보가 울려 로그와 배포 시점을 확인했고 데이터 손실을 막기 위해 설정 롤백을 선택해 오류율을 정상화했습니다 이후 같은 문제를 막으려고 경보를 추가했습니다"
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-OPS",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["로그와 배포 시점을 확인", "데이터 손실을 막기 위해", "오류율을 정상화", "경보를 추가"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-COMM-001",
+      "contextId": "HOLDOUT-COMM",
+      "tags": ["paraphrase", "demonstrated"],
+      "answer": {
+        "answerId": "A-H-COMM-001",
+        "transcript": "운영 팀과 개발 팀의 우선순위가 달랐습니다. 저는 양쪽 근거를 문서로 정리하고 고객 영향이라는 공통 목표를 기준으로 배포 범위를 조율했습니다. 두 팀이 단계 배포에 합의했고 예정일에 배포했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-COMM",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["양쪽 근거를 문서로 정리", "공통 목표를 기준으로", "단계 배포에 합의"],
+            "missingEvidence": ["REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-COMM-002",
+      "contextId": "HOLDOUT-COMM",
+      "tags": ["negation", "not-demonstrated"],
+      "answer": {
+        "answerId": "A-H-COMM-002",
+        "transcript": "반대 의견은 자세히 듣지 않고 일정이 급해서 제 방식대로 진행했습니다. 팀원은 합의한 적이 없었습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-COMM",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["반대 의견은 자세히 듣지 않고", "합의한 적이 없"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "H-COMM-003",
+      "contextId": "HOLDOUT-COMM",
+      "tags": ["irrelevant", "insufficient"],
+      "answer": {
+        "answerId": "A-H-COMM-003",
+        "transcript": "주말마다 등산 경로를 찾아보고 날씨에 맞춰 장비를 준비합니다. 정상에 도착했을 때 성취감을 느꼈습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-HOLDOUT-COMM",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    }
+  ],
+  "relations": []
+}

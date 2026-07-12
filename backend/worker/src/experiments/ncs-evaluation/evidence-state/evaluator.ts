@@ -99,7 +99,7 @@ const PROFILE_RULES: ProfileRule[] = [
   {
     profile: "DATABASE",
     intent: /(데이터\s*접근|실행\s*계획|병목|인덱스|성능\s*개선)/u,
-    transcript: /(데이터베이스|쿼리|인덱스|실행\s*계획|조회|p95|풀스캔|캐시|응답\s*시간|성능)/iu,
+    transcript: /(데이터베이스|DB|SQL|쿼리|인덱스|색인|실행\s*계획|조회|p95|풀스캔|캐시|응답\s*시간|대기\s*지연|성능)/iu,
   },
   {
     profile: "TESTING",
@@ -130,15 +130,14 @@ const PROFILE_RULES: ProfileRule[] = [
 
 const LOW_INFORMATION_PATTERN = /^(?:없습니다|잘\s*모르겠습니다|모르겠습니다|답변하기\s*어렵습니다)[.!?]?$/u;
 const GENERIC_PATTERN = /(보통|필요하면|중요하다고|알고\s*있습니다|하면\s*됩니다|하는\s*것이\s*중요|하겠습니다)/u;
-const GLOBAL_CONTRADICTION_PATTERN = /(처음에는|본\s*질문에서는|처음\s*답변에서는)[\s\S]*(하지만|그러나|실제로는|다시\s*확인하니)/u;
 const NEGATIVE_ACTION_PATTERN = /(확인하지\s*않|로그를?\s*보지\s*않|질문하지\s*않|의견(?:은|을)?\s*(?:자세히\s*)?듣지\s*않|반대\s*의견을?\s*듣지\s*않|알리지\s*않|추정해서\s*개발|테스트\s*없이|다른\s*팀에\s*넘겼|다른\s*팀이\s*원인을?\s*찾아\s*복구|팀원이\s*이미.*적용|처음\s*떠오른.*바로\s*적용|더\s*확인하지\s*않|전후\s*측정(?:은|을)?\s*하지\s*않|원인\s*분석이나?\s*전후\s*측정은?\s*하지\s*않|모든\s*컬럼에\s*인덱스|문제가?\s*발생하면\s*그때\s*고치|운이\s*나빴|좋아졌을\s*것|제\s*방식대로\s*진행|합의한\s*적이\s*없|상세\s*측정은\s*시간을\s*낭비)/u;
 
-const ACTION_PATTERN = /(확인|비교|분석|적용|추가|수정|작성|질문|정리|공유|합의|선택|실행|검증|수집|나누|롤백|재시작|테스트|전달|조율|구분|모니터링|도입|찾았|기록하|바꿔|제안|문서화|측정|배포|정했|정했습니다|확정)/u;
-const RATIONALE_PATTERN = /(때문|위해|판단|기준|비교|위험|영향|비용|손실|목표|원인|풀스캔|설정\s*변경|정렬\s*비용|가설|장단점|수용\s*기준|주요\s*사용자|가능성이\s*높은|경계값|이메일\s*중복|맞춰|위험도)/u;
-const RESULT_PATTERN = /(줄었|내려갔|정상화|발견해\s*수정|발견했고|합의해|합의하여|승인을\s*받|예정일에\s*배포|문제없이\s*배포|확정했습니다|더\s*이상\s*발생하지|돌아왔|오류를\s*줄였|전달했습니다|결함을\s*찾아\s*수정|다시\s*만들|장애\s*시간이\s*더\s*길어졌|결제\s*오류가\s*발생|결과\s*지표|결과를\s*확인|개선\s*결과|증가했습니다)/u;
+const ACTION_PATTERN = /(확인|비교|분석|검토|적용|추가|수정|작성|질문|정리|공유|합의|선택|실행|검증|수집|나누|롤백|재시작|테스트|전달|조율|구분|모니터링|도입|찾았|기록하|바꿔|제안|문서화|측정|배포|정했|정했습니다|확정)/u;
+const RATIONALE_PATTERN = /(때문|위해|판단|기준|비교|고려|위험|영향|부하|비용|손실|목표|원인|풀스캔|설정\s*변경|정렬\s*비용|가설|장단점|수용\s*기준|주요\s*사용자|가능성이\s*높은|경계값|이메일\s*중복|맞춰|위험도)/u;
+const RESULT_PATTERN = /(줄었|내려갔|단축|개선됐|정상화|발견해\s*수정|발견했고|합의해|합의하여|승인을\s*받|예정일에\s*배포|문제없이\s*배포|확정했습니다|더\s*이상\s*발생하지|돌아왔|오류를\s*줄였|전달했습니다|결함을\s*찾아\s*수정|다시\s*만들|장애\s*시간이\s*더\s*길어졌|결제\s*오류가\s*발생|결과\s*지표|결과를\s*확인|개선\s*결과|증가했습니다)/u;
 const REFLECTION_PATTERN = /(재발|체크리스트에\s*넣|템플릿에\s*반영|템플릿을\s*남|모니터링을\s*배포|경보를\s*추가|CI\s*필수\s*단계|과정과\s*학습을\s*기록|회고에서|다음\s*배포\s*템플릿)/iu;
 const CONSTRAINT_PATTERN = /(시한|일정|시간|영향도|고객\s*영향|데이터\s*손실|동시\s*사용자|실패\s*비용|개발\s*비용)/u;
-const TRADEOFF_PATTERN = /(대안을?\s*비교|비용을?\s*비교|위험과|쓰기\s*지연|중단\s*기준|단계\s*배포|영향도와\s*실행\s*비용|조회\s*빈도와\s*쓰기\s*비용|장단점)/u;
+const TRADEOFF_PATTERN = /(대안을?\s*비교|비용을?\s*비교|위험과|쓰기\s*(?:지연|부하)|중단\s*기준|단계\s*배포|영향도와\s*실행\s*비용|조회\s*빈도와\s*쓰기\s*비용|장단점)/u;
 const SITUATION_PATTERN = /(발생|늘어|느려|모호|달랐|충돌|위험|문제가\s*생겼|오류율|지연|요청했|요구해)/u;
 const TASK_PATTERN = /(담당|맡았|역할|목표|해야\s*했)/u;
 const KNOWLEDGE_PATTERN = /(알고\s*있습니다|단위\s*테스트|통합\s*테스트|실행\s*계획|인덱스|가설)/u;
@@ -214,7 +213,6 @@ export function extractBehaviorEvidenceStates(material: EvidenceStateMaterial): 
   const segments = transcriptSegments(material.transcript);
   const usableText = normalize(segments.map((segment) => segment.analysisText).join(" "));
   const lowInformation = usableText.length === 0 || LOW_INFORMATION_PATTERN.test(usableText);
-  const globalContradiction = GLOBAL_CONTRADICTION_PATTERN.test(usableText);
   const behaviorCount = material.behaviorPoints.length;
 
   return material.behaviorPoints.map((behaviorPoint, behaviorIndex) => {
@@ -237,7 +235,7 @@ export function extractBehaviorEvidenceStates(material: EvidenceStateMaterial): 
       : [];
 
     const stateSegments: EvidenceStateSegment[] = selectedSegments.map((segment) => {
-      const contradicting = globalContradiction || NEGATIVE_ACTION_PATTERN.test(segment.analysisText);
+      const contradicting = NEGATIVE_ACTION_PATTERN.test(segment.analysisText);
       return {
         segmentIndex: segment.segmentIndex,
         quote: segment.quote,
