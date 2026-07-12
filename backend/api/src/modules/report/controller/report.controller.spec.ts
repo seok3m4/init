@@ -147,7 +147,7 @@ async function runReportControllerAssertions() {
   );
 
   const startedMock = await interviewService.startMockInterview(
-    { questionTypes: ["INTRO", "TECHNICAL"], showQuestionText: true },
+    { questionTypes: ["INTRO", "TECHNICAL", "CLOSING"], showQuestionText: true },
     DEV_CANDIDATE_USER,
   );
   const mockReportId = startedMock.data.sessionId;
@@ -175,6 +175,10 @@ async function runReportControllerAssertions() {
   const mockAnswers = interviewRepository.listAnswersBySession(mockReportId);
   const firstMockAnswer = mockAnswers[0];
   assert.ok(firstMockAnswer);
+  const mockQuestions = await Promise.all(mockAnswers.map((answer) => interviewRepository.findQuestion(answer.questionId)));
+  const ncsAnswerIndex = mockQuestions.findIndex((question) => question?.questionType === "TECHNICAL");
+  const ncsMockAnswer = mockAnswers[ncsAnswerIndex];
+  assert.ok(ncsMockAnswer);
   mockAnswers.forEach((answer, index) => {
     if (index === 0) {
       interviewRepository.saveAnswerTranscript(
@@ -183,6 +187,10 @@ async function runReportControllerAssertions() {
       );
     }
   });
+  interviewRepository.saveAnswerTranscript(
+    ncsMockAnswer.answerId,
+    "I compared query and cache alternatives, implemented the query change, and measured lower p95 latency.",
+  );
   candidateReportRepository.saveFollowUpQuestion({
     followUpId: 1,
     answerId: firstMockAnswer.answerId,
@@ -191,6 +199,18 @@ async function runReportControllerAssertions() {
     policy: "MOCK",
     createdAt: "2026-07-02T00:00:00.000Z",
   });
+  const ncsProcess = mockNcsEvaluationProcess({
+    processLogId: 7001,
+    sessionId: mockReportId,
+    questionId: ncsMockAnswer.questionId,
+    answerId: ncsMockAnswer.answerId,
+    transcript: "I compared query and cache alternatives, implemented the query change, and measured lower p95 latency.",
+  });
+  candidateReportRepository.saveReportProcess(ncsProcess);
+
+  const historyWithOnlyNcsProcess = await controller.listMockReports(validCandidateRequest);
+  assert.equal(historyWithOnlyNcsProcess.data.items[0]?.reportStatus, "PENDING");
+
   candidateReportRepository.saveReport({
     reportId: mockReportId,
     sessionId: mockReportId,
@@ -223,7 +243,16 @@ async function runReportControllerAssertions() {
   assert.equal(feedback.data.status, "COMPLETED");
   assert.equal(feedback.data.totalScore, 79);
   assert.equal(feedback.data.scores?.[0]?.evidences[0]?.evidenceText, "project tradeoffs with concrete examples");
+  assert.equal(feedback.data.ncsEvaluations.length, 1);
+  assert.equal(feedback.data.ncsEvaluations[0]?.answerId, ncsMockAnswer.answerId);
+  assert.equal(feedback.data.ncsEvaluations[0]?.questionType, "TECHNICAL");
+  assert.equal(feedback.data.ncsEvaluations[0]?.behaviorEvaluations[0]?.score, 85);
+  assert.equal(
+    feedback.data.ncsEvaluations[0]?.behaviorEvaluations[0]?.behaviorPointDescription,
+    "선택 근거, 실행 행동, 검증 결과를 연결해 설명한다.",
+  );
   assert.equal(feedback.data.visibilityPolicy.excludesHiringDecision, true);
+  assert.equal(feedback.data.visibilityPolicy.ncsPracticeScoreExcludedFromTotal, true);
   assert.equal(/합격|탈락|pass|fail|hire|reject/i.test([
     feedback.data.summary,
     ...feedback.data.strengths,
@@ -232,16 +261,17 @@ async function runReportControllerAssertions() {
   ].join(" ")), false);
 
   const media = await controller.getMockReportMedia(validCandidateRequest, String(mockReportId));
-  assert.equal(media.data.media.length, 2);
-  assert.equal(media.data.media[0]?.videoFile?.status, "ACTIVE");
-  assert.equal(media.data.media[0]?.transcriptStatus, "AVAILABLE");
-  assert.equal(media.data.media[0]?.transcript, "I explained the project tradeoffs with concrete examples.");
-  assert.equal(media.data.media[1]?.transcriptStatus, "UNAVAILABLE");
-  assert.equal(media.data.media[1]?.evaluationStatus, "STT_UNAVAILABLE");
-  assert.equal(media.data.media[1]?.transcript, undefined);
-  assert.match(media.data.media[1]?.transcriptUnavailableReason ?? "", /STT 실패/);
-  assert.equal(media.data.media[0]?.followUpQuestions[0]?.content, "Which tradeoff had the largest impact?");
-  assert.ok(media.data.media[0]?.questionContent);
+  assert.equal(media.data.media.length, 3);
+  const firstMockMedia = media.data.media.find((item) => item.answerId === firstMockAnswer.answerId);
+  const unavailableMedia = media.data.media.find((item) => item.transcriptStatus === "UNAVAILABLE");
+  assert.equal(firstMockMedia?.videoFile?.status, "ACTIVE");
+  assert.equal(firstMockMedia?.transcriptStatus, "AVAILABLE");
+  assert.equal(firstMockMedia?.transcript, "I explained the project tradeoffs with concrete examples.");
+  assert.equal(unavailableMedia?.evaluationStatus, "STT_UNAVAILABLE");
+  assert.equal(unavailableMedia?.transcript, undefined);
+  assert.match(unavailableMedia?.transcriptUnavailableReason ?? "", /STT 실패/);
+  assert.equal(firstMockMedia?.followUpQuestions[0]?.content, "Which tradeoff had the largest impact?");
+  assert.ok(firstMockMedia?.questionContent);
 
   const generation = await controller.requestMockReportGeneration(validCandidateRequest, String(mockReportId));
   assert.equal(generation.data.accepted, true);
@@ -252,7 +282,7 @@ async function runReportControllerAssertions() {
   assert.ok(generation.data.processLogId > 0);
   assert.equal(generation.data.reportId, mockReportId);
   assert.equal(generation.data.sessionId, mockReportId);
-  assert.equal(generation.data.answerIds.length, 2);
+  assert.equal(generation.data.answerIds.length, mockAnswers.length);
   assert.equal(generation.data.callbackTopic, "ai.report.generate.requested");
   assert.equal(queuePublisher.messages.length, 1);
 
@@ -412,6 +442,132 @@ async function runReportControllerAssertions() {
     404,
     "COMMON_NOT_FOUND",
   );
+}
+
+function mockNcsEvaluationProcess(args: {
+  processLogId: number;
+  sessionId: number;
+  questionId: number;
+  answerId: number;
+  transcript: string;
+}) {
+  const behaviorPointId = "technical-decision-bp-01";
+  const input = {
+    kind: "MOCK_NCS_ANSWER_EVALUATION",
+    payload: {
+      step: "NCS_ANSWER_EVALUATION",
+      sessionId: args.sessionId,
+      questionId: args.questionId,
+      answerId: args.answerId,
+      transcript: args.transcript,
+      evaluationSnapshot: {
+        contractVersion: "ncs-evaluation-product.v1",
+        snapshotVersion: `report-test:${args.questionId}`,
+        locale: "ko-KR",
+        question: {
+          questionId: String(args.questionId),
+          questionType: "EXPERIENCE",
+          content: "기술 대안을 비교하고 선택한 경험을 설명해 주세요.",
+        },
+        ncsContext: {
+          sourceKind: "SYNTHETIC_NCS_LIKE",
+          version: "service-ncs-starter-v1",
+          categoryType: "JOB_PERFORMANCE",
+          unit: {
+            code: "SERVICE-JOB-TECHNICAL-DECISION",
+            name: "기술 의사결정",
+            level: null,
+            definition: "기술 대안을 비교하고 결과를 검증하는 능력",
+            elements: [
+              {
+                elementCode: "SERVICE-JOB-TECHNICAL-DECISION-01",
+                name: "대안 비교와 결과 검증",
+              },
+            ],
+          },
+        },
+        behaviorPoints: [
+          {
+            behaviorPointId,
+            description: "선택 근거, 실행 행동, 검증 결과를 연결해 설명한다.",
+            sourceElementCodes: ["SERVICE-JOB-TECHNICAL-DECISION-01"],
+            observability: "INTERVIEW",
+            requiredEvidence: ["ACTION", "RATIONALE", "RESULT", "TRADEOFF"],
+          },
+        ],
+        evaluationPolicy: {
+          scoreMap: { "1": 25, "2": 50, "3": 70, "4": 85, "5": 100 },
+          minimumSupportingEvidence: 1,
+          insufficientEvidenceScore: null,
+          allowSensitiveAttributes: false,
+          allowNonverbalScore: false,
+        },
+      },
+    },
+  };
+  const output = {
+    contractVersion: "ncs-evaluation-product.v1",
+    evaluationSnapshotVersion: input.payload.evaluationSnapshot.snapshotVersion,
+    sessionId: args.sessionId,
+    questionId: args.questionId,
+    answerId: args.answerId,
+    evidences: [
+      {
+        evidenceId: "evidence-1",
+        quote: args.transcript,
+        startChar: 0,
+        endChar: args.transcript.length,
+        claimType: "ACTION",
+        behaviorPointIds: [behaviorPointId],
+      },
+    ],
+    behaviorEvaluations: [
+      {
+        behaviorPointId,
+        status: "DEMONSTRATED",
+        level: 4,
+        score: 85,
+        rationale: "행동, 선택 근거와 확인 결과가 연결됩니다.",
+        supportingEvidenceIds: ["evidence-1"],
+        contradictingEvidenceIds: [],
+        missingEvidence: ["TRADEOFF"],
+        confidence: "HIGH",
+      },
+    ],
+    coverage: {
+      assessableBehaviorPointCount: 1,
+      evaluatedBehaviorPointCount: 1,
+      ratio: 1,
+      status: "SUFFICIENT",
+    },
+    followUp: {
+      required: false,
+      reason: null,
+      missingEvidence: [],
+      suggestedQuestion: null,
+    },
+    guardrail: {
+      unsupportedFactDetected: false,
+      sensitiveAttributeUsed: false,
+      nonverbalSignalUsed: false,
+      hiringDecisionLanguageDetected: false,
+    },
+    metadata: {
+      strategyId: "evidence-state",
+      strategyVersion: "evidence-state-rules-v1",
+      model: "deterministic-evidence-state-v1",
+    },
+  };
+
+  return {
+    processLogId: args.processLogId,
+    sessionId: args.sessionId,
+    processType: "REPORT_GENERATE" as const,
+    status: "COMPLETED" as const,
+    inputRef: JSON.stringify(input),
+    outputRef: JSON.stringify(output),
+    createdAt: "2026-07-02T00:00:30.000Z",
+  };
 }
 
 test("candidate report controller contract", async () => {

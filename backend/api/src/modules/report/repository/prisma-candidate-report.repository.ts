@@ -114,6 +114,7 @@ export class PrismaCandidateReportRepository implements CandidateReportRepositor
     const process = await this.prisma.aiProcessLog.findFirst({
       where: {
         processType: "REPORT_GENERATE",
+        inputRef: { contains: '"kind":"RECRUITING_REPORT_GENERATE"' },
         OR: this.applicationProcessWhere(applicationId, sessionId),
       },
       orderBy: { createdAt: "desc" },
@@ -126,6 +127,7 @@ export class PrismaCandidateReportRepository implements CandidateReportRepositor
     const process = await this.prisma.aiProcessLog.findFirst({
       where: {
         processType: "REPORT_GENERATE",
+        inputRef: { contains: '"kind":"MOCK_REPORT_GENERATE"' },
         OR: [
           { sessionId: BigInt(sessionId) },
           ...this.jsonNumberFieldWhere("sessionId", sessionId),
@@ -136,6 +138,22 @@ export class PrismaCandidateReportRepository implements CandidateReportRepositor
     });
 
     return process ? this.toProcess(process) : undefined;
+  }
+
+  async listNcsEvaluationProcessesBySession(sessionId: number): Promise<CandidateAiProcessRecord[]> {
+    const processes = await this.prisma.aiProcessLog.findMany({
+      where: {
+        processType: "REPORT_GENERATE",
+        inputRef: { contains: '"kind":"MOCK_NCS_ANSWER_EVALUATION"' },
+        OR: [
+          { sessionId: BigInt(sessionId) },
+          ...this.jsonNumberFieldWhere("sessionId", sessionId),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return processes.map((process) => this.toProcess(process));
   }
 
   private applicationReportWhere(applicationId: number, sessionId?: number): Prisma.EvaluationReportWhereInput[] {
@@ -216,6 +234,8 @@ export class PrismaCandidateReportRepository implements CandidateReportRepositor
       status: process.status,
       failureCategory: process.failureCategory ?? undefined,
       failureReason: process.failureReason ?? undefined,
+      inputRef: process.inputRef ?? undefined,
+      outputRef: process.outputRef ?? undefined,
       createdAt: process.createdAt.toISOString(),
     };
   }

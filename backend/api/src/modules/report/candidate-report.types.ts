@@ -39,6 +39,75 @@ export interface CandidateReportScoreView {
   evidences: CandidateReportEvidenceView[];
 }
 
+export type CandidateNcsEvidenceType =
+  | "SITUATION"
+  | "TASK"
+  | "ACTION"
+  | "RATIONALE"
+  | "RESULT"
+  | "REFLECTION"
+  | "KNOWLEDGE"
+  | "CONSTRAINT"
+  | "TRADEOFF";
+
+export interface CandidateNcsEvidenceView {
+  evidenceId: string;
+  quote: string;
+  startChar: number;
+  endChar: number;
+  claimType: CandidateNcsEvidenceType | "CONTRADICTION";
+  behaviorPointIds: string[];
+}
+
+export interface CandidateNcsBehaviorEvaluationView {
+  behaviorPointId: string;
+  behaviorPointDescription: string;
+  status:
+    | "INSUFFICIENT_EVIDENCE"
+    | "NOT_DEMONSTRATED"
+    | "LIMITED"
+    | "DEVELOPING"
+    | "DEMONSTRATED"
+    | "STRONGLY_DEMONSTRATED";
+  level: 1 | 2 | 3 | 4 | 5 | null;
+  score: 25 | 50 | 70 | 85 | 100 | null;
+  rationale: string;
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+  missingEvidence: CandidateNcsEvidenceType[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export interface CandidateNcsAnswerEvaluationView {
+  processLogId: number;
+  sessionId: number;
+  questionId: number;
+  answerId: number;
+  questionType?: QuestionType;
+  questionContent?: string;
+  sortOrder?: number;
+  evaluationSnapshotVersion: string;
+  evidences: CandidateNcsEvidenceView[];
+  behaviorEvaluations: CandidateNcsBehaviorEvaluationView[];
+  coverage: {
+    assessableBehaviorPointCount: number;
+    evaluatedBehaviorPointCount: number;
+    ratio: number;
+    status: "SUFFICIENT" | "LOW" | "INSUFFICIENT";
+  };
+  followUp: {
+    required: boolean;
+    reason: string | null;
+    missingEvidence: CandidateNcsEvidenceType[];
+    suggestedQuestion: string | null;
+  };
+  metadata: {
+    strategyId: "evidence-state";
+    strategyVersion: string;
+    model: string;
+  };
+}
+
 export interface CandidateFollowUpQuestionView {
   followUpId: number;
   content: string;
@@ -96,11 +165,13 @@ export interface CandidateMockReportFeedback {
   improvements: string[];
   nextPractice: string[];
   scores?: CandidateReportScoreView[];
+  ncsEvaluations: CandidateNcsAnswerEvaluationView[];
   visibilityPolicy: {
     candidateFacingOnly: true;
     excludesHiringDecision: true;
     excludesInternalScores: true;
     excludesCompanyMemo: true;
+    ncsPracticeScoreExcludedFromTotal: true;
   };
 }
 

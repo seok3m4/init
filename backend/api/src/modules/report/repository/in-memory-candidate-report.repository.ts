@@ -58,14 +58,29 @@ export class InMemoryCandidateReportRepository implements CandidateReportReposit
   findLatestReportProcessByApplication(applicationId: number, sessionId?: number): CandidateAiProcessRecord | undefined {
     return this.latestProcess((process) =>
       process.processType === "REPORT_GENERATE" &&
+      this.isReportGenerationProcess(process, "RECRUITING_REPORT_GENERATE") &&
       this.processMatches(process, applicationId, sessionId),
     );
   }
 
   findLatestReportProcessBySession(sessionId: number): CandidateAiProcessRecord | undefined {
     return this.latestProcess((process) =>
-      process.processType === "REPORT_GENERATE" && this.processMatches(process, undefined, sessionId),
+      process.processType === "REPORT_GENERATE" &&
+      this.isReportGenerationProcess(process, "MOCK_REPORT_GENERATE") &&
+      this.processMatches(process, undefined, sessionId),
     );
+  }
+
+  listNcsEvaluationProcessesBySession(sessionId: number): CandidateAiProcessRecord[] {
+    return this.reportProcesses
+      .filter(
+        (process) =>
+          process.processType === "REPORT_GENERATE" &&
+          this.processKind(process) === "MOCK_NCS_ANSWER_EVALUATION" &&
+          this.processMatches(process, undefined, sessionId),
+      )
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .map((process) => ({ ...process }));
   }
 
   saveReport(report: CandidateStoredReport): void {
@@ -110,6 +125,21 @@ export class InMemoryCandidateReportRepository implements CandidateReportReposit
       (applicationId !== undefined && process.reportId === applicationId) ||
       (sessionId !== undefined && process.reportId === sessionId)
     );
+  }
+
+  private isReportGenerationProcess(process: CandidateAiProcessRecord, expectedKind: string): boolean {
+    const kind = this.processKind(process);
+    return kind === undefined || kind === expectedKind;
+  }
+
+  private processKind(process: CandidateAiProcessRecord): string | undefined {
+    if (!process.inputRef) return undefined;
+    try {
+      const parsed = JSON.parse(process.inputRef) as { kind?: unknown };
+      return typeof parsed.kind === "string" ? parsed.kind : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private reportSortValue(report: CandidateStoredReport): number {

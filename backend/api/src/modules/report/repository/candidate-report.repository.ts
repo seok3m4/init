@@ -55,6 +55,8 @@ export interface CandidateAiProcessRecord {
   status: AiProcessStatus;
   failureCategory?: string;
   failureReason?: string;
+  inputRef?: string;
+  outputRef?: string;
   createdAt: string;
 }
 
@@ -84,4 +86,5 @@ export interface CandidateReportRepository {
     sessionId?: number,
   ): MaybePromise<CandidateAiProcessRecord | undefined>;
   findLatestReportProcessBySession(sessionId: number): MaybePromise<CandidateAiProcessRecord | undefined>;
+  listNcsEvaluationProcessesBySession(sessionId: number): MaybePromise<CandidateAiProcessRecord[]>;
 }

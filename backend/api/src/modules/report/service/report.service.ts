@@ -25,6 +25,7 @@ import {
   CandidateMockReportMediaItem,
   CandidateMockReportSummary,
   CandidateRecruitingReportView,
+  CandidateNcsAnswerEvaluationView,
   CandidateReportAnswerView,
   CandidateReportEvidenceView,
   CandidateReportFileReference,
@@ -48,6 +49,7 @@ import {
   type ReportType,
 } from "../report.types";
 import { AiJobDispatcherService } from "./ai-job-dispatcher.service";
+import { projectLatestCandidateNcsEvaluations } from "./ncs-evaluation-report-projection";
 import { buildDefaultReportCriteria, normalizeReportCriterionName } from "./service-interview-rubric";
 
 type ReportAnswerSession = Pick<RuntimeInterviewSession, "sessionId" | "interviewType" | "showQuestionText">;
@@ -128,6 +130,8 @@ export class ReportService {
       this.throwReportNotReady(reportId);
     }
 
+    const ncsEvaluations = await this.mockNcsEvaluations(session.sessionId);
+
     if (status === "GENERATING") {
       return this.envelope({
         reportId,
@@ -140,6 +144,7 @@ export class ReportService {
         improvements: [],
         nextPractice: [],
         scores: [],
+        ncsEvaluations,
         visibilityPolicy: this.mockFeedbackVisibilityPolicy(),
       });
     }
@@ -156,6 +161,7 @@ export class ReportService {
         improvements: ["잠시 후 리포트 생성을 다시 요청해 주세요."],
         nextPractice: [],
         scores: report ? this.toCandidateScores(report.scores) : [],
+        ncsEvaluations,
         visibilityPolicy: this.mockFeedbackVisibilityPolicy(),
       });
     }
@@ -179,6 +185,7 @@ export class ReportService {
       improvements: this.deriveImprovements(report.scores),
       nextPractice: this.deriveNextPractice(report.scores),
       scores,
+      ncsEvaluations,
       visibilityPolicy: this.mockFeedbackVisibilityPolicy(),
     });
   }
@@ -788,6 +795,35 @@ export class ReportService {
     return this.resolveReportStatus(session.status === "COMPLETED" ? "PENDING" : "PENDING", report, process, overriddenStatus);
   }
 
+  private async mockNcsEvaluations(sessionId: number): Promise<CandidateNcsAnswerEvaluationView[]> {
+    const [processes, answers] = await Promise.all([
+      this.candidateReportRepository.listNcsEvaluationProcessesBySession(sessionId),
+      this.interviewRepository.listAnswersBySession(sessionId),
+    ]);
+    const answersById = new Map(answers.map((answer) => [answer.answerId, answer]));
+    const projected = projectLatestCandidateNcsEvaluations(processes).filter((evaluation) => {
+      const answer = answersById.get(evaluation.answerId);
+      return answer?.questionId === evaluation.questionId;
+    });
+
+    const enriched = await Promise.all(
+      projected.map(async (evaluation) => {
+        const question = await this.interviewRepository.findQuestion(evaluation.questionId);
+        return {
+          ...evaluation,
+          ...(question?.questionType ? { questionType: question.questionType } : {}),
+          ...(question?.content ? { questionContent: question.content } : {}),
+          ...(question?.sortOrder !== undefined ? { sortOrder: question.sortOrder } : {}),
+        };
+      }),
+    );
+    return enriched.sort(
+      (left, right) =>
+        (left.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.sortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        left.processLogId - right.processLogId,
+    );
+  }
+
   private resolveReportStatus(
     fallback: ReportStatus,
     report?: CandidateStoredReport,
@@ -820,6 +856,7 @@ export class ReportService {
       excludesHiringDecision: true,
       excludesInternalScores: true,
       excludesCompanyMemo: true,
+      ncsPracticeScoreExcludedFromTotal: true,
     };
   }
 
