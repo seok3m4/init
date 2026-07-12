@@ -47,7 +47,7 @@ Git Bash worktree setup syntax: PASS
 
 ## Start Gate
 
-M0 변경을 하나의 commit으로 만든 뒤 해당 commit 또는 branch를 `BaseRef`로 전달하면 M1 워크트리를 생성할 수 있다.
+M0 기준선은 commit `d5aa0251`로 고정되어 M1 시작 gate를 충족했다. 별도 worktree 격리가 필요할 때 해당 commit 또는 이를 포함한 branch를 `BaseRef`로 전달한다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup-ncs-evaluation-worktrees.ps1 `
@@ -55,4 +55,4 @@ powershell -ExecutionPolicy Bypass -File scripts/setup-ncs-evaluation-worktrees.
   -Apply
 ```
 
-현재 스크립트가 commit된 M0 파일을 요구하므로 미커밋 상태에서 실수로 이전 기준의 워크트리를 만드는 것을 차단한다.
+스크립트가 commit된 M0 파일을 요구하므로 미커밋 기준에서 실수로 이전 상태의 worktree를 만드는 것을 차단한다. 현재 다중 에이전트 실행은 전략별 디렉터리가 겹치지 않아 같은 worktree에서 진행하며, 사람 팀원 간 분업을 의미하지 않는다.

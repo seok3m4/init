@@ -1,6 +1,16 @@
 # NCS Evaluation M1 Parallel Start
 
-M0 계약을 공통 기준으로 네 평가 전략을 독립 구현하는 실행 가이드다. M0 커밋을 기준으로 워크트리를 만든 뒤 각 팀은 자신의 전략 디렉터리만 수정한다.
+M0 계약을 공통 기준으로 네 평가 전략을 독립 구현하는 실행 가이드다. 이 워크트리의 NCS 평가 완성품은 한 명의 구현자가 끝까지 소유하며, M1 병렬화는 팀 분업이 아니라 다중 Codex 에이전트의 실험 lane 분리다.
+
+다른 팀원은 이 저장소의 전략 일부를 나누어 구현하지 않는다. 동일한 상위 설계 문서를 바탕으로 각자 별도의 완성품을 만들고, 완성품 단위로 결과를 비교한다.
+
+## Execution Ownership
+
+- 단일 구현자가 M0부터 최종 route, STT 연결, 리포트 연결까지 전체 결과를 책임진다.
+- 각 M1 에이전트는 한 전략 디렉터리만 수정하고 공용 계약을 변경하지 않는다.
+- 에이전트 결과는 부분 제품이 아니라 단일 완성품 안에서 평가기 채택 결정을 위한 실험 산출물이다.
+- 사람 팀원 간 코드 병합이나 cross-owner 승인은 M1 완료 조건이 아니다.
+- 다른 팀원의 별도 완성품과 비교할 때는 동일 입력 fixture와 수용 기준을 사용한다.
 
 ## Prerequisites
 
@@ -41,9 +51,9 @@ M0 공용 파일은 M1 브랜치에서 수정하지 않는다. 계약 변경이 
 
 각 디렉터리의 `README.md`가 바로 실행할 작업 명세다.
 
-## Worktree Setup
+## Optional Worktree Isolation
 
-M0 변경을 커밋한 브랜치 또는 commit을 `BaseRef`로 전달한다. 스크립트는 기본적으로 dry-run이며 `-Apply` 또는 `--apply`를 줘야 실제 브랜치와 워크트리를 만든다.
+에이전트가 같은 작업 트리에서 서로 다른 전략 디렉터리를 수정할 수 있으면 별도 worktree는 필요하지 않다. 프로세스나 Git 인덱스를 완전히 분리해야 할 때만 M0 commit을 `BaseRef`로 전달한다. 스크립트는 기본적으로 dry-run이며 `-Apply` 또는 `--apply`를 줘야 실제 브랜치와 worktree를 만든다.
 
 Windows:
 
@@ -98,6 +108,13 @@ runNcsStrategyCli(
 cd backend/worker
 npm ci
 npm test
+cd ../..
+node scripts/run-ncs-evaluation-m1.mjs
+
+# 단일 전략만 다시 실행할 때
+node scripts/run-ncs-evaluation-m1.mjs --strategy <strategy>
+
+cd backend/worker
 node dist/experiments/ncs-evaluation/<strategy>/run.js `
   --dataset ../../docs/04_implementation/ncs-evaluation-m0/golden-cases.json `
   --output src/experiments/ncs-evaluation/<strategy>/results.json `
