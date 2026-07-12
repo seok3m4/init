@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://final-weapon.local/schemas/ncs-evaluation-m0-input.json",
+  "title": "NCS Evaluation M0 Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "caseId",
+    "locale",
+    "question",
+    "answer",
+    "ncsContext",
+    "behaviorPoints",
+    "interviewContext",
+    "evaluationPolicy"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "ncs-evaluation-m0.v1"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "locale": {
+      "const": "ko-KR"
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionId", "questionType", "content"],
+      "properties": {
+        "questionId": { "type": "string", "minLength": 1 },
+        "questionType": {
+          "enum": ["EXPERIENCE", "SITUATION", "FOLLOW_UP"]
+        },
+        "content": { "type": "string", "minLength": 1 }
+      }
+    },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answerId", "transcript"],
+      "properties": {
+        "answerId": { "type": "string", "minLength": 1 },
+        "transcript": { "type": "string" }
+      }
+    },
+    "ncsContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceKind", "version", "categoryType", "unit"],
+      "properties": {
+        "sourceKind": {
+          "enum": ["OFFICIAL_NCS", "SYNTHETIC_NCS_LIKE"]
+        },
+        "version": { "type": "string", "minLength": 1 },
+        "categoryType": {
+          "enum": ["OCCUPATIONAL_BASIC", "JOB_PERFORMANCE"]
+        },
+        "unit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "name", "level", "definition", "elements"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "level": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "maximum": 8
+            },
+            "definition": { "type": "string", "minLength": 1 },
+            "elements": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["elementCode", "name"],
+                "properties": {
+                  "elementCode": { "type": "string", "minLength": 1 },
+                  "name": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "behaviorPoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "behaviorPointId",
+          "description",
+          "sourceElementCodes",
+          "observability",
+          "requiredEvidence"
+        ],
+        "properties": {
+          "behaviorPointId": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "sourceElementCodes": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "observability": { "const": "INTERVIEW" },
+          "requiredEvidence": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "SITUATION",
+                "TASK",
+                "ACTION",
+                "RATIONALE",
+                "RESULT",
+                "REFLECTION",
+                "KNOWLEDGE",
+                "CONSTRAINT",
+                "TRADEOFF"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "interviewContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attemptNumber", "maxFollowUps", "followUpsUsed"],
+      "properties": {
+        "attemptNumber": { "type": "integer", "minimum": 1 },
+        "maxFollowUps": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "followUpsUsed": { "type": "integer", "minimum": 0, "maximum": 2 }
+      }
+    },
+    "evaluationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scoreMap",
+        "minimumSupportingEvidence",
+        "insufficientEvidenceScore",
+        "allowSensitiveAttributes",
+        "allowNonverbalScore"
+      ],
+      "properties": {
+        "scoreMap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["1", "2", "3", "4", "5"],
+          "properties": {
+            "1": { "const": 25 },
+            "2": { "const": 50 },
+            "3": { "const": 70 },
+            "4": { "const": 85 },
+            "5": { "const": 100 }
+          }
+        },
+        "minimumSupportingEvidence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "insufficientEvidenceScore": { "type": "null" },
+        "allowSensitiveAttributes": { "const": false },
+        "allowNonverbalScore": { "const": false }
+      }
+    }
+  }
+}

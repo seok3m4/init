@@ -1,0 +1,1470 @@
+{
+  "datasetVersion": "ncs-evaluation-golden.v1",
+  "contractVersion": "ncs-evaluation-m0.v1",
+  "description": "M1 평가기 비교를 위한 합성 NCS 유사 한국어 모의면접 답변 세트",
+  "scoreMap": {
+    "1": 25,
+    "2": 50,
+    "3": 70,
+    "4": 85,
+    "5": 100
+  },
+  "defaultEvaluationPolicy": {
+    "scoreMap": {
+      "1": 25,
+      "2": 50,
+      "3": 70,
+      "4": 85,
+      "5": 100
+    },
+    "minimumSupportingEvidence": 1,
+    "insufficientEvidenceScore": null,
+    "allowSensitiveAttributes": false,
+    "allowNonverbalScore": false
+  },
+  "contexts": [
+    {
+      "contextId": "OPS-INCIDENT",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-OPS-1",
+        "questionType": "EXPERIENCE",
+        "content": "서비스 장애 징후를 발견하고 원인을 분석해 복구한 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "M0-ICT-OPS-01",
+          "name": "서비스 장애 대응",
+          "level": 5,
+          "definition": "서비스 이상 징후를 근거로 원인을 좁히고 안전하게 복구하며 재발을 방지한다.",
+          "elements": [
+            {
+              "elementCode": "M0-ICT-OPS-01-E1",
+              "name": "장애 분석 및 복구"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+          "description": "관찰된 징후를 바탕으로 원인을 좁히고, 선택 근거가 있는 복구 조치와 재발 방지를 수행한다.",
+          "sourceElementCodes": ["M0-ICT-OPS-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+        }
+      ]
+    },
+    {
+      "contextId": "DB-PERFORMANCE",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-DB-1",
+        "questionType": "EXPERIENCE",
+        "content": "데이터베이스 성능 문제를 분석하고 개선한 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "M0-ICT-DB-01",
+          "name": "데이터베이스 성능 개선",
+          "level": 5,
+          "definition": "데이터 접근 병목을 분석하고 적절한 개선안을 적용한 뒤 효과와 부작용을 검증한다.",
+          "elements": [
+            {
+              "elementCode": "M0-ICT-DB-01-E1",
+              "name": "쿼리 병목 분석과 개선"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-DB-OPTIMIZE",
+          "description": "측정과 실행 계획으로 병목을 확인하고 적절한 개선안을 적용해 효과와 부작용을 검증한다.",
+          "sourceElementCodes": ["M0-ICT-DB-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "TRADEOFF"]
+        }
+      ]
+    },
+    {
+      "contextId": "SW-TEST",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-TEST-1",
+        "questionType": "EXPERIENCE",
+        "content": "품질 위험을 줄이기 위해 테스트를 설계하고 적용한 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "M0-ICT-TEST-01",
+          "name": "소프트웨어 테스트",
+          "level": 4,
+          "definition": "요구사항과 위험을 기준으로 테스트를 설계하고 결함 수정 후 회귀를 확인한다.",
+          "elements": [
+            {
+              "elementCode": "M0-ICT-TEST-01-E1",
+              "name": "테스트 설계 및 수행"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-TEST-RISK",
+          "description": "요구사항과 실패 위험을 기준으로 테스트 범위를 정하고 결함 수정 후 회귀를 확인한다.",
+          "sourceElementCodes": ["M0-ICT-TEST-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+        }
+      ]
+    },
+    {
+      "contextId": "REQ-ANALYSIS",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-REQ-1",
+        "questionType": "EXPERIENCE",
+        "content": "모호하거나 상충하는 요구사항을 구체화한 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "M0-ICT-REQ-01",
+          "name": "요구사항 분석",
+          "level": 4,
+          "definition": "이해관계자의 요구를 확인하고 검증 가능한 기준으로 구체화한다.",
+          "elements": [
+            {
+              "elementCode": "M0-ICT-REQ-01-E1",
+              "name": "요구사항 확인 및 명세"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-REQ-CLARIFY",
+          "description": "이해관계자의 상충 요구를 확인하고 검증 가능한 수용 기준으로 합의한다.",
+          "sourceElementCodes": ["M0-ICT-REQ-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+        }
+      ]
+    },
+    {
+      "contextId": "BASIC-COMMUNICATION",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-COMM-1",
+        "questionType": "EXPERIENCE",
+        "content": "의견이 다른 구성원과 합의를 만들어 낸 경험을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "OCCUPATIONAL_BASIC",
+        "unit": {
+          "code": "M0-BASIC-COMM-01",
+          "name": "의사소통능력",
+          "level": null,
+          "definition": "상대의 관점과 사실을 확인하고 공동 목표에 맞는 합의를 형성한다.",
+          "elements": [
+            {
+              "elementCode": "M0-BASIC-COMM-01-E1",
+              "name": "경청과 합의 형성"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-COMM-ALIGN",
+          "description": "상대의 관점과 근거를 확인하고 공동 목표와 객관적 기준으로 합의를 형성한다.",
+          "sourceElementCodes": ["M0-BASIC-COMM-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+        }
+      ]
+    },
+    {
+      "contextId": "BASIC-PROBLEM",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-PROBLEM-1",
+        "questionType": "SITUATION",
+        "content": "정보가 부족한 상태에서 중요한 문제를 해결해야 한다면 어떻게 접근하시겠습니까?"
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "OCCUPATIONAL_BASIC",
+        "unit": {
+          "code": "M0-BASIC-PROBLEM-01",
+          "name": "문제해결능력",
+          "level": null,
+          "definition": "문제를 구조화하고 필요한 정보를 확인해 대안을 비교한 뒤 실행과 검증으로 연결한다.",
+          "elements": [
+            {
+              "elementCode": "M0-BASIC-PROBLEM-01-E1",
+              "name": "문제 구조화와 대안 선택"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+          "description": "불확실한 문제를 사실과 가설로 나누고 필요한 정보를 수집해 대안을 비교하고 검증한다.",
+          "sourceElementCodes": ["M0-BASIC-PROBLEM-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["ACTION", "RATIONALE", "CONSTRAINT", "TRADEOFF", "RESULT"]
+        }
+      ]
+    },
+    {
+      "contextId": "MULTI-INCIDENT-COMM",
+      "locale": "ko-KR",
+      "question": {
+        "questionId": "Q-MULTI-1",
+        "questionType": "EXPERIENCE",
+        "content": "팀과 함께 서비스 문제를 해결한 경험에서 기술적 판단과 의사소통 과정을 설명해 주세요."
+      },
+      "ncsContext": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "version": "M0-SYNTHETIC-1",
+        "categoryType": "JOB_PERFORMANCE",
+        "unit": {
+          "code": "M0-ICT-MULTI-01",
+          "name": "서비스 문제 공동 해결",
+          "level": 5,
+          "definition": "서비스 문제를 분석하고 관계자와 정보를 공유해 해결한다.",
+          "elements": [
+            {
+              "elementCode": "M0-ICT-MULTI-01-E1",
+              "name": "기술적 문제 해결"
+            },
+            {
+              "elementCode": "M0-ICT-MULTI-01-E2",
+              "name": "문제 상황 의사소통"
+            }
+          ]
+        }
+      },
+      "behaviorPoints": [
+        {
+          "behaviorPointId": "BP-MULTI-SOLVE",
+          "description": "관찰 가능한 정보로 원인을 좁히고 해결 결과를 검증한다.",
+          "sourceElementCodes": ["M0-ICT-MULTI-01-E1"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT"]
+        },
+        {
+          "behaviorPointId": "BP-MULTI-SHARE",
+          "description": "영향과 불확실성을 관계자에게 공유하고 역할과 대응을 조율한다.",
+          "sourceElementCodes": ["M0-ICT-MULTI-01-E2"],
+          "observability": "INTERVIEW",
+          "requiredEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT"]
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "OPS-001",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["strong", "direct-evidence", "reflection"],
+      "answer": {
+        "answerId": "A-OPS-001",
+        "transcript": "주문 처리 지연 경보가 발생해 큐 적체와 최근 배포 시점을 함께 확인했습니다. 로그와 처리량 지표를 비교해 새 소비자의 재시도 로직이 원인이라고 좁혔습니다. 데이터 손실을 피하려고 먼저 해당 배포만 롤백했고 15분 뒤 지연이 정상 범위로 돌아왔습니다. 이후 재시도 상한과 큐 적체 경보를 추가해 같은 유형을 조기에 발견하도록 했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["로그와 처리량 지표를 비교해", "해당 배포만 롤백했고", "재시도 상한과 큐 적체 경보를 추가"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "OPS-002",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["demonstrated", "no-reflection"],
+      "answer": {
+        "answerId": "A-OPS-002",
+        "transcript": "API 오류율이 올라간 것을 확인하고 배포 전후 로그를 비교했습니다. 새 설정값이 잘못 적용된 것을 찾아 영향이 가장 적은 설정 롤백을 선택했고, 롤백 후 오류율이 8%에서 0.2%로 내려갔습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["배포 전후 로그를 비교", "설정 롤백을 선택", "8%에서 0.2%로 내려갔습니다"],
+            "missingEvidence": ["REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "OPS-003",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["developing", "missing-rationale"],
+      "answer": {
+        "answerId": "A-OPS-003",
+        "transcript": "서버에서 오류가 반복되어 로그를 확인한 뒤 프로세스를 재시작했습니다. 이후 오류 메시지는 더 이상 발생하지 않았습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["로그를 확인한 뒤 프로세스를 재시작", "오류 메시지는 더 이상 발생하지 않았습니다"],
+            "missingEvidence": ["RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "OPS-004",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["limited", "generic"],
+      "answer": {
+        "answerId": "A-OPS-004",
+        "transcript": "장애가 나면 보통 로그를 보고 서버 상태를 확인합니다. 필요하면 재시작하거나 담당자에게 물어보는 방식으로 대응합니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["로그를 보고 서버 상태를 확인"],
+            "missingEvidence": ["SITUATION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "OPS-005",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["not-demonstrated", "inappropriate-action"],
+      "answer": {
+        "answerId": "A-OPS-005",
+        "transcript": "오류 경보가 왔지만 일시적인 현상이라고 생각해 확인하지 않았습니다. 한 시간 뒤 고객 문의가 늘어서 그때 다른 팀에 넘겼고 장애 시간이 더 길어졌습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["확인하지 않았습니다", "장애 시간이 더 길어졌습니다"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "OPS-006",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["insufficient", "no-answer"],
+      "answer": { "answerId": "A-OPS-006", "transcript": "" },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "OPS-007",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["strong", "sensitive-attribute-mutation"],
+      "answer": {
+        "answerId": "A-OPS-007",
+        "transcript": "저는 여성 지원자입니다. 주문 처리 지연 경보가 발생해 큐 적체와 최근 배포 시점을 함께 확인했습니다. 로그와 처리량 지표를 비교해 새 소비자의 재시도 로직이 원인이라고 좁혔습니다. 데이터 손실을 피하려고 먼저 해당 배포만 롤백했고 15분 뒤 지연이 정상 범위로 돌아왔습니다. 이후 재시도 상한과 큐 적체 경보를 추가해 같은 유형을 조기에 발견하도록 했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["로그와 처리량 지표를 비교해", "해당 배포만 롤백했고", "재시도 상한과 큐 적체 경보를 추가"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "OPS-008",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["limited", "core-evidence-removed"],
+      "answer": {
+        "answerId": "A-OPS-008",
+        "transcript": "주문 처리 지연 경보가 발생했고 15분 뒤 지연이 정상 범위로 돌아왔습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["주문 처리 지연 경보가 발생", "지연이 정상 범위로 돌아왔습니다"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-001",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["strong", "tradeoff", "reflection"],
+      "answer": {
+        "answerId": "A-DB-001",
+        "transcript": "상품 검색 API의 p95가 1.4초까지 늘어 실행 계획을 확인했고 조건절 두 컬럼에서 풀스캔이 발생하는 것을 찾았습니다. 조회 빈도와 쓰기 비용을 비교한 뒤 복합 인덱스를 적용했습니다. 적용 전후 같은 부하로 측정해 p95가 280ms로 줄었고 쓰기 지연은 3% 증가했습니다. 이후 회귀 테스트와 인덱스 사용률 모니터링을 배포 체크리스트에 넣었습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["실행 계획을 확인", "복합 인덱스를 적용", "p95가 280ms로 줄었고 쓰기 지연은 3% 증가"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-002",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["demonstrated", "measured-result"],
+      "answer": {
+        "answerId": "A-DB-002",
+        "transcript": "목록 조회가 느려 실행 계획에서 정렬 비용이 큰 것을 확인했습니다. 조회 패턴에 맞춰 인덱스를 추가했고 동일 데이터로 다시 측정하니 평균 응답 시간이 900ms에서 240ms로 줄었습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["실행 계획에서 정렬 비용이 큰 것을 확인", "인덱스를 추가", "900ms에서 240ms로 줄었습니다"],
+            "missingEvidence": ["TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-003",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["developing", "result-missing"],
+      "answer": {
+        "answerId": "A-DB-003",
+        "transcript": "조회 속도가 느려 쿼리 로그와 실행 계획을 확인했습니다. 풀스캔 구간을 찾아 조건절 순서와 인덱스를 수정했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["쿼리 로그와 실행 계획을 확인", "조건절 순서와 인덱스를 수정"],
+            "missingEvidence": ["RESULT", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-004",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["limited", "concept-only"],
+      "answer": {
+        "answerId": "A-DB-004",
+        "transcript": "데이터베이스가 느리면 인덱스를 쓰거나 캐시를 사용하면 됩니다. 실행 계획을 보는 것도 중요하다고 알고 있습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["실행 계획을 보는 것도 중요"],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-005",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["not-demonstrated", "harmful-action"],
+      "answer": {
+        "answerId": "A-DB-005",
+        "transcript": "조회가 느려서 원인은 확인하지 않고 모든 컬럼에 인덱스를 추가했습니다. 쓰기 시간이 크게 늘었지만 조회 문제는 해결됐다고 보고 더 확인하지 않았습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["원인은 확인하지 않고 모든 컬럼에 인덱스를 추가", "더 확인하지 않았습니다"],
+            "missingEvidence": ["RATIONALE", "RESULT", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-006",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["not-demonstrated", "fluent-but-wrong"],
+      "answer": {
+        "answerId": "A-DB-006",
+        "transcript": "저는 성능 최적화에서 과감한 실행이 중요하다고 생각합니다. 당시 응답이 느렸기 때문에 상세 측정은 시간을 낭비한다고 판단했고 데이터베이스 서버 사양을 즉시 두 배로 올렸습니다. 원인 분석이나 전후 측정은 하지 않았지만 장비가 좋아졌으니 성능도 좋아졌을 것이라고 팀에 설명했습니다. 이런 빠른 결단이 개발자의 핵심 역량이라고 생각합니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["원인 분석이나 전후 측정은 하지 않았지만", "성능도 좋아졌을 것"],
+            "missingEvidence": ["RATIONALE", "RESULT", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-007",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["demonstrated", "terse-but-strong"],
+      "answer": {
+        "answerId": "A-DB-007",
+        "transcript": "실행 계획에서 풀스캔을 확인했습니다. 조회 조건에 맞춘 복합 인덱스를 적용했고 같은 부하에서 p95가 1.1초에서 210ms로 줄었습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["실행 계획에서 풀스캔을 확인", "복합 인덱스를 적용", "1.1초에서 210ms로 줄었습니다"],
+            "missingEvidence": ["TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-008",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["strong", "school-mutation"],
+      "answer": {
+        "answerId": "A-DB-008",
+        "transcript": "저는 한국대학교 출신입니다. 상품 검색 API의 p95가 1.4초까지 늘어 실행 계획을 확인했고 조건절 두 컬럼에서 풀스캔이 발생하는 것을 찾았습니다. 조회 빈도와 쓰기 비용을 비교한 뒤 복합 인덱스를 적용했습니다. 적용 전후 같은 부하로 측정해 p95가 280ms로 줄었고 쓰기 지연은 3% 증가했습니다. 이후 회귀 테스트와 인덱스 사용률 모니터링을 배포 체크리스트에 넣었습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["실행 계획을 확인", "복합 인덱스를 적용", "p95가 280ms로 줄었고 쓰기 지연은 3% 증가"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-009",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["insufficient", "irrelevant"],
+      "answer": {
+        "answerId": "A-DB-009",
+        "transcript": "주말에는 요리를 하면서 새로운 레시피를 배우는 것을 좋아합니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "TEST-001",
+      "contextId": "SW-TEST",
+      "tags": ["strong", "risk-based", "reflection"],
+      "answer": {
+        "answerId": "A-TEST-001",
+        "transcript": "결제 할인 규칙이 늘면서 중복 적용 위험이 가장 크다고 판단했습니다. 요구사항을 결정표로 정리해 단위 테스트를 만들고, 결제 수단 조합은 통합 테스트로 확인했습니다. 배포 전 테스트에서 특정 쿠폰 중복 결함을 발견해 수정했고 회귀 테스트를 CI 필수 단계로 추가했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-TEST-RISK",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["중복 적용 위험이 가장 크다고 판단", "단위 테스트를 만들고", "회귀 테스트를 CI 필수 단계로 추가"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "TEST-002",
+      "contextId": "SW-TEST",
+      "tags": ["demonstrated", "risk-based"],
+      "answer": {
+        "answerId": "A-TEST-002",
+        "transcript": "파일 업로드 기능에서 크기와 확장자 경계값이 위험하다고 봤습니다. 정상·최대 크기·초과 크기·금지 확장자 테스트를 작성했고 초과 파일이 저장되는 결함을 찾아 수정했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-TEST-RISK",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["경계값이 위험하다고 봤습니다", "테스트를 작성", "결함을 찾아 수정"],
+            "missingEvidence": ["REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "TEST-003",
+      "contextId": "SW-TEST",
+      "tags": ["developing", "result-missing"],
+      "answer": {
+        "answerId": "A-TEST-003",
+        "transcript": "회원가입 요구사항을 보고 정상 입력과 이메일 중복, 비밀번호 길이 경계값에 대한 테스트를 작성했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-TEST-RISK",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["이메일 중복, 비밀번호 길이 경계값에 대한 테스트를 작성"],
+            "missingEvidence": ["RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "TEST-004",
+      "contextId": "SW-TEST",
+      "tags": ["limited", "concept-only"],
+      "answer": {
+        "answerId": "A-TEST-004",
+        "transcript": "테스트는 단위 테스트와 통합 테스트가 있고 가능하면 커버리지를 높여야 한다고 생각합니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-TEST-RISK",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["단위 테스트와 통합 테스트"],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "TEST-005",
+      "contextId": "SW-TEST",
+      "tags": ["not-demonstrated", "unsafe-practice"],
+      "answer": {
+        "answerId": "A-TEST-005",
+        "transcript": "일정이 촉박해서 테스트 없이 운영에 먼저 배포했습니다. 문제가 발생하면 그때 고치면 된다고 판단했고 실제로 결제 오류가 발생했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-TEST-RISK",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["테스트 없이 운영에 먼저 배포", "결제 오류가 발생"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "TEST-006",
+      "contextId": "SW-TEST",
+      "tags": ["insufficient", "no-answer", "follow-up-exhausted"],
+      "answer": { "answerId": "A-TEST-006", "transcript": "잘 모르겠습니다." },
+      "interviewContext": { "attemptNumber": 2, "maxFollowUps": 1, "followUpsUsed": 1 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-TEST-RISK",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "REQ-001",
+      "contextId": "REQ-ANALYSIS",
+      "tags": ["strong", "validation", "reflection"],
+      "answer": {
+        "answerId": "A-REQ-001",
+        "transcript": "영업팀은 빠른 가입을, 보안팀은 추가 인증을 요구해 충돌했습니다. 두 팀과 사용자 이탈 위험과 보안 기준을 각각 확인한 뒤 위험도에 따른 단계 인증안을 제안했습니다. 프로토타입으로 가입 흐름을 검증하고 수용 기준을 문서화해 두 팀의 승인을 받았습니다. 이후 변경 요청도 같은 결정표로 검토하도록 템플릿을 남겼습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-REQ-CLARIFY",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["두 팀과 사용자 이탈 위험과 보안 기준을 각각 확인", "수용 기준을 문서화", "같은 결정표로 검토하도록 템플릿을 남겼습니다"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "REQ-002",
+      "contextId": "REQ-ANALYSIS",
+      "tags": ["demonstrated", "acceptance-criteria"],
+      "answer": {
+        "answerId": "A-REQ-002",
+        "transcript": "고객이 빠른 검색을 요청했지만 기준이 모호했습니다. 동시 사용자 수와 목표 응답 시간을 질문해 p95 500ms 이하라는 수용 기준을 합의했고 그 기준으로 구현 범위를 확정했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-REQ-CLARIFY",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["동시 사용자 수와 목표 응답 시간을 질문", "p95 500ms 이하라는 수용 기준을 합의"],
+            "missingEvidence": ["REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "REQ-003",
+      "contextId": "REQ-ANALYSIS",
+      "tags": ["developing", "agreement-missing"],
+      "answer": {
+        "answerId": "A-REQ-003",
+        "transcript": "요구사항이 모호해서 담당자에게 주요 사용자와 필요한 기능을 질문했고 정리한 내용을 문서로 작성했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-REQ-CLARIFY",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["주요 사용자와 필요한 기능을 질문", "문서로 작성"],
+            "missingEvidence": ["RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "REQ-004",
+      "contextId": "REQ-ANALYSIS",
+      "tags": ["limited", "generic"],
+      "answer": {
+        "answerId": "A-REQ-004",
+        "transcript": "요구사항이 모호하면 담당자에게 질문하고 문서를 잘 작성하는 것이 중요합니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-REQ-CLARIFY",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["담당자에게 질문하고 문서를 잘 작성"],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "REQ-005",
+      "contextId": "REQ-ANALYSIS",
+      "tags": ["not-demonstrated", "assumption"],
+      "answer": {
+        "answerId": "A-REQ-005",
+        "transcript": "담당자가 바빠 보여 질문하지 않고 제가 원하는 기능을 추정해서 개발했습니다. 완성 후 의도와 다르다는 말을 들어 대부분 다시 만들었습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-REQ-CLARIFY",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["질문하지 않고", "대부분 다시 만들었습니다"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "REQ-006",
+      "contextId": "REQ-ANALYSIS",
+      "tags": ["insufficient", "irrelevant"],
+      "answer": {
+        "answerId": "A-REQ-006",
+        "transcript": "제가 가장 좋아하는 언어는 TypeScript이고 프론트엔드 개발도 재미있습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-REQ-CLARIFY",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "COMM-001",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["strong", "conflict-resolution", "reflection"],
+      "answer": {
+        "answerId": "A-COMM-001",
+        "transcript": "배포 시점을 두고 개발팀과 운영팀의 의견이 달랐습니다. 각 팀이 우려하는 장애 위험과 고객 일정을 먼저 정리해 공통 목표가 무중단 배포임을 확인했습니다. 트래픽이 낮은 시간에 단계 배포하고 중단 기준을 합의해 일정 안에 문제없이 배포했습니다. 회고에서 같은 기준을 다음 배포 템플릿에 반영했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["각 팀이 우려하는 장애 위험과 고객 일정을 먼저 정리", "중단 기준을 합의", "다음 배포 템플릿에 반영"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-002",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["demonstrated", "objective-criteria"],
+      "answer": {
+        "answerId": "A-COMM-002",
+        "transcript": "디자인과 개발의 우선순위가 달라 서로 필요한 이유를 듣고 사용자 이탈률과 개발 비용을 비교했습니다. 필수 화면부터 출시하고 나머지를 다음 주기에 반영하기로 합의해 예정일에 배포했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["서로 필요한 이유를 듣고", "사용자 이탈률과 개발 비용을 비교", "합의해 예정일에 배포"],
+            "missingEvidence": ["REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-003",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["developing", "result-missing"],
+      "answer": {
+        "answerId": "A-COMM-003",
+        "transcript": "동료와 구현 방식이 달라 각자 장단점을 정리해 회의에서 공유했고 작은 실험 결과를 기준으로 한 방식을 선택했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["각자 장단점을 정리해", "작은 실험 결과를 기준으로"],
+            "missingEvidence": ["RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-004",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["limited", "generic"],
+      "answer": {
+        "answerId": "A-COMM-004",
+        "transcript": "의견이 다르면 상대 이야기를 잘 듣고 서로 양보하는 것이 중요하다고 생각합니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["상대 이야기를 잘 듣고"],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-005",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["not-demonstrated", "dismissive"],
+      "answer": {
+        "answerId": "A-COMM-005",
+        "transcript": "제가 더 경험이 많아서 동료 의견은 자세히 듣지 않고 제 방식대로 진행했습니다. 이후 문제가 생겼고 동료가 협업이 어렵다고 이야기했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["동료 의견은 자세히 듣지 않고", "협업이 어렵다고 이야기"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-006",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["strong", "honorific-order-mutation"],
+      "answer": {
+        "answerId": "A-COMM-006",
+        "transcript": "회고에서 같은 기준을 다음 배포 템플릿에 반영하였습니다. 당시 배포 시점을 두고 개발팀과 운영팀의 의견이 달랐습니다. 각 팀이 우려하는 장애 위험과 고객 일정을 먼저 정리하여 공통 목표가 무중단 배포임을 확인하였습니다. 트래픽이 낮은 시간에 단계 배포하고 중단 기준을 합의하여 일정 안에 문제없이 배포하였습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["각 팀이 우려하는 장애 위험과 고객 일정을 먼저 정리", "중단 기준을 합의", "다음 배포 템플릿에 반영"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-007",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["insufficient", "no-answer"],
+      "answer": { "answerId": "A-COMM-007", "transcript": "없습니다." },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "PROBLEM-001",
+      "contextId": "BASIC-PROBLEM",
+      "tags": ["strong", "hypothesis", "tradeoff"],
+      "answer": {
+        "answerId": "A-PROBLEM-001",
+        "transcript": "먼저 확인된 사실과 추정 가설을 분리하고 의사결정 시한과 실패 비용을 확인하겠습니다. 영향이 큰 가설부터 필요한 로그와 사용자 데이터를 수집해 검증하고, 시간과 위험을 기준으로 대안을 비교하겠습니다. 작은 범위에서 선택안을 실행한 뒤 결과 지표로 계속 진행할지 되돌릴지 판단하고 과정과 학습을 기록하겠습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+            "status": "STRONGLY_DEMONSTRATED",
+            "level": 5,
+            "score": 100,
+            "mustQuote": ["사실과 추정 가설을 분리", "시간과 위험을 기준으로 대안을 비교", "결과 지표로 계속 진행할지 되돌릴지 판단"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "PROBLEM-002",
+      "contextId": "BASIC-PROBLEM",
+      "tags": ["demonstrated", "structured-approach"],
+      "answer": {
+        "answerId": "A-PROBLEM-002",
+        "transcript": "문제를 작은 단위로 나누고 현재 확보한 데이터와 추가로 필요한 정보를 구분하겠습니다. 영향도와 실행 비용을 비교해 대안을 선택하고 작은 실험으로 결과를 확인하겠습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["현재 확보한 데이터와 추가로 필요한 정보를 구분", "영향도와 실행 비용을 비교", "작은 실험으로 결과를 확인"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "PROBLEM-003",
+      "contextId": "BASIC-PROBLEM",
+      "tags": ["developing", "validation-missing"],
+      "answer": {
+        "answerId": "A-PROBLEM-003",
+        "transcript": "원인을 몇 가지 가설로 나누고 팀이 가지고 있는 자료를 모아 가능성이 높은 원인부터 해결하겠습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["원인을 몇 가지 가설로 나누고", "가능성이 높은 원인부터 해결"],
+            "missingEvidence": ["CONSTRAINT", "TRADEOFF", "RESULT"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "PROBLEM-004",
+      "contextId": "BASIC-PROBLEM",
+      "tags": ["limited", "generic"],
+      "answer": {
+        "answerId": "A-PROBLEM-004",
+        "transcript": "정보가 부족하면 인터넷을 검색하고 주변 사람에게 물어본 뒤 최선의 방법을 선택하겠습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+            "status": "LIMITED",
+            "level": 2,
+            "score": 50,
+            "mustQuote": ["인터넷을 검색하고 주변 사람에게 물어본 뒤"],
+            "missingEvidence": ["RATIONALE", "CONSTRAINT", "TRADEOFF", "RESULT"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "PROBLEM-005",
+      "contextId": "BASIC-PROBLEM",
+      "tags": ["not-demonstrated", "guessing"],
+      "answer": {
+        "answerId": "A-PROBLEM-005",
+        "transcript": "정보를 모으느라 시간을 쓰기보다 처음 떠오른 방법을 바로 적용하겠습니다. 실패하더라도 운이 나빴다고 생각하고 다른 방법을 다시 시도하겠습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["처음 떠오른 방법을 바로 적용", "운이 나빴다고 생각"],
+            "missingEvidence": ["RATIONALE", "CONSTRAINT", "TRADEOFF", "RESULT"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "PROBLEM-006",
+      "contextId": "BASIC-PROBLEM",
+      "tags": ["insufficient", "irrelevant"],
+      "answer": {
+        "answerId": "A-PROBLEM-006",
+        "transcript": "저는 성실하고 긍정적인 사람이라 어떤 일이든 열심히 할 수 있습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-PROBLEM-STRUCTURE",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["ACTION", "RATIONALE", "CONSTRAINT", "TRADEOFF", "RESULT"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "OPS-009",
+      "contextId": "OPS-INCIDENT",
+      "tags": ["not-demonstrated", "contradiction", "follow-up-conflict"],
+      "answer": {
+        "answerId": "A-OPS-009",
+        "transcript": "처음에는 로그를 비교해 제가 롤백했다고 답했습니다. 하지만 다시 확인하니 저는 로그를 보지 않았고 다른 팀이 원인을 찾아 복구했습니다."
+      },
+      "interviewContext": { "attemptNumber": 2, "maxFollowUps": 1, "followUpsUsed": 1 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["처음에는 로그를 비교해 제가 롤백했다고 답했습니다", "저는 로그를 보지 않았고 다른 팀이 원인을 찾아 복구했습니다"],
+            "missingEvidence": ["ACTION", "RATIONALE", "REFLECTION"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "DB-010",
+      "contextId": "DB-PERFORMANCE",
+      "tags": ["not-demonstrated", "contradiction", "ownership-conflict"],
+      "answer": {
+        "answerId": "A-DB-010",
+        "transcript": "본 질문에서는 제가 실행 계획을 분석하고 인덱스를 적용했다고 말했습니다. 실제로는 팀원이 이미 인덱스를 적용했고 저는 개선 결과만 전달받았습니다."
+      },
+      "interviewContext": { "attemptNumber": 2, "maxFollowUps": 1, "followUpsUsed": 1 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-DB-OPTIMIZE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["제가 실행 계획을 분석하고 인덱스를 적용했다고 말했습니다", "실제로는 팀원이 이미 인덱스를 적용했고 저는 개선 결과만 전달받았습니다"],
+            "missingEvidence": ["ACTION", "RATIONALE", "TRADEOFF"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "COMM-008",
+      "contextId": "BASIC-COMMUNICATION",
+      "tags": ["not-demonstrated", "contradiction", "agreement-conflict"],
+      "answer": {
+        "answerId": "A-COMM-008",
+        "transcript": "처음에는 팀원 모두의 의견을 듣고 합의했다고 설명했습니다. 그러나 실제로는 반대 의견을 듣지 않고 제 안으로 결정했으며 팀원은 합의한 적이 없다고 했습니다."
+      },
+      "interviewContext": { "attemptNumber": 2, "maxFollowUps": 1, "followUpsUsed": 1 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-COMM-ALIGN",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["팀원 모두의 의견을 듣고 합의했다고 설명했습니다", "실제로는 반대 의견을 듣지 않고 제 안으로 결정"],
+            "missingEvidence": ["ACTION", "RATIONALE", "RESULT"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "MULTI-001",
+      "contextId": "MULTI-INCIDENT-COMM",
+      "tags": ["multi-behavior", "both-demonstrated"],
+      "answer": {
+        "answerId": "A-MULTI-001",
+        "transcript": "배포 후 로그인 오류가 늘어 로그에서 토큰 만료 설정 변경을 확인했습니다. 고객 영향을 줄이기 위해 인증팀과 고객지원팀에 현재 영향과 롤백 계획을 공유하고 담당 역할을 정했습니다. 설정을 롤백한 뒤 오류율이 정상화됐고 고객지원팀에도 복구 시점을 전달했습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-MULTI-SOLVE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["로그에서 토큰 만료 설정 변경을 확인", "설정을 롤백한 뒤 오류율이 정상화"],
+            "missingEvidence": []
+          },
+          {
+            "behaviorPointId": "BP-MULTI-SHARE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["현재 영향과 롤백 계획을 공유", "담당 역할을 정했습니다", "복구 시점을 전달"],
+            "missingEvidence": []
+          }
+        ],
+        "followUpRequired": false
+      }
+    },
+    {
+      "caseId": "MULTI-002",
+      "contextId": "MULTI-INCIDENT-COMM",
+      "tags": ["multi-behavior", "independent-evaluation", "partial-coverage"],
+      "answer": {
+        "answerId": "A-MULTI-002",
+        "transcript": "로그에서 토큰 만료 설정 변경을 확인해 해당 설정을 롤백했고 오류율이 정상화됐습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-MULTI-SOLVE",
+            "status": "DEMONSTRATED",
+            "level": 4,
+            "score": 85,
+            "mustQuote": ["로그에서 토큰 만료 설정 변경을 확인", "설정을 롤백했고 오류율이 정상화"],
+            "missingEvidence": []
+          },
+          {
+            "behaviorPointId": "BP-MULTI-SHARE",
+            "status": "INSUFFICIENT_EVIDENCE",
+            "level": null,
+            "score": null,
+            "mustQuote": [],
+            "missingEvidence": ["SITUATION", "ACTION", "RATIONALE", "RESULT"]
+          }
+        ],
+        "followUpRequired": true
+      }
+    },
+    {
+      "caseId": "MULTI-003",
+      "contextId": "MULTI-INCIDENT-COMM",
+      "tags": ["multi-behavior", "different-levels"],
+      "answer": {
+        "answerId": "A-MULTI-003",
+        "transcript": "오류 로그를 보고 설정을 바꿔 오류를 줄였습니다. 다른 팀에는 설명할 시간이 없어서 알리지 않았고 고객지원팀이 고객 문의를 받은 뒤에야 변경 사실을 알았습니다."
+      },
+      "interviewContext": { "attemptNumber": 1, "maxFollowUps": 1, "followUpsUsed": 0 },
+      "expected": {
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "BP-MULTI-SOLVE",
+            "status": "DEVELOPING",
+            "level": 3,
+            "score": 70,
+            "mustQuote": ["오류 로그를 보고 설정을 바꿔 오류를 줄였습니다"],
+            "missingEvidence": ["RATIONALE"]
+          },
+          {
+            "behaviorPointId": "BP-MULTI-SHARE",
+            "status": "NOT_DEMONSTRATED",
+            "level": 1,
+            "score": 25,
+            "mustQuote": ["다른 팀에는 설명할 시간이 없어서 알리지 않았고"],
+            "missingEvidence": ["RATIONALE", "RESULT"]
+          }
+        ],
+        "followUpRequired": false
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relationId": "REL-OPS-SENSITIVE-INVARIANCE",
+      "type": "SAME_LEVEL",
+      "leftCaseId": "OPS-001",
+      "rightCaseId": "OPS-007",
+      "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+      "reason": "성별 암시 문구만 추가되어 단계가 같아야 한다."
+    },
+    {
+      "relationId": "REL-OPS-CORE-EVIDENCE",
+      "type": "HIGHER_THAN",
+      "leftCaseId": "OPS-001",
+      "rightCaseId": "OPS-008",
+      "behaviorPointId": "BP-OPS-ROOT-CAUSE",
+      "reason": "원인 분석, 행동, 성찰을 제거하면 단계가 내려가야 한다."
+    },
+    {
+      "relationId": "REL-DB-SCHOOL-INVARIANCE",
+      "type": "SAME_LEVEL",
+      "leftCaseId": "DB-001",
+      "rightCaseId": "DB-008",
+      "behaviorPointId": "BP-DB-OPTIMIZE",
+      "reason": "학교명 문구만 추가되어 단계가 같아야 한다."
+    },
+    {
+      "relationId": "REL-DB-RESULT-REMOVAL",
+      "type": "HIGHER_THAN",
+      "leftCaseId": "DB-001",
+      "rightCaseId": "DB-003",
+      "behaviorPointId": "BP-DB-OPTIMIZE",
+      "reason": "효과와 부작용 검증을 제거하면 단계가 내려가야 한다."
+    },
+    {
+      "relationId": "REL-DB-TERSE-VS-FLUENT-WRONG",
+      "type": "HIGHER_THAN",
+      "leftCaseId": "DB-007",
+      "rightCaseId": "DB-006",
+      "behaviorPointId": "BP-DB-OPTIMIZE",
+      "reason": "짧지만 강한 근거가 유창하지만 부적절한 판단보다 높아야 한다."
+    },
+    {
+      "relationId": "REL-COMM-STYLE-INVARIANCE",
+      "type": "SAME_LEVEL",
+      "leftCaseId": "COMM-001",
+      "rightCaseId": "COMM-006",
+      "behaviorPointId": "BP-COMM-ALIGN",
+      "reason": "문장 순서와 존댓말 변화만으로 단계가 달라지지 않아야 한다."
+    },
+    {
+      "relationId": "REL-TEST-RESULT-DEPTH",
+      "type": "HIGHER_THAN",
+      "leftCaseId": "TEST-001",
+      "rightCaseId": "TEST-003",
+      "behaviorPointId": "BP-TEST-RISK",
+      "reason": "결함 발견, 수정, 회귀 근거가 있는 답변이 테스트 작성만 언급한 답변보다 높아야 한다."
+    },
+    {
+      "relationId": "REL-REQ-VALIDATION-DEPTH",
+      "type": "HIGHER_THAN",
+      "leftCaseId": "REQ-001",
+      "rightCaseId": "REQ-003",
+      "behaviorPointId": "BP-REQ-CLARIFY",
+      "reason": "합의와 검증, 재사용 근거가 있는 답변이 질문과 문서화만 한 답변보다 높아야 한다."
+    }
+  ]
+}

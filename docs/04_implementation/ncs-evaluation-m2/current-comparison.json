@@ -1,0 +1,23 @@
+{
+  "reportVersion": "ncs-evaluation-m2.v1",
+  "status": "AWAITING_CANDIDATES",
+  "experimentalCandidatesPassed": 0,
+  "provisionalLeader": "baseline-deterministic",
+  "recommendedStrategy": null,
+  "candidates": [
+    {
+      "strategyId": "baseline-deterministic",
+      "resultsPath": "backend/worker/src/experiments/ncs-evaluation/baseline/results.json",
+      "hardGatePassed": true,
+      "hardGateDetail": "PASS",
+      "exactStatusRate": 1,
+      "exactLevelRate": 1,
+      "expectedQuoteCoverage": 0.9789473684210527,
+      "followUpDecisionRate": 1,
+      "repeatabilityRate": 1,
+      "p95LatencyMs": 0.2394000000000034,
+      "averageEstimatedCostUsd": 0,
+      "runCount": 240
+    }
+  ]
+}

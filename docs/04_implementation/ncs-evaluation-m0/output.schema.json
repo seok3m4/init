@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://final-weapon.local/schemas/ncs-evaluation-m0-output.json",
+  "title": "NCS Evaluation M0 Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "caseId",
+    "evidences",
+    "behaviorEvaluations",
+    "coverage",
+    "followUp",
+    "guardrail",
+    "metadata"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "ncs-evaluation-m0.v1"
+    },
+    "caseId": { "type": "string", "minLength": 1 },
+    "evidences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidenceId",
+          "source",
+          "quote",
+          "startChar",
+          "endChar",
+          "claimType",
+          "behaviorPointIds"
+        ],
+        "properties": {
+          "evidenceId": { "type": "string", "minLength": 1 },
+          "source": { "const": "ANSWER_TRANSCRIPT" },
+          "quote": { "type": "string", "minLength": 1 },
+          "startChar": { "type": "integer", "minimum": 0 },
+          "endChar": { "type": "integer", "minimum": 1 },
+          "claimType": {
+            "enum": [
+              "SITUATION",
+              "TASK",
+              "ACTION",
+              "RATIONALE",
+              "RESULT",
+              "REFLECTION",
+              "KNOWLEDGE",
+              "CONSTRAINT",
+              "TRADEOFF",
+              "CONTRADICTION"
+            ]
+          },
+          "behaviorPointIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "behaviorEvaluations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "behaviorPointId",
+          "status",
+          "level",
+          "score",
+          "rationale",
+          "supportingEvidenceIds",
+          "contradictingEvidenceIds",
+          "missingEvidence",
+          "confidence"
+        ],
+        "properties": {
+          "behaviorPointId": { "type": "string", "minLength": 1 },
+          "status": {
+            "enum": [
+              "INSUFFICIENT_EVIDENCE",
+              "NOT_DEMONSTRATED",
+              "LIMITED",
+              "DEVELOPING",
+              "DEMONSTRATED",
+              "STRONGLY_DEMONSTRATED"
+            ]
+          },
+          "level": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "score": {
+            "type": ["integer", "null"],
+            "enum": [null, 25, 50, 70, 85, 100]
+          },
+          "rationale": { "type": "string", "minLength": 1 },
+          "supportingEvidenceIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "contradictingEvidenceIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "missingEvidence": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "SITUATION",
+                "TASK",
+                "ACTION",
+                "RATIONALE",
+                "RESULT",
+                "REFLECTION",
+                "KNOWLEDGE",
+                "CONSTRAINT",
+                "TRADEOFF"
+              ]
+            }
+          },
+          "confidence": { "enum": ["HIGH", "MEDIUM", "LOW"] }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": { "const": "INSUFFICIENT_EVIDENCE" }
+              }
+            },
+            "then": {
+              "properties": {
+                "level": { "type": "null" },
+                "score": { "type": "null" },
+                "supportingEvidenceIds": { "maxItems": 0 }
+              }
+            },
+            "else": {
+              "properties": {
+                "level": { "type": "integer", "minimum": 1, "maximum": 5 },
+                "score": { "enum": [25, 50, 70, 85, 100] }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assessableBehaviorPointCount",
+        "evaluatedBehaviorPointCount",
+        "ratio",
+        "status"
+      ],
+      "properties": {
+        "assessableBehaviorPointCount": { "type": "integer", "minimum": 1 },
+        "evaluatedBehaviorPointCount": { "type": "integer", "minimum": 0 },
+        "ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "status": { "enum": ["SUFFICIENT", "LOW", "INSUFFICIENT"] }
+      }
+    },
+    "followUp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "reason", "missingEvidence", "suggestedQuestion"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reason": { "type": ["string", "null"] },
+        "missingEvidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "SITUATION",
+              "TASK",
+              "ACTION",
+              "RATIONALE",
+              "RESULT",
+              "REFLECTION",
+              "KNOWLEDGE",
+              "CONSTRAINT",
+              "TRADEOFF"
+            ]
+          }
+        },
+        "suggestedQuestion": { "type": ["string", "null"] }
+      }
+    },
+    "guardrail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unsupportedFactDetected",
+        "sensitiveAttributeUsed",
+        "nonverbalSignalUsed",
+        "hiringDecisionLanguageDetected"
+      ],
+      "properties": {
+        "unsupportedFactDetected": { "type": "boolean" },
+        "sensitiveAttributeUsed": { "type": "boolean" },
+        "nonverbalSignalUsed": { "type": "boolean" },
+        "hiringDecisionLanguageDetected": { "type": "boolean" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategyId", "promptVersion", "model"],
+      "properties": {
+        "strategyId": { "type": "string", "minLength": 1 },
+        "promptVersion": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
