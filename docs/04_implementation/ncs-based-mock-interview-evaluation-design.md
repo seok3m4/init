@@ -367,7 +367,60 @@
 - NCS 인증 또는 산업현장 타당성 보장
 - EventBridge 기반 정기 NCS 동기화
 
-## 19. 참고 자료
+## 19. 구현 주체와 완성품 비교 방식
+
+이 문서를 구현하는 현재 워크트리는 한 명의 구현자가 M0 계약부터 평가기, 사용자 route, STT 연동, 결과 리포트까지 하나의 완성품으로 책임진다.
+
+M1에서 여러 평가 전략을 병렬 실행하는 것은 팀원별 기능 분담이 아니다. 다중 Codex 에이전트가 충돌하지 않는 전략 디렉터리에서 후보 평가기를 동시에 만들고, 단일 구현자가 결과를 검증해 하나를 채택하기 위한 내부 실험이다.
+
+다른 팀원은 이 구현의 일부 모듈을 맡지 않는다. 각 팀원은 동일한 설계 문서를 입력으로 사용하되 질문 생성부터 답변 평가와 결과 표시까지 독립적인 완성품 하나를 만든다. 비교와 채택은 부분 코드나 개별 전략이 아니라 다음 공통 시나리오를 실행할 수 있는 완성품 단위로 수행한다.
+
+```text
+직무 선택
+→ 면접 시작
+→ 질문 텍스트 생성
+→ 답변 입력 또는 STT transcript 수집
+→ 행동 포인트별 평가
+→ 근거와 점수가 포함된 결과 표시
+```
+
+## 20. 실행 마일스톤
+
+| 단계 | 목표 | 종료 조건 |
+| --- | --- | --- |
+| M0 | 평가 계약과 기준선 고정 | JSON 계약, 48개 fixture, 실제 baseline 결과, hard gate 검증 완료 |
+| M1 | 후보 평가기 병렬 구현 | 네 전략이 각각 실행 가능하고 48개 case를 5회 평가한 결과를 생성 |
+| M2 | 평가기 비교와 채택 | hard gate를 통과한 후보를 정확도, 근거, 안정성, 비용 순으로 비교해 하나를 채택 |
+| M3 | 제품용 평가 서비스 연결 | 채택 평가기를 API 또는 worker 경계에 연결하고 질문·답변·결과 계약을 고정 |
+| M4 | 텍스트 수직 기능 완성 | 직무 선택부터 질문 생성, 텍스트 답변 입력, 평가 결과 표시까지 route 하나에서 동작 |
+| M5 | 화상면접 통합 | 녹화·실시간 STT transcript를 평가 입력으로 사용하고 최종 결과를 리포트로 제공 |
+
+M1과 M2는 후보 결과가 도착하는 즉시 비교할 수 있으므로 병렬 진행한다. M3 이후에는 채택된 평가기 하나만 제품 경로로 옮긴다.
+
+## 21. 현재 마일스톤 최종 데모
+
+현재 구현 마일스톤의 사용자 수용 기준에는 `/candidate/mock-interview/ncs-evaluation` route를 포함한다. 첫 수직 기능은 카메라나 외부 STT 가용성에 의존하지 않는 텍스트 입력 방식으로 완성한다.
+
+1. 지원자가 직무를 선택한다.
+2. 시작 버튼을 누르면 선택 직무에 맞는 질문 텍스트와 행동 포인트가 생성된다.
+3. 지원자가 textarea에 답변을 입력하고 평가를 요청한다.
+4. 화면에 행동 포인트별 상태, 1~5단계, 환산점수, transcript 근거 인용, 판정 이유를 표시한다.
+5. 근거가 부족하면 부족한 행동 포인트와 꼬리질문을 표시한다.
+6. 민감 속성과 비언어 정보는 NCS 점수에 사용하지 않는다.
+
+route 파일은 기존 Next.js 규칙대로 얇게 유지하고 실제 화면과 상태는 feature 모듈에 둔다. 이후 화상면접 통합에서는 새 녹화·리포트 체계를 만들지 않고 다음 기존 경계를 재사용한다.
+
+- 시작 route: `frontend/src/app/candidate/mock-interview/start/page.tsx`
+- 면접 runtime route: `frontend/src/app/candidate/mock-interviews/[sessionId]/page.tsx`
+- 실시간 STT client: `frontend/src/features/candidate-application-interview/realtime-stt-relay.ts`
+- 실시간 STT relay server: `backend/api/src/modules/interview/realtime-stt-relay.server.ts`
+- 비동기 STT provider: `backend/worker/src/stt-provider.ts`
+- 모의면접 리포트 route: `frontend/src/app/candidate/mock-interview/reports/[reportId]/page.tsx`
+- 리포트 API와 worker: `backend/api/src/modules/report`, `backend/worker/src/mock-ai-task.handler.ts`
+
+텍스트 route에서 검증한 평가 입력은 향후 `textarea 값` 대신 `STT transcript`를 받도록 교체한다. 평가 결과는 기존 `evaluation_reports`, `report_scores`, `report_evidences`와 가드레일 흐름을 통해 최종 리포트에 합류한다.
+
+## 22. 참고 자료
 
 - [NCS 구성](https://www.ncs.go.kr/mobile/rm01/TH10200103.do)
 - [NCS 개념](https://www.ncs.go.kr/th01/TH-102-001-01.scdo)
