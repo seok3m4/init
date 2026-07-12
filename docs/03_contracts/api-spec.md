@@ -2514,6 +2514,43 @@ AI 리포트 금지 기준:
 - 비고/미결:
   - 채용 리포트와 달리 합격/탈락 판단 없음
 
+### API-097 POST /candidate/mock-interviews/{sessionId}/ncs-evaluations
+- 도메인: 지원자 - 모의면접
+- 권한/인증: 지원자 / 지원자 사용자 로그인
+- 관련 화면: NCS 텍스트 모의면접 화면 (`/candidate/mock-interview/ncs-evaluation`), 기존 화상면접 runtime
+- UI Type: system process
+- 상태 코드: 202 Accepted
+- 비동기: Y
+- Path Params: `sessionId`
+- 요청 데이터:
+  - `questionId`: 세션에 포함된 질문 ID
+  - `answerSource`: `STORED_ANSWER | TEXT_INPUT`
+  - `answerId`: `answerSource=STORED_ANSWER`일 때 필수
+  - `transcript`: `answerSource=TEXT_INPUT`일 때 필수, trim 후 1~20,000자
+- 검증/전제조건:
+  - 세션은 현재 지원자 소유의 `MOCK` 세션이어야 한다.
+  - 질문은 세션에 포함되어야 하고 서버가 고정한 NCS 평가 스냅샷을 가져야 한다.
+  - `STORED_ANSWER`는 answer가 세션·질문에 속하고 STT transcript가 존재해야 한다.
+  - `TEXT_INPUT`은 answerId를 허용하지 않고 transcript를 process input으로 사용한다.
+  - 클라이언트가 NCS 기준, 행동 포인트, score map, 기대 단계 또는 평가 전략을 전달할 수 없다.
+- 성공 응답/처리:
+  - `REPORT_GENERATE` process에 `step=NCS_ANSWER_EVALUATION` 작업을 생성한다.
+  - `accepted`, `processType`, `step`, `status`, `queued`, `processLogId`, `sessionId`, `questionId`, 선택적 `answerId`, `callbackTopic`을 반환한다.
+  - 완료 결과는 `GET /ai/jobs/{processLogId}/status`의 `data.output`에서 조회한다.
+  - 출력은 행동 포인트별 상태·단계·고정 점수, 정확한 transcript 근거 인용, 누락 근거, coverage, 선택적 꼬리질문, guardrail 결과를 포함한다.
+- 오류/예외:
+  - 잘못된 source 조합 또는 빈 transcript는 `COMMON_VALIDATION_FAILED`다.
+  - 세션·질문·답변이 없으면 `COMMON_NOT_FOUND`다.
+  - 세션 소유자가 아니면 `COMMON_FORBIDDEN`이다.
+  - 질문의 평가 스냅샷이 없거나 answer transcript가 준비되지 않으면 `COMMON_CONFLICT`다.
+- 관련 ERD 테이블:
+  - candidate_profiles, question_bank, interview_sessions, interview_answers, ai_process_logs
+- 비고/미결:
+  - 상세 request, queue payload, polling output 계약은 `docs/03_contracts/ncs-evaluation-api.md`를 따른다.
+  - M3에서는 기존 `AiProcessType.REPORT_GENERATE`를 재사용하고 step으로 작업을 구분해 Prisma enum migration을 만들지 않는다.
+  - NCS 점수에는 표정, 시선, 억양, 말속도 등 비언어 신호를 사용하지 않는다.
+  - 합격·불합격, 채용 가능성 또는 채용 적합성을 출력하지 않는다.
+
 ## 지원자 - 채용공고/지원
 
 ### API-058 GET /candidate/jobs

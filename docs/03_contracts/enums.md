@@ -99,3 +99,8 @@ API와 DB에서 공유해야 하는 상태값을 정리한다.
 | failure_category | RETRYABLE, NON_RETRYABLE | AI 실패 재시도 가능 여부 |
 | guardrail_result | PASS, BLOCKED, REGENERATED | AI 안전 검증 결과 |
 | embedding_source_type | POSTING_JD, CRITERION_TAG, QUESTION, APPLICATION_DOCUMENT, INTERVIEW_ANSWER, EVALUATION_REPORT | 임베딩 원천 유형 |
+| ncs_answer_source | STORED_ANSWER, TEXT_INPUT | NCS 평가 transcript 원천 |
+| ncs_behavior_evaluation_status | INSUFFICIENT_EVIDENCE, NOT_DEMONSTRATED, LIMITED, DEVELOPING, DEMONSTRATED, STRONGLY_DEMONSTRATED | 행동 포인트 판정 상태 |
+| ncs_evidence_type | SITUATION, TASK, ACTION, RATIONALE, RESULT, REFLECTION, KNOWLEDGE, CONSTRAINT, TRADEOFF | 답변에서 요구하거나 추출하는 근거 유형 |
+| ncs_evaluation_confidence | LOW, MEDIUM, HIGH | 판정 근거의 충분성 표시. 점수 가중치가 아님 |
+| ncs_coverage_status | INSUFFICIENT, LOW, SUFFICIENT | 평가 가능한 행동 포인트 coverage 상태 |
