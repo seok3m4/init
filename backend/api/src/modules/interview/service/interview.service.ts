@@ -35,6 +35,7 @@ import {
   StartMockInterviewResult,
 } from "../interview.runtime.types";
 import { BuiltInNcsEvaluationSnapshotResolver } from "../ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver";
+import { assessNcsEvaluationInputQuality } from "../ncs-evaluation/ncs-evaluation-input-quality";
 import {
   NCS_EVALUATION_SNAPSHOT_RESOLVER,
   type NcsEvaluationSnapshot,
@@ -780,6 +781,7 @@ export class InterviewService {
     }
 
     const source = await this.resolveNcsEvaluationTranscript(session, request);
+    this.assertNcsEvaluationInputQuality(source.transcript);
     const deduplicationKey = this.buildNcsEvaluationDeduplicationKey(
       session.sessionId,
       request.questionId,
@@ -941,6 +943,15 @@ export class InterviewService {
       : "answer:" + answerId;
     const canonicalKey = [sessionId, questionId, sourceIdentity, evaluationSnapshot.snapshotVersion].join(":");
     return "ncs-evaluation:" + createHash("sha256").update(canonicalKey).digest("hex");
+  }
+
+  private assertNcsEvaluationInputQuality(transcript: string): void {
+    const quality = assessNcsEvaluationInputQuality(transcript);
+    if (!quality.assessable) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Interview answer is not assessable for NCS evaluation.", 409, [
+        { field: "transcript", reason: `NCS evaluation input quality gate: ${quality.reason}` },
+      ]);
+    }
   }
 
   private assertNcsEvaluationSessionState(session: RuntimeInterviewSession): void {

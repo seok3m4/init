@@ -143,6 +143,28 @@ describe("mock NCS evaluation API", () => {
     assert.equal(input.payload.transcript, "새 도구를 학습한 뒤 배포 검증에 적용했고 오류율을 비교했습니다.");
   });
 
+  test.each([
+    "[NO_ANSWER] Recording validation failed twice.",
+    "...?!",
+    "잘 모르겠습니다.",
+    "모름 모름 모름",
+  ])("평가 불가 직접 입력은 process 생성 전에 차단한다: %s", async (transcript) => {
+    const { controller, queuePublisher } = createController();
+    const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"]);
+
+    await expectHttpError(
+      () => controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), {
+        questionId: questionIds[0] ?? 0,
+        answerSource: "TEXT_INPUT",
+        transcript,
+      }),
+      409,
+      "COMMON_CONFLICT",
+    );
+
+    assert.equal(queuePublisher.messages.length, 0);
+  });
+
   test("source 조합 위반과 client 평가 설정을 거부한다", async () => {
     const { controller } = createController();
     const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"]);

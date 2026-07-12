@@ -52,6 +52,17 @@ Authorization: candidate bearer token
 - 질문은 해당 세션의 질문 목록에 있어야 한다.
 - 저장 answer는 해당 세션과 questionId에 동시에 속해야 한다.
 
+### Input Quality Gate
+
+API는 평가 작업을 만들기 전에 canonical transcript가 최소한의 평가 가능 조건을 충족하는지 확인한다.
+
+- `[NO_ANSWER]`로 시작하는 녹화/STT 실패 placeholder는 평가하지 않는다.
+- 문자·숫자 없이 문장부호나 공백만 있는 입력은 평가하지 않는다.
+- `음`, `어`, `네`, `모르겠습니다` 같은 filler·응답 회피 표현만 있는 입력은 평가하지 않는다.
+- 같은 문자 또는 같은 짧은 token을 반복한 입력은 평가하지 않는다.
+- 짧다는 이유만으로 차단하지 않는다. 짧지만 구체적인 행동 근거는 worker가 정상 평가한다.
+- quality gate가 차단한 요청은 process를 생성하지 않고 `409 COMMON_CONFLICT`를 반환해 재답변을 요구한다.
+
 ## Accepted Response
 
 ```json
@@ -195,7 +206,7 @@ Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERA
 | 400 | `COMMON_VALIDATION_FAILED` | source 조합 위반, 잘못된 ID, 빈 transcript, 길이 초과 |
 | 403 | `COMMON_FORBIDDEN` | 다른 지원자의 세션 접근 |
 | 404 | `COMMON_NOT_FOUND` | 세션, 질문 또는 answer 없음 |
-| 409 | `COMMON_CONFLICT` | 세션 상태 불일치, 평가 스냅샷 없음, 저장 transcript 미완료 |
+| 409 | `COMMON_CONFLICT` | 세션 상태 불일치, 평가 스냅샷 없음, 저장 transcript 미완료, 평가 불가 transcript |
 
 ## M3 Implementation Order
 
