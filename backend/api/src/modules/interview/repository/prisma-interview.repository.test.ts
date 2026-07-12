@@ -1,5 +1,9 @@
 import { strict as assert } from "node:assert";
-import { QuestionType as PrismaQuestionType } from "@prisma/client";
+import {
+  InterviewStatus as PrismaInterviewStatus,
+  InterviewType as PrismaInterviewType,
+  QuestionType as PrismaQuestionType,
+} from "@prisma/client";
 import { PrismaInterviewRepository } from "./prisma-interview.repository";
 
 describe("PrismaInterviewRepository", () => {
@@ -63,6 +67,53 @@ describe("PrismaInterviewRepository", () => {
       questions.map((question) => question.content),
       ["이 JD에서 가장 자신 있는 업무를 설명해주세요.", "NestJS 장애 대응 경험을 설명해주세요."],
     );
+  });
+
+  it("restores the persisted session question order without an in-memory cache", async () => {
+    const prisma = {
+      interviewSession: {
+        async findFirst() {
+          return {
+            sessionId: 9001n,
+            applicationId: null,
+            candidateId: 1n,
+            interviewType: PrismaInterviewType.MOCK,
+            status: PrismaInterviewStatus.IN_PROGRESS,
+            showQuestionText: true,
+            startedAt: new Date("2026-07-13T00:00:00.000Z"),
+            completedAt: null,
+          };
+        },
+      },
+      interviewSessionQuestion: {
+        async findMany(args: {
+          where: { sessionId: bigint };
+          orderBy: { sortOrder: string };
+          select: { questionId: boolean; runtimeQuestionId: boolean };
+        }) {
+          assert.deepEqual(args, {
+            where: { sessionId: 9001n },
+            orderBy: { sortOrder: "asc" },
+            select: { questionId: true, runtimeQuestionId: true },
+          });
+          return [
+            { questionId: 1202n, runtimeQuestionId: null },
+            { questionId: 1201n, runtimeQuestionId: null },
+          ];
+        },
+      },
+      interviewAnswer: {
+        async findMany() {
+          return [];
+        },
+      },
+    };
+    const repository = new PrismaInterviewRepository(prisma as never);
+
+    const session = await repository.findMockSession(9001);
+
+    assert.deepEqual(session?.questionIds, [1202, 1201]);
+    assert.equal(session?.currentQuestionIndex, 0);
   });
 });
 

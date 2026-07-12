@@ -60,7 +60,8 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | application_documents | document_id | 7 | 지원서 첨부 서류와 파싱 결과 | application_id -> applications.application_id / file_id -> file_assets.file_id |
 | consent_records | consent_id | 5 | 지원/면접 동의 이력 | application_id -> applications.application_id |
 | interview_sessions | session_id | 8 | 모의/채용 면접 세션 | application_id -> applications.application_id / candidate_id -> candidate_profiles.candidate_id |
-| interview_answers | answer_id | 8 | 질문별 영상/음성/STT 답변 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / video_file_id -> file_assets.file_id / audio_file_id -> file_assets.file_id |
+| interview_session_questions | session_question_id | 8 | 세션별 질문 순서와 비공개 질문 스냅샷 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id |
+| interview_answers | answer_id | 9 | 질문별 영상/음성/STT 답변 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / session_question_id -> interview_session_questions.session_question_id / video_file_id -> file_assets.file_id / audio_file_id -> file_assets.file_id |
 | follow_up_questions | follow_up_id | 5 | 답변 기반 꼬리질문 | answer_id -> interview_answers.answer_id |
 | evaluation_reports | report_id | 8 | 평가 리포트 헤더 | application_id -> applications.application_id / session_id -> interview_sessions.session_id |
 | report_scores | score_id | 5 | 평가 항목별 점수 | report_id -> evaluation_reports.report_id / criterion_id -> evaluation_criteria.criterion_id |
@@ -99,8 +100,11 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | consent_records | application_id | applications.application_id | fk_consent_records_application |
 | interview_sessions | application_id | applications.application_id | fk_interview_sessions_application |
 | interview_sessions | candidate_id | candidate_profiles.candidate_id | fk_interview_sessions_candidate |
+| interview_session_questions | session_id | interview_sessions.session_id | fk_interview_session_questions_session |
+| interview_session_questions | question_id | question_bank.question_id | fk_interview_session_questions_question |
 | interview_answers | session_id | interview_sessions.session_id | fk_interview_answers_session |
 | interview_answers | question_id | question_bank.question_id | fk_interview_answers_question |
+| interview_answers | session_question_id | interview_session_questions.session_question_id | fk_interview_answers_session_question |
 | interview_answers | video_file_id | file_assets.file_id | fk_interview_answers_video_file |
 | interview_answers | audio_file_id | file_assets.file_id | fk_interview_answers_audio_file |
 | follow_up_questions | answer_id | interview_answers.answer_id | fk_follow_up_questions_answer |

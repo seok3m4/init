@@ -13,3 +13,9 @@ v0.5를 MVP 구현 단계로 나눈다.
 | M4 | Interview Runtime | 모의/채용 면접 세션, 질문, 답변, STT hook | 답변 저장과 다음 질문 이동 |
 | M5 | AI Report | 서류/답변 평가, 리포트, 근거, 수동 평가 | 기업 평가 상세 화면 구성 |
 | M6 | Hardening | 보안, 개인정보, 알림, CI/CD, 회귀 테스트 | 배포 가능한 품질 기준 충족 |
+
+## M4 Runtime Persistence Invariant
+
+- 세션이 실제로 소비하는 질문 ID와 순서는 `interview_session_questions`에 저장한다.
+- 런타임은 메모리 캐시가 아니라 세션 질문 스냅샷을 기준으로 현재 질문과 완료 조건을 계산한다.
+- 질문 뱅크 변경과 서버 재시작 후에도 진행 중 세션의 질문 수와 순서는 바뀌지 않아야 한다.

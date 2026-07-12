@@ -68,8 +68,6 @@ const FALLBACK_RECRUITING_QUESTIONS: Omit<InterviewQuestion, "questionId" | "isA
 
 @Injectable()
 export class PrismaInterviewRepository implements InterviewRepository {
-  private readonly mockSessionQuestionIds = new Map<number, number[]>();
-  private readonly recruitingSessionQuestionIds = new Map<number, number[]>();
   private mockFallbackQuestionsReady = false;
 
   constructor(private readonly prisma: PrismaService) {}
@@ -119,9 +117,14 @@ export class PrismaInterviewRepository implements InterviewRepository {
         status: PrismaInterviewStatus.IN_PROGRESS,
         showQuestionText: input.showQuestionText,
         startedAt: new Date(input.startedAt),
+        sessionQuestions: {
+          create: input.questionIds.map((questionId, sortOrder) => ({
+            questionId: BigInt(questionId),
+            sortOrder,
+          })),
+        },
       },
     });
-    this.mockSessionQuestionIds.set(Number(session.sessionId), [...input.questionIds]);
     return this.toRuntimeSession(session, input.questionIds);
   }
 
@@ -134,18 +137,10 @@ export class PrismaInterviewRepository implements InterviewRepository {
   }
 
   async saveRecruitingRuntimeSession(session: RuntimeInterviewSession): Promise<RuntimeInterviewSession> {
-    this.recruitingSessionQuestionIds.set(session.sessionId, [...session.questionIds]);
     return this.saveRuntimeSession(session);
   }
 
   async saveRuntimeSession(session: RuntimeInterviewSession): Promise<RuntimeInterviewSession> {
-    if (session.interviewType === "MOCK") {
-      this.mockSessionQuestionIds.set(session.sessionId, [...session.questionIds]);
-    }
-    if (session.interviewType === "RECRUITING") {
-      this.recruitingSessionQuestionIds.set(session.sessionId, [...session.questionIds]);
-    }
-
     const updated = await this.prisma.interviewSession.update({
       where: { sessionId: BigInt(session.sessionId) },
       data: {
@@ -153,6 +148,13 @@ export class PrismaInterviewRepository implements InterviewRepository {
         showQuestionText: session.showQuestionText,
         startedAt: session.startedAt ? new Date(session.startedAt) : undefined,
         completedAt: session.completedAt ? new Date(session.completedAt) : null,
+        sessionQuestions: {
+          deleteMany: {},
+          create: session.questionIds.map((questionId, sortOrder) => ({
+            questionId: BigInt(questionId),
+            sortOrder,
+          })),
+        },
       },
       include: { application: true },
     });
@@ -474,15 +476,22 @@ export class PrismaInterviewRepository implements InterviewRepository {
 
   private async resolveSessionQuestionIds(session: InterviewSessionRecord): Promise<number[]> {
     const sessionId = Number(session.sessionId);
+    const persistedQuestions = await this.prisma.interviewSessionQuestion.findMany({
+      where: { sessionId: session.sessionId },
+      orderBy: { sortOrder: "asc" },
+      select: { questionId: true, runtimeQuestionId: true },
+    });
+    if (persistedQuestions.length > 0) {
+      return persistedQuestions
+        .map((item) => item.questionId ?? item.runtimeQuestionId)
+        .filter((questionId): questionId is bigint => questionId !== null)
+        .map(Number);
+    }
+
     if (session.interviewType === PrismaInterviewType.MOCK) {
-      const cached = this.mockSessionQuestionIds.get(sessionId);
-      if (cached) return [...cached];
       const questionIds = (await this.listQuestions({ interviewType: "MOCK" })).map((question) => question.questionId);
       return this.restoreAnsweredQuestionOrder(sessionId, questionIds);
     }
-
-    const cached = this.recruitingSessionQuestionIds.get(sessionId);
-    if (cached) return [...cached];
 
     const postingId = session.application?.postingId ? Number(session.application.postingId) : undefined;
     if (postingId !== undefined) {

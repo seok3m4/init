@@ -51,6 +51,7 @@
 | `application_documents` | `ApplicationDocument` | D/E |
 | `consent_records` | `ConsentRecord` | D |
 | `interview_sessions` | `InterviewSession` | D/E |
+| `interview_session_questions` | `InterviewSessionQuestion` | D/E |
 | `interview_answers` | `InterviewAnswer` | D/E |
 | `follow_up_questions` | `FollowUpQuestion` | E |
 | `evaluation_reports` | `EvaluationReport` | E |
@@ -72,7 +73,7 @@
 | Account | users, companies, candidate_profiles | 로그인 계정, 기업/지원자 프로필, 기본 파일 참조 |
 | Recruiting | postings, criterion_tags, evaluation_criteria, question_bank, interview_time_policies | 공고, JD, 평가 기준, 질문, 면접 시간 정책 관리 |
 | Application | applications, application_documents, consent_records | 지원서 제출, 서류 파싱, 동의 이력 |
-| Interview | interview_sessions, interview_answers, follow_up_questions | 모의/채용 AI 면접 실행과 답변 |
+| Interview | interview_sessions, interview_session_questions, interview_answers, follow_up_questions | 모의/채용 AI 면접 실행, 세션별 질문 순서와 답변 |
 | Report | evaluation_reports, report_scores, report_evidences, manual_evaluations | AI 평가 결과와 면접관 검토 |
 | AI Infra | ai_process_logs, ai_guardrail_logs, embeddings | AI 처리 상태, 안전성 검증, 검색/추천 |
 | Notification/File | notifications, file_assets | 알림과 업로드 파일 메타데이터 |
@@ -289,6 +290,27 @@
 | started_at | TIMESTAMP | 면접 시작 시각 |
 | completed_at | TIMESTAMP | 면접 완료 시각 |
 
+### interview_session_questions
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| session_question_id | BIGINT PRIMARY KEY | 세션 질문 스냅샷 PK |
+| session_id | BIGINT NOT NULL | 질문을 소비하는 면접 세션 FK |
+| question_id | BIGINT | 질문 뱅크에서 선택한 세션 질문 FK |
+| runtime_question_id | BIGINT UNIQUE | 세션 전용 비공개 질문 식별자 |
+| question_type | VARCHAR(50) | 세션 전용 질문 유형 |
+| content | TEXT | 세션 전용 질문 내용 |
+| sort_order | INTEGER NOT NULL | 세션 안에서의 질문 순서. 0부터 시작 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 세션 질문 고정 시각 |
+
+세션 질문 스냅샷 정책:
+
+- 모의·채용 면접 세션이 선택한 질문 ID와 순서는 세션 생성 또는 런타임 초기화 시 저장한다.
+- 서버 재시작이나 이후 질문 뱅크·질문 세트 변경은 이미 생성된 세션의 질문 순서에 영향을 주지 않는다.
+- 런타임 꼬리질문을 삽입하면 같은 세션의 `sort_order`를 원자적으로 다시 저장한다.
+- 질문 뱅크 질문은 `question_id`만 사용하고, 세션 전용 비공개 질문은 `runtime_question_id`, `question_type`, `content`를 함께 사용한다.
+- 마이그레이션 이전 세션처럼 스냅샷이 없는 레거시 row만 기존 질문 복원 규칙을 fallback으로 사용한다.
+
 ### interview_answers
 
 | Column | Definition | Description |
@@ -296,6 +318,7 @@
 | answer_id | BIGINT PRIMARY KEY | 질문별 답변 PK |
 | session_id | BIGINT NOT NULL | 연결된 면접 세션 FK |
 | question_id | BIGINT | 답변한 질문 FK |
+| session_question_id | BIGINT | 세션 질문 스냅샷 FK |
 | video_file_id | BIGINT | 답변 영상 파일 FK |
 | audio_file_id | BIGINT | 답변 음성 파일 FK |
 | transcript | TEXT | STT로 변환된 답변 스크립트 |

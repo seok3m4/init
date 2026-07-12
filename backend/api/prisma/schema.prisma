@@ -304,6 +304,7 @@ model Question {
   criterion        EvaluationCriterion?       @relation(fields: [criterionId], references: [criterionId])
   answers          InterviewAnswer[]
   questionSetItems InterviewQuestionSetItem[]
+  sessionQuestions InterviewSessionQuestion[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
 
   @@map("question_bank")
@@ -415,6 +416,7 @@ model InterviewSession {
   application           Application?                       @relation(fields: [applicationId], references: [applicationId])
   candidate             CandidateProfile                   @relation(fields: [candidateId], references: [candidateId])
   answers               InterviewAnswer[]
+  sessionQuestions      InterviewSessionQuestion[]
   evaluationReports     EvaluationReport[]
   aiProcessLogs         AiProcessLog[]
   clientPerformanceLogs ClientPerformanceLog[]
@@ -422,6 +424,25 @@ model InterviewSession {
   ncsEvaluationRevisions NcsEvaluationRevision[]
 
   @@map("interview_sessions")
+}
+
+model InterviewSessionQuestion {
+  sessionQuestionId BigInt            @id @default(autoincrement()) @map("session_question_id")
+  sessionId         BigInt            @map("session_id")
+  questionId        BigInt?           @map("question_id")
+  runtimeQuestionId BigInt?           @unique(map: "uq_interview_session_questions_runtime_question") @map("runtime_question_id")
+  questionType      QuestionType?     @map("question_type")
+  content           String?
+  sortOrder         Int               @map("sort_order")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  session           InterviewSession  @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  question          Question?         @relation(fields: [questionId], references: [questionId], onDelete: Restrict)
+  answers           InterviewAnswer[]
+
+  @@unique([sessionId, sortOrder], map: "uq_interview_session_questions_order")
+  @@unique([sessionId, questionId], map: "uq_interview_session_questions_question")
+  @@index([questionId], map: "idx_interview_session_questions_question")
+  @@map("interview_session_questions")
 }
 
 model CandidateMockInterviewPassLedger {
@@ -447,6 +468,7 @@ model InterviewAnswer {
   answerId          BigInt             @id @default(autoincrement()) @map("answer_id")
   sessionId         BigInt             @map("session_id")
   questionId        BigInt?            @map("question_id")
+  sessionQuestionId BigInt?            @map("session_question_id")
   videoFileId       BigInt?            @map("video_file_id")
   audioFileId       BigInt?            @map("audio_file_id")
   transcript        String?
@@ -454,12 +476,14 @@ model InterviewAnswer {
   submittedAt       DateTime?          @map("submitted_at")
   session           InterviewSession   @relation(fields: [sessionId], references: [sessionId])
   question          Question?          @relation(fields: [questionId], references: [questionId])
+  sessionQuestion        InterviewSessionQuestion? @relation(fields: [sessionQuestionId], references: [sessionQuestionId], onDelete: SetNull)
   videoFile         FileAsset?         @relation("VideoFile", fields: [videoFileId], references: [fileId])
   audioFile         FileAsset?         @relation("AudioFile", fields: [audioFileId], references: [fileId])
   followUpQuestions FollowUpQuestion[]
   reportEvidences   ReportEvidence[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
 
+  @@index([sessionQuestionId], map: "idx_interview_answers_session_question")
   @@map("interview_answers")
 }
 

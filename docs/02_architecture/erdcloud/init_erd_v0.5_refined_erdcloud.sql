@@ -348,6 +348,32 @@ CREATE TABLE interview_sessions (
     completed_at TIMESTAMP
 );
 
+CREATE TABLE interview_session_questions (
+    -- 세션 질문 스냅샷 PK
+    session_question_id BIGINT PRIMARY KEY,
+
+    -- 질문을 소비하는 면접 세션 FK
+    session_id BIGINT NOT NULL,
+
+    -- 질문 뱅크에서 선택한 세션 질문 FK
+    question_id BIGINT,
+
+    -- 세션 전용 비공개 질문 식별자
+    runtime_question_id BIGINT,
+
+    -- 세션 전용 질문 유형
+    question_type VARCHAR(50),
+
+    -- 세션 전용 질문 내용
+    content TEXT,
+
+    -- 세션 안에서의 질문 순서
+    sort_order INTEGER NOT NULL,
+
+    -- 세션 질문 고정 시각
+    created_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE interview_answers (
     -- 질문별 답변 PK
     answer_id BIGINT PRIMARY KEY,
@@ -357,6 +383,9 @@ CREATE TABLE interview_answers (
 
     -- 답변한 질문 FK
     question_id BIGINT,
+
+    -- 세션 질문 스냅샷 FK
+    session_question_id BIGINT,
 
     -- 답변 영상 파일 FK
     video_file_id BIGINT,
@@ -694,6 +723,14 @@ ALTER TABLE interview_sessions
     ADD CONSTRAINT fk_interview_sessions_candidate
     FOREIGN KEY (candidate_id) REFERENCES candidate_profiles(candidate_id);
 
+ALTER TABLE interview_session_questions
+    ADD CONSTRAINT fk_interview_session_questions_session
+    FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
+
+ALTER TABLE interview_session_questions
+    ADD CONSTRAINT fk_interview_session_questions_question
+    FOREIGN KEY (question_id) REFERENCES question_bank(question_id);
+
 ALTER TABLE interview_answers
     ADD CONSTRAINT fk_interview_answers_session
     FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
@@ -701,6 +738,10 @@ ALTER TABLE interview_answers
 ALTER TABLE interview_answers
     ADD CONSTRAINT fk_interview_answers_question
     FOREIGN KEY (question_id) REFERENCES question_bank(question_id);
+
+ALTER TABLE interview_answers
+    ADD CONSTRAINT fk_interview_answers_session_question
+    FOREIGN KEY (session_question_id) REFERENCES interview_session_questions(session_question_id);
 
 ALTER TABLE interview_answers
     ADD CONSTRAINT fk_interview_answers_video_file
@@ -814,6 +855,11 @@ CREATE INDEX idx_question_bank_posting ON question_bank(posting_id);
 CREATE INDEX idx_applications_posting ON applications(posting_id);
 CREATE INDEX idx_applications_candidate ON applications(candidate_id);
 CREATE INDEX idx_interview_sessions_application ON interview_sessions(application_id);
+CREATE UNIQUE INDEX uk_interview_session_questions_order ON interview_session_questions(session_id, sort_order);
+CREATE UNIQUE INDEX uk_interview_session_questions_question ON interview_session_questions(session_id, question_id);
+CREATE UNIQUE INDEX uk_interview_session_questions_runtime_question ON interview_session_questions(runtime_question_id);
+CREATE INDEX idx_interview_session_questions_question ON interview_session_questions(question_id);
+CREATE INDEX idx_interview_answers_session_question ON interview_answers(session_question_id);
 CREATE INDEX idx_evaluation_reports_application ON evaluation_reports(application_id);
 CREATE INDEX idx_ai_process_logs_application ON ai_process_logs(application_id);
 CREATE INDEX idx_embeddings_source_type ON embeddings(source_type);
