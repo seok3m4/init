@@ -129,6 +129,16 @@ Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERA
 - `evaluationSnapshot`은 API가 저장 데이터로 구성하며 요청 body에서 복사하지 않는다.
 - 가드레일 `PASS` 또는 `REGENERATED` 전에는 최종 결과를 저장하지 않는다.
 
+### Immutable Evaluation Revision
+
+가드레일을 통과한 제품 NCS 평가는 `ncs_evaluation_revisions`에 append-only revision으로 저장한다.
+
+- `processLogId`당 revision은 한 개이며 기존 revision을 덮어쓰지 않는다.
+- revision은 session, question, 선택적 answer 식별자와 contract/snapshot/strategy version을 보존한다.
+- `inputSnapshotJson`에는 worker가 받은 canonical `kind + payload`를, `outputJson`에는 검증된 제품 output을 저장한다.
+- 리포트는 같은 process의 mutable `ai_process_logs.output_ref`보다 immutable revision을 우선 사용한다.
+- 가드레일 `BLOCKED` 또는 worker 실패 결과는 revision을 만들지 않는다.
+
 ## Polling Output
 
 완료 결과는 기존 `GET /api/v1/ai/jobs/{processLogId}/status`를 사용한다.

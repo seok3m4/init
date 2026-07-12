@@ -60,6 +60,7 @@
 | `notifications` | `Notification` | A/B |
 | `ai_process_logs` | `AiProcessLog` | E |
 | `ai_guardrail_logs` | `AiGuardrailLog` | E |
+| `ncs_evaluation_revisions` | `NcsEvaluationRevision` | E |
 | `embeddings` | `Embedding` | E |
 
 `question_bank`는 DB table 이름만 유지하고 Prisma model은 `Question`으로 둔다. row 하나가 질문 한 건이기 때문이다. `evaluation_criteria`의 Prisma model은 복수형 `EvaluationCriteria`가 아니라 단수형 `EvaluationCriterion`이다. `ai_*` 계열 class/model 이름은 TypeScript 관례에 맞춰 `AiProcessLog`, `AiGuardrailLog`처럼 쓴다.
@@ -398,6 +399,24 @@
 | reason | TEXT | 사유 |
 | failure_category | VARCHAR(40) | BLOCKED 결과의 실패 구분. PASS/REGENERATED는 null |
 | created_at | TIMESTAMP NOT NULL | 생성 시각 |
+
+### ncs_evaluation_revisions
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| revision_id | BIGINT PRIMARY KEY | immutable NCS 평가 revision PK |
+| process_log_id | BIGINT NOT NULL UNIQUE | 가드레일을 통과한 원본 AI process |
+| session_id | BIGINT NOT NULL | 모의면접 세션 |
+| question_id | BIGINT NOT NULL | 평가 질문 |
+| answer_id | BIGINT | `STORED_ANSWER`이면 원본 답변, `TEXT_INPUT`이면 NULL |
+| contract_version | VARCHAR(80) NOT NULL | 제품 평가 계약 버전 |
+| snapshot_version | VARCHAR(128) NOT NULL | 서버 소유 평가 snapshot 버전 |
+| strategy_id | VARCHAR(120) NOT NULL | 평가 전략 식별자 |
+| input_snapshot_json | TEXT NOT NULL | canonical kind·payload 불변 복사본 |
+| output_json | TEXT NOT NULL | 가드레일 통과 제품 output 불변 복사본 |
+| created_at | TIMESTAMP NOT NULL | revision 생성 시각 |
+
+동일 process 재전달은 `process_log_id` unique 제약으로 같은 revision을 재사용한다. 재답변이나 snapshot 변경으로 새 process가 생성되면 별도 revision을 추가한다.
 
 ### embeddings
 

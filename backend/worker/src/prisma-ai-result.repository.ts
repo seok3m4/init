@@ -10,6 +10,7 @@ import {
   GeneratedDraftRecord,
   GeneratedReportRecord,
   GeneratedReportScoreRecord,
+  NcsEvaluationRevisionRecord,
   assertQuestionEvaluationsHaveEvidence,
   TranscriptRecord,
   assertScoresHaveEvidence,
@@ -47,6 +48,9 @@ interface PrismaAiResultClient {
   };
   aiProcessLog: {
     update(args: unknown): Promise<unknown>;
+  };
+  ncsEvaluationRevision: {
+    upsert(args: unknown): Promise<unknown>;
   };
 }
 
@@ -201,6 +205,26 @@ export class PrismaAiResultRepository implements AiResultRepository {
       }
     });
     await this.updateApplicationReportStatus(record, "FAILED");
+  }
+
+  async saveNcsEvaluationRevision(record: NcsEvaluationRevisionRecord): Promise<void> {
+    await this.prisma.ncsEvaluationRevision.upsert({
+      where: { processLogId: BigInt(record.processLogId) },
+      create: {
+        revisionId: this.nextId(),
+        processLogId: BigInt(record.processLogId),
+        sessionId: BigInt(record.sessionId),
+        questionId: BigInt(record.questionId),
+        answerId: record.answerId === undefined ? null : BigInt(record.answerId),
+        contractVersion: record.contractVersion,
+        snapshotVersion: record.snapshotVersion,
+        strategyId: record.strategyId,
+        inputSnapshotJson: JSON.stringify(record.inputSnapshot),
+        outputJson: JSON.stringify(record.output),
+        createdAt: new Date()
+      },
+      update: {}
+    });
   }
 
   private async updateApplicationReportStatus(

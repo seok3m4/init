@@ -796,10 +796,16 @@ export class ReportService {
   }
 
   private async mockNcsEvaluations(sessionId: number): Promise<CandidateNcsAnswerEvaluationView[]> {
-    const [processes, answers] = await Promise.all([
+    const [revisionProcesses, processLogs, answers] = await Promise.all([
+      this.candidateReportRepository.listNcsEvaluationRevisionProcessesBySession(sessionId),
       this.candidateReportRepository.listNcsEvaluationProcessesBySession(sessionId),
       this.interviewRepository.listAnswersBySession(sessionId),
     ]);
+    const immutableProcessIds = new Set(revisionProcesses.map((process) => process.processLogId));
+    const processes = [
+      ...revisionProcesses,
+      ...processLogs.filter((process) => !immutableProcessIds.has(process.processLogId)),
+    ];
     const answersById = new Map(answers.map((answer) => [answer.answerId, answer]));
     const projected = projectLatestCandidateNcsEvaluations(processes).filter((evaluation) => {
       const answer = answersById.get(evaluation.answerId);

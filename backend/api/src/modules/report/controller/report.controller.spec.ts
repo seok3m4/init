@@ -206,7 +206,11 @@ async function runReportControllerAssertions() {
     answerId: ncsMockAnswer.answerId,
     transcript: "I compared query and cache alternatives, implemented the query change, and measured lower p95 latency.",
   });
-  candidateReportRepository.saveReportProcess(ncsProcess);
+  candidateReportRepository.saveNcsEvaluationRevisionProcess(ncsProcess);
+  candidateReportRepository.saveReportProcess({
+    ...ncsProcess,
+    outputRef: JSON.stringify({ contractVersion: "tampered-process-output" }),
+  });
 
   const historyWithOnlyNcsProcess = await controller.listMockReports(validCandidateRequest);
   assert.equal(historyWithOnlyNcsProcess.data.items[0]?.reportStatus, "PENDING");

@@ -156,6 +156,23 @@ export class PrismaCandidateReportRepository implements CandidateReportRepositor
     return processes.map((process) => this.toProcess(process));
   }
 
+  async listNcsEvaluationRevisionProcessesBySession(sessionId: number): Promise<CandidateAiProcessRecord[]> {
+    const revisions = await this.prisma.ncsEvaluationRevision.findMany({
+      where: { sessionId: BigInt(sessionId) },
+      orderBy: [{ createdAt: "desc" }, { revisionId: "desc" }],
+    });
+
+    return revisions.map((revision) => ({
+      processLogId: Number(revision.processLogId),
+      sessionId: Number(revision.sessionId),
+      processType: "REPORT_GENERATE",
+      status: "COMPLETED",
+      inputRef: revision.inputSnapshotJson,
+      outputRef: revision.outputJson,
+      createdAt: revision.createdAt.toISOString(),
+    }));
+  }
+
   private applicationReportWhere(applicationId: number, sessionId?: number): Prisma.EvaluationReportWhereInput[] {
     return [
       { applicationId: BigInt(applicationId) },

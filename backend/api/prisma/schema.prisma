@@ -304,6 +304,7 @@ model Question {
   criterion        EvaluationCriterion?       @relation(fields: [criterionId], references: [criterionId])
   answers          InterviewAnswer[]
   questionSetItems InterviewQuestionSetItem[]
+  ncsEvaluationRevisions NcsEvaluationRevision[]
 
   @@map("question_bank")
 }
@@ -418,6 +419,7 @@ model InterviewSession {
   aiProcessLogs         AiProcessLog[]
   clientPerformanceLogs ClientPerformanceLog[]
   mockPassUsages        CandidateMockInterviewPassLedger[]
+  ncsEvaluationRevisions NcsEvaluationRevision[]
 
   @@map("interview_sessions")
 }
@@ -456,6 +458,7 @@ model InterviewAnswer {
   audioFile         FileAsset?         @relation("AudioFile", fields: [audioFileId], references: [fileId])
   followUpQuestions FollowUpQuestion[]
   reportEvidences   ReportEvidence[]
+  ncsEvaluationRevisions NcsEvaluationRevision[]
 
   @@map("interview_answers")
 }
@@ -573,8 +576,31 @@ model AiProcessLog {
   timingEvents          AiProcessTimingEvent[]
   clientPerformanceLogs ClientPerformanceLog[]
   createdQuestionSets   InterviewQuestionSet[]
+  ncsEvaluationRevision NcsEvaluationRevision?
 
   @@map("ai_process_logs")
+}
+
+model NcsEvaluationRevision {
+  revisionId        BigInt           @id @default(autoincrement()) @map("revision_id")
+  processLogId      BigInt           @unique(map: "uk_ncs_evaluation_revisions_process") @map("process_log_id")
+  sessionId         BigInt           @map("session_id")
+  questionId        BigInt           @map("question_id")
+  answerId          BigInt?          @map("answer_id")
+  contractVersion   String           @map("contract_version") @db.VarChar(80)
+  snapshotVersion   String           @map("snapshot_version") @db.VarChar(128)
+  strategyId        String           @map("strategy_id") @db.VarChar(120)
+  inputSnapshotJson String           @map("input_snapshot_json")
+  outputJson        String           @map("output_json")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  processLog        AiProcessLog     @relation(fields: [processLogId], references: [processLogId], onDelete: Cascade)
+  session           InterviewSession @relation(fields: [sessionId], references: [sessionId])
+  question          Question         @relation(fields: [questionId], references: [questionId])
+  answer            InterviewAnswer? @relation(fields: [answerId], references: [answerId])
+
+  @@index([sessionId, createdAt], map: "idx_ncs_evaluation_revisions_session_created")
+  @@index([answerId, createdAt], map: "idx_ncs_evaluation_revisions_answer_created")
+  @@map("ncs_evaluation_revisions")
 }
 
 model AiProcessTimingEvent {

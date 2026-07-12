@@ -399,6 +399,30 @@ test("PrismaAiResultRepository marks recruiting application report failed with g
   assert.deepEqual(applicationUpdate?.args.data, { reportStatus: "FAILED" });
 });
 
+test("PrismaAiResultRepository stores an immutable NCS evaluation revision by process", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.saveNcsEvaluationRevision({
+    processLogId: 901,
+    sessionId: 101,
+    questionId: 501,
+    answerId: 701,
+    contractVersion: "ncs-evaluation-product.v1",
+    snapshotVersion: "snapshot-v1",
+    strategyId: "evidence-state",
+    inputSnapshot: { kind: "MOCK_NCS_ANSWER_EVALUATION", payload: { sessionId: 101 } },
+    output: { contractVersion: "ncs-evaluation-product.v1", sessionId: 101 },
+  });
+
+  const call = calls.find((item) => item.model === "ncsEvaluationRevision");
+  assert.equal(call?.method, "upsert");
+  assert.equal(call?.args.where.processLogId, BigInt(901));
+  assert.equal(call?.args.create.answerId, BigInt(701));
+  assert.deepEqual(call?.args.update, {});
+  assert.match(call?.args.create.inputSnapshotJson, /MOCK_NCS_ANSWER_EVALUATION/);
+});
+
 function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) {
   return {
     application: {
@@ -463,6 +487,11 @@ function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) 
       },
       async update(args: any) {
         calls.push({ model: "aiProcessLog", method: "update", args });
+      }
+    },
+    ncsEvaluationRevision: {
+      async upsert(args: any) {
+        calls.push({ model: "ncsEvaluationRevision", method: "upsert", args });
       }
     }
   };

@@ -77,7 +77,8 @@ test("고정 점수표와 질문 identity가 변조된 snapshot을 거부한다"
 });
 
 test("worker runner가 제품 평가 output과 PASS guardrail을 저장한다", async () => {
-  const repository = await runWorker(productPayload(), 801);
+  const results = new InMemoryAiResultRepository();
+  const repository = await runWorker(productPayload(), 801, "MOCK_NCS_ANSWER_EVALUATION", results);
   const process = repository.get(801);
   const output = JSON.parse(process.outputRef ?? "{}") as {
     contractVersion?: string;
@@ -88,12 +89,18 @@ test("worker runner가 제품 평가 output과 PASS guardrail을 저장한다", 
   assert.equal(output.contractVersion, "ncs-evaluation-product.v1");
   assert.equal(output.metadata?.strategyId, "evidence-state");
   assert.equal(repository.guardrailLogs.at(-1)?.decision.result, "PASS");
+  const revision = results.ncsEvaluationRevisions.get(801);
+  assert.equal(revision?.sessionId, 101);
+  assert.equal(revision?.questionId, 501);
+  assert.equal(revision?.answerId, 701);
+  assert.equal(revision?.snapshotVersion, "service-ncs-starter-v1:test");
 });
 
 test("평가 근거 quote에 민감·비언어 신호가 섞이면 완료를 차단한다", async () => {
   const transcript =
     "저는 여성 지원자이고 시선을 유지하면서 실행 계획의 풀스캔을 확인하고 복합 인덱스를 적용했습니다. 조회 빈도와 쓰기 비용을 비교했고 p95가 줄었는지 결과를 확인했습니다.";
-  const repository = await runWorker(productPayload({ transcript }), 802);
+  const results = new InMemoryAiResultRepository();
+  const repository = await runWorker(productPayload({ transcript }), 802, "MOCK_NCS_ANSWER_EVALUATION", results);
   const process = repository.get(802);
 
   assert.equal(process.status, "FAILED");
@@ -101,6 +108,7 @@ test("평가 근거 quote에 민감·비언어 신호가 섞이면 완료를 차
   assert.equal(repository.guardrailLogs.at(-1)?.decision.result, "BLOCKED");
   assert.match(repository.guardrailLogs.at(-1)?.decision.reason ?? "", /sensitive attribute/);
   assert.match(repository.guardrailLogs.at(-1)?.decision.reason ?? "", /nonverbal signal/);
+  assert.equal(results.ncsEvaluationRevisions.size, 0);
 });
 
 test("NCS step에 다른 queue kind를 사용하면 non-retryable로 실패한다", async () => {
@@ -115,6 +123,7 @@ async function runWorker(
   payload: ReturnType<typeof productPayload>,
   processLogId: number,
   kind = "MOCK_NCS_ANSWER_EVALUATION",
+  results = new InMemoryAiResultRepository(),
 ): Promise<InMemoryAiProcessLogRepository> {
   const repository = new InMemoryAiProcessLogRepository();
   const queue = new InMemoryAiJobQueue([
@@ -123,7 +132,7 @@ async function runWorker(
       payload,
     }),
   ]);
-  const handler = new MockAiTaskHandler(new InMemoryAiResultRepository());
+  const handler = new MockAiTaskHandler(results);
 
   await new AiWorkerRunner(queue, repository, handler, {
     guardrailPolicyName: "NCS_EVALUATION_PRODUCT_VALIDATE",

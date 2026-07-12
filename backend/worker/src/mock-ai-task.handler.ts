@@ -242,7 +242,18 @@ export class MockAiTaskHandler implements AiTaskHandler {
         const output = this.ncsEvaluationAdapter.evaluate(payload);
         return {
           outputRef: JSON.stringify(output),
-          guardrail: ncsEvaluationGuardrailDecision(output)
+          guardrail: ncsEvaluationGuardrailDecision(output),
+          finalSave: () => this.results.saveNcsEvaluationRevision({
+            processLogId,
+            sessionId: output.sessionId,
+            questionId: output.questionId,
+            ...(output.answerId !== undefined ? { answerId: output.answerId } : {}),
+            contractVersion: output.contractVersion,
+            snapshotVersion: output.evaluationSnapshotVersion,
+            strategyId: output.metadata.strategyId,
+            inputSnapshot: { kind, payload },
+            output,
+          })
         };
       }
       case "EVALUATION_CONTEXT":

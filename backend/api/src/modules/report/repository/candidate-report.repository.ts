@@ -87,4 +87,5 @@ export interface CandidateReportRepository {
   ): MaybePromise<CandidateAiProcessRecord | undefined>;
   findLatestReportProcessBySession(sessionId: number): MaybePromise<CandidateAiProcessRecord | undefined>;
   listNcsEvaluationProcessesBySession(sessionId: number): MaybePromise<CandidateAiProcessRecord[]>;
+  listNcsEvaluationRevisionProcessesBySession(sessionId: number): MaybePromise<CandidateAiProcessRecord[]>;
 }

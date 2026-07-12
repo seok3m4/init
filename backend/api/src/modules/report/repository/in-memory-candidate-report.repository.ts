@@ -14,6 +14,7 @@ export class InMemoryCandidateReportRepository implements CandidateReportReposit
   private readonly reports = new Map<number, CandidateStoredReport>();
   private readonly followUpQuestions = new Map<number, CandidateFollowUpQuestionRecord[]>();
   private readonly reportProcesses: CandidateAiProcessRecord[] = [];
+  private readonly ncsRevisionProcesses: CandidateAiProcessRecord[] = [];
 
   findMockReportStatus(reportId: number): ReportStatus | undefined {
     return this.mockReportStatuses.get(reportId);
@@ -83,6 +84,13 @@ export class InMemoryCandidateReportRepository implements CandidateReportReposit
       .map((process) => ({ ...process }));
   }
 
+  listNcsEvaluationRevisionProcessesBySession(sessionId: number): CandidateAiProcessRecord[] {
+    return this.ncsRevisionProcesses
+      .filter((process) => process.sessionId === sessionId)
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .map((process) => ({ ...process }));
+  }
+
   saveReport(report: CandidateStoredReport): void {
     this.reports.set(report.reportId, this.cloneReport(report));
   }
@@ -95,6 +103,10 @@ export class InMemoryCandidateReportRepository implements CandidateReportReposit
 
   saveReportProcess(process: CandidateAiProcessRecord): void {
     this.reportProcesses.push({ ...process });
+  }
+
+  saveNcsEvaluationRevisionProcess(process: CandidateAiProcessRecord): void {
+    this.ncsRevisionProcesses.push({ ...process, status: "COMPLETED" });
   }
 
   markLatestReportProcessStatus(status: AiProcessStatus): void {

@@ -164,6 +164,18 @@ export interface EmbeddingRecord {
   metadataJson?: string;
 }
 
+export interface NcsEvaluationRevisionRecord {
+  processLogId: number;
+  sessionId: number;
+  questionId: number;
+  answerId?: number;
+  contractVersion: string;
+  snapshotVersion: string;
+  strategyId: string;
+  inputSnapshot: unknown;
+  output: unknown;
+}
+
 export interface AiResultRepository {
   markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void>;
   saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void>;
@@ -175,6 +187,7 @@ export interface AiResultRepository {
   saveCommunicationAnalysis(record: CommunicationAnalysisRecord): Promise<void>;
   saveGeneratedReport(record: GeneratedReportRecord): Promise<void>;
   markReportFailed(record: FailedReportRecord): Promise<void>;
+  saveNcsEvaluationRevision(record: NcsEvaluationRevisionRecord): Promise<void>;
   upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord>;
 }
 
@@ -256,6 +269,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   readonly communicationAnalyses = new Map<number, CommunicationAnalysisRecord>();
   readonly generatedReports = new Map<number, GeneratedReportRecord>();
   readonly failedReports = new Map<number, FailedReportRecord>();
+  readonly ncsEvaluationRevisions = new Map<number, NcsEvaluationRevisionRecord>();
   readonly embeddings = new Map<string, EmbeddingRecord>();
 
   private readonly documentExtractionsById = new Map<number, DocumentExtractionRecord>();
@@ -333,6 +347,12 @@ export class InMemoryAiResultRepository implements AiResultRepository {
 
   async markReportFailed(record: FailedReportRecord): Promise<void> {
     this.failedReports.set(record.reportId, record);
+  }
+
+  async saveNcsEvaluationRevision(record: NcsEvaluationRevisionRecord): Promise<void> {
+    if (!this.ncsEvaluationRevisions.has(record.processLogId)) {
+      this.ncsEvaluationRevisions.set(record.processLogId, structuredClone(record));
+    }
   }
 
   async upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord> {
