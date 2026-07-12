@@ -13,6 +13,7 @@ import {
   NcsEvaluationPollingTimeoutError,
   pollNcsEvaluation,
   queueTextInputNcsEvaluation,
+  saveTextInputPracticeAnswer,
   type NcsBehaviorEvaluation,
   type NcsEvaluationProductOutput,
   type NcsEvidenceType,
@@ -218,13 +219,19 @@ export function NcsTextPracticePage() {
 
     try {
       const api = getCandidateApi();
-      const handoff = await queueTextInputNcsEvaluation({
+      const persistedAnswer = await saveTextInputPracticeAnswer({
         sessionId: session.sessionId,
         questionId: session.question.questionId,
         transcript,
+        saveAnswer: api.saveMockAnswer,
+      });
+      setSavedTranscript(persistedAnswer.transcript);
+      const handoff = await queueTextInputNcsEvaluation({
+        sessionId: session.sessionId,
+        questionId: session.question.questionId,
+        transcript: persistedAnswer.transcript,
         requestEvaluation: api.requestMockNcsEvaluation,
       });
-      setSavedTranscript(transcript);
       const pending: NcsTextPracticeRecovery = {
         version: 1,
         processLogId: handoff.processLogId,
@@ -233,7 +240,7 @@ export function NcsTextPracticePage() {
         focus: session.focus,
         question: session.question,
         currentPrompt,
-        transcript,
+        transcript: persistedAnswer.transcript,
         followUpAttempt,
         storedAt: Date.now(),
       };
@@ -265,7 +272,14 @@ export function NcsTextPracticePage() {
     setError("");
     setMessage("");
     try {
-      await getCandidateApi().completeMockInterview(session.sessionId);
+      const api = getCandidateApi();
+      await saveTextInputPracticeAnswer({
+        sessionId: session.sessionId,
+        questionId: session.question.questionId,
+        transcript: savedTranscript,
+        saveAnswer: api.saveMockAnswer,
+      });
+      await api.completeMockInterview(session.sessionId);
       setSessionCompleted(true);
       setMessage("텍스트 연습을 완료했습니다.");
     } catch (completeError) {
@@ -276,7 +290,14 @@ export function NcsTextPracticePage() {
   async function handleNewQuestion() {
     if (session && savedTranscript && !sessionCompleted) {
       try {
-        await getCandidateApi().completeMockInterview(session.sessionId);
+        const api = getCandidateApi();
+        await saveTextInputPracticeAnswer({
+          sessionId: session.sessionId,
+          questionId: session.question.questionId,
+          transcript: savedTranscript,
+          saveAnswer: api.saveMockAnswer,
+        });
+        await api.completeMockInterview(session.sessionId);
       } catch (completeError) {
         setError(errorMessage(completeError));
         return;

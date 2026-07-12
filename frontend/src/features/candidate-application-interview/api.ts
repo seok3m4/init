@@ -379,6 +379,7 @@ export interface RuntimeQuestionListResponse {
 
 export interface SaveInterviewAnswerRequest {
   questionId: number;
+  answerSource?: "TEXT_INPUT";
   videoFileId?: number;
   videoFile?: RuntimeFileAssetRequest;
   audioFileId?: number;

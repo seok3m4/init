@@ -6,6 +6,7 @@ import {
   pollNcsEvaluation,
   queueStoredAnswerNcsEvaluation,
   queueTextInputNcsEvaluation,
+  saveTextInputPracticeAnswer,
   shouldQueueStoredAnswerNcsEvaluation,
   type NcsAiJobStatus,
   type NcsEvaluationRequest,
@@ -189,6 +190,32 @@ test("queues text practice directly with the TEXT_INPUT contract", async () => {
         questionId: 501,
         answerSource: "TEXT_INPUT",
         transcript: "선택 근거와 검증 결과를 설명했습니다.",
+      },
+    },
+  ]);
+});
+
+test("saves a normalized text practice answer before evaluation", async () => {
+  const requests: Array<{ sessionId: number; body: unknown }> = [];
+  const saved = await saveTextInputPracticeAnswer({
+    sessionId: 101,
+    questionId: 501,
+    transcript: "  12345 67890  ",
+    saveAnswer: async (sessionId, body) => {
+      requests.push({ sessionId, body });
+      return { data: { answer: { answerId: 701 } } };
+    },
+  });
+
+  assert.deepEqual(saved, { answerId: 701, transcript: "12345 67890" });
+  assert.deepEqual(requests, [
+    {
+      sessionId: 101,
+      body: {
+        questionId: 501,
+        answerSource: "TEXT_INPUT",
+        transcript: "12345 67890",
+        durationSeconds: 2,
       },
     },
   ]);

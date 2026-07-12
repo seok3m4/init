@@ -258,6 +258,64 @@ test("mock interview start consumes one candidate mock interview pass", async ()
   assert.deepEqual(passCalls, [{ candidateId: DEV_CANDIDATE_USER.candidateId, passAmount: 1 }]);
 });
 
+test("mock text practice upserts one answer and can complete without media", async () => {
+  const repository = new InMemoryCandidateRepository();
+  const candidateService = new CandidateService(repository);
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
+
+  const started = await controller.startMockInterview(validCandidateRequest, {
+    questionTypes: ["TECHNICAL"],
+    showQuestionText: true,
+  });
+  const questions = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
+  const questionId = questions.data.questions[0]?.questionId ?? 0;
+
+  const first = await controller.saveMockAnswer(validCandidateRequest, String(started.data.sessionId), {
+    questionId,
+    answerSource: "TEXT_INPUT",
+    transcript: "  복합 인덱스를 적용하고 p95를 비교했습니다.  ",
+    durationSeconds: 12,
+  });
+  assert.equal(first.data.answer.transcript, "복합 인덱스를 적용하고 p95를 비교했습니다.");
+  assert.equal(first.data.answer.videoFileId, undefined);
+  assert.equal(first.data.answer.audioFileId, undefined);
+
+  const updated = await controller.saveMockAnswer(validCandidateRequest, String(started.data.sessionId), {
+    questionId,
+    answerSource: "TEXT_INPUT",
+    transcript: "복합 인덱스를 적용한 뒤 같은 부하에서 p95가 2.1초에서 320ms로 줄었습니다.",
+    durationSeconds: 20,
+  });
+  assert.equal(updated.data.answer.answerId, first.data.answer.answerId);
+  assert.equal(updated.data.answer.durationSeconds, 20);
+  assert.match(updated.data.answer.transcript ?? "", /320ms/);
+
+  const completed = await controller.completeMockInterview(validCandidateRequest, String(started.data.sessionId));
+  assert.equal(completed.data.status, "COMPLETED");
+  assert.equal(completed.data.answeredCount, 1);
+  assert.equal(completed.data.totalQuestions, 1);
+
+  const hiddenTextStarted = await controller.startMockInterview(validCandidateRequest, {
+    questionTypes: ["TECHNICAL"],
+    showQuestionText: false,
+  });
+  const hiddenTextQuestions = await controller.listMockQuestions(
+    validCandidateRequest,
+    String(hiddenTextStarted.data.sessionId),
+  );
+  await assertInterviewHttpError(
+    () => controller.saveMockAnswer(validCandidateRequest, String(hiddenTextStarted.data.sessionId), {
+      questionId: hiddenTextQuestions.data.questions[0]?.questionId ?? 0,
+      answerSource: "TEXT_INPUT",
+      transcript: "텍스트 입력을 시도했습니다.",
+      durationSeconds: 5,
+    }),
+    409,
+    "COMMON_CONFLICT",
+  );
+});
+
 test("mock realtime session creates a client handoff for an active interview session", async () => {
   const originalProvider = process.env.AI_INTERVIEWER_REALTIME_PROVIDER;
   process.env.AI_INTERVIEWER_REALTIME_PROVIDER = "mock";

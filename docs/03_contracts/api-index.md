@@ -100,7 +100,7 @@ NestJS 구현은 API path를 그대로 controller 파일명으로 흩뜨리지 �
 | API-045 | 지원자 - 모의면접 | POST | /candidate/mock-interviews/questions/generate | 연습용 질문 목록 구성 | 지원자 / 지원자 사용자 로그인 | Y | 202 Accepted |
 | API-046 | 지원자 - 모의면접 | GET | /candidate/mock-interviews/{sessionId} | 개인 연습용 AI 면접 진행 | 지원자 / 지원자 사용자 로그인 | N | 200 OK |
 | API-047 | 지원자 - 모의면접 | GET | /candidate/mock-interviews/{sessionId}/questions | 질문 음성 안내 및 면접 질문 표시 | 지원자 / 지원자 사용자 로그인 | N | 200 OK |
-| API-048 | 지원자 - 모의면접 | POST | /candidate/mock-interviews/{sessionId}/answers | 영상/음성 답변 녹화 | 지원자 / 지원자 사용자 로그인 | N | 201 Created |
+| API-048 | 지원자 - 모의면접 | POST | /candidate/mock-interviews/{sessionId}/answers | 영상/음성 또는 텍스트 연습 답변 저장 | 지원자 / 지원자 사용자 로그인 | N | 201 Created |
 | API-049 | 지원자 - 모의면접 | POST | /candidate/mock-interviews/{sessionId}/next-question | 다음 질문 이동 및 단축키 지원 | 지원자 / 지원자 사용자 로그인 | N | 200 OK |
 | API-050 | 지원자 - 모의면접 | POST | /candidate/mock-interviews/{sessionId}/stt | STT 처리 | 지원자 / 지원자 사용자 로그인 | Y | 202 Accepted |
 | API-050-RT | 지원자 - 모의면접 | POST | /candidate/mock-interviews/{sessionId}/realtime-session | 실시간 AI 면접 세션 생성 | 지원자 / 지원자 사용자 로그인 | N | 200 OK |

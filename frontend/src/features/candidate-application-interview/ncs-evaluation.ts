@@ -143,6 +143,21 @@ export interface QueueTextInputNcsEvaluationOptions {
   ) => Promise<{ data: NcsEvaluationHandoffResponse }>;
 }
 
+export interface SaveTextInputPracticeAnswerOptions {
+  sessionId: number;
+  questionId: number;
+  transcript: string;
+  saveAnswer: (
+    sessionId: number,
+    body: {
+      questionId: number;
+      answerSource: "TEXT_INPUT";
+      transcript: string;
+      durationSeconds: number;
+    },
+  ) => Promise<{ data: { answer: { answerId: number } } }>;
+}
+
 export type QueueStoredAnswerNcsEvaluationResult =
   | {
       status: "SKIPPED";
@@ -194,6 +209,22 @@ export async function queueTextInputNcsEvaluation(
     transcript: options.transcript.trim(),
   });
   return response.data;
+}
+
+export async function saveTextInputPracticeAnswer(
+  options: SaveTextInputPracticeAnswerOptions,
+): Promise<{ answerId: number; transcript: string }> {
+  const transcript = options.transcript.trim();
+  if (!transcript || transcript.length > 20_000) {
+    throw new Error("텍스트 연습 답변은 1자 이상 20,000자 이하여야 합니다.");
+  }
+  const response = await options.saveAnswer(options.sessionId, {
+    questionId: options.questionId,
+    answerSource: "TEXT_INPUT",
+    transcript,
+    durationSeconds: Math.max(1, Math.ceil(transcript.replace(/\s+/g, "").length / 5)),
+  });
+  return { answerId: response.data.answer.answerId, transcript };
 }
 
 export function parseNcsEvaluationProductOutput(value: unknown): NcsEvaluationProductOutput | undefined {

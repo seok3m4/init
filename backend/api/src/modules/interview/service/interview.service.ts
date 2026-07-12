@@ -67,6 +67,7 @@ export type UploadedInterviewMediaFile = {
 
 type AnswerRequestBody = {
   questionId: number;
+  answerSource?: "TEXT_INPUT";
   videoFileId?: number;
   videoFile?: RuntimeFileAssetDto;
   audioFileId?: number;
@@ -474,6 +475,10 @@ export class InterviewService {
     }
 
     this.assertInProgress(session);
+    const textInputAnswer = requestBody.answerSource === "TEXT_INPUT";
+    if (textInputAnswer) {
+      this.assertTextInputAnswerRequest(session, requestBody);
+    }
 
     let existingAnswer: InterviewAnswer | undefined;
     if (requestBody.retryAnswerId) {
@@ -498,7 +503,7 @@ export class InterviewService {
         ]);
       }
       existingAnswer = await this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId);
-      if (existingAnswer && !requestBody.allowReanswer) {
+      if (existingAnswer && !requestBody.allowReanswer && !textInputAnswer) {
         throw new CandidateDomainError("COMMON_CONFLICT", "Current question has already been answered.", 409, [
           { field: "questionId", reason: "question already answered" },
         ]);
@@ -509,9 +514,14 @@ export class InterviewService {
         { field: "questionId", reason: "question answer is missing" },
       ]);
     }
+    if (textInputAnswer && existingAnswer && (existingAnswer.videoFileId || existingAnswer.audioFileId)) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Text input cannot replace a media answer.", 409, [
+        { field: "answerSource", reason: "TEXT_INPUT can update only an existing text input answer" },
+      ]);
+    }
 
     const skippedForRecordingValidation = requestBody.skipReason === "RECORDING_VALIDATION_FAILED";
-    const videoFile = skippedForRecordingValidation
+    const videoFile = skippedForRecordingValidation || textInputAnswer
       ? undefined
       : await this.resolveAnswerFile(
           requestBody.videoFileId,
@@ -519,7 +529,7 @@ export class InterviewService {
           currentUser,
           "videoFileId",
         );
-    const audioFile = skippedForRecordingValidation
+    const audioFile = skippedForRecordingValidation || textInputAnswer
       ? undefined
       : await this.resolveAnswerFile(
           requestBody.audioFileId,
@@ -527,7 +537,7 @@ export class InterviewService {
           currentUser,
           "audioFileId",
         );
-    if (!skippedForRecordingValidation && !videoFile && !audioFile) {
+    if (!skippedForRecordingValidation && !textInputAnswer && !videoFile && !audioFile) {
       throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "At least one media file is required.", 400, [
         { field: "file", reason: "videoFile/videoFileId or audioFile/audioFileId is required" },
       ]);
@@ -544,20 +554,28 @@ export class InterviewService {
       durationSeconds: requestBody.durationSeconds,
       submittedAt,
     };
-    const answer = requestBody.allowReanswer && existingAnswer
-      ? await this.replaceAnswerAfterReanswerRequest(session, existingAnswer, {
-          videoFileId: videoFile?.fileId,
-          audioFileId: audioFile?.fileId,
-          transcript: submittedTranscript,
-          durationSeconds: requestBody.durationSeconds,
-          submittedAt,
-        })
-      : requestBody.retryAnswerId && existingAnswer
-        ? await this.interviewRepository.updateAnswer({
-            ...answerInput,
-            answerId: existingAnswer.answerId,
-          })
-        : await this.interviewRepository.createAnswer(answerInput);
+    let answer: InterviewAnswer;
+    if (textInputAnswer && existingAnswer) {
+      answer = await this.interviewRepository.updateAnswer({
+        ...answerInput,
+        answerId: existingAnswer.answerId,
+      });
+    } else if (requestBody.allowReanswer && existingAnswer) {
+      answer = await this.replaceAnswerAfterReanswerRequest(session, existingAnswer, {
+        videoFileId: videoFile?.fileId,
+        audioFileId: audioFile?.fileId,
+        transcript: submittedTranscript,
+        durationSeconds: requestBody.durationSeconds,
+        submittedAt,
+      });
+    } else if (requestBody.retryAnswerId && existingAnswer) {
+      answer = await this.interviewRepository.updateAnswer({
+        ...answerInput,
+        answerId: existingAnswer.answerId,
+      });
+    } else {
+      answer = await this.interviewRepository.createAnswer(answerInput);
+    }
     session.updatedAt = submittedAt;
     await this.interviewRepository.saveRuntimeSession(session);
 
@@ -1570,6 +1588,11 @@ export class InterviewService {
         { field: "retryAnswerId", reason: "retryAnswerId and allowReanswer are mutually exclusive" },
       ]);
     }
+    if (requestBody.answerSource !== undefined && requestBody.answerSource !== "TEXT_INPUT") {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "answerSource is invalid.", 400, [
+        { field: "answerSource", reason: "answerSource must be TEXT_INPUT when provided" },
+      ]);
+    }
     const skippedForRecordingValidation = requestBody.skipReason === "RECORDING_VALIDATION_FAILED";
     if (skippedForRecordingValidation) {
       if (requestBody.durationSeconds !== 0) {
@@ -1602,6 +1625,30 @@ export class InterviewService {
       ...(requestBody as Omit<AnswerRequestBody, "allowReanswer">),
       allowReanswer: requestBody.allowReanswer === true,
     };
+  }
+
+  private assertTextInputAnswerRequest(session: RuntimeInterviewSession, requestBody: AnswerRequestBody): void {
+    if (session.interviewType !== "MOCK" || !session.showQuestionText) {
+      throw new CandidateDomainError("COMMON_CONFLICT", "Text input is not enabled for this interview session.", 409, [
+        { field: "answerSource", reason: "TEXT_INPUT requires a MOCK session with showQuestionText enabled" },
+      ]);
+    }
+    if (requestBody.videoFileId || requestBody.videoFile || requestBody.audioFileId || requestBody.audioFile) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Text input cannot include media files.", 400, [
+        { field: "file", reason: "media files are not allowed when answerSource is TEXT_INPUT" },
+      ]);
+    }
+    if (requestBody.skipReason || requestBody.allowReanswer || requestBody.retryAnswerId) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Text input cannot include retry options.", 400, [
+        { field: "answerSource", reason: "TEXT_INPUT cannot be combined with skipReason, allowReanswer, or retryAnswerId" },
+      ]);
+    }
+    const transcript = requestBody.transcript?.trim();
+    if (!transcript || transcript.length > 20_000) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "transcript is invalid.", 400, [
+        { field: "transcript", reason: "TEXT_INPUT transcript must contain 1 to 20,000 characters after trimming" },
+      ]);
+    }
   }
 
   private assertInsertRequest(dto: InsertFollowUpQuestionDto): number {

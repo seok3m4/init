@@ -2263,21 +2263,28 @@ AI 리포트 금지 기준:
 ### API-048 POST /candidate/mock-interviews/{sessionId}/answers
 - 도메인: 지원자 - 모의면접
 - 권한/인증: 지원자 / 지원자 사용자 로그인
-- 관련 화면: AI 모의면접 진행 화면 (/candidate/mock-interviews/{sessionId})
+- 관련 화면: AI 모의면접 진행 화면 (`/candidate/mock-interviews/{sessionId}`), NCS 텍스트 연습 화면 (`/candidate/mock-interview/ncs-practice`)
 - UI Type: section
 - 상태 코드: 201 Created
 - 비동기: N
 - Path Params: sessionId
 - 요청 데이터:
-  - 카메라 스트림, 마이크 스트림, 답변 시간
+  - 공통: `questionId`, `durationSeconds`
+  - 영상/음성 답변: `videoFileId | videoFile | audioFileId | audioFile` 중 하나 이상
+  - 텍스트 연습 답변: `answerSource=TEXT_INPUT`, `transcript`(trim 후 1~20,000자). 미디어와 함께 보낼 수 없다.
   - 답변 파일 메타데이터 허용 MIME: `video/webm`, `video/mp4`, `audio/webm`, `audio/mp4`, `audio/mpeg`, `audio/wav`
   - macOS/Safari 계열 오디오 fallback은 `audio/mp4` MIME과 `.m4a` 파일명을 허용한다.
 - 검증/전제조건:
-  - 장치 권한 허용, 저장 공간 확보
+  - 영상/음성 답변은 장치 권한 허용, 저장 공간 확보가 필요하다.
+  - `TEXT_INPUT`은 `interviewType=MOCK`이고 `showQuestionText=true`인 세션에서만 허용한다.
+  - `TEXT_INPUT`은 `skipReason`, `allowReanswer`, `retryAnswerId`를 허용하지 않는다.
 - 성공 응답/처리:
-  - 답변 파일 업로드 완료
+  - 영상/음성 답변 파일 또는 텍스트 연습 transcript 저장 완료
+  - 동일 세션·질문의 기존 텍스트 답변은 같은 `answerId`로 갱신해 누적 보완 답변을 보존한다.
 - 오류/예외:
   - 녹화 실패 시 재녹화 안내를 표시한다.
+  - 텍스트 모드와 미디어 조합이 잘못되었거나 transcript가 비어 있으면 `COMMON_VALIDATION_FAILED`를 반환한다.
+  - 텍스트 입력이 허용되지 않는 세션이거나 기존 미디어 답변을 덮어쓰려 하면 `COMMON_CONFLICT`를 반환한다.
 - 관련 ERD 테이블:
   - candidate_profiles, file_assets, applications, interview_sessions, interview_answers, ai_process_logs
 - 비고/미결:

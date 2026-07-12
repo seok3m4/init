@@ -41,6 +41,10 @@ export class SaveInterviewAnswerDto {
   questionId!: number;
 
   @IsOptional()
+  @IsIn(["TEXT_INPUT"])
+  answerSource?: "TEXT_INPUT";
+
+  @IsOptional()
   @IsInt()
   @IsPositive()
   videoFileId?: number;
