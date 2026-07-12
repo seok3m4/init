@@ -12,6 +12,7 @@ import {
 import {
   NcsEvaluationPollingTimeoutError,
   pollNcsEvaluation,
+  queueTextInputNcsEvaluation,
   type NcsBehaviorEvaluation,
   type NcsEvaluationProductOutput,
   type NcsEvidenceType,
@@ -217,24 +218,16 @@ export function NcsTextPracticePage() {
 
     try {
       const api = getCandidateApi();
-      if (savedTranscript !== transcript) {
-        await api.saveMockAnswer(session.sessionId, {
-          questionId: session.question.questionId,
-          transcript,
-          durationSeconds: estimateAnswerSeconds(transcript),
-          allowReanswer: savedTranscript.length > 0,
-        });
-        setSavedTranscript(transcript);
-      }
-
-      const handoff = await api.requestMockNcsEvaluation(session.sessionId, {
+      const handoff = await queueTextInputNcsEvaluation({
+        sessionId: session.sessionId,
         questionId: session.question.questionId,
-        answerSource: "TEXT_INPUT",
         transcript,
+        requestEvaluation: api.requestMockNcsEvaluation,
       });
+      setSavedTranscript(transcript);
       const pending: NcsTextPracticeRecovery = {
         version: 1,
-        processLogId: handoff.data.processLogId,
+        processLogId: handoff.processLogId,
         sessionId: session.sessionId,
         jobRole: session.jobRole,
         focus: session.focus,
@@ -610,10 +603,6 @@ function evaluationStatusLabel(status: NcsBehaviorEvaluation["status"]): string 
 
 function levelLabel(level: number): string {
   return ["", "1단계", "2단계", "3단계", "4단계", "5단계"][level] ?? String(level) + "단계";
-}
-
-function estimateAnswerSeconds(transcript: string): number {
-  return Math.max(1, Math.ceil(transcript.replace(/\s+/g, "").length / 5));
 }
 
 function errorMessage(error: unknown): string {

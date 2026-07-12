@@ -7,7 +7,7 @@ import {
   InMemoryCandidateRepository,
 } from "../../candidate";
 import { InterviewController } from "../controller/interview.controller";
-import type { NcsEvaluationRequestDto } from "../dto/interview.runtime.dto";
+import { NcsEvaluationRequestDto } from "../dto/interview.runtime.dto";
 import { InMemoryInterviewRepository } from "../repository/in-memory-interview.repository";
 import { InterviewService } from "../service/interview.service";
 import { InMemoryReportRepository } from "../../report/repository/in-memory-report.repository";
@@ -91,11 +91,14 @@ describe("mock NCS evaluation API", () => {
     const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"]);
     const questionId = questionIds[0] ?? 0;
 
-    const response = await controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), {
+    const request = Object.assign(new NcsEvaluationRequestDto(), {
       questionId,
       answerSource: "TEXT_INPUT",
       transcript: "  복합 인덱스를 적용하고 동일 부하에서 p95를 다시 측정했습니다.  ",
     });
+    assert.equal(Object.hasOwn(request, "answerId"), true);
+
+    const response = await controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), request);
 
     assert.equal(response.data.accepted, true);
     assert.equal(response.data.processType, "REPORT_GENERATE");
@@ -147,11 +150,14 @@ describe("mock NCS evaluation API", () => {
       durationSeconds: 30,
     });
 
-    const response = await controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), {
+    const request = Object.assign(new NcsEvaluationRequestDto(), {
       questionId,
       answerSource: "STORED_ANSWER",
       answerId: saved.data.answer.answerId,
     });
+    assert.equal(Object.hasOwn(request, "transcript"), true);
+
+    const response = await controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), request);
     const input = parseCanonicalInput(response.data.inputRef);
 
     assert.equal(response.data.answerId, saved.data.answer.answerId);

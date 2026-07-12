@@ -133,6 +133,16 @@ export interface QueueStoredAnswerNcsEvaluationOptions {
   ) => Promise<{ data: NcsEvaluationHandoffResponse }>;
 }
 
+export interface QueueTextInputNcsEvaluationOptions {
+  sessionId: number;
+  questionId: number;
+  transcript: string;
+  requestEvaluation: (
+    sessionId: number,
+    body: NcsEvaluationRequest,
+  ) => Promise<{ data: NcsEvaluationHandoffResponse }>;
+}
+
 export type QueueStoredAnswerNcsEvaluationResult =
   | {
       status: "SKIPPED";
@@ -173,6 +183,17 @@ export async function queueStoredAnswerNcsEvaluation(
     answerId: options.answerId,
   });
   return { status: "QUEUED", handoff: response.data };
+}
+
+export async function queueTextInputNcsEvaluation(
+  options: QueueTextInputNcsEvaluationOptions,
+): Promise<NcsEvaluationHandoffResponse> {
+  const response = await options.requestEvaluation(options.sessionId, {
+    questionId: options.questionId,
+    answerSource: "TEXT_INPUT",
+    transcript: options.transcript.trim(),
+  });
+  return response.data;
 }
 
 export function parseNcsEvaluationProductOutput(value: unknown): NcsEvaluationProductOutput | undefined {

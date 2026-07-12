@@ -5,6 +5,7 @@ import {
   parseNcsEvaluationProductOutput,
   pollNcsEvaluation,
   queueStoredAnswerNcsEvaluation,
+  queueTextInputNcsEvaluation,
   shouldQueueStoredAnswerNcsEvaluation,
   type NcsAiJobStatus,
   type NcsEvaluationRequest,
@@ -150,6 +151,44 @@ test("queues assessable mock answers with the STORED_ANSWER contract", async () 
         questionId: 501,
         answerSource: "STORED_ANSWER",
         answerId: 701,
+      },
+    },
+  ]);
+});
+
+test("queues text practice directly with the TEXT_INPUT contract", async () => {
+  const requests: Array<{ sessionId: number; body: NcsEvaluationRequest }> = [];
+  const handoff = await queueTextInputNcsEvaluation({
+    sessionId: 101,
+    questionId: 501,
+    transcript: "  선택 근거와 검증 결과를 설명했습니다.  ",
+    requestEvaluation: async (sessionId, body) => {
+      requests.push({ sessionId, body });
+      return {
+        data: {
+          accepted: true,
+          processType: "REPORT_GENERATE",
+          step: "NCS_ANSWER_EVALUATION",
+          status: "PENDING",
+          queued: true,
+          processLogId: 902,
+          sessionId,
+          questionId: body.questionId,
+          inputRef: "text-input",
+          callbackTopic: "ai.interview.ncs-answer-evaluation.requested",
+        },
+      };
+    },
+  });
+
+  assert.equal(handoff.processLogId, 902);
+  assert.deepEqual(requests, [
+    {
+      sessionId: 101,
+      body: {
+        questionId: 501,
+        answerSource: "TEXT_INPUT",
+        transcript: "선택 근거와 검증 결과를 설명했습니다.",
       },
     },
   ]);

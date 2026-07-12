@@ -871,7 +871,7 @@ export class InterviewService {
           { field: "answerId", reason: "answerId must be a positive integer when answerSource is STORED_ANSWER" },
         ]);
       }
-      if (Object.hasOwn(requestBody, "transcript")) {
+      if (requestBody.transcript !== undefined) {
         throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "Stored answer transcript cannot be overridden.", 400, [
           { field: "transcript", reason: "transcript is forbidden when answerSource is STORED_ANSWER" },
         ]);
@@ -883,7 +883,7 @@ export class InterviewService {
       };
     }
 
-    if (Object.hasOwn(requestBody, "answerId")) {
+    if (requestBody.answerId !== undefined) {
       throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "answerId is forbidden for direct text input.", 400, [
         { field: "answerId", reason: "answerId is forbidden when answerSource is TEXT_INPUT" },
       ]);
