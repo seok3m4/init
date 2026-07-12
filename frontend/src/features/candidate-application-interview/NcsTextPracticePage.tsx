@@ -482,6 +482,30 @@ export function NcsTextPracticePage() {
                   </div>
                 </div>
 
+                {result.evaluationBasis ? (
+                  <section className={styles.evaluationBasis} aria-labelledby="ncs-evaluation-basis-title">
+                    <header>
+                      <div>
+                        <span data-source={result.evaluationBasis.sourceKind.toLowerCase()}>
+                          {result.evaluationBasis.sourceKind === "OFFICIAL_NCS" ? "공식 NCS" : "서비스 합성 프로필"}
+                        </span>
+                        <h3 id="ncs-evaluation-basis-title">{result.evaluationBasis.unit.name}</h3>
+                      </div>
+                      <code>{result.evaluationBasis.unit.code}</code>
+                    </header>
+                    <p>{result.evaluationBasis.unit.definition}</p>
+                    <ul>
+                      {result.evaluationBasis.behaviorPoints.map((point) => (
+                        <li key={point.behaviorPointId}>
+                          <strong>{point.description}</strong>
+                          <span>{point.requiredEvidence.map((type) => EVIDENCE_LABELS[type]).join(" · ")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <small>{result.evaluationBasis.sourceVersion}</small>
+                  </section>
+                ) : null}
+
                 <div className={styles.resultGrid}>
                   <section aria-labelledby="ncs-behavior-title">
                     <h3 id="ncs-behavior-title">행동 기준</h3>

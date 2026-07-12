@@ -2,6 +2,8 @@ import type { QuestionType } from "../../interview";
 import type {
   CandidateNcsAnswerEvaluationView,
   CandidateNcsBehaviorEvaluationView,
+  CandidateNcsEvaluationBasisView,
+  CandidateNcsEvidenceType,
 } from "../candidate-report.types";
 import type { CandidateAiProcessRecord } from "../repository/candidate-report.repository";
 import { parseNcsEvaluationJobOutput } from "./ncs-evaluation-job-output";
@@ -9,10 +11,11 @@ import { parseNcsEvaluationJobOutput } from "./ncs-evaluation-job-output";
 type ProductBehaviorEvaluation = Omit<CandidateNcsBehaviorEvaluationView, "behaviorPointDescription">;
 type ProductOutput = Omit<
   CandidateNcsAnswerEvaluationView,
-  "processLogId" | "answerId" | "questionType" | "questionContent" | "sortOrder" | "behaviorEvaluations"
+  "processLogId" | "answerId" | "questionType" | "questionContent" | "sortOrder" | "behaviorEvaluations" | "evaluationBasis"
 > & {
   answerId?: number;
   behaviorEvaluations: ProductBehaviorEvaluation[];
+  evaluationBasis?: CandidateNcsEvaluationBasisView;
 };
 
 interface SnapshotPresentation {
@@ -22,6 +25,7 @@ interface SnapshotPresentation {
   questionType?: QuestionType;
   questionContent?: string;
   behaviorPointDescriptions: Map<string, string>;
+  evaluationBasis: CandidateNcsEvaluationBasisView;
 }
 
 const QUESTION_TYPES = new Set<QuestionType>([
@@ -31,6 +35,17 @@ const QUESTION_TYPES = new Set<QuestionType>([
   "SITUATION",
   "FOLLOW_UP",
   "CLOSING",
+]);
+const EVIDENCE_TYPES = new Set<CandidateNcsEvidenceType>([
+  "SITUATION",
+  "TASK",
+  "ACTION",
+  "RATIONALE",
+  "RESULT",
+  "REFLECTION",
+  "KNOWLEDGE",
+  "CONSTRAINT",
+  "TRADEOFF",
 ]);
 
 export function projectLatestCandidateNcsEvaluations(
@@ -91,6 +106,7 @@ export function projectCandidateNcsEvaluation(
     ...(presentation.questionType ? { questionType: presentation.questionType } : {}),
     ...(presentation.questionContent ? { questionContent: presentation.questionContent } : {}),
     evaluationSnapshotVersion: output.evaluationSnapshotVersion,
+    evaluationBasis: presentation.evaluationBasis,
     evidences: output.evidences,
     behaviorEvaluations: output.behaviorEvaluations.map((evaluation) => ({
       ...evaluation,
@@ -108,7 +124,9 @@ function parseSnapshotPresentation(inputRef: string): SnapshotPresentation | und
   const payload = input && recordOf(input.payload);
   const snapshot = payload && recordOf(payload.evaluationSnapshot);
   const question = snapshot && recordOf(snapshot.question);
-  if (!input || input.kind !== "MOCK_NCS_ANSWER_EVALUATION" || !payload || !snapshot || !question) {
+  const context = snapshot && recordOf(snapshot.ncsContext);
+  const unit = context && recordOf(context.unit);
+  if (!input || input.kind !== "MOCK_NCS_ANSWER_EVALUATION" || !payload || !snapshot || !question || !context || !unit) {
     return undefined;
   }
 
@@ -119,15 +137,52 @@ function parseSnapshotPresentation(inputRef: string): SnapshotPresentation | und
     return undefined;
   }
 
+  const sourceKind = context.sourceKind;
+  const categoryType = context.categoryType;
+  const sourceVersion = nonEmptyText(context.version);
+  const unitCode = nonEmptyText(unit.code);
+  const unitName = nonEmptyText(unit.name);
+  const unitDefinition = nonEmptyText(unit.definition);
+  const unitLevel = unit.level;
+  const jobRole = snapshot.jobRole === undefined || snapshot.jobRole === null ? null : nonEmptyText(snapshot.jobRole);
+  if (
+    !["OFFICIAL_NCS", "SYNTHETIC_NCS_LIKE"].includes(String(sourceKind)) ||
+    !["OCCUPATIONAL_BASIC", "JOB_PERFORMANCE"].includes(String(categoryType)) ||
+    !sourceVersion ||
+    !unitCode ||
+    !unitName ||
+    !unitDefinition ||
+    (snapshot.jobRole !== undefined && snapshot.jobRole !== null && !jobRole) ||
+    (unitLevel !== null && (!Number.isInteger(unitLevel) || Number(unitLevel) < 1))
+  ) {
+    return undefined;
+  }
+
   const behaviorPointDescriptions = new Map<string, string>();
+  const behaviorPoints: CandidateNcsEvaluationBasisView["behaviorPoints"] = [];
   for (const point of snapshot.behaviorPoints) {
     const record = recordOf(point);
     const behaviorPointId = record && nonEmptyText(record.behaviorPointId);
     const description = record && nonEmptyText(record.description);
-    if (!behaviorPointId || !description || behaviorPointDescriptions.has(behaviorPointId)) {
+    const sourceElementCodes = record && stringArray(record.sourceElementCodes);
+    const requiredEvidence = record && stringArray(record.requiredEvidence);
+    if (
+      !behaviorPointId ||
+      !description ||
+      !sourceElementCodes ||
+      !requiredEvidence ||
+      requiredEvidence.some((type) => !EVIDENCE_TYPES.has(type as CandidateNcsEvidenceType)) ||
+      behaviorPointDescriptions.has(behaviorPointId)
+    ) {
       return undefined;
     }
     behaviorPointDescriptions.set(behaviorPointId, description);
+    behaviorPoints.push({
+      behaviorPointId,
+      description,
+      sourceElementCodes,
+      requiredEvidence: requiredEvidence as CandidateNcsEvidenceType[],
+    });
   }
   if (behaviorPointDescriptions.size === 0) return undefined;
 
@@ -142,6 +197,19 @@ function parseSnapshotPresentation(inputRef: string): SnapshotPresentation | und
     ...(questionType ? { questionType } : {}),
     ...(questionContent ? { questionContent } : {}),
     behaviorPointDescriptions,
+    evaluationBasis: {
+      sourceKind: sourceKind as CandidateNcsEvaluationBasisView["sourceKind"],
+      sourceVersion,
+      categoryType: categoryType as CandidateNcsEvaluationBasisView["categoryType"],
+      jobRole: jobRole ?? null,
+      unit: {
+        code: unitCode,
+        name: unitName,
+        level: unitLevel as number | null,
+        definition: unitDefinition,
+      },
+      behaviorPoints,
+    },
   };
 }
 
@@ -165,4 +233,12 @@ function positiveInteger(value: unknown): number | undefined {
 
 function nonEmptyText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const values = value.map(nonEmptyText);
+  if (values.some((item) => !item)) return undefined;
+  const strings = values as string[];
+  return new Set(strings).size === strings.length ? strings : undefined;
 }

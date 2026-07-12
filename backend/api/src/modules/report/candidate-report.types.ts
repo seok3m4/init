@@ -78,6 +78,25 @@ export interface CandidateNcsBehaviorEvaluationView {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 }
 
+export interface CandidateNcsEvaluationBasisView {
+  sourceKind: "OFFICIAL_NCS" | "SYNTHETIC_NCS_LIKE";
+  sourceVersion: string;
+  categoryType: "OCCUPATIONAL_BASIC" | "JOB_PERFORMANCE";
+  jobRole: string | null;
+  unit: {
+    code: string;
+    name: string;
+    level: number | null;
+    definition: string;
+  };
+  behaviorPoints: Array<{
+    behaviorPointId: string;
+    description: string;
+    sourceElementCodes: string[];
+    requiredEvidence: CandidateNcsEvidenceType[];
+  }>;
+}
+
 export interface CandidateNcsAnswerEvaluationView {
   processLogId: number;
   contractVersion: "ncs-evaluation-product.v1";
@@ -88,6 +107,7 @@ export interface CandidateNcsAnswerEvaluationView {
   questionContent?: string;
   sortOrder?: number;
   evaluationSnapshotVersion: string;
+  evaluationBasis: CandidateNcsEvaluationBasisView;
   evidences: CandidateNcsEvidenceView[];
   behaviorEvaluations: CandidateNcsBehaviorEvaluationView[];
   coverage: {

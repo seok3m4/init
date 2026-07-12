@@ -17,10 +17,13 @@ test("제품 payload를 evidence-state 결과 계약으로 변환한다", () => 
   const output = adapter.evaluate(payload);
 
   assert.equal(output.contractVersion, "ncs-evaluation-product.v1");
-  assert.equal(output.evaluationSnapshotVersion, "service-ncs-starter-v1:test");
+  assert.equal(output.evaluationSnapshotVersion, "service-ncs-starter-v2:test");
   assert.equal(output.sessionId, 101);
   assert.equal(output.questionId, 501);
   assert.equal(output.answerId, 701);
+  assert.equal(output.evaluationBasis.jobRole, "백엔드 개발자");
+  assert.equal(output.evaluationBasis.unit.code, "SERVICE-JOB-BACKEND-TECHNICAL-DECISION");
+  assert.equal(output.evaluationBasis.behaviorPoints[0]?.behaviorPointId, "backend-technical-decision-bp-01");
   assert.equal(output.metadata.strategyId, "evidence-state");
   assert.equal(output.metadata.strategyVersion, "evidence-state-rules-v1");
   assert.equal(output.metadata.model, "deterministic-evidence-state-v1");
@@ -46,6 +49,17 @@ test("근거 부족은 null 점수와 꼬리질문으로 반환한다", () => {
   assert.equal(output.coverage.status, "INSUFFICIENT");
   assert.equal(output.followUp.required, true);
   assert.ok(output.followUp.suggestedQuestion);
+});
+
+test("평가 가능한 답변도 필수 근거가 빠지면 꼬리질문을 반환한다", () => {
+  const adapter = new ProductEvidenceStateNcsEvaluationAdapter();
+  const output = adapter.evaluate(productPayload({ transcript: "실행 계획을 확인했습니다." }));
+
+  assert.notEqual(output.behaviorEvaluations[0]?.status, "INSUFFICIENT_EVIDENCE");
+  assert.notEqual(output.behaviorEvaluations[0]?.score, null);
+  assert.equal(output.followUp.required, true);
+  assert.ok(output.followUp.missingEvidence.includes("RESULT"));
+  assert.match(output.followUp.suggestedQuestion ?? "", /확인한 결과/u);
 });
 
 test("follow-up 질문에서는 추가 꼬리질문 생성을 중단한다", () => {
@@ -93,7 +107,7 @@ test("worker runner가 제품 평가 output과 PASS guardrail을 저장한다", 
   assert.equal(revision?.sessionId, 101);
   assert.equal(revision?.questionId, 501);
   assert.equal(revision?.answerId, 701);
-  assert.equal(revision?.snapshotVersion, "service-ncs-starter-v1:test");
+  assert.equal(revision?.snapshotVersion, "service-ncs-starter-v2:test");
 });
 
 test("평가 근거 quote에 민감·비언어 신호가 섞이면 완료를 차단한다", async () => {
@@ -172,8 +186,9 @@ function productPayload(
     transcript,
     evaluationSnapshot: {
       contractVersion: "ncs-evaluation-product.v1",
-      snapshotVersion: "service-ncs-starter-v1:test",
+      snapshotVersion: "service-ncs-starter-v2:test",
       locale: "ko-KR",
+      jobRole: "백엔드 개발자",
       question: {
         questionId: "501",
         questionType: "EXPERIENCE" as "EXPERIENCE" | "SITUATION" | "FOLLOW_UP",
@@ -181,16 +196,16 @@ function productPayload(
       },
       ncsContext: {
         sourceKind: "SYNTHETIC_NCS_LIKE",
-        version: "service-ncs-starter-v1",
+        version: "service-ncs-starter-v2",
         categoryType: "JOB_PERFORMANCE",
         unit: {
-          code: "SERVICE-JOB-TECHNICAL-DECISION",
-          name: "기술 의사결정",
+          code: "SERVICE-JOB-BACKEND-TECHNICAL-DECISION",
+          name: "백엔드 개발자 - 기술 의사결정",
           level: null,
           definition: "주어진 제약에서 기술 대안을 비교하고 근거와 검증 결과를 설명하는 능력",
           elements: [
             {
-              elementCode: "SERVICE-JOB-TECHNICAL-DECISION-01",
+              elementCode: "SERVICE-JOB-BACKEND-TECHNICAL-DECISION-01",
               name: "대안 비교와 결과 검증",
             },
           ],
@@ -198,9 +213,9 @@ function productPayload(
       },
       behaviorPoints: [
         {
-          behaviorPointId: "technical-decision-bp-01",
+          behaviorPointId: "backend-technical-decision-bp-01",
           description: "기술적 제약과 대안을 구분하고 선택 근거, 실행 행동, 검증 결과를 연결해 설명한다.",
-          sourceElementCodes: ["SERVICE-JOB-TECHNICAL-DECISION-01"],
+          sourceElementCodes: ["SERVICE-JOB-BACKEND-TECHNICAL-DECISION-01"],
           observability: "INTERVIEW",
           requiredEvidence: ["ACTION", "RATIONALE", "RESULT", "TRADEOFF"],
         },

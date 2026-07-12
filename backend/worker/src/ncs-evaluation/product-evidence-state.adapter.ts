@@ -20,6 +20,7 @@ interface NcsEvaluationProductSnapshot {
   contractVersion: typeof NCS_EVALUATION_PRODUCT_CONTRACT_VERSION;
   snapshotVersion: string;
   locale: "ko-KR";
+  jobRole: string | null;
   question: NcsQuestionInput;
   ncsContext: NcsEvaluationContext;
   behaviorPoints: NcsBehaviorPoint[];
@@ -40,6 +41,7 @@ export interface NcsEvaluationProductOutput {
   sessionId: number;
   questionId: number;
   answerId?: number;
+  evaluationBasis: NcsEvaluationBasis;
   evidences: Array<Omit<NcsEvidence, "source">>;
   behaviorEvaluations: NcsEvaluationOutput["behaviorEvaluations"];
   coverage: NcsEvaluationOutput["coverage"];
@@ -50,6 +52,25 @@ export interface NcsEvaluationProductOutput {
     strategyVersion: string;
     model: string;
   };
+}
+
+export interface NcsEvaluationBasis {
+  sourceKind: NcsEvaluationContext["sourceKind"];
+  sourceVersion: string;
+  categoryType: NcsEvaluationContext["categoryType"];
+  jobRole: string | null;
+  unit: {
+    code: string;
+    name: string;
+    level: number | null;
+    definition: string;
+  };
+  behaviorPoints: Array<{
+    behaviorPointId: string;
+    description: string;
+    sourceElementCodes: string[];
+    requiredEvidence: NcsEvidenceType[];
+  }>;
 }
 
 const EVIDENCE_TYPES: readonly NcsEvidenceType[] = [
@@ -63,6 +84,18 @@ const EVIDENCE_TYPES: readonly NcsEvidenceType[] = [
   "CONSTRAINT",
   "TRADEOFF",
 ];
+
+const EVIDENCE_LABELS: Record<NcsEvidenceType, string> = {
+  SITUATION: "상황",
+  TASK: "담당 과제",
+  ACTION: "직접 수행한 행동",
+  RATIONALE: "선택 근거",
+  RESULT: "확인한 결과",
+  REFLECTION: "회고와 재발 방지",
+  KNOWLEDGE: "적용한 지식",
+  CONSTRAINT: "제약 조건",
+  TRADEOFF: "검토한 대안",
+};
 
 const SENSITIVE_ATTRIBUTE_PATTERN =
   /(?:제\s*이름은|저는\s*(?:여성|남성)|나이는?\s*\d+\s*살|대학교\s*출신|출신\s*학교|출신지는?|장애인|신체\s*장애|건강\s*상태)/iu;
@@ -140,6 +173,7 @@ function parseSnapshot(value: unknown): NcsEvaluationProductSnapshot {
     contractVersion: NCS_EVALUATION_PRODUCT_CONTRACT_VERSION,
     snapshotVersion: requiredText(snapshot.snapshotVersion, "payload.evaluationSnapshot.snapshotVersion"),
     locale: "ko-KR",
+    jobRole: optionalJobRole(snapshot.jobRole, "payload.evaluationSnapshot.jobRole"),
     question: parseQuestion(snapshot.question),
     ncsContext,
     behaviorPoints,
@@ -332,10 +366,11 @@ function toProductOutput(
   evaluated: NcsEvaluationOutput,
 ): NcsEvaluationProductOutput {
   const evidences = evaluated.evidences.map(({ source: _source, ...evidence }) => evidence);
+  const followUp = toProductFollowUp(parsed, evaluated);
   const evidenceText = evidences.map((evidence) => evidence.quote).join("\n");
   const decisionText = JSON.stringify({
     behaviorEvaluations: evaluated.behaviorEvaluations,
-    followUp: evaluated.followUp,
+    followUp,
   });
 
   return {
@@ -344,10 +379,11 @@ function toProductOutput(
     sessionId: parsed.sessionId,
     questionId: parsed.questionId,
     ...(parsed.answerId !== undefined ? { answerId: parsed.answerId } : {}),
+    evaluationBasis: toEvaluationBasis(parsed.evaluationSnapshot),
     evidences,
     behaviorEvaluations: evaluated.behaviorEvaluations,
     coverage: evaluated.coverage,
-    followUp: evaluated.followUp,
+    followUp,
     guardrail: {
       unsupportedFactDetected: evaluated.guardrail.unsupportedFactDetected,
       sensitiveAttributeUsed: evaluated.guardrail.sensitiveAttributeUsed || SENSITIVE_ATTRIBUTE_PATTERN.test(evidenceText),
@@ -363,6 +399,25 @@ function toProductOutput(
   };
 }
 
+function toProductFollowUp(
+  parsed: ParsedNcsEvaluationPayload,
+  evaluated: NcsEvaluationOutput,
+): NcsEvaluationOutput["followUp"] {
+  const missingEvidence = EVIDENCE_TYPES.filter((type) =>
+    evaluated.behaviorEvaluations.some((evaluation) => evaluation.missingEvidence.includes(type)),
+  );
+  const required = missingEvidence.length > 0 && parsed.evaluationSnapshot.question.questionType !== "FOLLOW_UP";
+
+  return {
+    required,
+    reason: required ? "필수 행동 근거가 부족해 한 차례 추가 확인이 필요합니다." : null,
+    missingEvidence,
+    suggestedQuestion: required
+      ? `방금 답변에서 다음 근거를 구체적으로 설명해 주세요: ${missingEvidence.map((type) => EVIDENCE_LABELS[type]).join(", ")}.`
+      : null,
+  };
+}
+
 function assertProductOutputInvariants(
   output: NcsEvaluationProductOutput,
   transcript: string,
@@ -370,6 +425,10 @@ function assertProductOutputInvariants(
 ): void {
   const expectedBehaviorPointIds = new Set(snapshot.behaviorPoints.map((point) => point.behaviorPointId));
   const evidenceIds = new Set<string>();
+
+  if (JSON.stringify(output.evaluationBasis) !== JSON.stringify(toEvaluationBasis(snapshot))) {
+    throw invalid("output.evaluationBasis", "must be copied from the immutable evaluation snapshot");
+  }
 
   for (const evidence of output.evidences) {
     if (evidenceIds.has(evidence.evidenceId)) {
@@ -419,6 +478,34 @@ function assertProductOutputInvariants(
   ) {
     throw invalid("output.coverage", "coverage counts are inconsistent");
   }
+
+  if (new Set(output.followUp.missingEvidence).size !== output.followUp.missingEvidence.length) {
+    throw invalid("output.followUp.missingEvidence", "values must be unique");
+  }
+  if (output.followUp.required && (!output.followUp.reason || !output.followUp.suggestedQuestion)) {
+    throw invalid("output.followUp", "required follow-up must include a reason and suggested question");
+  }
+}
+
+function toEvaluationBasis(snapshot: NcsEvaluationProductSnapshot): NcsEvaluationBasis {
+  return {
+    sourceKind: snapshot.ncsContext.sourceKind,
+    sourceVersion: snapshot.ncsContext.version,
+    categoryType: snapshot.ncsContext.categoryType,
+    jobRole: snapshot.jobRole,
+    unit: {
+      code: snapshot.ncsContext.unit.code,
+      name: snapshot.ncsContext.unit.name,
+      level: snapshot.ncsContext.unit.level,
+      definition: snapshot.ncsContext.unit.definition,
+    },
+    behaviorPoints: snapshot.behaviorPoints.map((point) => ({
+      behaviorPointId: point.behaviorPointId,
+      description: point.description,
+      sourceElementCodes: [...point.sourceElementCodes],
+      requiredEvidence: [...point.requiredEvidence],
+    })),
+  };
 }
 
 function canonicalTranscript(value: unknown): string {
@@ -469,6 +556,13 @@ function positiveInteger(value: unknown, field: string): number {
 
 function optionalPositiveInteger(value: unknown, field: string): number | undefined {
   return value === undefined ? undefined : positiveInteger(value, field);
+}
+
+function optionalJobRole(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  const jobRole = requiredText(value, field).trim();
+  if (jobRole.length > 80) throw invalid(field, "must contain at most 80 characters");
+  return jobRole;
 }
 
 function oneOf<T extends string>(value: unknown, choices: readonly T[], field: string): T {

@@ -59,12 +59,32 @@ export interface NcsBehaviorEvaluation {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 }
 
+export interface NcsEvaluationBasis {
+  sourceKind: "OFFICIAL_NCS" | "SYNTHETIC_NCS_LIKE";
+  sourceVersion: string;
+  categoryType: "OCCUPATIONAL_BASIC" | "JOB_PERFORMANCE";
+  jobRole: string | null;
+  unit: {
+    code: string;
+    name: string;
+    level: number | null;
+    definition: string;
+  };
+  behaviorPoints: Array<{
+    behaviorPointId: string;
+    description: string;
+    sourceElementCodes: string[];
+    requiredEvidence: NcsEvidenceType[];
+  }>;
+}
+
 export interface NcsEvaluationProductOutput {
   contractVersion: "ncs-evaluation-product.v1";
   evaluationSnapshotVersion: string;
   sessionId: number;
   questionId: number;
   answerId?: number;
+  evaluationBasis?: NcsEvaluationBasis;
   evidences: NcsEvaluationEvidence[];
   behaviorEvaluations: NcsBehaviorEvaluation[];
   coverage: {
@@ -177,6 +197,25 @@ const SCORE_BY_LEVEL: Record<number, number> = {
   4: 85,
   5: 100,
 };
+const STATUS_BY_LEVEL: Record<number, NcsEvaluationStatus> = {
+  1: "NOT_DEMONSTRATED",
+  2: "LIMITED",
+  3: "DEVELOPING",
+  4: "DEMONSTRATED",
+  5: "STRONGLY_DEMONSTRATED",
+};
+const EVIDENCE_TYPES = new Set<NcsEvidenceType>([
+  "SITUATION",
+  "TASK",
+  "ACTION",
+  "RATIONALE",
+  "RESULT",
+  "REFLECTION",
+  "KNOWLEDGE",
+  "CONSTRAINT",
+  "TRADEOFF",
+]);
+const CLAIM_TYPES = new Set([...EVIDENCE_TYPES, "CONTRADICTION"]);
 
 export function shouldQueueStoredAnswerNcsEvaluation(mode: string, questionType: string): boolean {
   return mode === "mock" && NCS_ASSESSABLE_QUESTION_TYPES.has(questionType);
@@ -240,7 +279,8 @@ export function parseNcsEvaluationProductOutput(value: unknown): NcsEvaluationPr
     !validCoverage(value.coverage) ||
     !validFollowUp(value.followUp) ||
     !validGuardrail(value.guardrail) ||
-    !validMetadata(value.metadata)
+    !validMetadata(value.metadata) ||
+    (Object.hasOwn(value, "evaluationBasis") && !validEvaluationBasis(value.evaluationBasis))
   ) {
     return undefined;
   }
@@ -250,6 +290,7 @@ export function parseNcsEvaluationProductOutput(value: unknown): NcsEvaluationPr
   if (!value.evidences.every(validEvidence) || !value.behaviorEvaluations.every(validBehaviorEvaluation)) {
     return undefined;
   }
+  if (!validOutputRelations(value)) return undefined;
   return value as unknown as NcsEvaluationProductOutput;
 }
 
@@ -297,8 +338,9 @@ function validEvidence(value: unknown): boolean {
     isNonNegativeInteger(value.startChar) &&
     isNonNegativeInteger(value.endChar) &&
     Number(value.endChar) > Number(value.startChar) &&
-    isNonEmptyText(value.claimType) &&
-    isStringArray(value.behaviorPointIds)
+    typeof value.claimType === "string" &&
+    CLAIM_TYPES.has(value.claimType) &&
+    isUniqueStringArray(value.behaviorPointIds)
   );
 }
 
@@ -307,9 +349,10 @@ function validBehaviorEvaluation(value: unknown): boolean {
     return false;
   }
   if (
-    !isStringArray(value.supportingEvidenceIds, true) ||
-    !isStringArray(value.contradictingEvidenceIds, true) ||
-    !isStringArray(value.missingEvidence, true) ||
+    !isUniqueStringArray(value.supportingEvidenceIds, true) ||
+    !isUniqueStringArray(value.contradictingEvidenceIds, true) ||
+    !isUniqueStringArray(value.missingEvidence, true) ||
+    value.missingEvidence.some((type) => !EVIDENCE_TYPES.has(type as NcsEvidenceType)) ||
     !["HIGH", "MEDIUM", "LOW"].includes(String(value.confidence))
   ) {
     return false;
@@ -317,7 +360,10 @@ function validBehaviorEvaluation(value: unknown): boolean {
   if (value.status === "INSUFFICIENT_EVIDENCE") {
     return value.level === null && value.score === null;
   }
-  return isPositiveInteger(value.level) && Number(value.level) <= 5 && value.score === SCORE_BY_LEVEL[Number(value.level)];
+  return isPositiveInteger(value.level) &&
+    Number(value.level) <= 5 &&
+    value.score === SCORE_BY_LEVEL[Number(value.level)] &&
+    value.status === STATUS_BY_LEVEL[Number(value.level)];
 }
 
 function validCoverage(value: unknown): boolean {
@@ -333,13 +379,96 @@ function validCoverage(value: unknown): boolean {
 }
 
 function validFollowUp(value: unknown): boolean {
-  if (!isRecord(value) || typeof value.required !== "boolean" || !isStringArray(value.missingEvidence, true)) {
+  if (
+    !isRecord(value) ||
+    typeof value.required !== "boolean" ||
+    !isUniqueStringArray(value.missingEvidence, true) ||
+    value.missingEvidence.some((type) => !EVIDENCE_TYPES.has(type as NcsEvidenceType))
+  ) {
     return false;
   }
   if (value.required) {
     return isNonEmptyText(value.reason) && isNonEmptyText(value.suggestedQuestion);
   }
   return value.reason === null && value.suggestedQuestion === null;
+}
+
+function validEvaluationBasis(value: unknown): value is NcsEvaluationBasis {
+  if (!isRecord(value) || !isRecord(value.unit) || !Array.isArray(value.behaviorPoints) || value.behaviorPoints.length === 0) {
+    return false;
+  }
+  if (
+    !["OFFICIAL_NCS", "SYNTHETIC_NCS_LIKE"].includes(String(value.sourceKind)) ||
+    !["OCCUPATIONAL_BASIC", "JOB_PERFORMANCE"].includes(String(value.categoryType)) ||
+    !isNonEmptyText(value.sourceVersion) ||
+    !(value.jobRole === null || (isNonEmptyText(value.jobRole) && value.jobRole.length <= 80)) ||
+    !isNonEmptyText(value.unit.code) ||
+    !isNonEmptyText(value.unit.name) ||
+    !isNonEmptyText(value.unit.definition) ||
+    !(value.unit.level === null || isPositiveInteger(value.unit.level))
+  ) {
+    return false;
+  }
+  const ids = new Set<string>();
+  for (const point of value.behaviorPoints) {
+    if (!isRecord(point)) return false;
+    if (
+      !isNonEmptyText(point.behaviorPointId) ||
+      ids.has(point.behaviorPointId) ||
+      !isNonEmptyText(point.description) ||
+      !isUniqueStringArray(point.sourceElementCodes) ||
+      !isUniqueStringArray(point.requiredEvidence) ||
+      point.requiredEvidence.some((type) => !EVIDENCE_TYPES.has(type as NcsEvidenceType))
+    ) {
+      return false;
+    }
+    ids.add(point.behaviorPointId);
+  }
+  return true;
+}
+
+function validOutputRelations(value: Record<string, unknown>): boolean {
+  const evidences = value.evidences as Array<Record<string, unknown>>;
+  const evaluations = value.behaviorEvaluations as Array<Record<string, unknown>>;
+  const evidenceIds = new Set<string>();
+  for (const evidence of evidences) {
+    const evidenceId = evidence.evidenceId as string;
+    if (evidenceIds.has(evidenceId)) return false;
+    evidenceIds.add(evidenceId);
+  }
+
+  const behaviorIds = new Set<string>();
+  let evaluatedCount = 0;
+  for (const evaluation of evaluations) {
+    const behaviorPointId = evaluation.behaviorPointId as string;
+    if (behaviorIds.has(behaviorPointId)) return false;
+    behaviorIds.add(behaviorPointId);
+    if (evaluation.status !== "INSUFFICIENT_EVIDENCE") evaluatedCount += 1;
+    const supporting = evaluation.supportingEvidenceIds as string[];
+    const contradicting = evaluation.contradictingEvidenceIds as string[];
+    if (
+      supporting.some((id) => !evidenceIds.has(id)) ||
+      contradicting.some((id) => !evidenceIds.has(id)) ||
+      supporting.some((id) => contradicting.includes(id))
+    ) {
+      return false;
+    }
+  }
+  for (const evidence of evidences) {
+    if ((evidence.behaviorPointIds as string[]).some((id) => !behaviorIds.has(id))) return false;
+  }
+
+  const basis = value.evaluationBasis as NcsEvaluationBasis | undefined;
+  if (basis) {
+    const basisIds = new Set(basis.behaviorPoints.map((point) => point.behaviorPointId));
+    if (basisIds.size !== behaviorIds.size || [...behaviorIds].some((id) => !basisIds.has(id))) return false;
+  }
+
+  const coverage = value.coverage as NcsEvaluationProductOutput["coverage"];
+  const expectedRatio = evaluations.length === 0 ? 0 : evaluatedCount / evaluations.length;
+  return coverage.assessableBehaviorPointCount === evaluations.length &&
+    coverage.evaluatedBehaviorPointCount === evaluatedCount &&
+    Math.abs(coverage.ratio - expectedRatio) < 0.000001;
 }
 
 function validGuardrail(value: unknown): boolean {
@@ -363,6 +492,10 @@ function validMetadata(value: unknown): boolean {
 
 function isStringArray(value: unknown, allowEmpty = false): boolean {
   return Array.isArray(value) && (allowEmpty || value.length > 0) && value.every(isNonEmptyText);
+}
+
+function isUniqueStringArray(value: unknown, allowEmpty = false): value is string[] {
+  return isStringArray(value, allowEmpty) && new Set(value as string[]).size === (value as string[]).length;
 }
 
 function isPositiveInteger(value: unknown): boolean {
@@ -391,16 +524,26 @@ function throwIfAborted(signal?: AbortSignal): void {
 
 function waitFor(milliseconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(resolve, milliseconds);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timeoutId);
-        const error = new Error("평가 요청이 취소되었습니다.");
-        error.name = "AbortError";
-        reject(error);
-      },
-      { once: true },
-    );
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const onTimeout = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      cleanup();
+      const error = new Error("평가 요청이 취소되었습니다.");
+      error.name = "AbortError";
+      reject(error);
+    };
+    timeoutId = setTimeout(onTimeout, milliseconds);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
   });
 }

@@ -43,6 +43,17 @@ test("extracts an explicit evidence state before mapping a decision", () => {
   assert.equal(decision.score, 85);
 });
 
+test("recognizes a verified non-regression statement as result evidence", () => {
+  const input = createInput(
+    "인증 우회 위험을 확인했습니다. 요청 단위 권한 검증을 적용했습니다. 내부 호출 우회 위험 때문에 게이트웨이 차단보다 요청 단위 검증을 선택했습니다. 우회 요청이 차단되고 정상 요청 오류율이 증가하지 않은 것을 확인했습니다.",
+  );
+  const state = extractBehaviorEvidenceStates(createEvidenceStateMaterial(input))[0];
+
+  assert.ok(state.availableEvidence.includes("RESULT"));
+  assert.equal(state.missingEvidence.includes("RESULT"), false);
+  assert.equal(mapEvidenceState(state).level, 4);
+});
+
 test("uses exact transcript offsets while ignoring sensitive and nonverbal-only signals", () => {
   const evaluator = new EvidenceStateNcsEvaluator();
   const sensitiveInput = createInput(

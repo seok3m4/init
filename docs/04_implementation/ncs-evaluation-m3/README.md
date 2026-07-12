@@ -28,6 +28,8 @@ STORED_ANSWER ──┘
 | Worker | 제품 snapshot을 M0 입력으로 검증·변환 후 evidence-state 실행 | quote offset, evidence 참조, level-score map 재검증 |
 | Guardrail | 민감 속성·비언어 신호·채용 판단 표현을 점수 근거에서 제외 | 금지 신호가 evidence quote에 섞이면 process 완료 차단 |
 | Polling | 기존 GET /api/v1/ai/jobs/{processLogId}/status 사용 | input/output identity와 snapshot version이 일치한 결과만 노출 |
+| Session snapshot | 세션 생성 시 질문별 직무 평가 프로필을 JSONB로 고정 | 같은 session/question 최초값 재사용, 서버 재시작·프로필 변경 격리 |
+| Transparency | 결과의 evaluationBasis에 source, 직무, 능력단위와 행동 기준 포함 | worker output과 immutable input snapshot 일치 검증 |
 
 **INTRO**, **CLOSING**은 현재 NCS 점수 대상이 아니다. **TECHNICAL**, **EXPERIENCE**, **SITUATION**, **FOLLOW_UP** 질문만 평가 snapshot을 가진다.
 
@@ -79,10 +81,17 @@ node scripts/verify-ncs-evaluation-m3.mjs
 ## Known Limits
 
 - 현재 snapshot source는 **SYNTHETIC_NCS_LIKE**다. 공식 NCS 카탈로그 코드·버전·원문 연결은 아직 없다.
-- snapshot은 service profile에서 결정적으로 생성되고 queue payload에 불변 복사되지만, 세션별 snapshot 자체를 DB에 영속하지 않는다.
-- API는 계약상의 deduplication key를 생성하지만 동일 key의 기존 process를 DB 수준에서 재사용하지 않는다.
 - 규칙 기반 한국어 evaluator이므로 실제 사용자 발화와 STT 오류에 대한 별도 calibration이 필요하다.
-- 평가 결과는 ai_process_logs.output_ref에 저장한다. 최종 통합 리포트 테이블 연결은 후속 단계다.
+- 내장 직무 프로필은 8개 개발 직무의 합성 기준이며 NCS 전문가 검증, NCS 인증 또는 채용 성과 예측력을 의미하지 않는다.
+- 실제 화상면접에서 수집한 발화·STT·재답변 데이터가 없어 현장 분포의 오탐·미탐과 사용자 이해도는 아직 검증하지 못했다.
+
+## Post-M3 Hardening
+
+- 동일 deduplication key의 PENDING, RUNNING, COMPLETED process를 DB unique 제약으로 재사용한다.
+- 가드레일 통과 결과를 `ncs_evaluation_revisions`에 append-only로 저장한다.
+- `STORED_ANSWER` 최신 유효 revision을 모의면접 리포트의 `ncsEvaluations`에 투영한다.
+- 텍스트 route의 polling context를 sessionStorage에 보관하고 timeout·새로고침 뒤 같은 process를 재조회한다.
+- API 시작 시 선택한 직무 프로필을 `ncs_evaluation_snapshots`에 고정하고 결과 화면에서 합성/공식 출처를 구분한다.
 
 ## M4 Ready
 

@@ -31,6 +31,14 @@ describe("NCS evaluation report projection", () => {
     expect(projected[0]?.behaviorEvaluations[0]?.behaviorPointDescription).toBe(
       "선택 근거, 실행 행동, 검증 결과를 연결해 설명한다.",
     );
+    expect(projected[0]?.evaluationBasis).toMatchObject({
+      sourceKind: "SYNTHETIC_NCS_LIKE",
+      sourceVersion: "service-ncs-starter-v2",
+      jobRole: "백엔드 개발자",
+      unit: {
+        code: "SERVICE-JOB-BACKEND-TECHNICAL-DECISION",
+      },
+    });
     expect(projected[0]?.guardrail).toEqual({
       unsupportedFactDetected: false,
       sensitiveAttributeUsed: false,
@@ -85,8 +93,9 @@ function evaluationFixture() {
       transcript,
       evaluationSnapshot: {
         contractVersion: "ncs-evaluation-product.v1",
-        snapshotVersion: "service-ncs-starter-v1:test",
+        snapshotVersion: "service-ncs-starter-v2:test",
         locale: "ko-KR",
+        jobRole: "백엔드 개발자",
         question: {
           questionId: "501",
           questionType: "EXPERIENCE",
@@ -94,11 +103,11 @@ function evaluationFixture() {
         },
         ncsContext: {
           sourceKind: "SYNTHETIC_NCS_LIKE",
-          version: "service-ncs-starter-v1",
+          version: "service-ncs-starter-v2",
           categoryType: "JOB_PERFORMANCE",
           unit: {
-            code: "SERVICE-JOB-TECHNICAL-DECISION",
-            name: "기술 의사결정",
+            code: "SERVICE-JOB-BACKEND-TECHNICAL-DECISION",
+            name: "백엔드 개발자 - 기술 의사결정",
             level: null,
             definition: "기술 대안을 비교하고 결과를 검증하는 능력",
             elements: [

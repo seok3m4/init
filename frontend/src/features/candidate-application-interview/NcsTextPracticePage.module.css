@@ -429,6 +429,102 @@
   overflow-wrap: anywhere;
 }
 
+.evaluationBasis {
+  display: grid;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.12);
+}
+
+.evaluationBasis header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.evaluationBasis header > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.evaluationBasis header span {
+  width: fit-content;
+  padding: 3px 6px;
+  color: #7a4b08;
+  font-size: 11px;
+  font-weight: 800;
+  background: #faebdd;
+  border-radius: 4px;
+}
+
+.evaluationBasis header span[data-source="official_ncs"] {
+  color: #0f6a3c;
+  background: #d5f2df;
+}
+
+.evaluationBasis h3 {
+  color: #191919;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.evaluationBasis code {
+  max-width: 42%;
+  padding: 4px 6px;
+  color: rgba(55, 53, 47, 0.62);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: right;
+  overflow-wrap: anywhere;
+  background: #f7f7f5;
+  border-radius: 4px;
+}
+
+.evaluationBasis > p {
+  margin: 0;
+  color: #37352f;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.evaluationBasis ul {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.evaluationBasis li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid rgba(55, 53, 47, 0.08);
+}
+
+.evaluationBasis li strong {
+  min-width: 0;
+  color: #191919;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.evaluationBasis li span,
+.evaluationBasis small {
+  color: rgba(55, 53, 47, 0.55);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.evaluationBasis small {
+  justify-self: end;
+}
+
 .resultGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -641,6 +737,7 @@
 
   .answerFooter,
   .resultHeader,
+  .evaluationBasis header,
   .followUp,
   .resultActions {
     align-items: stretch;
@@ -665,6 +762,16 @@
 
   .summary > div:last-child {
     border-bottom: 0;
+  }
+
+  .evaluationBasis code {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .evaluationBasis li {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }
 

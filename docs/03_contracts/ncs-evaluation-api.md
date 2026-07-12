@@ -52,6 +52,15 @@ Authorization: candidate bearer token
 - 질문은 해당 세션의 질문 목록에 있어야 한다.
 - 저장 answer는 해당 세션과 questionId에 동시에 속해야 한다.
 
+### Session Evaluation Snapshot
+
+- 모의면접 시작 요청의 `jobRole`은 trim 후 최대 80자이며, 서버가 평가 가능한 질문별 프로필을 선택하는 입력이다.
+- 텍스트 연습 화면이 제공하는 백엔드, 프론트엔드, 풀스택, AI/ML, 데이터, DevOps/SRE, QA, 보안 직무는 각각 다른 합성 직무 프로필을 사용한다.
+- 서버는 세션 생성 시 평가 가능한 질문마다 `ncs_evaluation_snapshots` row를 생성하고 `jobRole`, 계약·snapshot 버전과 전체 snapshot JSON을 고정한다.
+- 같은 `sessionId + questionId`의 최초 snapshot은 이후 프로필 코드나 질문 뱅크가 변경돼도 덮어쓰지 않는다.
+- 마이그레이션 이전 세션처럼 snapshot row가 없는 경우에만 평가 요청 시 현재 서버 프로필을 한 번 생성해 원자적으로 예약한다.
+- 현재 내장 프로필은 `SYNTHETIC_NCS_LIKE`이며 공식 NCS 코드·원문·인증으로 표시하지 않는다.
+
 ### Input Quality Gate
 
 API는 평가 작업을 만들기 전에 canonical transcript가 최소한의 평가 가능 조건을 충족하는지 확인한다.
@@ -160,6 +169,26 @@ Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERA
       "sessionId": 101,
       "questionId": 501,
       "answerId": 701,
+      "evaluationBasis": {
+        "sourceKind": "SYNTHETIC_NCS_LIKE",
+        "sourceVersion": "service-ncs-starter-v2",
+        "categoryType": "JOB_PERFORMANCE",
+        "jobRole": "백엔드 개발자",
+        "unit": {
+          "code": "SERVICE-JOB-BACKEND-TECHNICAL-DECISION",
+          "name": "백엔드 개발자 - 기술 의사결정",
+          "level": null,
+          "definition": "API, 데이터와 서버 운영 제약을 고려해 기술 대안을 선택하고 결과를 검증하는 능력"
+        },
+        "behaviorPoints": [
+          {
+            "behaviorPointId": "backend-technical-decision-bp-01",
+            "description": "서버 운영 제약과 대안을 구분하고 선택 근거, 실행 행동과 검증 결과를 연결해 설명한다.",
+            "sourceElementCodes": ["SERVICE-JOB-BACKEND-TECHNICAL-DECISION-01"],
+            "requiredEvidence": ["ACTION", "RATIONALE", "RESULT", "TRADEOFF"]
+          }
+        ]
+      },
       "evidences": [
         {
           "evidenceId": "evidence-1",
@@ -218,6 +247,8 @@ Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERA
 - confidence는 점수 가중치로 사용하지 않는다.
 - 민감 속성·비언어 신호·합격 가능성은 점수 입력이나 출력 판단에 사용하지 않는다.
 - 질문과 답변에 없는 사실은 rationale이나 evidence로 반환하지 않는다.
+- 새로 생성한 결과의 `evaluationBasis`는 해당 process 입력의 immutable snapshot에서만 복사하며, source·unit·행동 기준을 새로 추론하지 않는다.
+- 기존 `ncs-evaluation-product.v1` revision과의 호환을 위해 `evaluationBasis`가 없는 과거 결과도 읽을 수 있지만 새 worker 결과에는 항상 포함한다.
 
 ## Error Mapping
 

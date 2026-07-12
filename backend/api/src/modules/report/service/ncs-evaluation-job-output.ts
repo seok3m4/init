@@ -37,6 +37,7 @@ interface NcsEvaluationInputContext {
   transcript: string;
   snapshotVersion: string;
   behaviorPointIds: Set<string>;
+  evaluationSnapshot: Record<string, unknown>;
 }
 
 export function parseNcsEvaluationJobOutput(
@@ -66,7 +67,12 @@ export function parseNcsEvaluationJobOutput(
   if (!validCoverage(output.coverage, context.behaviorPointIds.size, behaviorEvaluations.evaluatedCount)) {
     return undefined;
   }
-  if (!validFollowUp(output.followUp) || !validGuardrail(output.guardrail) || !validMetadata(output.metadata)) {
+  if (
+    !validFollowUp(output.followUp) ||
+    !validGuardrail(output.guardrail) ||
+    !validMetadata(output.metadata) ||
+    (Object.hasOwn(output, "evaluationBasis") && !matchesEvaluationBasis(output.evaluationBasis, context.evaluationSnapshot))
+  ) {
     return undefined;
   }
 
@@ -129,10 +135,55 @@ function parseInputContext(inputRef?: string | null): NcsEvaluationInputContext 
       transcript,
       snapshotVersion,
       behaviorPointIds,
+      evaluationSnapshot: snapshot,
     };
   } catch {
     return undefined;
   }
+}
+
+function matchesEvaluationBasis(value: unknown, snapshot: Record<string, unknown>): boolean {
+  if (!isRecord(value) || !isRecord(snapshot.ncsContext)) return false;
+  const context = snapshot.ncsContext;
+  const unit = isRecord(context.unit) ? context.unit : undefined;
+  const basisUnit = isRecord(value.unit) ? value.unit : undefined;
+  const basisPoints = value.behaviorPoints;
+  const snapshotPoints = snapshot.behaviorPoints;
+  if (!unit || !basisUnit || !Array.isArray(basisPoints) || !Array.isArray(snapshotPoints)) return false;
+  const snapshotJobRole = snapshot.jobRole === undefined || snapshot.jobRole === null ? null : snapshot.jobRole;
+  if (
+    value.sourceKind !== context.sourceKind ||
+    value.sourceVersion !== context.version ||
+    value.categoryType !== context.categoryType ||
+    value.jobRole !== snapshotJobRole ||
+    basisUnit.code !== unit.code ||
+    basisUnit.name !== unit.name ||
+    basisUnit.level !== unit.level ||
+    basisUnit.definition !== unit.definition ||
+    basisPoints.length !== snapshotPoints.length
+  ) {
+    return false;
+  }
+
+  return basisPoints.every((candidate, index) => {
+    const basisPoint = isRecord(candidate) ? candidate : undefined;
+    const snapshotPoint = isRecord(snapshotPoints[index]) ? snapshotPoints[index] : undefined;
+    return Boolean(
+      basisPoint &&
+      snapshotPoint &&
+      basisPoint.behaviorPointId === snapshotPoint.behaviorPointId &&
+      basisPoint.description === snapshotPoint.description &&
+      sameStringArray(basisPoint.sourceElementCodes, snapshotPoint.sourceElementCodes) &&
+      sameStringArray(basisPoint.requiredEvidence, snapshotPoint.requiredEvidence),
+    );
+  });
+}
+
+function sameStringArray(left: unknown, right: unknown): boolean {
+  return Array.isArray(left) &&
+    Array.isArray(right) &&
+    left.length === right.length &&
+    left.every((value, index) => typeof value === "string" && value === right[index]);
 }
 
 function validInputPolicy(

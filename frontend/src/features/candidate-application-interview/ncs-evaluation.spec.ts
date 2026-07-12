@@ -34,6 +34,24 @@ test("rejects invalid score mapping and blocked guardrail output", () => {
   assert.equal(parseNcsEvaluationProductOutput(blocked), undefined);
 });
 
+test("rejects mismatched statuses, duplicate evidence and unknown references", () => {
+  const statusMismatch = validOutput();
+  statusMismatch.behaviorEvaluations[0]!.status = "STRONGLY_DEMONSTRATED";
+  assert.equal(parseNcsEvaluationProductOutput(statusMismatch), undefined);
+
+  const duplicateEvidence = validOutput();
+  duplicateEvidence.evidences.push({ ...duplicateEvidence.evidences[0]! });
+  assert.equal(parseNcsEvaluationProductOutput(duplicateEvidence), undefined);
+
+  const unknownReference = validOutput();
+  unknownReference.behaviorEvaluations[0]!.supportingEvidenceIds = ["missing-evidence"];
+  assert.equal(parseNcsEvaluationProductOutput(unknownReference), undefined);
+
+  const mismatchedBasis = validOutput();
+  mismatchedBasis.evaluationBasis.behaviorPoints[0]!.behaviorPointId = "other-behavior";
+  assert.equal(parseNcsEvaluationProductOutput(mismatchedBasis), undefined);
+});
+
 test("polls pending jobs until a validated result is completed", async () => {
   const statuses: NcsAiJobStatus[] = [
     { status: "PENDING" },
@@ -89,6 +107,36 @@ test("backs off polling intervals up to the configured maximum", async () => {
     NcsEvaluationPollingTimeoutError,
   );
   assert.deepEqual(intervals, [10, 20, 20]);
+});
+
+test("removes the abort listener after each polling delay", async () => {
+  const listeners = new Set<unknown>();
+  let maxActiveListeners = 0;
+  const signal = {
+    aborted: false,
+    addEventListener(type: string, listener: unknown) {
+      if (type !== "abort") return;
+      listeners.add(listener);
+      maxActiveListeners = Math.max(maxActiveListeners, listeners.size);
+    },
+    removeEventListener(type: string, listener: unknown) {
+      if (type === "abort") listeners.delete(listener);
+    },
+  } as unknown as AbortSignal;
+
+  await assert.rejects(
+    pollNcsEvaluation({
+      processLogId: 14,
+      attempts: 12,
+      intervalMs: 1,
+      maxIntervalMs: 1,
+      signal,
+      getStatus: async () => ({ data: { status: "RUNNING" } }),
+    }),
+    NcsEvaluationPollingTimeoutError,
+  );
+  assert.equal(maxActiveListeners, 1);
+  assert.equal(listeners.size, 0);
 });
 
 test("persists, restores, expires and clears a pending text practice evaluation", () => {
@@ -255,9 +303,29 @@ test("skips recruiting and non-assessable mock questions without an API call", a
 function validOutput() {
   return {
     contractVersion: "ncs-evaluation-product.v1",
-    evaluationSnapshotVersion: "service-ncs-starter-v1:test",
+    evaluationSnapshotVersion: "service-ncs-starter-v2:test",
     sessionId: 101,
     questionId: 501,
+    evaluationBasis: {
+      sourceKind: "SYNTHETIC_NCS_LIKE",
+      sourceVersion: "service-ncs-starter-v2",
+      categoryType: "JOB_PERFORMANCE",
+      jobRole: "백엔드 개발자",
+      unit: {
+        code: "SERVICE-JOB-BACKEND-TECHNICAL-DECISION",
+        name: "백엔드 개발자 - 기술 의사결정",
+        level: null,
+        definition: "API, 데이터와 서버 운영 제약에서 기술 대안을 비교하고 결과를 검증하는 능력",
+      },
+      behaviorPoints: [
+        {
+          behaviorPointId: "behavior-1",
+          description: "제약과 대안을 구분하고 선택 근거와 검증 결과를 설명한다.",
+          sourceElementCodes: ["SERVICE-JOB-BACKEND-TECHNICAL-DECISION-01"],
+          requiredEvidence: ["ACTION", "RATIONALE", "RESULT", "TRADEOFF"],
+        },
+      ],
+    },
     evidences: [
       {
         evidenceId: "evidence-1",

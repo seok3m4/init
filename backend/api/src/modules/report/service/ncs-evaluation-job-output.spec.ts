@@ -29,6 +29,10 @@ describe("NCS evaluation polling output", () => {
     const blocked = ncsEvaluationOutput(input);
     blocked.guardrail.nonverbalSignalUsed = true;
     expect(parseAiJobOutput(JSON.stringify(blocked), JSON.stringify(input))).toBeUndefined();
+
+    const basisMismatch = ncsEvaluationOutput(input);
+    basisMismatch.evaluationBasis.unit.code = "TAMPERED";
+    expect(parseAiJobOutput(JSON.stringify(basisMismatch), JSON.stringify(input))).toBeUndefined();
   });
 
   it("rejects prohibited signals even if output guardrail flags are falsely clear", () => {
@@ -87,8 +91,9 @@ function ncsEvaluationInput() {
       transcript: "복합 인덱스를 적용하고 같은 부하에서 p95가 줄었는지 결과를 확인했습니다.",
       evaluationSnapshot: {
         contractVersion: "ncs-evaluation-product.v1",
-        snapshotVersion: "service-ncs-starter-v1:test",
+        snapshotVersion: "service-ncs-starter-v2:test",
         locale: "ko-KR",
+        jobRole: "백엔드 개발자",
         question: {
           questionId: "501",
           questionType: "EXPERIENCE",
@@ -96,11 +101,11 @@ function ncsEvaluationInput() {
         },
         ncsContext: {
           sourceKind: "SYNTHETIC_NCS_LIKE",
-          version: "service-ncs-starter-v1",
+          version: "service-ncs-starter-v2",
           categoryType: "JOB_PERFORMANCE",
           unit: {
-            code: "SERVICE-JOB-TECHNICAL-DECISION",
-            name: "기술 의사결정",
+            code: "SERVICE-JOB-BACKEND-TECHNICAL-DECISION",
+            name: "백엔드 개발자 - 기술 의사결정",
             level: null,
             definition: "기술 대안을 비교하고 결과를 검증하는 능력",
             elements: [
@@ -146,6 +151,24 @@ function ncsEvaluationOutput(input: ReturnType<typeof ncsEvaluationInput>) {
     sessionId: input.payload.sessionId,
     questionId: input.payload.questionId,
     answerId: input.payload.answerId,
+    evaluationBasis: {
+      sourceKind: input.payload.evaluationSnapshot.ncsContext.sourceKind,
+      sourceVersion: input.payload.evaluationSnapshot.ncsContext.version,
+      categoryType: input.payload.evaluationSnapshot.ncsContext.categoryType,
+      jobRole: input.payload.evaluationSnapshot.jobRole,
+      unit: {
+        code: input.payload.evaluationSnapshot.ncsContext.unit.code,
+        name: input.payload.evaluationSnapshot.ncsContext.unit.name,
+        level: input.payload.evaluationSnapshot.ncsContext.unit.level,
+        definition: input.payload.evaluationSnapshot.ncsContext.unit.definition,
+      },
+      behaviorPoints: input.payload.evaluationSnapshot.behaviorPoints.map((point) => ({
+        behaviorPointId: point.behaviorPointId,
+        description: point.description,
+        sourceElementCodes: point.sourceElementCodes,
+        requiredEvidence: point.requiredEvidence,
+      })),
+    },
     evidences: [
       {
         evidenceId: "evidence-1",
