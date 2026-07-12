@@ -80,6 +80,7 @@ export interface CandidateNcsBehaviorEvaluationView {
 
 export interface CandidateNcsAnswerEvaluationView {
   processLogId: number;
+  contractVersion: "ncs-evaluation-product.v1";
   sessionId: number;
   questionId: number;
   answerId: number;
@@ -100,6 +101,12 @@ export interface CandidateNcsAnswerEvaluationView {
     reason: string | null;
     missingEvidence: CandidateNcsEvidenceType[];
     suggestedQuestion: string | null;
+  };
+  guardrail: {
+    unsupportedFactDetected: false;
+    sensitiveAttributeUsed: false;
+    nonverbalSignalUsed: false;
+    hiringDecisionLanguageDetected: false;
   };
   metadata: {
     strategyId: "evidence-state";

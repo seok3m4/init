@@ -219,6 +219,7 @@ M4 route는 `TEXT_INPUT`, M5 화상면접은 `STORED_ANSWER`를 사용하되 결
     "ncsEvaluations": [
       {
         "processLogId": 9001,
+        "contractVersion": "ncs-evaluation-product.v1",
         "sessionId": 101,
         "questionId": 501,
         "answerId": 701,
@@ -251,6 +252,12 @@ M4 route는 `TEXT_INPUT`, M5 화상면접은 `STORED_ANSWER`를 사용하되 결
           "reason": null,
           "missingEvidence": [],
           "suggestedQuestion": null
+        },
+        "guardrail": {
+          "unsupportedFactDetected": false,
+          "sensitiveAttributeUsed": false,
+          "nonverbalSignalUsed": false,
+          "hiringDecisionLanguageDetected": false
         }
       }
     ],

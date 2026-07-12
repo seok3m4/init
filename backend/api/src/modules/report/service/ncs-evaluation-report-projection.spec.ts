@@ -21,6 +21,7 @@ describe("NCS evaluation report projection", () => {
     expect(projected).toHaveLength(1);
     expect(projected[0]).toMatchObject({
       processLogId: 11,
+      contractVersion: "ncs-evaluation-product.v1",
       sessionId: 101,
       questionId: 501,
       answerId: 701,
@@ -30,6 +31,12 @@ describe("NCS evaluation report projection", () => {
     expect(projected[0]?.behaviorEvaluations[0]?.behaviorPointDescription).toBe(
       "선택 근거, 실행 행동, 검증 결과를 연결해 설명한다.",
     );
+    expect(projected[0]?.guardrail).toEqual({
+      unsupportedFactDetected: false,
+      sensitiveAttributeUsed: false,
+      nonverbalSignalUsed: false,
+      hiringDecisionLanguageDetected: false,
+    });
   });
 
   it("rejects blocked, identity-mismatched, and incomplete process records", () => {

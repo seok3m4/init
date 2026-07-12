@@ -84,6 +84,7 @@ export function projectCandidateNcsEvaluation(
 
   return {
     processLogId: process.processLogId,
+    contractVersion: output.contractVersion,
     sessionId: output.sessionId,
     questionId: output.questionId,
     answerId: output.answerId,
@@ -97,6 +98,7 @@ export function projectCandidateNcsEvaluation(
     })),
     coverage: output.coverage,
     followUp: output.followUp,
+    guardrail: output.guardrail,
     metadata: output.metadata,
   };
 }
