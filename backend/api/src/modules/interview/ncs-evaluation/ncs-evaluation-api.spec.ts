@@ -115,6 +115,22 @@ describe("mock NCS evaluation API", () => {
     assert.equal(input.payload.evaluationSnapshot.evaluationPolicy.allowNonverbalScore, false);
   });
 
+  test("동일한 직접 입력 평가 요청은 기존 process를 재사용한다", async () => {
+    const { controller, queuePublisher } = createController();
+    const { sessionId, questionIds } = await startMockInterview(controller, ["TECHNICAL"]);
+    const request = {
+      questionId: questionIds[0] ?? 0,
+      answerSource: "TEXT_INPUT" as const,
+      transcript: "복합 인덱스를 적용하고 같은 부하에서 p95를 비교했습니다.",
+    };
+
+    const first = await controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), request);
+    const second = await controller.requestMockNcsEvaluation(validCandidateRequest, String(sessionId), request);
+
+    assert.equal(second.data.processLogId, first.data.processLogId);
+    assert.equal(queuePublisher.messages.length, 1);
+  });
+
   test("저장 답변은 요청이 아닌 repository transcript를 사용한다", async () => {
     const { controller } = createController();
     const { sessionId, questionIds } = await startMockInterview(controller, ["EXPERIENCE"]);

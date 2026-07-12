@@ -227,6 +227,7 @@ export interface QueuedAiProcessSnapshot {
   processLogId: number;
   processType: AiProcessType;
   status: AiProcessStatus;
+  deduplicationKey?: string;
   inputRef: string;
   outputRef?: string;
   output?: unknown;
@@ -242,6 +243,11 @@ export interface QueuedAiProcessSnapshot {
   audioSeconds?: number;
   estimatedCostUsd?: number;
   costMetadataJson?: string;
+}
+
+export interface QueuedAiProcessReservation {
+  process: QueuedAiProcessSnapshot;
+  action: "PUBLISH" | "REUSE" | "REQUEUE";
 }
 
 export interface EvaluationReportSnapshot {

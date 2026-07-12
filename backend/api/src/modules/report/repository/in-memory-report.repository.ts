@@ -11,6 +11,7 @@ import {
   AiProcessType,
   ProcessLogSnapshot,
   QueuedAiProcessSnapshot,
+  QueuedAiProcessReservation,
   ReportPipelineStep,
   ReportScore,
   ReportType,
@@ -43,22 +44,58 @@ export class InMemoryReportRepository implements ReportRepository {
   private readonly scoresByReport = new Map<number, ReportScore[]>();
   private readonly guardrailLogs: GuardrailLogRecord[] = [];
   private readonly queuedProcesses = new Map<number, QueuedAiProcessSnapshot>();
+  private readonly queuedProcessIdsByIdempotencyKey = new Map<string, number>();
 
   async createQueuedProcess(
     processType: AiProcessType,
     inputRef: string,
     refs: AiProcessRefs = {}
   ): Promise<QueuedAiProcessSnapshot> {
+    const reserved = await this.reserveQueuedProcess(processType, inputRef, refs);
+    return reserved.process;
+  }
+
+  async reserveQueuedProcess(
+    processType: AiProcessType,
+    inputRef: string,
+    refs: AiProcessRefs = {},
+    idempotencyKey?: string
+  ): Promise<QueuedAiProcessReservation> {
+    const existingId = idempotencyKey ? this.queuedProcessIdsByIdempotencyKey.get(idempotencyKey) : undefined;
+    const existing = existingId === undefined ? undefined : this.queuedProcesses.get(existingId);
+    if (existing && existing.status !== "FAILED") {
+      return { process: this.withParsedOutput(existing), action: "REUSE" };
+    }
+    if (existing) {
+      const requeued: QueuedAiProcessSnapshot = {
+        ...existing,
+        status: "PENDING",
+        inputRef,
+        outputRef: undefined,
+        output: undefined,
+        failure: undefined,
+        startedAt: undefined,
+        completedAt: undefined,
+        durationMs: undefined
+      };
+      this.queuedProcesses.set(existing.processLogId, requeued);
+      return { process: { ...requeued }, action: "REQUEUE" };
+    }
+
     const process: QueuedAiProcessSnapshot = {
       processLogId: this.nextProcessLogId++,
       processType,
       status: "PENDING",
+      deduplicationKey: idempotencyKey,
       inputRef,
       applicationId: refs.applicationId,
       sessionId: refs.sessionId
     };
     this.queuedProcesses.set(process.processLogId, process);
-    return { ...process };
+    if (idempotencyKey) {
+      this.queuedProcessIdsByIdempotencyKey.set(idempotencyKey, process.processLogId);
+    }
+    return { process: { ...process }, action: "PUBLISH" };
   }
 
   async getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot> {

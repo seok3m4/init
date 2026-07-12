@@ -13,6 +13,7 @@ import {
   isRetryableFailureCategory,
   ProcessLogSnapshot,
   QueuedAiProcessSnapshot,
+  QueuedAiProcessReservation,
   ReportPipelineStep,
   ReportScore,
   ReportType,
@@ -28,27 +29,48 @@ export class PrismaReportRepository implements ReportRepository {
     inputRef: string,
     refs: AiProcessRefs = {}
   ): Promise<QueuedAiProcessSnapshot> {
-    const processLogId = this.nextId();
-    const processLog = await this.prisma.aiProcessLog.create({
-      data: {
-        processLogId,
-        applicationId: refs.applicationId ? BigInt(refs.applicationId) : null,
-        sessionId: refs.sessionId ? BigInt(refs.sessionId) : null,
-        processType,
-        status: "PENDING",
-        inputRef,
-        createdAt: new Date()
-      }
-    });
+    const reserved = await this.reserveQueuedProcess(processType, inputRef, refs);
+    return reserved.process;
+  }
 
-    return {
-      processLogId: Number(processLog.processLogId),
-      processType: processLog.processType as AiProcessType,
-      status: "PENDING",
-      inputRef: processLog.inputRef ?? "",
-      applicationId: processLog.applicationId ? Number(processLog.applicationId) : undefined,
-      sessionId: processLog.sessionId ? Number(processLog.sessionId) : undefined
-    };
+  async reserveQueuedProcess(
+    processType: AiProcessType,
+    inputRef: string,
+    refs: AiProcessRefs = {},
+    idempotencyKey?: string
+  ): Promise<QueuedAiProcessReservation> {
+    if (idempotencyKey) {
+      const existing = await this.prisma.aiProcessLog.findUnique({ where: { deduplicationKey: idempotencyKey } });
+      if (existing) {
+        return this.reserveExistingQueuedProcess(existing, inputRef);
+      }
+    }
+
+    const processLogId = this.nextId();
+    try {
+      const processLog = await this.prisma.aiProcessLog.create({
+        data: {
+          processLogId,
+          applicationId: refs.applicationId ? BigInt(refs.applicationId) : null,
+          sessionId: refs.sessionId ? BigInt(refs.sessionId) : null,
+          processType,
+          status: "PENDING",
+          deduplicationKey: idempotencyKey,
+          inputRef,
+          createdAt: new Date()
+        }
+      });
+
+      return { process: this.toQueuedProcessSnapshot(processLog), action: "PUBLISH" };
+    } catch (error) {
+      if (idempotencyKey) {
+        const raced = await this.prisma.aiProcessLog.findUnique({ where: { deduplicationKey: idempotencyKey } });
+        if (raced) {
+          return this.reserveExistingQueuedProcess(raced, inputRef);
+        }
+      }
+      throw error;
+    }
   }
 
   async getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot> {
@@ -384,6 +406,7 @@ export class PrismaReportRepository implements ReportRepository {
     sessionId: bigint | null;
     processType: string;
     status: string;
+    deduplicationKey?: string | null;
     inputRef: string | null;
     outputRef: string | null;
     failureCategory: string | null;
@@ -402,6 +425,7 @@ export class PrismaReportRepository implements ReportRepository {
       processLogId: Number(processLog.processLogId),
       processType: processLog.processType as AiProcessType,
       status: processLog.status as QueuedAiProcessSnapshot["status"],
+      deduplicationKey: processLog.deduplicationKey ?? undefined,
       inputRef: processLog.inputRef ?? "",
       outputRef: processLog.outputRef ?? undefined,
       output: parseAiJobOutput(processLog.outputRef, processLog.inputRef),
@@ -424,6 +448,36 @@ export class PrismaReportRepository implements ReportRepository {
               retryable: isRetryableFailureCategory(processLog.failureCategory as FailureReason["category"])
             }
           : undefined
+    };
+  }
+
+  private async reserveExistingQueuedProcess(
+    existing: Parameters<PrismaReportRepository["toQueuedProcessSnapshot"]>[0],
+    inputRef: string
+  ): Promise<QueuedAiProcessReservation> {
+    if (existing.status !== "FAILED") {
+      return { process: this.toQueuedProcessSnapshot(existing), action: "REUSE" };
+    }
+
+    const reset = await this.prisma.aiProcessLog.updateMany({
+      where: { processLogId: existing.processLogId, status: "FAILED" },
+      data: {
+        status: "PENDING",
+        inputRef,
+        outputRef: null,
+        failureCategory: null,
+        failureReason: null,
+        startedAt: null,
+        completedAt: null,
+        durationMs: null
+      }
+    });
+    const current = await this.prisma.aiProcessLog.findUniqueOrThrow({
+      where: { processLogId: existing.processLogId }
+    });
+    return {
+      process: this.toQueuedProcessSnapshot(current),
+      action: reset.count === 1 ? "REQUEUE" : "REUSE"
     };
   }
 

@@ -817,6 +817,7 @@ export class InterviewService {
       refs: {
         sessionId: session.sessionId,
       },
+      idempotencyKey: deduplicationKey,
     });
 
     return this.envelope({

@@ -3,6 +3,57 @@ import { AiJobQueuePublisher } from "./ai-job-queue.publisher";
 import { InMemoryReportRepository } from "../repository/in-memory-report.repository";
 
 describe("AiJobDispatcherService", () => {
+  it("reuses an existing process for an idempotent request", async () => {
+    const repository = new InMemoryReportRepository();
+    const messages: number[] = [];
+    const publisher: AiJobQueuePublisher = {
+      async publish(message) {
+        messages.push(message.processLogId);
+      }
+    };
+    const service = new AiJobDispatcherService(repository, publisher);
+    const command = {
+      processType: "REPORT_GENERATE" as const,
+      input: { kind: "MOCK_NCS_ANSWER_EVALUATION", payload: { sessionId: 1 } },
+      idempotencyKey: "ncs-evaluation:test-key"
+    };
+
+    const first = await service.dispatch(command);
+    const second = await service.dispatch(command);
+
+    expect(second.processLogId).toBe(first.processLogId);
+    expect(second.deduplicated).toBe(true);
+    expect(second.queued).toBe(true);
+    expect(messages).toEqual([first.processLogId]);
+  });
+
+  it("requeues a failed idempotent request with the same process id", async () => {
+    const repository = new InMemoryReportRepository();
+    let attempt = 0;
+    const publisher: AiJobQueuePublisher = {
+      async publish() {
+        attempt += 1;
+        if (attempt === 1) throw new Error("temporary outage");
+      }
+    };
+    const service = new AiJobDispatcherService(repository, publisher);
+    const command = {
+      processType: "REPORT_GENERATE" as const,
+      input: { kind: "MOCK_NCS_ANSWER_EVALUATION", payload: { sessionId: 1 } },
+      idempotencyKey: "ncs-evaluation:retry-key"
+    };
+
+    const failed = await service.dispatch(command);
+    const retried = await service.dispatch(command);
+
+    expect(failed.status).toBe("FAILED");
+    expect(retried.processLogId).toBe(failed.processLogId);
+    expect(retried.status).toBe("PENDING");
+    expect(retried.queued).toBe(true);
+    expect(retried.deduplicated).toBe(true);
+    expect(attempt).toBe(2);
+  });
+
   it("marks queued process failed when SQS publish fails", async () => {
     const repository = new InMemoryReportRepository();
     const publisher: AiJobQueuePublisher = {

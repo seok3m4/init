@@ -93,6 +93,11 @@ STORED_ANSWER: sessionId + questionId + answerId + evaluationSnapshotVersion
 TEXT_INPUT: sessionId + questionId + transcriptHash + evaluationSnapshotVersion
 ```
 
+- API dispatcher는 위 값을 hash한 `deduplicationKey`를 `ai_process_logs.deduplication_key`에 저장한다.
+- 같은 key의 `PENDING`, `RUNNING`, `COMPLETED` process가 있으면 새 process와 queue message를 만들지 않고 기존 `processLogId`를 반환한다.
+- 같은 key의 `FAILED` process는 새 row를 만들지 않고 실패 정보를 초기화한 뒤 같은 `processLogId`를 재큐잉한다.
+- DB unique 제약과 repository 예약 연산이 동시 요청에서도 process 한 개만 생성되도록 보장한다.
+
 ## Queue Contract
 
 Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERATE` process type 아래 step과 kind로 분기한다.

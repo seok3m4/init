@@ -380,6 +380,7 @@
 | session_id | BIGINT | 관련 면접 세션 FK |
 | process_type | VARCHAR(80) NOT NULL | 처리 유형: DOCUMENT_EXTRACT, STT, FOLLOW_UP, REPORT_GENERATE, EMBEDDING, GUARDRAIL_VALIDATE, CRITERIA_SUGGEST, QUESTION_GENERATE, QUESTION_SET_GENERATE, POSTING_DRAFT_GENERATE |
 | status | VARCHAR(40) NOT NULL | 처리 상태: PENDING, RUNNING, COMPLETED, FAILED |
+| deduplication_key | VARCHAR(128) UNIQUE | 동일한 사용자 AI 요청을 원자적으로 재사용하기 위한 선택적 key |
 | input_ref | TEXT | 입력 참조값 |
 | output_ref | TEXT | 출력 참조값 |
 | failure_category | VARCHAR(40) | 실패 구분: RETRYABLE, NON_RETRYABLE |

@@ -552,6 +552,7 @@ model AiProcessLog {
   sessionId             BigInt?                @map("session_id")
   processType           AiProcessType          @map("process_type")
   status                AiProcessStatus        @default(PENDING)
+  deduplicationKey      String?                @unique(map: "uk_ai_process_logs_deduplication_key") @map("deduplication_key") @db.VarChar(128)
   inputRef              String?                @map("input_ref")
   outputRef             String?                @map("output_ref")
   failureCategory       String?                @map("failure_category") @db.VarChar(40)

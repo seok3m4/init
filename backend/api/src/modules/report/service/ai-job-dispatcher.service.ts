@@ -14,10 +14,12 @@ export interface DispatchAiJobCommand {
   processType: AiProcessType;
   input: unknown;
   refs?: AiProcessRefs;
+  idempotencyKey?: string;
 }
 
 export interface DispatchAiJobResult extends QueuedAiProcessSnapshot {
   queued: boolean;
+  deduplicated: boolean;
 }
 
 export interface DispatchReportGenerationCommand {
@@ -40,7 +42,20 @@ export class AiJobDispatcherService {
 
   async dispatch(command: DispatchAiJobCommand): Promise<DispatchAiJobResult> {
     const inputRef = JSON.stringify(command.input);
-    const process = await this.repository.createQueuedProcess(command.processType, inputRef, command.refs);
+    const reservation = await this.repository.reserveQueuedProcess(
+      command.processType,
+      inputRef,
+      command.refs,
+      command.idempotencyKey
+    );
+    const process = reservation.process;
+    if (reservation.action === "REUSE") {
+      return {
+        ...process,
+        queued: process.status === "PENDING" || process.status === "RUNNING",
+        deduplicated: true
+      };
+    }
 
     try {
       await this.queuePublisher.publish({
@@ -53,13 +68,15 @@ export class AiJobDispatcherService {
       const failed = await this.repository.markQueuedProcessFailed(process.processLogId, this.queuePublishFailure(error));
       return {
         ...failed,
-        queued: false
+        queued: false,
+        deduplicated: reservation.action === "REQUEUE"
       };
     }
 
     return {
       ...process,
-      queued: true
+      queued: true,
+      deduplicated: reservation.action === "REQUEUE"
     };
   }
 

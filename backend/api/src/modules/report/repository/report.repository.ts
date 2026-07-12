@@ -8,6 +8,7 @@ import {
   AiProcessType,
   ProcessLogSnapshot,
   QueuedAiProcessSnapshot,
+  QueuedAiProcessReservation,
   ReportPipelineStep,
   ReportScore,
   ReportType,
@@ -28,6 +29,12 @@ export interface ReportRepository {
     inputRef: string,
     refs?: AiProcessRefs
   ): Promise<QueuedAiProcessSnapshot>;
+  reserveQueuedProcess(
+    processType: AiProcessType,
+    inputRef: string,
+    refs?: AiProcessRefs,
+    idempotencyKey?: string
+  ): Promise<QueuedAiProcessReservation>;
   getProcess(processLogId: number): Promise<QueuedAiProcessSnapshot>;
   markQueuedProcessCompleted(processLogId: number, outputRef: string): Promise<QueuedAiProcessSnapshot>;
   markQueuedProcessFailed(processLogId: number, failure: FailureReason): Promise<QueuedAiProcessSnapshot>;
