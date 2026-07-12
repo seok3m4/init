@@ -1,4 +1,19 @@
 import { authFetch } from "../../api/client";
+import type {
+  NcsEvaluationHandoffResponse,
+  NcsEvaluationRequest,
+} from "./ncs-evaluation";
+
+export type {
+  NcsBehaviorEvaluation,
+  NcsEvaluationAnswerSource,
+  NcsEvaluationEvidence,
+  NcsEvaluationHandoffResponse,
+  NcsEvaluationProductOutput,
+  NcsEvaluationRequest,
+  NcsEvaluationStatus,
+  NcsEvidenceType,
+} from "./ncs-evaluation";
 
 export type PostingStatus = "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
 export type CandidateJobListPostingStatus = Extract<PostingStatus, "OPEN" | "CLOSING_SOON">;
@@ -723,6 +738,7 @@ export const candidateApiPaths = {
   mockNextQuestion: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/next-question`,
   mockComplete: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/complete`,
   mockStt: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/stt`,
+  mockNcsEvaluations: (sessionId: number) => "/api/v1/candidate/mock-interviews/" + sessionId + "/ncs-evaluations",
   mockRealtimeSession: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/realtime-session`,
   mockFollowUpQuestion: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/follow-up-question`,
   mockFollowUpQuestionInsert: (sessionId: number) => `/api/v1/candidate/mock-interviews/${sessionId}/follow-up-questions/insert`,
@@ -800,6 +816,10 @@ export interface CandidateApiClient {
   moveMockNextQuestion(sessionId: number): Promise<ApiResponse<NextInterviewQuestionResponse>>;
   completeMockInterview(sessionId: number): Promise<ApiResponse<CompleteInterviewResponse>>;
   requestMockStt(sessionId: number, body: AiInterviewRequest): Promise<ApiResponse<AiInterviewHandoffResponse>>;
+  requestMockNcsEvaluation(
+    sessionId: number,
+    body: NcsEvaluationRequest,
+  ): Promise<ApiResponse<NcsEvaluationHandoffResponse>>;
   createMockRealtimeSession(
     sessionId: number,
     body: CreateRealtimeInterviewSessionRequest,
@@ -963,6 +983,11 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
       }),
     requestMockStt: (sessionId, body) =>
       request<ApiResponse<AiInterviewHandoffResponse>>(candidateApiPaths.mockStt(sessionId), {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    requestMockNcsEvaluation: (sessionId, body) =>
+      request<ApiResponse<NcsEvaluationHandoffResponse>>(candidateApiPaths.mockNcsEvaluations(sessionId), {
         method: "POST",
         body: JSON.stringify(body),
       }),

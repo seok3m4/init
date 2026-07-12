@@ -11,6 +11,7 @@ import type {
   CandidateRecruitingReportView,
   CreatePortfolioLinkRequest,
   InterviewDeviceCheckRequest,
+  NcsEvaluationRequest,
   RuntimeFileAssetRequest,
   SaveInterviewAnswerRequest,
   SaveInterviewConsentRequest,
@@ -146,6 +147,12 @@ const startMockRequest: StartMockInterviewRequest = toStartMockInterviewRequest(
   questionTypes: ["INTRO", "TECHNICAL"],
   showQuestionText: false,
 });
+
+const ncsTextEvaluationRequest: NcsEvaluationRequest = {
+  questionId: 2,
+  answerSource: "TEXT_INPUT",
+  transcript: "복합 인덱스를 적용하고 같은 부하에서 결과를 확인했습니다.",
+};
 
 const answerRequest: SaveInterviewAnswerRequest = toSaveInterviewAnswerRequest({
   questionId: 1,
@@ -1350,6 +1357,7 @@ const mockAnswerPath = candidateApiPaths.mockAnswers(10001);
 const mockNextQuestionPath = candidateApiPaths.mockNextQuestion(10001);
 const mockCompletePath = candidateApiPaths.mockComplete(10001);
 const mockSttPath = candidateApiPaths.mockStt(10001);
+const mockNcsEvaluationPath = candidateApiPaths.mockNcsEvaluations(10001);
 const mockFollowUpPath = candidateApiPaths.mockFollowUpQuestion(10001);
 const mockFollowUpInsertPath = candidateApiPaths.mockFollowUpQuestionInsert(10001);
 const mockRealtimeSessionPath = candidateApiPaths.mockRealtimeSession(10001);
@@ -1375,6 +1383,7 @@ const recruitingFollowUpPath = candidateApiPaths.recruitingFollowUpQuestion(1);
 const recruitingFollowUpInsertPath = candidateApiPaths.recruitingFollowUpQuestionInsert(1);
 const recruitingRealtimeSessionPath = candidateApiPaths.recruitingRealtimeSession(1);
 assert.equal(mockRealtimeSessionPath, "/api/v1/candidate/mock-interviews/10001/realtime-session");
+assert.equal(mockNcsEvaluationPath, "/api/v1/candidate/mock-interviews/10001/ncs-evaluations");
 assert.equal(recruitingRealtimeSessionPath, "/api/v1/candidate/interviews/1/realtime-session");
 
 function createContractRealtimeAudioTrack(enabled = true): MediaStreamTrack {
@@ -1504,6 +1513,7 @@ void healthyMicrophoneTone;
 void compactViewportLockClassName;
 void immersiveViewportLockClassName;
 void startMockRequest;
+void ncsTextEvaluationRequest;
 void answerRequest;
 void macosAudioAnswerRequest;
 void macosChunkFallbackMimeType;
@@ -1535,6 +1545,7 @@ void mockAnswerPath;
 void mockNextQuestionPath;
 void mockCompletePath;
 void mockSttPath;
+void mockNcsEvaluationPath;
 void mockFollowUpPath;
 void mockFollowUpInsertPath;
 void mockRealtimeSessionPath;
