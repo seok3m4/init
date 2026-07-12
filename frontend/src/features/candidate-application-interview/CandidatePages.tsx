@@ -30,6 +30,7 @@ import {
   type AiJobStatusResponse,
   type CandidateApplicationStatusView,
   type CandidateApplicationSummary,
+  type CandidateApiClient,
   type CandidateFileAsset,
   type CandidateFollowUpQuestionView,
   type CandidateInterviewRuntimeView,
@@ -53,6 +54,12 @@ import {
   createPublicInterviewApiClient,
   type InterviewRuntimeApiClient,
 } from "./api";
+import {
+  pollNcsEvaluation,
+  queueStoredAnswerNcsEvaluation,
+  shouldQueueStoredAnswerNcsEvaluation,
+  type NcsEvaluationProductOutput,
+} from "./ncs-evaluation";
 import {
   createRealtimeInterviewSpeechResponseEvent,
   createRealtimeInterviewWebRtcConnection,
@@ -264,6 +271,10 @@ type AutoAiPipelineState = {
   insertedQuestionId?: number;
   transcript?: string;
   followUpQuestion?: string;
+  ncsEvaluationStatus?: AutoAiStepStatus;
+  ncsEvaluationProcessLogId?: number;
+  ncsEvaluation?: NcsEvaluationProductOutput;
+  ncsEvaluationError?: string;
   failureCategory?: string;
   failureReason?: string;
   failureRetryable?: boolean;
@@ -4324,6 +4335,7 @@ function InterviewRuntimePanel({
         sttStatus: "IDLE",
         followUpStatus: "IDLE",
         followUpSkipped: true,
+        ncsEvaluationStatus: "IDLE",
       });
       setRetryAnswerId(undefined);
       setRetryingQuestionId(undefined);
@@ -4426,6 +4438,7 @@ function InterviewRuntimePanel({
         sttStatus: savedAnswer.transcriptSource === "OPENAI_REALTIME_STT_RELAY" ? "COMPLETED" : "PENDING",
         followUpStatus: "IDLE",
         transcript: savedAnswer.transcriptSource === "OPENAI_REALTIME_STT_RELAY" ? savedAnswer.transcript : undefined,
+        ncsEvaluationStatus: "IDLE",
       });
       if (preparedRequest.allowReanswer) {
         setReansweringQuestionId(null);
@@ -4614,6 +4627,7 @@ function InterviewRuntimePanel({
           failureRetryable: undefined,
           error: undefined,
         }));
+        startStoredAnswerNcsEvaluation(answerWithTranscript, question);
 
         if (isFollowUpAnswer) {
           const questionIndex = question
@@ -4845,6 +4859,7 @@ function InterviewRuntimePanel({
         failureRetryable: undefined,
         error: undefined,
       }));
+      startStoredAnswerNcsEvaluation(answerWithTranscript, question);
 
       if (isFollowUpAnswer) {
         const questionIndex = question
@@ -4971,6 +4986,96 @@ function InterviewRuntimePanel({
         nextReady: shouldSkipFollowUp,
       });
     }
+  }
+
+  function startStoredAnswerNcsEvaluation(
+    targetAnswer: LastSavedAnswer,
+    question?: RuntimeQuestionView,
+  ) {
+    if (
+      !data ||
+      !question ||
+      question.questionId !== targetAnswer.questionId ||
+      !shouldQueueStoredAnswerNcsEvaluation(mode, question.questionType)
+    ) {
+      return;
+    }
+
+    const ncsApi = getNcsEvaluationApi(runtimeApi);
+    if (!ncsApi) return;
+
+    setAutoAiPipeline((current) =>
+      current?.answerId === targetAnswer.answerId
+        ? {
+            ...current,
+            ncsEvaluationStatus: "PENDING",
+            ncsEvaluationProcessLogId: undefined,
+            ncsEvaluation: undefined,
+            ncsEvaluationError: undefined,
+          }
+        : current,
+    );
+
+    void (async () => {
+      try {
+        const queued = await queueStoredAnswerNcsEvaluation({
+          mode,
+          sessionId: data.runtime.sessionId,
+          questionId: targetAnswer.questionId,
+          questionType: question.questionType,
+          answerId: targetAnswer.answerId,
+          requestEvaluation: ncsApi.requestMockNcsEvaluation,
+        });
+        if (queued.status === "SKIPPED") return;
+
+        const processLogId = queued.handoff.processLogId;
+        setAutoAiPipeline((current) =>
+          current?.answerId === targetAnswer.answerId
+            ? {
+                ...current,
+                ncsEvaluationStatus: "RUNNING",
+                ncsEvaluationProcessLogId: processLogId,
+              }
+            : current,
+        );
+
+        const evaluation = await pollNcsEvaluation({
+          processLogId,
+          attempts: 90,
+          intervalMs: 1000,
+          getStatus: ncsApi.getAiJobStatus,
+          onStatus: (status) => {
+            if (status !== "PENDING" && status !== "RUNNING") return;
+            setAutoAiPipeline((current) =>
+              current?.answerId === targetAnswer.answerId
+                ? { ...current, ncsEvaluationStatus: status }
+                : current,
+            );
+          },
+        });
+
+        setAutoAiPipeline((current) =>
+          current?.answerId === targetAnswer.answerId
+            ? {
+                ...current,
+                ncsEvaluationStatus: "COMPLETED",
+                ncsEvaluation: evaluation,
+                ncsEvaluationError: undefined,
+              }
+            : current,
+        );
+      } catch (ncsEvaluationError) {
+        setAutoAiPipeline((current) =>
+          current?.answerId === targetAnswer.answerId
+            ? {
+                ...current,
+                ncsEvaluationStatus: "FAILED",
+                ncsEvaluationError: toErrorMessage(ncsEvaluationError),
+              }
+            : current,
+        );
+      }
+    })();
   }
 
   async function requestAiPipeline(
@@ -6006,6 +6111,15 @@ function InterviewRuntimePanel({
       </section>
     </main>
   );
+}
+
+type NcsEvaluationApiClient = Pick<CandidateApiClient, "requestMockNcsEvaluation" | "getAiJobStatus">;
+
+function getNcsEvaluationApi(api: InterviewRuntimeApiClient): NcsEvaluationApiClient | undefined {
+  const candidate = api as Partial<NcsEvaluationApiClient>;
+  return typeof candidate.requestMockNcsEvaluation === "function" && typeof candidate.getAiJobStatus === "function"
+    ? (candidate as NcsEvaluationApiClient)
+    : undefined;
 }
 
 export function CandidatePageShell({ active, children }: { active: CandidateNavSection; children: ReactNode }) {

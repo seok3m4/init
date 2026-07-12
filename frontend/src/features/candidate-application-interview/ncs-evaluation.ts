@@ -110,6 +110,32 @@ export interface PollNcsEvaluationOptions {
   wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 }
 
+export type StoredAnswerNcsEvaluationSkipReason = "UNSUPPORTED_MODE" | "QUESTION_NOT_ASSESSABLE";
+
+export interface QueueStoredAnswerNcsEvaluationOptions {
+  mode: "mock" | "recruiting";
+  sessionId: number;
+  questionId: number;
+  questionType: string;
+  answerId: number;
+  requestEvaluation: (
+    sessionId: number,
+    body: NcsEvaluationRequest,
+  ) => Promise<{ data: NcsEvaluationHandoffResponse }>;
+}
+
+export type QueueStoredAnswerNcsEvaluationResult =
+  | {
+      status: "SKIPPED";
+      reason: StoredAnswerNcsEvaluationSkipReason;
+    }
+  | {
+      status: "QUEUED";
+      handoff: NcsEvaluationHandoffResponse;
+    };
+
+const NCS_ASSESSABLE_QUESTION_TYPES = new Set(["TECHNICAL", "EXPERIENCE", "SITUATION", "FOLLOW_UP"]);
+
 const SCORE_BY_LEVEL: Record<number, number> = {
   1: 25,
   2: 50,
@@ -117,6 +143,28 @@ const SCORE_BY_LEVEL: Record<number, number> = {
   4: 85,
   5: 100,
 };
+
+export function shouldQueueStoredAnswerNcsEvaluation(mode: string, questionType: string): boolean {
+  return mode === "mock" && NCS_ASSESSABLE_QUESTION_TYPES.has(questionType);
+}
+
+export async function queueStoredAnswerNcsEvaluation(
+  options: QueueStoredAnswerNcsEvaluationOptions,
+): Promise<QueueStoredAnswerNcsEvaluationResult> {
+  if (options.mode !== "mock") {
+    return { status: "SKIPPED", reason: "UNSUPPORTED_MODE" };
+  }
+  if (!NCS_ASSESSABLE_QUESTION_TYPES.has(options.questionType)) {
+    return { status: "SKIPPED", reason: "QUESTION_NOT_ASSESSABLE" };
+  }
+
+  const response = await options.requestEvaluation(options.sessionId, {
+    questionId: options.questionId,
+    answerSource: "STORED_ANSWER",
+    answerId: options.answerId,
+  });
+  return { status: "QUEUED", handoff: response.data };
+}
 
 export function parseNcsEvaluationProductOutput(value: unknown): NcsEvaluationProductOutput | undefined {
   if (!isRecord(value) || value.contractVersion !== "ncs-evaluation-product.v1") {

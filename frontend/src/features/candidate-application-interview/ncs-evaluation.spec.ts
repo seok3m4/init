@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   parseNcsEvaluationProductOutput,
   pollNcsEvaluation,
+  queueStoredAnswerNcsEvaluation,
+  shouldQueueStoredAnswerNcsEvaluation,
   type NcsAiJobStatus,
+  type NcsEvaluationRequest,
 } from "./ncs-evaluation";
 
 test("parses a valid NCS product output", () => {
@@ -59,6 +62,78 @@ test("surfaces worker failure and timeout messages", async () => {
     }),
     /평가가 지연/,
   );
+});
+
+test("queues assessable mock answers with the STORED_ANSWER contract", async () => {
+  const requests: Array<{ sessionId: number; body: NcsEvaluationRequest }> = [];
+  const result = await queueStoredAnswerNcsEvaluation({
+    mode: "mock",
+    sessionId: 101,
+    questionId: 501,
+    questionType: "TECHNICAL",
+    answerId: 701,
+    requestEvaluation: async (sessionId, body) => {
+      requests.push({ sessionId, body });
+      return {
+        data: {
+          accepted: true,
+          processType: "REPORT_GENERATE",
+          step: "NCS_ANSWER_EVALUATION",
+          status: "PENDING",
+          queued: true,
+          processLogId: 901,
+          sessionId,
+          questionId: body.questionId,
+          answerId: body.answerId,
+          inputRef: "stored-answer-input",
+          callbackTopic: "ai.interview.ncs-answer-evaluation.requested",
+        },
+      };
+    },
+  });
+
+  assert.equal(result.status, "QUEUED");
+  assert.deepEqual(requests, [
+    {
+      sessionId: 101,
+      body: {
+        questionId: 501,
+        answerSource: "STORED_ANSWER",
+        answerId: 701,
+      },
+    },
+  ]);
+});
+
+test("skips recruiting and non-assessable mock questions without an API call", async () => {
+  let requestCount = 0;
+  const requestEvaluation = async () => {
+    requestCount += 1;
+    throw new Error("request must not run");
+  };
+
+  const recruiting = await queueStoredAnswerNcsEvaluation({
+    mode: "recruiting",
+    sessionId: 101,
+    questionId: 501,
+    questionType: "TECHNICAL",
+    answerId: 701,
+    requestEvaluation,
+  });
+  const intro = await queueStoredAnswerNcsEvaluation({
+    mode: "mock",
+    sessionId: 101,
+    questionId: 502,
+    questionType: "INTRO",
+    answerId: 702,
+    requestEvaluation,
+  });
+
+  assert.deepEqual(recruiting, { status: "SKIPPED", reason: "UNSUPPORTED_MODE" });
+  assert.deepEqual(intro, { status: "SKIPPED", reason: "QUESTION_NOT_ASSESSABLE" });
+  assert.equal(shouldQueueStoredAnswerNcsEvaluation("mock", "FOLLOW_UP"), true);
+  assert.equal(shouldQueueStoredAnswerNcsEvaluation("mock", "CLOSING"), false);
+  assert.equal(requestCount, 0);
 });
 
 function validOutput() {
