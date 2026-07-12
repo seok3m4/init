@@ -133,6 +133,11 @@ Prisma `AiProcessType`은 M3에서 추가하지 않는다. 기존 `REPORT_GENERA
 
 완료 결과는 기존 `GET /api/v1/ai/jobs/{processLogId}/status`를 사용한다.
 
+- 클라이언트는 진행 중 `processLogId`, session/question 식별자와 복구에 필요한 화면 context를 sessionStorage에 보관한다.
+- 새로고침 또는 polling timeout 뒤에는 새 평가 요청을 생성하지 않고 같은 `processLogId`를 다시 조회한다.
+- polling timeout은 작업 실패가 아니라 `DELAYED` 화면 상태다. 저장된 복구 정보는 `COMPLETED` 또는 명시적 `FAILED`에서만 제거한다.
+- 기본 polling은 점진적 backoff를 적용하며 약 2분의 지연을 허용한다.
+
 ```json
 {
   "data": {

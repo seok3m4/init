@@ -334,6 +334,17 @@
   animation: progressMove 1.2s ease-in-out infinite;
 }
 
+.noticeRegion {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.noticeRegion > :first-child {
+  flex: 1 1 320px;
+}
+
 .noticeRegion:empty {
   display: none;
 }

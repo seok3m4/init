@@ -105,9 +105,18 @@ export interface PollNcsEvaluationOptions {
   getStatus: (processLogId: number) => Promise<{ data: NcsAiJobStatus }>;
   attempts?: number;
   intervalMs?: number;
+  maxIntervalMs?: number;
+  backoffFactor?: number;
   signal?: AbortSignal;
   onStatus?: (status: NcsAiJobStatus["status"]) => void;
   wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
+}
+
+export class NcsEvaluationPollingTimeoutError extends Error {
+  constructor(readonly processLogId: number) {
+    super("평가가 지연되고 있습니다. 기존 평가 작업을 다시 확인해 주세요.");
+    this.name = "NcsEvaluationPollingTimeoutError";
+  }
 }
 
 export type StoredAnswerNcsEvaluationSkipReason = "UNSUPPORTED_MODE" | "QUESTION_NOT_ASSESSABLE";
@@ -195,9 +204,12 @@ export function parseNcsEvaluationProductOutput(value: unknown): NcsEvaluationPr
 export async function pollNcsEvaluation(
   options: PollNcsEvaluationOptions,
 ): Promise<NcsEvaluationProductOutput> {
-  const attempts = options.attempts ?? 30;
+  const attempts = options.attempts ?? 45;
   const intervalMs = options.intervalMs ?? 700;
+  const maxIntervalMs = options.maxIntervalMs ?? 3_000;
+  const backoffFactor = options.backoffFactor ?? 1.15;
   const wait = options.wait ?? waitFor;
+  let nextIntervalMs = intervalMs;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     throwIfAborted(options.signal);
@@ -215,11 +227,12 @@ export async function pollNcsEvaluation(
       throw new Error(status.failure?.reason || "답변 평가에 실패했습니다.");
     }
     if (attempt < attempts - 1) {
-      await wait(intervalMs, options.signal);
+      await wait(nextIntervalMs, options.signal);
+      nextIntervalMs = Math.min(maxIntervalMs, Math.ceil(nextIntervalMs * backoffFactor));
     }
   }
 
-  throw new Error("평가가 지연되고 있습니다. 잠시 후 다시 시도해 주세요.");
+  throw new NcsEvaluationPollingTimeoutError(options.processLogId);
 }
 
 function validEvidence(value: unknown): boolean {

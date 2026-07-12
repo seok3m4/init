@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { RuntimeQuestionView } from "./api";
 import {
   CandidatePageHead,
@@ -10,16 +10,23 @@ import {
   getCandidateApi,
 } from "./CandidatePages";
 import {
+  NcsEvaluationPollingTimeoutError,
   pollNcsEvaluation,
   type NcsBehaviorEvaluation,
   type NcsEvaluationProductOutput,
   type NcsEvidenceType,
 } from "./ncs-evaluation";
+import {
+  clearNcsTextPracticeRecovery,
+  loadNcsTextPracticeRecovery,
+  saveNcsTextPracticeRecovery,
+  type NcsTextPracticeRecovery,
+} from "./ncs-text-practice-recovery";
 import { candidateApplicationInterviewRoutes } from "./routes";
 import styles from "./NcsTextPracticePage.module.css";
 
 type PracticeFocus = "TECHNICAL" | "EXPERIENCE";
-type EvaluationPhase = "IDLE" | "STARTING" | "ANSWERING" | "QUEUED" | "RUNNING" | "RESULT";
+type EvaluationPhase = "IDLE" | "STARTING" | "ANSWERING" | "QUEUED" | "RUNNING" | "DELAYED" | "RESULT";
 
 interface PracticeSession {
   sessionId: number;
@@ -70,22 +77,84 @@ export function NcsTextPracticePage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [pendingEvaluation, setPendingEvaluation] = useState<NcsTextPracticeRecovery>();
   const pollingControllerRef = useRef<AbortController | undefined>(undefined);
 
-  useEffect(() => {
-    return () => pollingControllerRef.current?.abort();
+  const resumePendingEvaluation = useCallback(async (pending: NcsTextPracticeRecovery) => {
+    const controller = new AbortController();
+    pollingControllerRef.current?.abort();
+    pollingControllerRef.current = controller;
+    setError("");
+    setMessage("");
+    setPhase("RUNNING");
+
+    try {
+      const evaluated = await pollNcsEvaluation({
+        processLogId: pending.processLogId,
+        getStatus: getCandidateApi().getAiJobStatus,
+        signal: controller.signal,
+        onStatus: (status) => {
+          if (status === "PENDING") setPhase("QUEUED");
+          if (status === "RUNNING") setPhase("RUNNING");
+        },
+      });
+      clearNcsTextPracticeRecovery(window.sessionStorage);
+      setPendingEvaluation(undefined);
+      setBaseTranscript(pending.transcript);
+      setSavedTranscript(pending.transcript);
+      setResult(evaluated);
+      setPhase("RESULT");
+    } catch (evaluationError) {
+      if ((evaluationError as Error)?.name === "AbortError") return;
+      if (evaluationError instanceof NcsEvaluationPollingTimeoutError) {
+        setMessage("평가 작업은 계속 처리 중입니다. 잠시 후 기존 작업을 다시 확인해 주세요.");
+        setPhase("DELAYED");
+        return;
+      }
+      clearNcsTextPracticeRecovery(window.sessionStorage);
+      setPendingEvaluation(undefined);
+      setBaseTranscript(pending.transcript);
+      setSavedTranscript(pending.transcript);
+      setError(errorMessage(evaluationError));
+      setPhase("ANSWERING");
+    }
   }, []);
+
+  useEffect(() => {
+    const pending = loadNcsTextPracticeRecovery(window.sessionStorage);
+    if (pending) {
+      setJobRole(pending.jobRole as (typeof JOB_ROLES)[number]);
+      setFocus(pending.focus);
+      setSession({
+        sessionId: pending.sessionId,
+        jobRole: pending.jobRole,
+        focus: pending.focus,
+        question: pending.question,
+      });
+      setCurrentPrompt(pending.currentPrompt);
+      setAnswer("");
+      setBaseTranscript(pending.transcript);
+      setSavedTranscript(pending.transcript);
+      setFollowUpAttempt(pending.followUpAttempt);
+      setPendingEvaluation(pending);
+      void resumePendingEvaluation(pending);
+    }
+    return () => pollingControllerRef.current?.abort();
+  }, [resumePendingEvaluation]);
 
   const answerLimit = Math.max(
     0,
     MAX_TRANSCRIPT_LENGTH - baseTranscript.length - (baseTranscript ? 1 : 0),
   );
-  const busy = ["STARTING", "QUEUED", "RUNNING"].includes(phase);
+  const busy = ["STARTING", "QUEUED", "RUNNING", "DELAYED"].includes(phase);
+  const activelyPolling = ["QUEUED", "RUNNING"].includes(phase);
   const resultSummary = useMemo(() => summarizeResult(result), [result]);
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     pollingControllerRef.current?.abort();
+    clearNcsTextPracticeRecovery(window.sessionStorage);
+    setPendingEvaluation(undefined);
     setPhase("STARTING");
     setError("");
     setMessage("");
@@ -145,9 +214,6 @@ export function NcsTextPracticePage() {
     setError("");
     setMessage("");
     setPhase("QUEUED");
-    const controller = new AbortController();
-    pollingControllerRef.current?.abort();
-    pollingControllerRef.current = controller;
 
     try {
       const api = getCandidateApi();
@@ -166,18 +232,21 @@ export function NcsTextPracticePage() {
         answerSource: "TEXT_INPUT",
         transcript,
       });
-      const evaluated = await pollNcsEvaluation({
+      const pending: NcsTextPracticeRecovery = {
+        version: 1,
         processLogId: handoff.data.processLogId,
-        getStatus: api.getAiJobStatus,
-        signal: controller.signal,
-        onStatus: (status) => {
-          if (status === "RUNNING") setPhase("RUNNING");
-        },
-      });
-
-      setBaseTranscript(transcript);
-      setResult(evaluated);
-      setPhase("RESULT");
+        sessionId: session.sessionId,
+        jobRole: session.jobRole,
+        focus: session.focus,
+        question: session.question,
+        currentPrompt,
+        transcript,
+        followUpAttempt,
+        storedAt: Date.now(),
+      };
+      saveNcsTextPracticeRecovery(window.sessionStorage, pending);
+      setPendingEvaluation(pending);
+      await resumePendingEvaluation(pending);
     } catch (evaluationError) {
       if ((evaluationError as Error)?.name !== "AbortError") {
         setError(errorMessage(evaluationError));
@@ -221,6 +290,8 @@ export function NcsTextPracticePage() {
       }
     }
     pollingControllerRef.current?.abort();
+    clearNcsTextPracticeRecovery(window.sessionStorage);
+    setPendingEvaluation(undefined);
     setSession(undefined);
     setCurrentPrompt("");
     setAnswer("");
@@ -318,7 +389,13 @@ export function NcsTextPracticePage() {
                       type="submit"
                       disabled={busy || sessionCompleted || !answer.trim()}
                     >
-                      {phase === "QUEUED" ? "평가 요청 중" : phase === "RUNNING" ? "답변 분석 중" : "답변 평가"}
+                      {phase === "QUEUED"
+                        ? "평가 요청 중"
+                        : phase === "RUNNING"
+                          ? "답변 분석 중"
+                          : phase === "DELAYED"
+                            ? "처리 지연"
+                            : "답변 평가"}
                     </button>
                   </div>
                 </form>
@@ -343,7 +420,7 @@ export function NcsTextPracticePage() {
                     <dd>{phaseLabel(phase)}</dd>
                   </div>
                 </dl>
-                {busy ? (
+                {activelyPolling ? (
                   <div className={styles.progress} aria-label="평가 진행 중">
                     <span />
                   </div>
@@ -353,6 +430,15 @@ export function NcsTextPracticePage() {
 
             <div className={styles.noticeRegion} aria-live="polite">
               <StatusNotice error={error || undefined} message={message || undefined} />
+              {phase === "DELAYED" && pendingEvaluation ? (
+                <button
+                  className={styles.secondaryButton}
+                  type="button"
+                  onClick={() => void resumePendingEvaluation(pendingEvaluation)}
+                >
+                  기존 평가 다시 확인
+                </button>
+              ) : null}
             </div>
 
             {result && resultSummary ? (
@@ -504,6 +590,7 @@ function phaseLabel(phase: EvaluationPhase): string {
     ANSWERING: "답변 작성 중",
     QUEUED: "평가 대기",
     RUNNING: "답변 분석 중",
+    DELAYED: "처리 지연",
     RESULT: "평가 완료",
   };
   return labels[phase];

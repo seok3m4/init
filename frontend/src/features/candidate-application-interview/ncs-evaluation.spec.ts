@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  NcsEvaluationPollingTimeoutError,
   parseNcsEvaluationProductOutput,
   pollNcsEvaluation,
   queueStoredAnswerNcsEvaluation,
@@ -8,6 +9,13 @@ import {
   type NcsAiJobStatus,
   type NcsEvaluationRequest,
 } from "./ncs-evaluation";
+import {
+  clearNcsTextPracticeRecovery,
+  loadNcsTextPracticeRecovery,
+  saveNcsTextPracticeRecovery,
+  type NcsRecoveryStorage,
+  type NcsTextPracticeRecovery,
+} from "./ncs-text-practice-recovery";
 
 test("parses a valid NCS product output", () => {
   const output = validOutput();
@@ -60,8 +68,50 @@ test("surfaces worker failure and timeout messages", async () => {
       getStatus: async () => ({ data: { status: "RUNNING" } }),
       wait: async () => undefined,
     }),
-    /평가가 지연/,
+    (error: unknown) => error instanceof NcsEvaluationPollingTimeoutError && error.processLogId === 12,
   );
+});
+
+test("backs off polling intervals up to the configured maximum", async () => {
+  const intervals: number[] = [];
+  await assert.rejects(
+    pollNcsEvaluation({
+      processLogId: 13,
+      attempts: 4,
+      intervalMs: 10,
+      maxIntervalMs: 20,
+      backoffFactor: 2,
+      getStatus: async () => ({ data: { status: "RUNNING" } }),
+      wait: async (intervalMs) => { intervals.push(intervalMs); },
+    }),
+    NcsEvaluationPollingTimeoutError,
+  );
+  assert.deepEqual(intervals, [10, 20, 20]);
+});
+
+test("persists, restores, expires and clears a pending text practice evaluation", () => {
+  const storage = memoryStorage();
+  const recovery = validRecovery();
+
+  saveNcsTextPracticeRecovery(storage, recovery);
+  assert.deepEqual(loadNcsTextPracticeRecovery(storage, recovery.storedAt + 1_000), recovery);
+  assert.equal(loadNcsTextPracticeRecovery(storage, recovery.storedAt + 24 * 60 * 60 * 1_000 + 1), undefined);
+
+  saveNcsTextPracticeRecovery(storage, recovery);
+  clearNcsTextPracticeRecovery(storage);
+  assert.equal(loadNcsTextPracticeRecovery(storage), undefined);
+});
+
+test("keeps the page usable when browser recovery storage is blocked", () => {
+  const blocked: NcsRecoveryStorage = {
+    getItem: () => { throw new Error("blocked"); },
+    setItem: () => { throw new Error("blocked"); },
+    removeItem: () => { throw new Error("blocked"); },
+  };
+
+  assert.doesNotThrow(() => saveNcsTextPracticeRecovery(blocked, validRecovery()));
+  assert.equal(loadNcsTextPracticeRecovery(blocked), undefined);
+  assert.doesNotThrow(() => clearNcsTextPracticeRecovery(blocked));
 });
 
 test("queues assessable mock answers with the STORED_ANSWER contract", async () => {
@@ -188,5 +238,37 @@ function validOutput() {
       strategyVersion: "evidence-state-rules-v1",
       model: "deterministic-evidence-state-v1",
     },
+  };
+}
+
+function validRecovery(): NcsTextPracticeRecovery {
+  return {
+    version: 1,
+    processLogId: 901,
+    sessionId: 101,
+    jobRole: "백엔드 개발자",
+    focus: "TECHNICAL",
+    question: {
+      questionId: 501,
+      questionType: "TECHNICAL",
+      sortOrder: 0,
+      content: "기술 의사결정 경험을 설명해 주세요.",
+      audioPrompt: "question.mp3",
+      answered: true,
+      current: true,
+    },
+    currentPrompt: "기술 의사결정 경험을 설명해 주세요.",
+    transcript: "복합 인덱스를 적용하고 p95를 비교했습니다.",
+    followUpAttempt: 0,
+    storedAt: 1_000,
+  };
+}
+
+function memoryStorage(): NcsRecoveryStorage {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => { values.set(key, value); },
+    removeItem: (key) => { values.delete(key); },
   };
 }
