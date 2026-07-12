@@ -40,6 +40,29 @@ test("marks pending, running, completed and saves final output after guardrail p
   assert.deepEqual(queue.deletedMessageIds, ["message-1"]);
 });
 
+test("acks completed process redelivery without rerunning the handler", async () => {
+  const repository = new InMemoryAiProcessLogRepository();
+  const completedMessage = message(9);
+  await repository.ensurePending(completedMessage.job);
+  await repository.markRunning(9);
+  await repository.markCompleted(9, "completed-output");
+  const queue = new InMemoryAiJobQueue([completedMessage]);
+  let handlerCalls = 0;
+  const handler: AiTaskHandler = {
+    async handle() {
+      handlerCalls += 1;
+      throw new Error("completed process must not rerun");
+    }
+  };
+
+  await new AiWorkerRunner(queue, repository, handler).processBatch();
+
+  assert.equal(handlerCalls, 0);
+  assert.equal(repository.get(9).status, "COMPLETED");
+  assert.equal(repository.get(9).outputRef, "completed-output");
+  assert.deepEqual(queue.deletedMessageIds, ["message-9"]);
+});
+
 test("saves final output when guardrail result is regenerated", async () => {
   const queue = new InMemoryAiJobQueue([message(5)]);
   const repository = new InMemoryAiProcessLogRepository();

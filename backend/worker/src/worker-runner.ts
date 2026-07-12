@@ -38,7 +38,11 @@ export class AiWorkerRunner {
   }
 
   private async processMessage(message: AiQueueMessage): Promise<void> {
-    await this.repository.ensurePending(message.job);
+    const existing = await this.repository.ensurePending(message.job);
+    if (existing.status === "COMPLETED") {
+      await this.queue.delete(message);
+      return;
+    }
     await this.repository.markRunning(message.job.processLogId);
 
     try {
