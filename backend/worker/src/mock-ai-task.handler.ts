@@ -20,6 +20,10 @@ import {
   SERVICE_INTERVIEW_RUBRIC,
   weightedTotalScore
 } from "./service-interview-rubric";
+import {
+  ncsEvaluationGuardrailDecision,
+  ProductEvidenceStateNcsEvaluationAdapter
+} from "./ncs-evaluation/product-evidence-state.adapter";
 
 interface WorkerInput {
   kind?: string;
@@ -61,6 +65,8 @@ const MOCK_HIRING_DECISION_TERMS = [
 ];
 
 export class MockAiTaskHandler implements AiTaskHandler {
+  private readonly ncsEvaluationAdapter = new ProductEvidenceStateNcsEvaluationAdapter();
+
   constructor(
     private readonly results: AiResultRepository,
     private readonly options: { sttProvider?: SttProvider } = {}
@@ -229,6 +235,16 @@ export class MockAiTaskHandler implements AiTaskHandler {
 
   private reportGenerate(kind: string, payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     switch (payload.step) {
+      case "NCS_ANSWER_EVALUATION": {
+        if (kind !== "MOCK_NCS_ANSWER_EVALUATION") {
+          throw new NonRetryableAiWorkerFailure("NCS answer evaluation requires MOCK_NCS_ANSWER_EVALUATION kind");
+        }
+        const output = this.ncsEvaluationAdapter.evaluate(payload);
+        return {
+          outputRef: JSON.stringify(output),
+          guardrail: ncsEvaluationGuardrailDecision(output)
+        };
+      }
       case "EVALUATION_CONTEXT":
         return this.evaluationContext(payload, processLogId);
       case "ANSWER_EVALUATION":
