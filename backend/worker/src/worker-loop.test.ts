@@ -56,3 +56,32 @@ test("AiWorkerLoop exits when aborted during idle delay", async () => {
 
   assert.equal(calls, 1);
 });
+
+test("AiWorkerLoop removes the abort listener after each idle delay", async () => {
+  const listeners = new Set<unknown>();
+  let maxActiveListeners = 0;
+  const signal = {
+    aborted: false,
+    addEventListener(type: string, listener: unknown) {
+      if (type !== "abort") return;
+      listeners.add(listener);
+      maxActiveListeners = Math.max(maxActiveListeners, listeners.size);
+    },
+    removeEventListener(type: string, listener: unknown) {
+      if (type === "abort") listeners.delete(listener);
+    }
+  } as unknown as AbortSignal;
+  const loop = new AiWorkerLoop(
+    {
+      async processBatch() {
+        return 0;
+      }
+    },
+    { idleDelayMs: 1, signal }
+  );
+
+  await loop.run({ maxBatches: 12 });
+
+  assert.equal(maxActiveListeners, 1);
+  assert.equal(listeners.size, 0);
+});

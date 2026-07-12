@@ -44,15 +44,20 @@ export class AiWorkerLoop {
     }
 
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, this.options.idleDelayMs);
-      this.options.signal?.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timeout);
-          resolve();
-        },
-        { once: true }
-      );
+      const signal = this.options.signal;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timeout) clearTimeout(timeout);
+        signal?.removeEventListener("abort", finish);
+        resolve();
+      };
+
+      timeout = setTimeout(finish, this.options.idleDelayMs);
+      signal?.addEventListener("abort", finish, { once: true });
+      if (signal?.aborted) finish();
     });
   }
 }
