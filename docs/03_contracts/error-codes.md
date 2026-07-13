@@ -26,6 +26,24 @@
 | AI_GUARDRAIL_BLOCKED | 422 | AI 출력 정책 위반 | 저장하지 않고 재생성 또는 수동 검토 |
 | REPORT_NOT_READY | 409 | 리포트 생성 전 조회 | 생성중 상태와 재조회 안내 |
 
+## Hiring Simulation Configuration Details
+
+API-039C/039D는 공통 오류 코드와 아래 `details[].reason`을 사용한다. 별도 도메인 오류 코드를 추가하지 않는다.
+
+| Error Code | HTTP | Detail Reason | Meaning |
+| --- | ---: | --- | --- |
+| COMMON_VALIDATION_FAILED | 400 | WEIGHT_SUM_MUST_EQUAL_100 | 직무/인재상 비중 합이 100이 아님 |
+| COMMON_VALIDATION_FAILED | 400 | OUT_OF_RANGE | 최소점수, 근거 충족률 또는 정수 입력이 계약 범위를 벗어남 |
+| COMMON_VALIDATION_FAILED | 400 | CUSTOM_COUNTS_REQUIRED | CUSTOM 모드의 질문 수 또는 꼬리질문 한도가 누락됨 |
+| COMMON_VALIDATION_FAILED | 400 | FIXED_MODE_COUNTS_NOT_ALLOWED | 고정 질문 모드에 CUSTOM 전용 개수 필드가 전달됨 |
+| COMMON_VALIDATION_FAILED | 400 | QUESTION_COUNT_MISMATCH | 정렬 질문 ID 수가 모드의 본질문 수와 다름 |
+| COMMON_VALIDATION_FAILED | 400 | DUPLICATED | `orderedQuestionIds`에 중복 질문이 있음 |
+| COMMON_VALIDATION_FAILED | 400 | QUESTION_NOT_IN_ACTIVE_SET | 질문 ID가 지정된 활성 질문 세트에 포함되지 않음 |
+| COMMON_VALIDATION_FAILED | 400 | POSTING_MISMATCH | 질문 세트와 공고 연결이 요청과 다름 |
+| COMMON_FORBIDDEN | 403 | COMPANY_OWNERSHIP_MISMATCH | 공고, 질문 세트 또는 코호트가 현재 기업 소유가 아님 |
+| COMMON_NOT_FOUND | 404 | RESOURCE_NOT_FOUND | 공고, 질문 세트 또는 코호트가 존재하지 않음 |
+| COMMON_CONFLICT | 409 | QUESTION_SET_NOT_ACTIVE | 지정한 질문 세트가 현재 ACTIVE 상태가 아님 |
+
 ## Error Shape
 
 ```json

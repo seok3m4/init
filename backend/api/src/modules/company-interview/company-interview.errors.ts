@@ -20,16 +20,25 @@ export function unauthorized(message = '인증 정보가 필요합니다.'): nev
   apiError(ERROR_CODES.COMMON_UNAUTHORIZED, message, HttpStatus.UNAUTHORIZED);
 }
 
-export function forbidden(message = '접근 권한이 없습니다.'): never {
-  apiError(ERROR_CODES.COMMON_FORBIDDEN, message, HttpStatus.FORBIDDEN);
+export function forbidden(
+  message = '접근 권한이 없습니다.',
+  details: ErrorDetail[] = [],
+): never {
+  apiError(ERROR_CODES.COMMON_FORBIDDEN, message, HttpStatus.FORBIDDEN, details);
 }
 
-export function notFound(message = '리소스를 찾을 수 없습니다.'): never {
-  apiError(ERROR_CODES.COMMON_NOT_FOUND, message, HttpStatus.NOT_FOUND);
+export function notFound(
+  message = '리소스를 찾을 수 없습니다.',
+  details: ErrorDetail[] = [],
+): never {
+  apiError(ERROR_CODES.COMMON_NOT_FOUND, message, HttpStatus.NOT_FOUND, details);
 }
 
-export function conflict(message = '이미 존재하는 리소스입니다.'): never {
-  apiError(ERROR_CODES.COMMON_CONFLICT, message, HttpStatus.CONFLICT);
+export function conflict(
+  message = '이미 존재하는 리소스입니다.',
+  details: ErrorDetail[] = [],
+): never {
+  apiError(ERROR_CODES.COMMON_CONFLICT, message, HttpStatus.CONFLICT, details);
 }
 
 export function validationFailed(

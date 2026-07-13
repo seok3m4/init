@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -16,6 +18,7 @@ import { ok, type RequestLike } from '../../shared/response-envelope';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CompanyInterviewService } from './company-interview.service';
 import { InterviewSettingsQueryDto } from './dto/interview-settings.dto';
+import { CreateHiringSimulationDto } from './dto/hiring-simulation.dto';
 import { UpdateEvaluationCriterionDto } from './dto/evaluation-criterion.dto';
 import {
   CreateInterviewQuestionDto,
@@ -111,6 +114,31 @@ export class CompanyInterviewController {
     @Body() body: ConfirmQuestionSetDto,
   ) {
     const data = await this.service.confirmQuestionSet(request.currentUser, body);
+    return ok(request, data);
+  }
+
+  @Post('hiring-simulations')
+  @HttpCode(HttpStatus.CREATED)
+  async createHiringSimulation(
+    @Req() request: CompanyRequest,
+    @Body() body: CreateHiringSimulationDto,
+  ) {
+    const data = await this.service.createHiringSimulation(
+      request.currentUser,
+      body,
+    );
+    return ok(request, data);
+  }
+
+  @Get('hiring-simulations/:cohortId')
+  async getHiringSimulation(
+    @Req() request: CompanyRequest,
+    @Param('cohortId', ParseIntPipe) cohortId: number,
+  ) {
+    const data = await this.service.getHiringSimulation(
+      request.currentUser,
+      cohortId,
+    );
     return ok(request, data);
   }
 }

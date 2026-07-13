@@ -1942,6 +1942,74 @@ AI 리포트 금지 기준:
 - Error Codes:
   - `COMMON_FORBIDDEN`, `COMMON_NOT_FOUND`
 
+### API-039C POST /company/interviews/hiring-simulations
+- 도메인: 기업 - 면접관리
+- 권한/인증: Bearer JWT로 인증된 기업 사용자만 허용
+- 관련 화면: 채용 판정 시뮬레이션 설정 화면
+- UI Type: form
+- 상태 코드: 201 Created
+- 비동기: N
+- 요청 데이터:
+  - `postingId`: number, required, 1 이상의 정수
+  - `sourceQuestionSetId`: number, required, 1 이상의 정수
+  - `title`: string, required, trim 후 1~200자
+  - `decisionMode`: `ABSOLUTE | RELATIVE | HYBRID`, optional, 기본 `HYBRID`
+  - `jobWeightPercent`: number, required, 정수 0~100
+  - `talentWeightPercent`: number, required, 정수 0~100
+  - `minimumJobScore`: number, required, 정수 0~100
+  - `minimumTalentScore`: number, required, 정수 0~100
+  - `minimumEvidenceCoveragePercent`: number, required, 정수 0~100
+  - `capacity`: number, required, 1 이상 2,147,483,647 이하의 정수
+  - `questionSetMode`: `QUICK | STANDARD | DEEP | CUSTOM`, required
+  - `questionCount`: number, `CUSTOM`일 때만 required, 1 이상 2,147,483,647 이하의 정수
+  - `maxFollowUpCount`: number, `CUSTOM`일 때만 required, 0 이상 2,147,483,647 이하의 정수
+  - `orderedQuestionIds`: number[], required, 순서가 곧 질문 snapshot의 1 기반 `order`
+- 질문 모드 계약:
+  - `QUICK`: `questionCount=3`, `maxFollowUpCount=2`
+  - `STANDARD`: `questionCount=5`, `maxFollowUpCount=3`
+  - `DEEP`: `questionCount=7`, `maxFollowUpCount=4`
+  - `CUSTOM`: 요청의 `questionCount`, `maxFollowUpCount`를 사용한다.
+  - 고정 모드에서는 `questionCount`, `maxFollowUpCount`를 전달하지 않는다.
+- 검증/전제조건:
+  - `jobWeightPercent + talentWeightPercent = 100`이어야 한다.
+  - 공고는 현재 JWT 기업 사용자의 `companyId` 소유여야 한다.
+  - `sourceQuestionSetId`는 같은 기업과 같은 공고 소유이며 현재 `ACTIVE` 질문 세트여야 한다.
+  - `orderedQuestionIds`는 중복될 수 없고, 모드에서 결정된 `questionCount`와 정확히 같아야 한다.
+  - 모든 `orderedQuestionIds`는 해당 `ACTIVE` 질문 세트의 항목에 실제로 포함되어야 한다.
+- 저장/불변성:
+  - repository는 새 `HiringEvaluationPolicy`, 새 `HiringQuestionSetSnapshot`, 새 `HiringEvaluationCohort(status=OPEN)`를 하나의 DB transaction에서 생성한다.
+  - 기존 정책, 질문 snapshot, 코호트 row를 update/upsert하거나 덮어쓰지 않는다.
+  - 정책 `snapshotJson`은 `schemaVersion`, `administratorInput`, `tieBreakOrder`를 포함한다.
+  - `administratorInput`은 `postingId`, 판정 모드, 두 비중, 세 최소 기준을 포함한다.
+  - `tieBreakOrder`는 종합점수, 더 높은 비중 트랙 점수, 해당 트랙 세부 가중치, 근거 충족률 순서를 명시한다. 두 트랙 비중이 같으면 높은 비중 트랙 단계는 생략한다.
+  - 질문 `snapshotJson`은 `schemaVersion`, `postingId`, `sourceQuestionSetId`, `jobRole`, 모드, 질문 수, 꼬리질문 한도와 정렬된 `{ questionId, order, content, criterionId }[]`를 포함한다.
+  - 정책 `policyVersion`과 질문 `snapshotVersion`은 생성마다 새 불변 버전을 발급한다.
+- 응답 데이터:
+  - `cohort`: `{ cohortId, postingId, policyId, questionSetSnapshotId, title, jobRole, status, capacity, openedAt, createdAt }`
+  - `policy`: `{ policyId, policyVersion, decisionMode, jobWeightPercent, talentWeightPercent, minimumJobScore, minimumTalentScore, minimumEvidenceCoveragePercent, tieBreakMode, snapshotJson, createdAt }`
+  - `questionSetSnapshot`: `{ questionSetSnapshotId, sourceQuestionSetId, snapshotVersion, jobRole, mode, questionCount, maxFollowUpCount, snapshotJson, createdAt }`
+- 범위 제외:
+  - M3 인재상 루브릭 생성, 지원자 평가/집계, 코호트 랭킹 및 최종 판정은 수행하지 않는다.
+- Error Codes:
+  - `COMMON_FORBIDDEN`, `COMMON_NOT_FOUND`, `COMMON_VALIDATION_FAILED`, `COMMON_CONFLICT`
+
+### API-039D GET /company/interviews/hiring-simulations/{cohortId}
+- 도메인: 기업 - 면접관리
+- 권한/인증: Bearer JWT로 인증된 기업 사용자만 허용
+- 관련 화면: 채용 판정 시뮬레이션 설정 상세 화면
+- UI Type: section
+- 상태 코드: 200 OK
+- 비동기: N
+- Path Params:
+  - `cohortId`: number, required, 1 이상의 정수
+- 검증/전제조건:
+  - 코호트가 참조하는 공고와 설정은 현재 JWT 기업 사용자의 `companyId` 소유여야 한다.
+- 성공 응답/처리:
+  - API-039C와 동일한 `cohort`, `policy`, `questionSetSnapshot` 구조를 반환한다.
+  - 저장 당시의 불변 version과 `snapshotJson`을 반환하며 현재 질문 내용이나 관리자 설정으로 재구성하지 않는다.
+- Error Codes:
+  - `COMMON_FORBIDDEN`, `COMMON_NOT_FOUND`
+
 ### API-040 PATCH /company/interviews/time-policy
 - 도메인: 기업 - 면접관리
 - 권한/인증: 기업 / 기업 사용자 로그인

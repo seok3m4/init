@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { CurrentUser } from '@init/common';
 import {
@@ -30,13 +31,28 @@ import {
 } from './company-interview.errors';
 import {
   EvaluationCriterionRecord,
+  HIRING_DECISION_MODES,
+  HIRING_QUESTION_SET_MODES,
+  HiringDecisionMode,
+  HiringPolicySnapshot,
+  HiringQuestionSetMode,
+  HiringQuestionSetSnapshotJson,
+  HiringSimulationConfigurationRecord,
+  HiringTieBreakStep,
+  PostingRecord,
   QuestionRecord,
   QuestionSetRecord,
 } from './company-interview.types';
 import {
+  CreateHiringSimulationDto,
+  HiringSimulationResponseDto,
+} from './dto/hiring-simulation.dto';
+import {
   COMPANY_INTERVIEW_REPOSITORY,
   CompanyInterviewRepository,
 } from './repositories/company-interview.repository';
+
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
 
 @Injectable()
 export class CompanyInterviewService {
@@ -314,6 +330,117 @@ export class CompanyInterviewService {
     };
   }
 
+  async createHiringSimulation(
+    currentUser: CurrentUser,
+    dto: CreateHiringSimulationDto,
+  ): Promise<HiringSimulationResponseDto> {
+    this.assertCompanyUser(currentUser);
+    const decisionMode = dto.decisionMode ?? 'HYBRID';
+    this.validateHiringSimulationInput(dto, decisionMode);
+
+    const posting = await this.getOwnedPosting(currentUser, dto.postingId);
+    const sourceQuestionSet = await this.getOwnedActiveQuestionSet(
+      currentUser,
+      posting,
+      dto.sourceQuestionSetId,
+    );
+    const { questionCount, maxFollowUpCount } =
+      this.resolveQuestionModeLimits(dto);
+    const questions = this.snapshotSelectedQuestions(
+      currentUser,
+      posting,
+      sourceQuestionSet,
+      dto.orderedQuestionIds,
+      questionCount,
+    );
+    const policySnapshot: HiringPolicySnapshot = {
+      schemaVersion: 'hiring-evaluation-policy.v1',
+      administratorInput: {
+        postingId: posting.postingId,
+        decisionMode,
+        jobWeightPercent: dto.jobWeightPercent,
+        talentWeightPercent: dto.talentWeightPercent,
+        minimumJobScore: dto.minimumJobScore,
+        minimumTalentScore: dto.minimumTalentScore,
+        minimumEvidenceCoveragePercent:
+          dto.minimumEvidenceCoveragePercent,
+      },
+      tieBreakOrder: this.buildTieBreakOrder(
+        dto.jobWeightPercent,
+        dto.talentWeightPercent,
+      ),
+    };
+    const questionSnapshot: HiringQuestionSetSnapshotJson = {
+      schemaVersion: 'hiring-question-set.v1',
+      postingId: posting.postingId,
+      sourceQuestionSetId: sourceQuestionSet.questionSetId,
+      jobRole: posting.jobRole,
+      mode: dto.questionSetMode,
+      questionCount,
+      maxFollowUpCount,
+      questions,
+    };
+
+    const configuration =
+      await this.repository.createHiringSimulationConfiguration({
+        policy: {
+          postingId: posting.postingId,
+          createdByUserId: currentUser.userId,
+          policyVersion: `hiring-policy-v1-${randomUUID()}`,
+          decisionMode,
+          jobWeightPercent: dto.jobWeightPercent,
+          talentWeightPercent: dto.talentWeightPercent,
+          minimumJobScore: dto.minimumJobScore,
+          minimumTalentScore: dto.minimumTalentScore,
+          minimumEvidenceCoveragePercent:
+            dto.minimumEvidenceCoveragePercent,
+          snapshotJson: policySnapshot,
+        },
+        questionSetSnapshot: {
+          postingId: posting.postingId,
+          sourceQuestionSetId: sourceQuestionSet.questionSetId,
+          snapshotVersion: `hiring-question-set-v1-${randomUUID()}`,
+          jobRole: posting.jobRole,
+          mode: dto.questionSetMode,
+          questionCount,
+          maxFollowUpCount,
+          snapshotJson: questionSnapshot,
+        },
+        cohort: {
+          postingId: posting.postingId,
+          createdByUserId: currentUser.userId,
+          title: dto.title.trim(),
+          jobRole: posting.jobRole,
+          capacity: dto.capacity,
+        },
+      });
+
+    return this.mapHiringSimulation(configuration);
+  }
+
+  async getHiringSimulation(
+    currentUser: CurrentUser,
+    cohortId: number,
+  ): Promise<HiringSimulationResponseDto> {
+    this.assertCompanyUser(currentUser);
+    this.assertIntegerInRange('cohortId', cohortId, 1, Number.MAX_SAFE_INTEGER);
+
+    const configuration =
+      await this.repository.findHiringSimulationConfiguration(cohortId);
+    if (!configuration) {
+      notFound('채용 판정 시뮬레이션을 찾을 수 없습니다.', [
+        { field: 'cohortId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
+    }
+    if (configuration.cohort.companyId !== currentUser.companyId) {
+      forbidden('채용 판정 시뮬레이션 접근 권한이 없습니다.', [
+        { field: 'cohortId', reason: 'COMPANY_OWNERSHIP_MISMATCH' },
+      ]);
+    }
+
+    return this.mapHiringSimulation(configuration);
+  }
+
   private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
     this.assertCompanyUser(currentUser);
 
@@ -323,11 +450,15 @@ export class CompanyInterviewService {
         : await this.repository.findPosting(postingId);
 
     if (!posting) {
-      notFound('공고를 찾을 수 없습니다.');
+      notFound('공고를 찾을 수 없습니다.', [
+        { field: 'postingId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
     }
 
     if (posting.companyId !== currentUser.companyId) {
-      forbidden('공고 접근 권한이 없습니다.');
+      forbidden('공고 접근 권한이 없습니다.', [
+        { field: 'postingId', reason: 'COMPANY_OWNERSHIP_MISMATCH' },
+      ]);
     }
 
     return posting;
@@ -338,6 +469,293 @@ export class CompanyInterviewService {
   ): asserts currentUser is CurrentUser & { companyId: number } {
     if (currentUser.userType !== 'COMPANY' || currentUser.companyId === null) {
       forbidden('기업 사용자만 접근할 수 있습니다.');
+    }
+  }
+
+  private validateHiringSimulationInput(
+    dto: CreateHiringSimulationDto,
+    decisionMode: HiringDecisionMode,
+  ): void {
+    this.assertIntegerInRange(
+      'postingId',
+      dto.postingId,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    this.assertIntegerInRange(
+      'sourceQuestionSetId',
+      dto.sourceQuestionSetId,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    this.assertIntegerInRange(
+      'capacity',
+      dto.capacity,
+      1,
+      POSTGRES_INTEGER_MAX,
+    );
+    this.assertIntegerInRange('jobWeightPercent', dto.jobWeightPercent, 0, 100);
+    this.assertIntegerInRange(
+      'talentWeightPercent',
+      dto.talentWeightPercent,
+      0,
+      100,
+    );
+    this.assertIntegerInRange('minimumJobScore', dto.minimumJobScore, 0, 100);
+    this.assertIntegerInRange(
+      'minimumTalentScore',
+      dto.minimumTalentScore,
+      0,
+      100,
+    );
+    this.assertIntegerInRange(
+      'minimumEvidenceCoveragePercent',
+      dto.minimumEvidenceCoveragePercent,
+      0,
+      100,
+    );
+
+    if (!HIRING_DECISION_MODES.some((mode) => mode === decisionMode)) {
+      validationFailed('판정 방식을 확인해주세요.', [
+        { field: 'decisionMode', reason: 'OUT_OF_RANGE' },
+      ]);
+    }
+    if (
+      !HIRING_QUESTION_SET_MODES.some(
+        (mode) => mode === dto.questionSetMode,
+      )
+    ) {
+      validationFailed('질문 모드를 확인해주세요.', [
+        { field: 'questionSetMode', reason: 'OUT_OF_RANGE' },
+      ]);
+    }
+    if (dto.jobWeightPercent + dto.talentWeightPercent !== 100) {
+      validationFailed('직무와 인재상 비중 합은 100이어야 합니다.', [
+        {
+          field: 'jobWeightPercent,talentWeightPercent',
+          reason: 'WEIGHT_SUM_MUST_EQUAL_100',
+        },
+      ]);
+    }
+
+    const title = typeof dto.title === 'string' ? dto.title.trim() : '';
+    if (title.length === 0 || title.length > 200) {
+      validationFailed('코호트 이름을 확인해주세요.', [
+        { field: 'title', reason: 'OUT_OF_RANGE' },
+      ]);
+    }
+    if (
+      !Array.isArray(dto.orderedQuestionIds) ||
+      dto.orderedQuestionIds.some(
+        (questionId) => !Number.isInteger(questionId) || questionId < 1,
+      )
+    ) {
+      validationFailed('질문 ID를 확인해주세요.', [
+        { field: 'orderedQuestionIds', reason: 'OUT_OF_RANGE' },
+      ]);
+    }
+  }
+
+  private resolveQuestionModeLimits(dto: CreateHiringSimulationDto): {
+    questionCount: number;
+    maxFollowUpCount: number;
+  } {
+    const fixedLimits: Partial<
+      Record<
+        HiringQuestionSetMode,
+        { questionCount: number; maxFollowUpCount: number }
+      >
+    > = {
+      QUICK: { questionCount: 3, maxFollowUpCount: 2 },
+      STANDARD: { questionCount: 5, maxFollowUpCount: 3 },
+      DEEP: { questionCount: 7, maxFollowUpCount: 4 },
+    };
+    const fixed = fixedLimits[dto.questionSetMode];
+    if (fixed) {
+      if (
+        dto.questionCount !== undefined ||
+        dto.maxFollowUpCount !== undefined
+      ) {
+        validationFailed('고정 질문 모드의 개수는 변경할 수 없습니다.', [
+          {
+            field: 'questionCount,maxFollowUpCount',
+            reason: 'FIXED_MODE_COUNTS_NOT_ALLOWED',
+          },
+        ]);
+      }
+      return fixed;
+    }
+
+    if (
+      dto.questionCount === undefined ||
+      dto.maxFollowUpCount === undefined
+    ) {
+      validationFailed('CUSTOM 질문 모드의 개수와 한도를 입력해주세요.', [
+        {
+          field: 'questionCount,maxFollowUpCount',
+          reason: 'CUSTOM_COUNTS_REQUIRED',
+        },
+      ]);
+    }
+    this.assertIntegerInRange(
+      'questionCount',
+      dto.questionCount,
+      1,
+      POSTGRES_INTEGER_MAX,
+    );
+    this.assertIntegerInRange(
+      'maxFollowUpCount',
+      dto.maxFollowUpCount,
+      0,
+      POSTGRES_INTEGER_MAX,
+    );
+
+    return {
+      questionCount: dto.questionCount,
+      maxFollowUpCount: dto.maxFollowUpCount,
+    };
+  }
+
+  private async getOwnedActiveQuestionSet(
+    currentUser: CurrentUser & { companyId: number },
+    posting: PostingRecord,
+    questionSetId: number,
+  ): Promise<QuestionSetRecord> {
+    const questionSet = await this.repository.findQuestionSet(questionSetId);
+    if (!questionSet) {
+      notFound('질문 세트를 찾을 수 없습니다.', [
+        { field: 'sourceQuestionSetId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
+    }
+
+    const questionSetPosting = await this.repository.findPosting(
+      questionSet.postingId,
+    );
+    if (!questionSetPosting) {
+      notFound('질문 세트의 공고를 찾을 수 없습니다.', [
+        { field: 'sourceQuestionSetId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
+    }
+    if (questionSetPosting.companyId !== currentUser.companyId) {
+      forbidden('질문 세트 접근 권한이 없습니다.', [
+        {
+          field: 'sourceQuestionSetId',
+          reason: 'COMPANY_OWNERSHIP_MISMATCH',
+        },
+      ]);
+    }
+    if (questionSet.postingId !== posting.postingId) {
+      validationFailed('공고의 질문 세트를 선택해주세요.', [
+        { field: 'sourceQuestionSetId', reason: 'POSTING_MISMATCH' },
+      ]);
+    }
+
+    const activeQuestionSet = await this.repository.findActiveQuestionSet(
+      posting.postingId,
+    );
+    if (
+      questionSet.status !== 'ACTIVE' ||
+      activeQuestionSet?.questionSetId !== questionSet.questionSetId
+    ) {
+      conflict('현재 활성 질문 세트를 선택해주세요.', [
+        { field: 'sourceQuestionSetId', reason: 'QUESTION_SET_NOT_ACTIVE' },
+      ]);
+    }
+
+    return questionSet;
+  }
+
+  private snapshotSelectedQuestions(
+    currentUser: CurrentUser & { companyId: number },
+    posting: PostingRecord,
+    questionSet: QuestionSetRecord,
+    orderedQuestionIds: number[],
+    questionCount: number,
+  ) {
+    if (orderedQuestionIds.length !== questionCount) {
+      validationFailed('질문 수가 선택한 모드와 일치하지 않습니다.', [
+        { field: 'orderedQuestionIds', reason: 'QUESTION_COUNT_MISMATCH' },
+      ]);
+    }
+    if (new Set(orderedQuestionIds).size !== orderedQuestionIds.length) {
+      validationFailed('질문 ID가 중복되었습니다.', [
+        { field: 'orderedQuestionIds', reason: 'DUPLICATED' },
+      ]);
+    }
+
+    const itemsByQuestionId = new Map(
+      questionSet.items.map((item) => [item.questionId, item]),
+    );
+    return orderedQuestionIds.map((questionId, index) => {
+      const item = itemsByQuestionId.get(questionId);
+      if (!item) {
+        validationFailed('활성 질문 세트에 포함된 질문을 선택해주세요.', [
+          {
+            field: 'orderedQuestionIds',
+            reason: 'QUESTION_NOT_IN_ACTIVE_SET',
+          },
+        ]);
+      }
+      if (!item.question) {
+        notFound('질문 세트의 질문을 찾을 수 없습니다.', [
+          { field: 'orderedQuestionIds', reason: 'RESOURCE_NOT_FOUND' },
+        ]);
+      }
+      if (item.question.companyId !== currentUser.companyId) {
+        forbidden('질문 접근 권한이 없습니다.', [
+          {
+            field: 'orderedQuestionIds',
+            reason: 'COMPANY_OWNERSHIP_MISMATCH',
+          },
+        ]);
+      }
+      if (item.question.postingId !== posting.postingId) {
+        validationFailed('공고의 질문을 선택해주세요.', [
+          { field: 'orderedQuestionIds', reason: 'POSTING_MISMATCH' },
+        ]);
+      }
+
+      return {
+        questionId,
+        order: index + 1,
+        content: item.question.content,
+        criterionId: item.criterionId ?? item.question.criterionId,
+      };
+    });
+  }
+
+  private buildTieBreakOrder(
+    jobWeightPercent: number,
+    talentWeightPercent: number,
+  ): HiringTieBreakStep[] {
+    const order: HiringTieBreakStep[] = [
+      { field: 'WEIGHTED_TOTAL_SCORE', direction: 'DESC' },
+    ];
+    if (jobWeightPercent !== talentWeightPercent) {
+      const track = jobWeightPercent > talentWeightPercent ? 'JOB' : 'TALENT';
+      order.push(
+        { field: 'PRIMARY_TRACK_SCORE', direction: 'DESC', track },
+        {
+          field: 'PRIMARY_TRACK_DETAIL_WEIGHT_ORDER',
+          direction: 'DESC',
+          track,
+        },
+      );
+    }
+    order.push({ field: 'EVIDENCE_COVERAGE_PERCENT', direction: 'DESC' });
+    return order;
+  }
+
+  private assertIntegerInRange(
+    field: string,
+    value: number,
+    minimum: number,
+    maximum: number,
+  ): void {
+    if (!Number.isInteger(value) || value < minimum || value > maximum) {
+      validationFailed('입력값의 범위를 확인해주세요.', [
+        { field, reason: 'OUT_OF_RANGE' },
+      ]);
     }
   }
 
@@ -441,6 +859,55 @@ export class CompanyInterviewService {
         content: item.question?.content,
         isActive: item.question?.isActive,
       })),
+    };
+  }
+
+  private mapHiringSimulation(
+    configuration: HiringSimulationConfigurationRecord,
+  ): HiringSimulationResponseDto {
+    return {
+      cohort: {
+        cohortId: configuration.cohort.cohortId,
+        postingId: configuration.cohort.postingId,
+        policyId: configuration.cohort.policyId,
+        questionSetSnapshotId:
+          configuration.cohort.questionSetSnapshotId,
+        title: configuration.cohort.title,
+        jobRole: configuration.cohort.jobRole,
+        status: configuration.cohort.status,
+        capacity: configuration.cohort.capacity,
+        openedAt: configuration.cohort.openedAt.toISOString(),
+        createdAt: configuration.cohort.createdAt.toISOString(),
+      },
+      policy: {
+        policyId: configuration.policy.policyId,
+        policyVersion: configuration.policy.policyVersion,
+        decisionMode: configuration.policy.decisionMode,
+        jobWeightPercent: configuration.policy.jobWeightPercent,
+        talentWeightPercent: configuration.policy.talentWeightPercent,
+        minimumJobScore: configuration.policy.minimumJobScore,
+        minimumTalentScore: configuration.policy.minimumTalentScore,
+        minimumEvidenceCoveragePercent:
+          configuration.policy.minimumEvidenceCoveragePercent,
+        tieBreakMode: configuration.policy.tieBreakMode,
+        snapshotJson: configuration.policy.snapshotJson,
+        createdAt: configuration.policy.createdAt.toISOString(),
+      },
+      questionSetSnapshot: {
+        questionSetSnapshotId:
+          configuration.questionSetSnapshot.questionSetSnapshotId,
+        sourceQuestionSetId:
+          configuration.questionSetSnapshot.sourceQuestionSetId,
+        snapshotVersion: configuration.questionSetSnapshot.snapshotVersion,
+        jobRole: configuration.questionSetSnapshot.jobRole,
+        mode: configuration.questionSetSnapshot.mode,
+        questionCount: configuration.questionSetSnapshot.questionCount,
+        maxFollowUpCount:
+          configuration.questionSetSnapshot.maxFollowUpCount,
+        snapshotJson: configuration.questionSetSnapshot.snapshotJson,
+        createdAt:
+          configuration.questionSetSnapshot.createdAt.toISOString(),
+      },
     };
   }
 }

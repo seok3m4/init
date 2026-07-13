@@ -2,6 +2,12 @@ import { Injectable } from '@nestjs/common';
 import {
   CriterionTagRecord,
   EvaluationCriterionRecord,
+  HiringEvaluationCohortRecord,
+  HiringEvaluationPolicyRecord,
+  HiringPolicySnapshot,
+  HiringQuestionSetSnapshotJson,
+  HiringQuestionSetSnapshotRecord,
+  HiringSimulationConfigurationRecord,
   PostingRecord,
   QuestionRecord,
   QuestionSetRecord,
@@ -10,6 +16,7 @@ import {
 import {
   CompanyInterviewRepository,
   ConfirmQuestionSetInput,
+  CreateHiringSimulationConfigurationInput,
   CreateQuestionInput,
   UpdateCriterionInput,
   UpdateQuestionInput,
@@ -208,6 +215,12 @@ export class InMemoryCompanyInterviewRepository
   private nextQuestionSetId = 1;
   private nextQuestionSetItemId = 1;
   private questionSets: QuestionSetRecord[] = [];
+  private nextHiringPolicyId = 1;
+  private nextHiringQuestionSetSnapshotId = 1;
+  private nextHiringCohortId = 1;
+  private hiringPolicies: HiringEvaluationPolicyRecord[] = [];
+  private hiringQuestionSetSnapshots: HiringQuestionSetSnapshotRecord[] = [];
+  private hiringCohorts: HiringEvaluationCohortRecord[] = [];
 
   async findPosting(postingId: number): Promise<PostingRecord | undefined> {
     return this.postings.find((posting) => posting.postingId === postingId);
@@ -403,7 +416,7 @@ export class InMemoryCompanyInterviewRepository
       title: input.title.trim(),
       status: 'ACTIVE',
       createdByProcessLogId: input.sourceProcessLogId ?? null,
-      items: input.items
+      items: [...input.items]
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((item) => ({
           questionSetItemId: this.nextQuestionSetItemId++,
@@ -417,6 +430,15 @@ export class InMemoryCompanyInterviewRepository
     return questionSet;
   }
 
+  async findQuestionSet(
+    questionSetId: number,
+  ): Promise<QuestionSetRecord | undefined> {
+    const questionSet = this.questionSets.find(
+      (candidate) => candidate.questionSetId === questionSetId,
+    );
+    return questionSet ? this.hydrateQuestionSet(questionSet) : undefined;
+  }
+
   async findActiveQuestionSet(
     postingId: number,
   ): Promise<QuestionSetRecord | undefined> {
@@ -427,16 +449,161 @@ export class InMemoryCompanyInterviewRepository
           candidate.postingId === postingId && candidate.status === 'ACTIVE',
       );
 
-    return questionSet
-      ? {
-          ...questionSet,
-          items: [...questionSet.items]
-            .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map((item) => ({
-              ...item,
-              question: this.questions.find((question) => question.questionId === item.questionId),
-            })),
-        }
-      : undefined;
+    return questionSet ? this.hydrateQuestionSet(questionSet) : undefined;
   }
+
+  async createHiringSimulationConfiguration(
+    input: CreateHiringSimulationConfigurationInput,
+  ): Promise<HiringSimulationConfigurationRecord> {
+    const posting = this.postings.find(
+      (candidate) => candidate.postingId === input.cohort.postingId,
+    );
+    if (!posting) {
+      throw new Error('Posting not found');
+    }
+
+    const createdAt = new Date();
+    const policy: HiringEvaluationPolicyRecord = {
+      policyId: this.nextHiringPolicyId,
+      postingId: input.policy.postingId,
+      createdByUserId: input.policy.createdByUserId,
+      policyVersion: input.policy.policyVersion,
+      decisionMode: input.policy.decisionMode,
+      jobWeightPercent: input.policy.jobWeightPercent,
+      talentWeightPercent: input.policy.talentWeightPercent,
+      minimumJobScore: input.policy.minimumJobScore,
+      minimumTalentScore: input.policy.minimumTalentScore,
+      minimumEvidenceCoveragePercent:
+        input.policy.minimumEvidenceCoveragePercent,
+      tieBreakMode: 'WEIGHT_ORDER',
+      snapshotJson: clonePolicySnapshot(input.policy.snapshotJson),
+      createdAt,
+    };
+    const questionSetSnapshot: HiringQuestionSetSnapshotRecord = {
+      questionSetSnapshotId: this.nextHiringQuestionSetSnapshotId,
+      postingId: input.questionSetSnapshot.postingId,
+      sourceQuestionSetId: input.questionSetSnapshot.sourceQuestionSetId,
+      snapshotVersion: input.questionSetSnapshot.snapshotVersion,
+      jobRole: input.questionSetSnapshot.jobRole,
+      mode: input.questionSetSnapshot.mode,
+      questionCount: input.questionSetSnapshot.questionCount,
+      maxFollowUpCount: input.questionSetSnapshot.maxFollowUpCount,
+      snapshotJson: cloneQuestionSetSnapshot(
+        input.questionSetSnapshot.snapshotJson,
+      ),
+      createdAt,
+    };
+    const cohort: HiringEvaluationCohortRecord = {
+      cohortId: this.nextHiringCohortId,
+      postingId: input.cohort.postingId,
+      companyId: posting.companyId,
+      policyId: policy.policyId,
+      questionSetSnapshotId: questionSetSnapshot.questionSetSnapshotId,
+      createdByUserId: input.cohort.createdByUserId,
+      title: input.cohort.title,
+      jobRole: input.cohort.jobRole,
+      status: 'OPEN',
+      capacity: input.cohort.capacity,
+      openedAt: createdAt,
+      createdAt,
+    };
+
+    this.hiringPolicies = [...this.hiringPolicies, policy];
+    this.hiringQuestionSetSnapshots = [
+      ...this.hiringQuestionSetSnapshots,
+      questionSetSnapshot,
+    ];
+    this.hiringCohorts = [...this.hiringCohorts, cohort];
+    this.nextHiringPolicyId += 1;
+    this.nextHiringQuestionSetSnapshotId += 1;
+    this.nextHiringCohortId += 1;
+
+    return cloneHiringSimulationConfiguration({
+      cohort,
+      policy,
+      questionSetSnapshot,
+    });
+  }
+
+  async findHiringSimulationConfiguration(
+    cohortId: number,
+  ): Promise<HiringSimulationConfigurationRecord | undefined> {
+    const cohort = this.hiringCohorts.find(
+      (candidate) => candidate.cohortId === cohortId,
+    );
+    if (!cohort) {
+      return undefined;
+    }
+    const policy = this.hiringPolicies.find(
+      (candidate) => candidate.policyId === cohort.policyId,
+    );
+    const questionSetSnapshot = this.hiringQuestionSetSnapshots.find(
+      (candidate) =>
+        candidate.questionSetSnapshotId === cohort.questionSetSnapshotId,
+    );
+    if (!policy || !questionSetSnapshot) {
+      return undefined;
+    }
+
+    return cloneHiringSimulationConfiguration({
+      cohort,
+      policy,
+      questionSetSnapshot,
+    });
+  }
+
+  private hydrateQuestionSet(questionSet: QuestionSetRecord): QuestionSetRecord {
+    return {
+      ...questionSet,
+      items: [...questionSet.items]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => ({
+          ...item,
+          question: this.questions.find(
+            (question) => question.questionId === item.questionId,
+          ),
+        })),
+    };
+  }
+}
+
+function clonePolicySnapshot(snapshot: HiringPolicySnapshot): HiringPolicySnapshot {
+  return {
+    schemaVersion: snapshot.schemaVersion,
+    administratorInput: { ...snapshot.administratorInput },
+    tieBreakOrder: snapshot.tieBreakOrder.map((step) => ({ ...step })),
+  };
+}
+
+function cloneQuestionSetSnapshot(
+  snapshot: HiringQuestionSetSnapshotJson,
+): HiringQuestionSetSnapshotJson {
+  return {
+    ...snapshot,
+    questions: snapshot.questions.map((question) => ({ ...question })),
+  };
+}
+
+function cloneHiringSimulationConfiguration(
+  configuration: HiringSimulationConfigurationRecord,
+): HiringSimulationConfigurationRecord {
+  return {
+    cohort: {
+      ...configuration.cohort,
+      openedAt: new Date(configuration.cohort.openedAt),
+      createdAt: new Date(configuration.cohort.createdAt),
+    },
+    policy: {
+      ...configuration.policy,
+      snapshotJson: clonePolicySnapshot(configuration.policy.snapshotJson),
+      createdAt: new Date(configuration.policy.createdAt),
+    },
+    questionSetSnapshot: {
+      ...configuration.questionSetSnapshot,
+      snapshotJson: cloneQuestionSetSnapshot(
+        configuration.questionSetSnapshot.snapshotJson,
+      ),
+      createdAt: new Date(configuration.questionSetSnapshot.createdAt),
+    },
+  };
 }

@@ -2,12 +2,20 @@ import { strict as assert } from 'node:assert';
 import type { CurrentUser } from '@init/common';
 import { ApiException } from '../../shared/api-exception';
 import { CompanyInterviewService } from './company-interview.service';
+import type { CreateHiringSimulationDto } from './dto/hiring-simulation.dto';
 import { InMemoryCompanyInterviewRepository } from './repositories/in-memory-company-interview.repository';
 
 const companyUser: CurrentUser = {
   userId: 1,
   userType: 'COMPANY',
   companyId: 1,
+  candidateId: null,
+};
+
+const otherCompanyUser: CurrentUser = {
+  userId: 99,
+  userType: 'COMPANY',
+  companyId: 2,
   candidateId: null,
 };
 
@@ -21,6 +29,53 @@ async function assertBadRequest(action: () => Promise<unknown>) {
 
 async function assertConflict(action: () => Promise<unknown>) {
   await assert.rejects(action, ApiException);
+}
+
+async function assertApiError(
+  action: () => Promise<unknown>,
+  status: number,
+  reason?: string,
+) {
+  await assert.rejects(action, (error: unknown) => {
+    assert.ok(error instanceof ApiException);
+    assert.equal(error.getStatus(), status);
+    if (reason !== undefined) {
+      assert.ok(error.details.some((detail) => detail.reason === reason));
+    }
+    return true;
+  });
+}
+
+async function confirmQuickQuestionSet(service: CompanyInterviewService) {
+  return service.confirmQuestionSet(companyUser, {
+    postingId: 1,
+    title: '채용 시뮬레이션 원본 질문 세트',
+    items: [
+      { questionId: 1, criterionId: 1, sortOrder: 1 },
+      { questionId: 2, criterionId: 2, sortOrder: 2 },
+      { questionId: 3, criterionId: 3, sortOrder: 3 },
+    ],
+  });
+}
+
+function hiringSimulationInput(
+  sourceQuestionSetId: number,
+  overrides: Partial<CreateHiringSimulationDto> = {},
+): CreateHiringSimulationDto {
+  return {
+    postingId: 1,
+    sourceQuestionSetId,
+    title: '2026 백엔드 채용 판정 시뮬레이션',
+    jobWeightPercent: 60,
+    talentWeightPercent: 40,
+    minimumJobScore: 65,
+    minimumTalentScore: 60,
+    minimumEvidenceCoveragePercent: 80,
+    capacity: 2,
+    questionSetMode: 'QUICK',
+    orderedQuestionIds: [3, 1, 2],
+    ...overrides,
+  };
 }
 
 describe('CompanyInterviewService', () => {
@@ -325,6 +380,199 @@ describe('CompanyInterviewService', () => {
         answerTimeSec: 120,
         retryAllowed: false,
       }),
+    );
+  });
+
+  it('creates immutable policy and question snapshots with an OPEN cohort', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+
+    const result = await service.createHiringSimulation(
+      companyUser,
+      hiringSimulationInput(sourceQuestionSet.questionSetId),
+    );
+
+    assert.equal(result.cohort.status, 'OPEN');
+    assert.equal(result.cohort.capacity, 2);
+    assert.equal(result.policy.decisionMode, 'HYBRID');
+    assert.equal(result.policy.tieBreakMode, 'WEIGHT_ORDER');
+    assert.match(result.policy.policyVersion, /^hiring-policy-v1-/);
+    assert.deepEqual(
+      result.policy.snapshotJson.tieBreakOrder.map((step) => step.field),
+      [
+        'WEIGHTED_TOTAL_SCORE',
+        'PRIMARY_TRACK_SCORE',
+        'PRIMARY_TRACK_DETAIL_WEIGHT_ORDER',
+        'EVIDENCE_COVERAGE_PERCENT',
+      ],
+    );
+    assert.equal(result.policy.snapshotJson.tieBreakOrder[1].track, 'JOB');
+    assert.equal(
+      result.questionSetSnapshot.sourceQuestionSetId,
+      sourceQuestionSet.questionSetId,
+    );
+    assert.equal(result.questionSetSnapshot.mode, 'QUICK');
+    assert.equal(result.questionSetSnapshot.questionCount, 3);
+    assert.equal(result.questionSetSnapshot.maxFollowUpCount, 2);
+    assert.deepEqual(
+      result.questionSetSnapshot.snapshotJson.questions.map(
+        (question) => question.questionId,
+      ),
+      [3, 1, 2],
+    );
+    assert.deepEqual(
+      result.questionSetSnapshot.snapshotJson.questions.map(
+        (question) => question.order,
+      ),
+      [1, 2, 3],
+    );
+    assert.equal(
+      result.questionSetSnapshot.snapshotJson.questions[1].content,
+      'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',
+    );
+    assert.equal(
+      result.questionSetSnapshot.snapshotJson.questions[1].criterionId,
+      1,
+    );
+  });
+
+  it('rejects hiring simulation weights whose sum is not 100', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          companyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId, {
+            jobWeightPercent: 70,
+            talentWeightPercent: 20,
+          }),
+        ),
+      400,
+      'WEIGHT_SUM_MUST_EQUAL_100',
+    );
+  });
+
+  it('rejects values that exceed PostgreSQL INTEGER storage bounds', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          companyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId, {
+            capacity: 2_147_483_648,
+          }),
+        ),
+      400,
+      'OUT_OF_RANGE',
+    );
+  });
+
+  it('rejects wrong question counts, duplicate IDs, and IDs outside the active set', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          companyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId, {
+            orderedQuestionIds: [1, 2],
+          }),
+        ),
+      400,
+      'QUESTION_COUNT_MISMATCH',
+    );
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          companyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId, {
+            orderedQuestionIds: [1, 1, 2],
+          }),
+        ),
+      400,
+      'DUPLICATED',
+    );
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          companyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId, {
+            orderedQuestionIds: [1, 2, 4],
+          }),
+        ),
+      400,
+      'QUESTION_NOT_IN_ACTIVE_SET',
+    );
+  });
+
+  it('rejects another company accessing the posting during simulation creation', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          otherCompanyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId),
+        ),
+      403,
+    );
+  });
+
+  it('keeps prior versions and snapshots unchanged when another simulation is created', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+    const first = await service.createHiringSimulation(
+      companyUser,
+      hiringSimulationInput(sourceQuestionSet.questionSetId),
+    );
+
+    await service.updateQuestion(companyUser, 1, {
+      criterionId: 1,
+      questionType: 'TECHNICAL',
+      content: '변경된 질문 내용은 기존 snapshot에 반영되면 안 됩니다.',
+    });
+    const second = await service.createHiringSimulation(
+      companyUser,
+      hiringSimulationInput(sourceQuestionSet.questionSetId, {
+        title: '두 번째 채용 판정 시뮬레이션',
+        jobWeightPercent: 40,
+        talentWeightPercent: 60,
+      }),
+    );
+    const firstDetail = await service.getHiringSimulation(
+      companyUser,
+      first.cohort.cohortId,
+    );
+
+    assert.notEqual(first.cohort.cohortId, second.cohort.cohortId);
+    assert.notEqual(first.policy.policyId, second.policy.policyId);
+    assert.notEqual(first.policy.policyVersion, second.policy.policyVersion);
+    assert.notEqual(
+      first.questionSetSnapshot.snapshotVersion,
+      second.questionSetSnapshot.snapshotVersion,
+    );
+    assert.equal(firstDetail.policy.policyVersion, first.policy.policyVersion);
+    assert.equal(
+      firstDetail.policy.snapshotJson.administratorInput.jobWeightPercent,
+      60,
+    );
+    assert.equal(
+      firstDetail.questionSetSnapshot.snapshotJson.questions.find(
+        (question) => question.questionId === 1,
+      )?.content,
+      'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',
+    );
+    assert.equal(
+      second.questionSetSnapshot.snapshotJson.questions.find(
+        (question) => question.questionId === 1,
+      )?.content,
+      '변경된 질문 내용은 기존 snapshot에 반영되면 안 됩니다.',
     );
   });
 });

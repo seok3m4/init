@@ -1,6 +1,11 @@
 import {
   CriterionTagRecord,
   EvaluationCriterionRecord,
+  HiringDecisionMode,
+  HiringPolicySnapshot,
+  HiringQuestionSetMode,
+  HiringQuestionSetSnapshotJson,
+  HiringSimulationConfigurationRecord,
   PostingRecord,
   QuestionRecord,
   QuestionSetRecord,
@@ -51,6 +56,38 @@ export type ConfirmQuestionSetInput = {
   }>;
 };
 
+export type CreateHiringSimulationConfigurationInput = {
+  policy: {
+    postingId: number;
+    createdByUserId: number;
+    policyVersion: string;
+    decisionMode: HiringDecisionMode;
+    jobWeightPercent: number;
+    talentWeightPercent: number;
+    minimumJobScore: number;
+    minimumTalentScore: number;
+    minimumEvidenceCoveragePercent: number;
+    snapshotJson: HiringPolicySnapshot;
+  };
+  questionSetSnapshot: {
+    postingId: number;
+    sourceQuestionSetId: number;
+    snapshotVersion: string;
+    jobRole: string;
+    mode: HiringQuestionSetMode;
+    questionCount: number;
+    maxFollowUpCount: number;
+    snapshotJson: HiringQuestionSetSnapshotJson;
+  };
+  cohort: {
+    postingId: number;
+    createdByUserId: number;
+    title: string;
+    jobRole: string;
+    capacity: number;
+  };
+};
+
 export interface CompanyInterviewRepository {
   findPosting(postingId: number): Promise<PostingRecord | undefined>;
   findDefaultPosting(companyId: number): Promise<PostingRecord | undefined>;
@@ -77,5 +114,12 @@ export interface CompanyInterviewRepository {
     input: UpdateTimePolicyInput,
   ): Promise<TimePolicyRecord>;
   confirmQuestionSet(input: ConfirmQuestionSetInput): Promise<QuestionSetRecord>;
+  findQuestionSet(questionSetId: number): Promise<QuestionSetRecord | undefined>;
   findActiveQuestionSet(postingId: number): Promise<QuestionSetRecord | undefined>;
+  createHiringSimulationConfiguration(
+    input: CreateHiringSimulationConfigurationInput,
+  ): Promise<HiringSimulationConfigurationRecord>;
+  findHiringSimulationConfiguration(
+    cohortId: number,
+  ): Promise<HiringSimulationConfigurationRecord | undefined>;
 }

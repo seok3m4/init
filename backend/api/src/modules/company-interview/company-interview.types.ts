@@ -24,6 +24,67 @@ export const QUESTION_TYPES: QuestionType[] = [
 
 export type AiProcessStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
+export const HIRING_DECISION_MODES = [
+  'ABSOLUTE',
+  'RELATIVE',
+  'HYBRID',
+] as const;
+export type HiringDecisionMode = (typeof HIRING_DECISION_MODES)[number];
+
+export const HIRING_QUESTION_SET_MODES = [
+  'QUICK',
+  'STANDARD',
+  'DEEP',
+  'CUSTOM',
+] as const;
+export type HiringQuestionSetMode = (typeof HIRING_QUESTION_SET_MODES)[number];
+
+export type HiringCohortStatus = 'OPEN' | 'LOCKED' | 'EVALUATED' | 'FINALIZED';
+export type HiringTieBreakMode = 'WEIGHT_ORDER';
+export type HiringEvaluationTrack = 'JOB' | 'TALENT';
+
+export type HiringTieBreakStep = {
+  field:
+    | 'WEIGHTED_TOTAL_SCORE'
+    | 'PRIMARY_TRACK_SCORE'
+    | 'PRIMARY_TRACK_DETAIL_WEIGHT_ORDER'
+    | 'EVIDENCE_COVERAGE_PERCENT';
+  direction: 'DESC';
+  track?: HiringEvaluationTrack;
+};
+
+export type HiringPolicySnapshot = {
+  schemaVersion: 'hiring-evaluation-policy.v1';
+  administratorInput: {
+    postingId: number;
+    decisionMode: HiringDecisionMode;
+    jobWeightPercent: number;
+    talentWeightPercent: number;
+    minimumJobScore: number;
+    minimumTalentScore: number;
+    minimumEvidenceCoveragePercent: number;
+  };
+  tieBreakOrder: HiringTieBreakStep[];
+};
+
+export type HiringQuestionSnapshotItem = {
+  questionId: number;
+  order: number;
+  content: string;
+  criterionId: number | null;
+};
+
+export type HiringQuestionSetSnapshotJson = {
+  schemaVersion: 'hiring-question-set.v1';
+  postingId: number;
+  sourceQuestionSetId: number;
+  jobRole: string;
+  mode: HiringQuestionSetMode;
+  questionCount: number;
+  maxFollowUpCount: number;
+  questions: HiringQuestionSnapshotItem[];
+};
+
 export type PostingRecord = {
   postingId: number;
   companyId: number;
@@ -84,4 +145,54 @@ export type QuestionSetRecord = {
   status: string;
   createdByProcessLogId: number | null;
   items: QuestionSetItemRecord[];
+};
+
+export type HiringEvaluationPolicyRecord = {
+  policyId: number;
+  postingId: number;
+  createdByUserId: number;
+  policyVersion: string;
+  decisionMode: HiringDecisionMode;
+  jobWeightPercent: number;
+  talentWeightPercent: number;
+  minimumJobScore: number;
+  minimumTalentScore: number;
+  minimumEvidenceCoveragePercent: number;
+  tieBreakMode: HiringTieBreakMode;
+  snapshotJson: HiringPolicySnapshot;
+  createdAt: Date;
+};
+
+export type HiringQuestionSetSnapshotRecord = {
+  questionSetSnapshotId: number;
+  postingId: number;
+  sourceQuestionSetId: number;
+  snapshotVersion: string;
+  jobRole: string;
+  mode: HiringQuestionSetMode;
+  questionCount: number;
+  maxFollowUpCount: number;
+  snapshotJson: HiringQuestionSetSnapshotJson;
+  createdAt: Date;
+};
+
+export type HiringEvaluationCohortRecord = {
+  cohortId: number;
+  postingId: number;
+  companyId: number | null;
+  policyId: number;
+  questionSetSnapshotId: number;
+  createdByUserId: number;
+  title: string;
+  jobRole: string;
+  status: HiringCohortStatus;
+  capacity: number;
+  openedAt: Date;
+  createdAt: Date;
+};
+
+export type HiringSimulationConfigurationRecord = {
+  cohort: HiringEvaluationCohortRecord;
+  policy: HiringEvaluationPolicyRecord;
+  questionSetSnapshot: HiringQuestionSetSnapshotRecord;
 };

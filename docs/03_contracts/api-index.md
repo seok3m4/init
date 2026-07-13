@@ -91,6 +91,8 @@ NestJS 구현은 API path를 그대로 controller 파일명으로 흩뜨리지 �
 | API-039 | 기업 - 면접관리 | POST | /company/interviews/question-sets | 면접 질문 목록 구성 | 기업 / 기업 사용자 로그인 | Y | 202 Accepted |
 | API-039A | 기업 - 면접관리 | POST | /company/interviews/question-sets/confirm | 면접 질문 세트 확정 | 기업 / 기업 사용자 로그인 | N | 200 OK |
 | API-039B | 기업 - 면접관리 | GET | /company/interviews/question-sets/active | 활성 면접 질문 세트 조회 | 기업 / 기업 사용자 로그인 | N | 200 OK |
+| API-039C | 기업 - 면접관리 | POST | /company/interviews/hiring-simulations | 채용 판정 시뮬레이션 설정 및 OPEN 코호트 생성 | 기업 / 기업 사용자 로그인 | N | 201 Created |
+| API-039D | 기업 - 면접관리 | GET | /company/interviews/hiring-simulations/{cohortId} | 채용 판정 시뮬레이션 설정 상세 조회 | 기업 / 기업 사용자 로그인 | N | 200 OK |
 | API-040 | 기업 - 면접관리 | PATCH | /company/interviews/time-policy | 면접 시간 정책 설정 | 기업 / 기업 사용자 로그인 | N | 200 OK |
 | API-087 | 기업 - 설정 | GET | /company/profile | 회사 정보 조회 | 기업 / 기업 사용자 로그인 | N | 200 OK |
 | API-041 | 기업 - 설정 | PATCH | /company/profile | 회사 정보 수정 | 기업 / 기업 사용자 로그인 | N | 200 OK |
