@@ -11,6 +11,7 @@ import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "../report/ser
 import { InterviewController } from "./controller/interview.controller";
 import { BuiltInNcsEvaluationSnapshotResolver } from "./ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver";
 import { NCS_EVALUATION_SNAPSHOT_RESOLVER } from "./ncs-evaluation/ncs-evaluation-snapshot";
+import { NcsOpenApiClient } from "./ncs-evaluation/ncs-open-api.client";
 import { DefaultPublicApplicationAccessVerifier, PUBLIC_APPLICATION_ACCESS_VERIFIER } from "./public/public-application-access.verifier";
 import { PublicInterviewAccessGuard } from "./public/public-interview-access.guard";
 import { PublicInterviewAccessTokenService } from "./public/public-interview-access-token.service";
@@ -61,6 +62,7 @@ const reportRepositoryProviders = usePrismaReportRepository
       useFactory: () => createAiJobQueuePublisher(),
     },
     ...reportRepositoryProviders,
+    NcsOpenApiClient,
     BuiltInNcsEvaluationSnapshotResolver,
     {
       provide: NCS_EVALUATION_SNAPSHOT_RESOLVER,
@@ -79,6 +81,6 @@ const reportRepositoryProviders = usePrismaReportRepository
       useClass: DefaultPublicApplicationAccessVerifier,
     },
   ],
-  exports: [INTERVIEW_REPOSITORY, InterviewService, PublicInterviewService],
+  exports: [INTERVIEW_REPOSITORY, InterviewService, PublicInterviewService, NcsOpenApiClient],
 })
 export class InterviewModule {}

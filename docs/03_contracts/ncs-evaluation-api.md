@@ -73,6 +73,13 @@ Authorization: candidate bearer token
 
 공식 원천 연동 시 한국산업인력공단 국가직무능력표준 정보 API의 직무(`ncsDutyInfo`), 능력단위(`ncsCompeUnitInfo`), 능력단위요소(`ncsCompeUnitFactrInfo`), 수행준거 KSA(`ncsKsaInfo`), 평가지침(`ncsEvalInfo`)을 함께 snapshot 입력으로 사용한다. 현재 화면의 개발 직무명은 합성 프로필 별칭이며 공식 NCS 세분류가 아니다. 직무 선택지는 공식 직무 수집·버전 고정 이후 NCS 코드와 명칭을 기준으로 교체한다.
 
+### Official NCS API Configuration
+
+- 백엔드 API만 `NCS_OPEN_API_SERVICE_KEY`를 읽으며 브라우저, API 응답, 로그, queue payload에 키를 포함하지 않는다.
+- 기본 URL은 `NCS_OPEN_API_BASE_URL=https://apis.data.go.kr/B490007/ncsInfo`, 요청 제한 시간은 `NCS_OPEN_API_TIMEOUT_MS=10000`이다.
+- 로컬 실제 값은 Git에서 제외되는 `backend/api/.env`에 두고 저장소에는 `backend/api/.env.example`의 빈 항목만 유지한다.
+- 면접 요청 중 원격 API를 호출하지 않는다. 공식 데이터는 사전 동기화하고 세션 생성 시 저장된 버전의 immutable evaluation snapshot을 사용한다.
+
 ### Input Quality Gate
 
 API는 평가 작업을 만들기 전에 canonical transcript가 최소한의 평가 가능 조건을 충족하는지 확인한다.
