@@ -30,6 +30,13 @@ API와 DB에서 공유해야 하는 상태값을 정리한다.
 | `ai_process_status` | `AiProcessStatus` |
 | `guardrail_result` | `GuardrailResult` |
 | `embedding_source_type` | `EmbeddingSourceType` |
+| `hiring_decision_mode` | `HiringDecisionMode` |
+| `hiring_question_set_mode` | `HiringQuestionSetMode` |
+| `hiring_cohort_status` | `HiringCohortStatus` |
+| `candidate_evaluation_status` | `CandidateEvaluationStatus` |
+| `hiring_eligibility_outcome` | `HiringEligibilityOutcome` |
+| `hiring_decision_outcome` | `HiringDecisionOutcome` |
+| `hiring_tie_break_mode` | `HiringTieBreakMode` |
 | `posting_job_role_code` | `PostingJobRoleCode` |
 | `posting_region_code` | `PostingRegionCode` |
 | `posting_employment_type_code` | `PostingEmploymentTypeCode` |
@@ -73,6 +80,8 @@ API와 DB에서 공유해야 하는 상태값을 정리한다.
 | `report_status` | E | `PENDING -> GENERATING -> COMPLETED`, `PENDING -> FAILED`, `GENERATING -> FAILED`, `FAILED -> GENERATING` |
 | `ai_process_status` | E | `PENDING -> RUNNING -> COMPLETED`, `PENDING -> FAILED`, `RUNNING -> FAILED`, `FAILED -> PENDING` for explicit retry only |
 | `screening_decision` | B | `UNDECIDED -> PASS`, `UNDECIDED -> HOLD`, `UNDECIDED -> FAIL`, `HOLD -> PASS`, `HOLD -> FAIL` |
+| `hiring_cohort_status` | C/E | `OPEN -> LOCKED -> EVALUATED -> FINALIZED` |
+| `candidate_evaluation_status` | D/E | `PENDING -> COMPLETED`, `PENDING -> INSUFFICIENT_EVIDENCE`, `PENDING -> FAILED`, `FAILED -> PENDING` for explicit recomputation only |
 
 상태를 되돌리는 rollback 전이는 기본 금지다. 운영자가 명시적으로 재처리하는 retry는 audit log 또는 `ai_process_logs`에 사유를 남긴다.
 
@@ -104,3 +113,10 @@ API와 DB에서 공유해야 하는 상태값을 정리한다.
 | ncs_evidence_type | SITUATION, TASK, ACTION, RATIONALE, RESULT, REFLECTION, KNOWLEDGE, CONSTRAINT, TRADEOFF | 답변에서 요구하거나 추출하는 근거 유형 |
 | ncs_evaluation_confidence | LOW, MEDIUM, HIGH | 판정 근거의 충분성 표시. 점수 가중치가 아님 |
 | ncs_coverage_status | INSUFFICIENT, LOW, SUFFICIENT | 평가 가능한 행동 포인트 coverage 상태 |
+| hiring_decision_mode | ABSOLUTE, RELATIVE, HYBRID | 채용 판정 시뮬레이션의 절대/상대/혼합 판정 방식 |
+| hiring_question_set_mode | QUICK, STANDARD, DEEP, CUSTOM | 코호트에 고정하는 본질문 구성 모드 |
+| hiring_cohort_status | OPEN, LOCKED, EVALUATED, FINALIZED | 코호트 모집, 입력 고정, 평가 완료, 최종 순위 고정 상태 |
+| candidate_evaluation_status | PENDING, COMPLETED, INSUFFICIENT_EVIDENCE, FAILED | 지원자 단위 점수 집계 상태 |
+| hiring_eligibility_outcome | ELIGIBLE, INELIGIBLE, INSUFFICIENT_EVIDENCE | 상대평가 진입 전 절대 gate 판정 |
+| hiring_decision_outcome | PASS, WAITLIST, FAIL, INSUFFICIENT_EVIDENCE | 최종 ranking snapshot의 지원자 판정 |
+| hiring_tie_break_mode | WEIGHT_ORDER | 관리자 비중이 높은 트랙과 세부 항목을 우선하는 동점 규칙 |

@@ -69,6 +69,27 @@ export type GuardrailResult = (typeof GUARDRAIL_RESULTS)[number];
 export const EMBEDDING_SOURCE_TYPES = ["POSTING_JD", "CRITERION_TAG", "QUESTION", "APPLICATION_DOCUMENT", "INTERVIEW_ANSWER", "EVALUATION_REPORT"] as const;
 export type EmbeddingSourceType = (typeof EMBEDDING_SOURCE_TYPES)[number];
 
+export const HIRING_DECISION_MODES = ["ABSOLUTE", "RELATIVE", "HYBRID"] as const;
+export type HiringDecisionMode = (typeof HIRING_DECISION_MODES)[number];
+
+export const HIRING_QUESTION_SET_MODES = ["QUICK", "STANDARD", "DEEP", "CUSTOM"] as const;
+export type HiringQuestionSetMode = (typeof HIRING_QUESTION_SET_MODES)[number];
+
+export const HIRING_COHORT_STATUSES = ["OPEN", "LOCKED", "EVALUATED", "FINALIZED"] as const;
+export type HiringCohortStatus = (typeof HIRING_COHORT_STATUSES)[number];
+
+export const CANDIDATE_EVALUATION_STATUSES = ["PENDING", "COMPLETED", "INSUFFICIENT_EVIDENCE", "FAILED"] as const;
+export type CandidateEvaluationStatus = (typeof CANDIDATE_EVALUATION_STATUSES)[number];
+
+export const HIRING_ELIGIBILITY_OUTCOMES = ["ELIGIBLE", "INELIGIBLE", "INSUFFICIENT_EVIDENCE"] as const;
+export type HiringEligibilityOutcome = (typeof HIRING_ELIGIBILITY_OUTCOMES)[number];
+
+export const HIRING_DECISION_OUTCOMES = ["PASS", "WAITLIST", "FAIL", "INSUFFICIENT_EVIDENCE"] as const;
+export type HiringDecisionOutcome = (typeof HIRING_DECISION_OUTCOMES)[number];
+
+export const HIRING_TIE_BREAK_MODES = ["WEIGHT_ORDER"] as const;
+export type HiringTieBreakMode = (typeof HIRING_TIE_BREAK_MODES)[number];
+
 export const isUserType = (value: unknown): value is UserType =>
   typeof value === "string" && USER_TYPES.includes(value as UserType);
 

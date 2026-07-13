@@ -659,6 +659,96 @@ CREATE TABLE ncs_evaluation_revisions (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE hiring_evaluation_policies (
+    policy_id BIGINT PRIMARY KEY,
+    posting_id BIGINT,
+    created_by_user_id BIGINT NOT NULL,
+    policy_version VARCHAR(128) NOT NULL,
+    decision_mode VARCHAR(30) NOT NULL,
+    job_weight_percent INTEGER NOT NULL,
+    talent_weight_percent INTEGER NOT NULL,
+    minimum_job_score INTEGER NOT NULL,
+    minimum_talent_score INTEGER NOT NULL,
+    minimum_evidence_coverage_percent INTEGER NOT NULL,
+    tie_break_mode VARCHAR(30) NOT NULL,
+    snapshot_json JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE hiring_question_set_snapshots (
+    question_set_snapshot_id BIGINT PRIMARY KEY,
+    posting_id BIGINT,
+    source_question_set_id BIGINT,
+    snapshot_version VARCHAR(128) NOT NULL,
+    job_role VARCHAR(100) NOT NULL,
+    mode VARCHAR(30) NOT NULL,
+    question_count INTEGER NOT NULL,
+    max_follow_up_count INTEGER NOT NULL,
+    snapshot_json JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE hiring_evaluation_cohorts (
+    cohort_id BIGINT PRIMARY KEY,
+    posting_id BIGINT,
+    policy_id BIGINT NOT NULL,
+    question_set_snapshot_id BIGINT NOT NULL,
+    created_by_user_id BIGINT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    job_role VARCHAR(100) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    capacity INTEGER NOT NULL,
+    opened_at TIMESTAMP NOT NULL,
+    locked_at TIMESTAMP,
+    evaluated_at TIMESTAMP,
+    finalized_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE candidate_evaluation_summaries (
+    summary_id BIGINT PRIMARY KEY,
+    cohort_id BIGINT NOT NULL,
+    candidate_id BIGINT NOT NULL,
+    session_id BIGINT NOT NULL,
+    status VARCHAR(40) NOT NULL,
+    job_score DECIMAL(5,2),
+    talent_score DECIMAL(5,2),
+    weighted_total_score DECIMAL(5,2),
+    evidence_coverage_percent DECIMAL(5,2),
+    absolute_decision VARCHAR(40),
+    score_breakdown_json JSONB,
+    evaluation_version VARCHAR(128) NOT NULL,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE hiring_ranking_snapshots (
+    ranking_snapshot_id BIGINT PRIMARY KEY,
+    cohort_id BIGINT NOT NULL,
+    revision INTEGER NOT NULL,
+    policy_version VARCHAR(128) NOT NULL,
+    algorithm_version VARCHAR(128) NOT NULL,
+    input_hash VARCHAR(128) NOT NULL,
+    candidate_count INTEGER NOT NULL,
+    eligible_count INTEGER NOT NULL,
+    capacity INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE hiring_ranking_entries (
+    ranking_entry_id BIGINT PRIMARY KEY,
+    ranking_snapshot_id BIGINT NOT NULL,
+    summary_id BIGINT NOT NULL,
+    rank INTEGER NOT NULL,
+    percentile DECIMAL(5,2) NOT NULL,
+    weighted_total_score DECIMAL(5,2),
+    decision VARCHAR(40) NOT NULL,
+    tie_break_json JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE embeddings (
     -- 임베딩 PK
     embedding_id BIGINT PRIMARY KEY,
@@ -896,6 +986,62 @@ ALTER TABLE ncs_evaluation_revisions
     ADD CONSTRAINT fk_ncs_evaluation_revisions_answer
     FOREIGN KEY (answer_id) REFERENCES interview_answers(answer_id);
 
+ALTER TABLE hiring_evaluation_policies
+    ADD CONSTRAINT fk_hiring_evaluation_policies_posting
+    FOREIGN KEY (posting_id) REFERENCES postings(posting_id);
+
+ALTER TABLE hiring_evaluation_policies
+    ADD CONSTRAINT fk_hiring_evaluation_policies_created_by
+    FOREIGN KEY (created_by_user_id) REFERENCES users(user_id);
+
+ALTER TABLE hiring_question_set_snapshots
+    ADD CONSTRAINT fk_hiring_question_set_snapshots_posting
+    FOREIGN KEY (posting_id) REFERENCES postings(posting_id);
+
+ALTER TABLE hiring_question_set_snapshots
+    ADD CONSTRAINT fk_hiring_question_set_snapshots_source_set
+    FOREIGN KEY (source_question_set_id) REFERENCES interview_question_sets(question_set_id);
+
+ALTER TABLE hiring_evaluation_cohorts
+    ADD CONSTRAINT fk_hiring_evaluation_cohorts_posting
+    FOREIGN KEY (posting_id) REFERENCES postings(posting_id);
+
+ALTER TABLE hiring_evaluation_cohorts
+    ADD CONSTRAINT fk_hiring_evaluation_cohorts_policy
+    FOREIGN KEY (policy_id) REFERENCES hiring_evaluation_policies(policy_id);
+
+ALTER TABLE hiring_evaluation_cohorts
+    ADD CONSTRAINT fk_hiring_evaluation_cohorts_question_snapshot
+    FOREIGN KEY (question_set_snapshot_id) REFERENCES hiring_question_set_snapshots(question_set_snapshot_id);
+
+ALTER TABLE hiring_evaluation_cohorts
+    ADD CONSTRAINT fk_hiring_evaluation_cohorts_created_by
+    FOREIGN KEY (created_by_user_id) REFERENCES users(user_id);
+
+ALTER TABLE candidate_evaluation_summaries
+    ADD CONSTRAINT fk_candidate_evaluation_summaries_cohort
+    FOREIGN KEY (cohort_id) REFERENCES hiring_evaluation_cohorts(cohort_id);
+
+ALTER TABLE candidate_evaluation_summaries
+    ADD CONSTRAINT fk_candidate_evaluation_summaries_candidate
+    FOREIGN KEY (candidate_id) REFERENCES candidate_profiles(candidate_id);
+
+ALTER TABLE candidate_evaluation_summaries
+    ADD CONSTRAINT fk_candidate_evaluation_summaries_session
+    FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
+
+ALTER TABLE hiring_ranking_snapshots
+    ADD CONSTRAINT fk_hiring_ranking_snapshots_cohort
+    FOREIGN KEY (cohort_id) REFERENCES hiring_evaluation_cohorts(cohort_id);
+
+ALTER TABLE hiring_ranking_entries
+    ADD CONSTRAINT fk_hiring_ranking_entries_snapshot
+    FOREIGN KEY (ranking_snapshot_id) REFERENCES hiring_ranking_snapshots(ranking_snapshot_id);
+
+ALTER TABLE hiring_ranking_entries
+    ADD CONSTRAINT fk_hiring_ranking_entries_summary
+    FOREIGN KEY (summary_id) REFERENCES candidate_evaluation_summaries(summary_id);
+
 ALTER TABLE embeddings
     ADD CONSTRAINT fk_embeddings_posting
     FOREIGN KEY (posting_id) REFERENCES postings(posting_id);
@@ -952,5 +1098,23 @@ CREATE INDEX idx_ai_process_logs_application ON ai_process_logs(application_id);
 CREATE UNIQUE INDEX uk_ncs_evaluation_revisions_process ON ncs_evaluation_revisions(process_log_id);
 CREATE INDEX idx_ncs_evaluation_revisions_session_created ON ncs_evaluation_revisions(session_id, created_at);
 CREATE INDEX idx_ncs_evaluation_revisions_answer_created ON ncs_evaluation_revisions(answer_id, created_at);
+CREATE UNIQUE INDEX uk_hiring_evaluation_policies_version ON hiring_evaluation_policies(policy_version);
+CREATE INDEX idx_hiring_evaluation_policies_posting_created ON hiring_evaluation_policies(posting_id, created_at);
+CREATE UNIQUE INDEX uk_hiring_question_set_snapshots_version ON hiring_question_set_snapshots(snapshot_version);
+CREATE INDEX idx_hiring_question_set_snapshots_posting_created ON hiring_question_set_snapshots(posting_id, created_at);
+CREATE INDEX idx_hiring_question_set_snapshots_source_set ON hiring_question_set_snapshots(source_question_set_id);
+CREATE INDEX idx_hiring_evaluation_cohorts_posting_status ON hiring_evaluation_cohorts(posting_id, status);
+CREATE INDEX idx_hiring_evaluation_cohorts_policy ON hiring_evaluation_cohorts(policy_id);
+CREATE INDEX idx_hiring_evaluation_cohorts_question_snapshot ON hiring_evaluation_cohorts(question_set_snapshot_id);
+CREATE UNIQUE INDEX uk_candidate_evaluation_summaries_cohort_candidate ON candidate_evaluation_summaries(cohort_id, candidate_id);
+CREATE UNIQUE INDEX uk_candidate_evaluation_summaries_cohort_session ON candidate_evaluation_summaries(cohort_id, session_id);
+CREATE INDEX idx_candidate_evaluation_summaries_cohort_status ON candidate_evaluation_summaries(cohort_id, status);
+CREATE INDEX idx_candidate_evaluation_summaries_candidate_created ON candidate_evaluation_summaries(candidate_id, created_at);
+CREATE UNIQUE INDEX uk_hiring_ranking_snapshots_cohort_revision ON hiring_ranking_snapshots(cohort_id, revision);
+CREATE UNIQUE INDEX uk_hiring_ranking_snapshots_cohort_input ON hiring_ranking_snapshots(cohort_id, input_hash);
+CREATE INDEX idx_hiring_ranking_snapshots_cohort_created ON hiring_ranking_snapshots(cohort_id, created_at);
+CREATE UNIQUE INDEX uk_hiring_ranking_entries_snapshot_summary ON hiring_ranking_entries(ranking_snapshot_id, summary_id);
+CREATE INDEX idx_hiring_ranking_entries_snapshot_rank ON hiring_ranking_entries(ranking_snapshot_id, rank);
+CREATE INDEX idx_hiring_ranking_entries_summary ON hiring_ranking_entries(summary_id);
 CREATE INDEX idx_embeddings_source_type ON embeddings(source_type);
 CREATE INDEX idx_embeddings_source_hash ON embeddings(source_text_hash);

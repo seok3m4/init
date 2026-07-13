@@ -63,6 +63,12 @@
 | `ai_process_logs` | `AiProcessLog` | E |
 | `ai_guardrail_logs` | `AiGuardrailLog` | E |
 | `ncs_evaluation_revisions` | `NcsEvaluationRevision` | E |
+| `hiring_evaluation_policies` | `HiringEvaluationPolicy` | C/E |
+| `hiring_question_set_snapshots` | `HiringQuestionSetSnapshot` | C/D |
+| `hiring_evaluation_cohorts` | `HiringEvaluationCohort` | C |
+| `candidate_evaluation_summaries` | `CandidateEvaluationSummary` | D/E |
+| `hiring_ranking_snapshots` | `HiringRankingSnapshot` | C/E |
+| `hiring_ranking_entries` | `HiringRankingEntry` | C/E |
 | `embeddings` | `Embedding` | E |
 
 `question_bank`는 DB table 이름만 유지하고 Prisma model은 `Question`으로 둔다. row 하나가 질문 한 건이기 때문이다. `evaluation_criteria`의 Prisma model은 복수형 `EvaluationCriteria`가 아니라 단수형 `EvaluationCriterion`이다. `ai_*` 계열 class/model 이름은 TypeScript 관례에 맞춰 `AiProcessLog`, `AiGuardrailLog`처럼 쓴다.
@@ -76,6 +82,7 @@
 | Application | applications, application_documents, consent_records | 지원서 제출, 서류 파싱, 동의 이력 |
 | Interview | interview_sessions, interview_session_questions, ncs_evaluation_snapshots, interview_answers, follow_up_questions | 모의/채용 AI 면접 실행, 세션별 질문·평가 기준 스냅샷과 답변 |
 | Report | evaluation_reports, report_scores, report_evidences, manual_evaluations | AI 평가 결과와 면접관 검토 |
+| Hiring Simulation | hiring_evaluation_policies, hiring_question_set_snapshots, hiring_evaluation_cohorts, candidate_evaluation_summaries, hiring_ranking_snapshots, hiring_ranking_entries | 관리자 정책과 동일 질문 조건을 고정하고 지원자 종합점수 및 코호트 상대평가 결과를 revision으로 보존 |
 | AI Infra | ai_process_logs, ai_guardrail_logs, embeddings | AI 처리 상태, 안전성 검증, 검색/추천 |
 | Notification/File | notifications, file_assets | 알림과 업로드 파일 메타데이터 |
 
@@ -456,6 +463,120 @@
 | created_at | TIMESTAMP NOT NULL | revision 생성 시각 |
 
 동일 process 재전달은 `process_log_id` unique 제약으로 같은 revision을 재사용한다. 재답변이나 snapshot 변경으로 새 process가 생성되면 별도 revision을 추가한다.
+
+### hiring_evaluation_policies
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| policy_id | BIGINT PRIMARY KEY | 채용 판정 시뮬레이션 정책 PK |
+| posting_id | BIGINT | 실제 공고 기준 정책이면 postings FK, 독립 모의 정책이면 NULL |
+| created_by_user_id | BIGINT NOT NULL | 정책을 만든 관리자 또는 기업 사용자 FK |
+| policy_version | VARCHAR(128) NOT NULL UNIQUE | 관리자 설정 전체를 식별하는 불변 버전 |
+| decision_mode | VARCHAR(30) NOT NULL | ABSOLUTE, RELATIVE, HYBRID |
+| job_weight_percent | INTEGER NOT NULL | 직무 적합도 반영 비중 0~100 |
+| talent_weight_percent | INTEGER NOT NULL | 인재상 적합도 반영 비중 0~100 |
+| minimum_job_score | INTEGER NOT NULL | 상대평가 진입 전 직무 최소점수 0~100 |
+| minimum_talent_score | INTEGER NOT NULL | 상대평가 진입 전 인재상 최소점수 0~100 |
+| minimum_evidence_coverage_percent | INTEGER NOT NULL | 필수 평가 근거 최소 충족률 0~100 |
+| tie_break_mode | VARCHAR(30) NOT NULL | 관리자 비중 순서를 사용하는 WEIGHT_ORDER |
+| snapshot_json | JSONB NOT NULL | 세부 항목 가중치와 전체 정책의 immutable 복사본 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 정책 버전 생성 시각 |
+
+`job_weight_percent + talent_weight_percent = 100`을 DB check constraint로 보장한다. 정책 row는 생성 후 수정하지 않고 설정 변경마다 새 `policy_version`을 생성한다.
+
+### hiring_question_set_snapshots
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| question_set_snapshot_id | BIGINT PRIMARY KEY | 코호트 공통 질문 세트 snapshot PK |
+| posting_id | BIGINT | 공고 기준 질문이면 postings FK |
+| source_question_set_id | BIGINT | 원본 interview_question_sets FK |
+| snapshot_version | VARCHAR(128) NOT NULL UNIQUE | 질문 ID, 순서, 내용, 루브릭 연결을 식별하는 불변 버전 |
+| job_role | VARCHAR(100) NOT NULL | 질문 세트가 평가하는 직무 |
+| mode | VARCHAR(30) NOT NULL | QUICK, STANDARD, DEEP, CUSTOM |
+| question_count | INTEGER NOT NULL | 점수 분모에 포함되는 본질문 수 |
+| max_follow_up_count | INTEGER NOT NULL | 코호트 지원자별 최대 꼬리질문 수 |
+| snapshot_json | JSONB NOT NULL | 정렬된 질문, NCS 단위, 인재상 기준 연결의 immutable 복사본 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 질문 세트 고정 시각 |
+
+`QUICK`, `STANDARD`, `DEEP`은 각각 본질문/꼬리질문 한도를 `3/2`, `5/3`, `7/4`로 고정한다. `CUSTOM`은 양수 본질문 수와 0 이상의 꼬리질문 한도를 직접 저장한다. 꼬리질문은 본질문 점수의 근거 보완이며 별도 점수 분모가 아니다.
+
+### hiring_evaluation_cohorts
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| cohort_id | BIGINT PRIMARY KEY | 동일 조건으로 비교할 지원자 집합 PK |
+| posting_id | BIGINT | 실제 공고 기반 코호트이면 postings FK |
+| policy_id | BIGINT NOT NULL | 고정 평가 정책 FK |
+| question_set_snapshot_id | BIGINT NOT NULL | 고정 질문 세트 snapshot FK |
+| created_by_user_id | BIGINT NOT NULL | 코호트를 만든 관리자 또는 기업 사용자 FK |
+| title | VARCHAR(200) NOT NULL | 관리자용 코호트 이름 |
+| job_role | VARCHAR(100) NOT NULL | 상대평가 직무 |
+| status | VARCHAR(30) NOT NULL | OPEN, LOCKED, EVALUATED, FINALIZED |
+| capacity | INTEGER NOT NULL | PASS로 분류할 최대 인원 |
+| opened_at | TIMESTAMP NOT NULL | 지원자 등록 시작 시각 |
+| locked_at | TIMESTAMP | 정책과 질문 및 지원자 집합 고정 시각 |
+| evaluated_at | TIMESTAMP | 모든 평가 입력 집계 완료 시각 |
+| finalized_at | TIMESTAMP | 최종 순위 snapshot 고정 시각 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 생성 시각 |
+| updated_at | TIMESTAMP NOT NULL | 상태 갱신 시각 |
+
+코호트 상태는 `OPEN -> LOCKED -> EVALUATED -> FINALIZED`로만 전이한다. `LOCKED` 이후에는 `policy_id`, `question_set_snapshot_id`, `capacity`와 지원자 집합을 변경하지 않는다.
+
+### candidate_evaluation_summaries
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| summary_id | BIGINT PRIMARY KEY | 지원자 단위 종합평가 PK |
+| cohort_id | BIGINT NOT NULL | 소속 코호트 FK |
+| candidate_id | BIGINT NOT NULL | 평가 지원자 FK |
+| session_id | BIGINT NOT NULL | 평가 근거가 발생한 면접 세션 FK |
+| status | VARCHAR(40) NOT NULL | PENDING, COMPLETED, INSUFFICIENT_EVIDENCE, FAILED |
+| job_score | DECIMAL(5,2) | NCS 직무 적합도 0~100 |
+| talent_score | DECIMAL(5,2) | 인재상 적합도 0~100 |
+| weighted_total_score | DECIMAL(5,2) | 정책 비중을 반영한 종합점수 0~100 |
+| evidence_coverage_percent | DECIMAL(5,2) | 필수 근거 충족률 0~100 |
+| absolute_decision | VARCHAR(40) | 절대 gate 결과 ELIGIBLE, INELIGIBLE, INSUFFICIENT_EVIDENCE |
+| score_breakdown_json | JSONB | 질문별, 트랙별, 세부 기준별 점수와 근거 revision 참조 |
+| evaluation_version | VARCHAR(128) NOT NULL | 집계기 버전 |
+| completed_at | TIMESTAMP | 집계 완료 시각 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 생성 시각 |
+| updated_at | TIMESTAMP NOT NULL | 갱신 시각 |
+
+같은 코호트에서 지원자와 면접 세션은 각각 한 번만 집계한다. 점수가 없는 `INSUFFICIENT_EVIDENCE`와 실행 실패인 `FAILED`를 0점과 구분한다.
+
+### hiring_ranking_snapshots
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| ranking_snapshot_id | BIGINT PRIMARY KEY | 코호트 순위 revision PK |
+| cohort_id | BIGINT NOT NULL | 순위를 계산한 코호트 FK |
+| revision | INTEGER NOT NULL | 코호트 내부 순위 revision 번호 |
+| policy_version | VARCHAR(128) NOT NULL | 계산에 사용한 정책 버전 |
+| algorithm_version | VARCHAR(128) NOT NULL | 순위 계산기 버전 |
+| input_hash | VARCHAR(128) NOT NULL | 지원자 집계 입력 전체의 canonical hash |
+| candidate_count | INTEGER NOT NULL | snapshot에 포함된 지원자 수 |
+| eligible_count | INTEGER NOT NULL | 절대 gate를 통과한 지원자 수 |
+| capacity | INTEGER NOT NULL | 계산 당시 합격 정원 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 순위 계산 시각 |
+
+같은 `cohort_id + revision`과 `cohort_id + input_hash`는 각각 unique다. 동일 입력 재시도는 기존 snapshot을 재사용하고, 입력이 달라진 코호트를 재평가하면 기존 snapshot을 수정하지 않고 revision을 증가시킨다.
+
+### hiring_ranking_entries
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| ranking_entry_id | BIGINT PRIMARY KEY | 순위 snapshot 지원자 항목 PK |
+| ranking_snapshot_id | BIGINT NOT NULL | 순위 snapshot FK |
+| summary_id | BIGINT NOT NULL | 계산 입력인 지원자 종합평가 FK |
+| rank | INTEGER NOT NULL | 동점을 허용하는 1 기반 순위 |
+| percentile | DECIMAL(5,2) NOT NULL | 코호트 내 백분위 0~100 |
+| weighted_total_score | DECIMAL(5,2) | snapshot 당시 종합점수 0~100 |
+| decision | VARCHAR(40) NOT NULL | PASS, WAITLIST, FAIL, INSUFFICIENT_EVIDENCE |
+| tie_break_json | JSONB NOT NULL | 관리자 비중 순으로 비교한 값과 동일 순위 사유 |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | entry 생성 시각 |
+
+같은 지원자 summary는 한 ranking snapshot에 한 번만 포함한다. 모든 비교 값이 같은 지원자는 동일 `rank`와 `WAITLIST`를 사용하고 임의 식별자나 응시 시각으로 순위를 나누지 않는다.
 
 ### embeddings
 

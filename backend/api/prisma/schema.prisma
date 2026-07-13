@@ -143,6 +143,50 @@ enum EmbeddingSourceType {
   EVALUATION_REPORT
 }
 
+enum HiringDecisionMode {
+  ABSOLUTE
+  RELATIVE
+  HYBRID
+}
+
+enum HiringQuestionSetMode {
+  QUICK
+  STANDARD
+  DEEP
+  CUSTOM
+}
+
+enum HiringCohortStatus {
+  OPEN
+  LOCKED
+  EVALUATED
+  FINALIZED
+}
+
+enum CandidateEvaluationStatus {
+  PENDING
+  COMPLETED
+  INSUFFICIENT_EVIDENCE
+  FAILED
+}
+
+enum HiringEligibilityOutcome {
+  ELIGIBLE
+  INELIGIBLE
+  INSUFFICIENT_EVIDENCE
+}
+
+enum HiringDecisionOutcome {
+  PASS
+  WAITLIST
+  FAIL
+  INSUFFICIENT_EVIDENCE
+}
+
+enum HiringTieBreakMode {
+  WEIGHT_ORDER
+}
+
 model User {
   userId            BigInt             @id @default(autoincrement()) @map("user_id")
   email             String             @unique @db.VarChar(255)
@@ -161,6 +205,8 @@ model User {
   manualEvaluations ManualEvaluation[]
   notifications     Notification[]
   paymentCustomers  PaymentCustomer[]
+  createdHiringEvaluationPolicies HiringEvaluationPolicy[] @relation("HiringPolicyCreator")
+  createdHiringEvaluationCohorts  HiringEvaluationCohort[] @relation("HiringCohortCreator")
 
   @@unique([authProvider, providerUserId], map: "uk_users_provider_user")
   @@map("users")
@@ -224,6 +270,7 @@ model CandidateProfile {
   mockPassLedgers     CandidateMockInterviewPassLedger[]
   paymentCustomers    PaymentCustomer[]
   paymentOrders       PaymentOrder[]
+  evaluationSummaries CandidateEvaluationSummary[]
 
   @@map("candidate_profiles")
 }
@@ -257,6 +304,9 @@ model Posting {
   applications         Application[]
   questionSets         InterviewQuestionSet[]
   timePolicy           InterviewTimePolicy?
+  hiringEvaluationPolicies   HiringEvaluationPolicy[]
+  hiringQuestionSetSnapshots HiringQuestionSetSnapshot[]
+  hiringEvaluationCohorts    HiringEvaluationCohort[]
 
   @@index([companyId, status])
   @@map("postings")
@@ -322,6 +372,7 @@ model InterviewQuestionSet {
   posting               Posting                    @relation(fields: [postingId], references: [postingId])
   createdByProcessLog   AiProcessLog?              @relation(fields: [createdByProcessLogId], references: [processLogId])
   items                 InterviewQuestionSetItem[]
+  hiringSnapshots       HiringQuestionSetSnapshot[]
 
   @@index([postingId, status], map: "idx_interview_question_sets_posting_status")
   @@map("interview_question_sets")
@@ -424,6 +475,7 @@ model InterviewSession {
   clientPerformanceLogs ClientPerformanceLog[]
   mockPassUsages        CandidateMockInterviewPassLedger[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
+  candidateEvaluationSummaries CandidateEvaluationSummary[]
 
   @@map("interview_sessions")
 }
@@ -644,6 +696,144 @@ model NcsEvaluationRevision {
   @@index([sessionId, createdAt], map: "idx_ncs_evaluation_revisions_session_created")
   @@index([answerId, createdAt], map: "idx_ncs_evaluation_revisions_answer_created")
   @@map("ncs_evaluation_revisions")
+}
+
+model HiringEvaluationPolicy {
+  policyId                       BigInt                   @id @default(autoincrement()) @map("policy_id")
+  postingId                      BigInt?                  @map("posting_id")
+  createdByUserId                BigInt                   @map("created_by_user_id")
+  policyVersion                  String                   @unique(map: "uk_hiring_evaluation_policies_version") @map("policy_version") @db.VarChar(128)
+  decisionMode                   HiringDecisionMode       @default(HYBRID) @map("decision_mode")
+  jobWeightPercent               Int                      @map("job_weight_percent")
+  talentWeightPercent            Int                      @map("talent_weight_percent")
+  minimumJobScore                Int                      @default(65) @map("minimum_job_score")
+  minimumTalentScore             Int                      @default(60) @map("minimum_talent_score")
+  minimumEvidenceCoveragePercent Int                      @default(80) @map("minimum_evidence_coverage_percent")
+  tieBreakMode                   HiringTieBreakMode       @default(WEIGHT_ORDER) @map("tie_break_mode")
+  snapshotJson                   Json                     @map("snapshot_json") @db.JsonB
+  createdAt                      DateTime                 @default(now()) @map("created_at")
+  posting                        Posting?                 @relation(fields: [postingId], references: [postingId], onDelete: SetNull, map: "fk_hiring_evaluation_policies_posting")
+  createdBy                      User                     @relation("HiringPolicyCreator", fields: [createdByUserId], references: [userId], onDelete: Restrict, map: "fk_hiring_evaluation_policies_created_by")
+  cohorts                        HiringEvaluationCohort[]
+
+  @@index([postingId, createdAt], map: "idx_hiring_evaluation_policies_posting_created")
+  @@map("hiring_evaluation_policies")
+}
+
+model HiringQuestionSetSnapshot {
+  questionSetSnapshotId BigInt                   @id @default(autoincrement()) @map("question_set_snapshot_id")
+  postingId             BigInt?                  @map("posting_id")
+  sourceQuestionSetId   BigInt?                  @map("source_question_set_id")
+  snapshotVersion       String                   @unique(map: "uk_hiring_question_set_snapshots_version") @map("snapshot_version") @db.VarChar(128)
+  jobRole               String                   @map("job_role") @db.VarChar(100)
+  mode                  HiringQuestionSetMode
+  questionCount         Int                      @map("question_count")
+  maxFollowUpCount      Int                      @map("max_follow_up_count")
+  snapshotJson          Json                     @map("snapshot_json") @db.JsonB
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  posting               Posting?                 @relation(fields: [postingId], references: [postingId], onDelete: SetNull, map: "fk_hiring_question_set_snapshots_posting")
+  sourceQuestionSet     InterviewQuestionSet?    @relation(fields: [sourceQuestionSetId], references: [questionSetId], onDelete: SetNull, map: "fk_hiring_question_set_snapshots_source_set")
+  cohorts               HiringEvaluationCohort[]
+
+  @@index([postingId, createdAt], map: "idx_hiring_question_set_snapshots_posting_created")
+  @@index([sourceQuestionSetId], map: "idx_hiring_question_set_snapshots_source_set")
+  @@map("hiring_question_set_snapshots")
+}
+
+model HiringEvaluationCohort {
+  cohortId              BigInt                       @id @default(autoincrement()) @map("cohort_id")
+  postingId             BigInt?                      @map("posting_id")
+  policyId              BigInt                       @map("policy_id")
+  questionSetSnapshotId BigInt                       @map("question_set_snapshot_id")
+  createdByUserId       BigInt                       @map("created_by_user_id")
+  title                 String                       @db.VarChar(200)
+  jobRole               String                       @map("job_role") @db.VarChar(100)
+  status                HiringCohortStatus           @default(OPEN)
+  capacity              Int
+  openedAt              DateTime                     @default(now()) @map("opened_at")
+  lockedAt              DateTime?                    @map("locked_at")
+  evaluatedAt           DateTime?                    @map("evaluated_at")
+  finalizedAt           DateTime?                    @map("finalized_at")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+  posting               Posting?                     @relation(fields: [postingId], references: [postingId], onDelete: SetNull, map: "fk_hiring_evaluation_cohorts_posting")
+  policy                HiringEvaluationPolicy       @relation(fields: [policyId], references: [policyId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_policy")
+  questionSetSnapshot   HiringQuestionSetSnapshot    @relation(fields: [questionSetSnapshotId], references: [questionSetSnapshotId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_question_snapshot")
+  createdBy             User                         @relation("HiringCohortCreator", fields: [createdByUserId], references: [userId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_created_by")
+  candidateSummaries    CandidateEvaluationSummary[]
+  rankingSnapshots      HiringRankingSnapshot[]
+
+  @@index([postingId, status], map: "idx_hiring_evaluation_cohorts_posting_status")
+  @@index([policyId], map: "idx_hiring_evaluation_cohorts_policy")
+  @@index([questionSetSnapshotId], map: "idx_hiring_evaluation_cohorts_question_snapshot")
+  @@map("hiring_evaluation_cohorts")
+}
+
+model CandidateEvaluationSummary {
+  summaryId               BigInt                    @id @default(autoincrement()) @map("summary_id")
+  cohortId                BigInt                    @map("cohort_id")
+  candidateId             BigInt                    @map("candidate_id")
+  sessionId               BigInt                    @map("session_id")
+  status                  CandidateEvaluationStatus @default(PENDING)
+  jobScore                Decimal?                  @map("job_score") @db.Decimal(5, 2)
+  talentScore             Decimal?                  @map("talent_score") @db.Decimal(5, 2)
+  weightedTotalScore      Decimal?                  @map("weighted_total_score") @db.Decimal(5, 2)
+  evidenceCoveragePercent Decimal?                  @map("evidence_coverage_percent") @db.Decimal(5, 2)
+  absoluteDecision        HiringEligibilityOutcome? @map("absolute_decision")
+  scoreBreakdownJson      Json?                     @map("score_breakdown_json") @db.JsonB
+  evaluationVersion       String                    @map("evaluation_version") @db.VarChar(128)
+  completedAt             DateTime?                 @map("completed_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  cohort                  HiringEvaluationCohort    @relation(fields: [cohortId], references: [cohortId], onDelete: Cascade, map: "fk_candidate_evaluation_summaries_cohort")
+  candidate               CandidateProfile          @relation(fields: [candidateId], references: [candidateId], onDelete: Restrict, map: "fk_candidate_evaluation_summaries_candidate")
+  session                 InterviewSession          @relation(fields: [sessionId], references: [sessionId], onDelete: Restrict, map: "fk_candidate_evaluation_summaries_session")
+  rankingEntries          HiringRankingEntry[]
+
+  @@unique([cohortId, candidateId], map: "uk_candidate_evaluation_summaries_cohort_candidate")
+  @@unique([cohortId, sessionId], map: "uk_candidate_evaluation_summaries_cohort_session")
+  @@index([cohortId, status], map: "idx_candidate_evaluation_summaries_cohort_status")
+  @@index([candidateId, createdAt], map: "idx_candidate_evaluation_summaries_candidate_created")
+  @@map("candidate_evaluation_summaries")
+}
+
+model HiringRankingSnapshot {
+  rankingSnapshotId BigInt                 @id @default(autoincrement()) @map("ranking_snapshot_id")
+  cohortId          BigInt                 @map("cohort_id")
+  revision          Int
+  policyVersion     String                 @map("policy_version") @db.VarChar(128)
+  algorithmVersion  String                 @map("algorithm_version") @db.VarChar(128)
+  inputHash         String                 @map("input_hash") @db.VarChar(128)
+  candidateCount    Int                    @map("candidate_count")
+  eligibleCount     Int                    @map("eligible_count")
+  capacity          Int
+  createdAt         DateTime               @default(now()) @map("created_at")
+  cohort            HiringEvaluationCohort @relation(fields: [cohortId], references: [cohortId], onDelete: Cascade, map: "fk_hiring_ranking_snapshots_cohort")
+  entries           HiringRankingEntry[]
+
+  @@unique([cohortId, revision], map: "uk_hiring_ranking_snapshots_cohort_revision")
+  @@unique([cohortId, inputHash], map: "uk_hiring_ranking_snapshots_cohort_input")
+  @@index([cohortId, createdAt], map: "idx_hiring_ranking_snapshots_cohort_created")
+  @@map("hiring_ranking_snapshots")
+}
+
+model HiringRankingEntry {
+  rankingEntryId     BigInt                     @id @default(autoincrement()) @map("ranking_entry_id")
+  rankingSnapshotId  BigInt                     @map("ranking_snapshot_id")
+  summaryId          BigInt                     @map("summary_id")
+  rank               Int
+  percentile         Decimal                    @db.Decimal(5, 2)
+  weightedTotalScore Decimal?                   @map("weighted_total_score") @db.Decimal(5, 2)
+  decision           HiringDecisionOutcome
+  tieBreakJson       Json                       @map("tie_break_json") @db.JsonB
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  rankingSnapshot    HiringRankingSnapshot      @relation(fields: [rankingSnapshotId], references: [rankingSnapshotId], onDelete: Cascade, map: "fk_hiring_ranking_entries_snapshot")
+  summary            CandidateEvaluationSummary @relation(fields: [summaryId], references: [summaryId], onDelete: Restrict, map: "fk_hiring_ranking_entries_summary")
+
+  @@unique([rankingSnapshotId, summaryId], map: "uk_hiring_ranking_entries_snapshot_summary")
+  @@index([rankingSnapshotId, rank], map: "idx_hiring_ranking_entries_snapshot_rank")
+  @@index([summaryId], map: "idx_hiring_ranking_entries_summary")
+  @@map("hiring_ranking_entries")
 }
 
 model AiProcessTimingEvent {

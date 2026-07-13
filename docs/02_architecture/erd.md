@@ -72,6 +72,12 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | ai_process_logs | process_log_id | 8 | AI 비동기 처리 로그 | application_id -> applications.application_id / session_id -> interview_sessions.session_id |
 | ai_guardrail_logs | guardrail_log_id | 6 | AI 안전 검증 로그 | process_log_id -> ai_process_logs.process_log_id |
 | ncs_evaluation_revisions | revision_id | 11 | 가드레일 통과 NCS 평가 불변 revision | process_log_id -> ai_process_logs.process_log_id / session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / answer_id -> interview_answers.answer_id |
+| hiring_evaluation_policies | policy_id | 13 | 관리자 비중과 절대 gate의 불변 정책 | posting_id -> postings.posting_id / created_by_user_id -> users.user_id |
+| hiring_question_set_snapshots | question_set_snapshot_id | 10 | 코호트 공통 질문·순서·개수 불변 snapshot | posting_id -> postings.posting_id / source_question_set_id -> interview_question_sets.question_set_id |
+| hiring_evaluation_cohorts | cohort_id | 15 | 동일 조건 상대평가 지원자 집합 | posting_id -> postings.posting_id / policy_id -> hiring_evaluation_policies.policy_id / question_set_snapshot_id -> hiring_question_set_snapshots.question_set_snapshot_id / created_by_user_id -> users.user_id |
+| candidate_evaluation_summaries | summary_id | 15 | 지원자별 직무·인재상 종합점수와 근거 충족률 | cohort_id -> hiring_evaluation_cohorts.cohort_id / candidate_id -> candidate_profiles.candidate_id / session_id -> interview_sessions.session_id |
+| hiring_ranking_snapshots | ranking_snapshot_id | 10 | 코호트 순위 계산 revision | cohort_id -> hiring_evaluation_cohorts.cohort_id |
+| hiring_ranking_entries | ranking_entry_id | 9 | snapshot별 지원자 순위·백분위·판정 | ranking_snapshot_id -> hiring_ranking_snapshots.ranking_snapshot_id / summary_id -> candidate_evaluation_summaries.summary_id |
 | embeddings | embedding_id | 15 | 검색/추천용 임베딩 | posting_id -> postings.posting_id / tag_id -> criterion_tags.tag_id / question_id -> question_bank.question_id / document_id -> application_documents.document_id / answer_id -> interview_answers.answer_id / report_id -> evaluation_reports.report_id |
 
 ## Relationships
@@ -130,6 +136,20 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | ncs_evaluation_revisions | session_id | interview_sessions.session_id | fk_ncs_evaluation_revisions_session |
 | ncs_evaluation_revisions | question_id | question_bank.question_id | fk_ncs_evaluation_revisions_question |
 | ncs_evaluation_revisions | answer_id | interview_answers.answer_id | fk_ncs_evaluation_revisions_answer |
+| hiring_evaluation_policies | posting_id | postings.posting_id | fk_hiring_evaluation_policies_posting |
+| hiring_evaluation_policies | created_by_user_id | users.user_id | fk_hiring_evaluation_policies_created_by |
+| hiring_question_set_snapshots | posting_id | postings.posting_id | fk_hiring_question_set_snapshots_posting |
+| hiring_question_set_snapshots | source_question_set_id | interview_question_sets.question_set_id | fk_hiring_question_set_snapshots_source_set |
+| hiring_evaluation_cohorts | posting_id | postings.posting_id | fk_hiring_evaluation_cohorts_posting |
+| hiring_evaluation_cohorts | policy_id | hiring_evaluation_policies.policy_id | fk_hiring_evaluation_cohorts_policy |
+| hiring_evaluation_cohorts | question_set_snapshot_id | hiring_question_set_snapshots.question_set_snapshot_id | fk_hiring_evaluation_cohorts_question_snapshot |
+| hiring_evaluation_cohorts | created_by_user_id | users.user_id | fk_hiring_evaluation_cohorts_created_by |
+| candidate_evaluation_summaries | cohort_id | hiring_evaluation_cohorts.cohort_id | fk_candidate_evaluation_summaries_cohort |
+| candidate_evaluation_summaries | candidate_id | candidate_profiles.candidate_id | fk_candidate_evaluation_summaries_candidate |
+| candidate_evaluation_summaries | session_id | interview_sessions.session_id | fk_candidate_evaluation_summaries_session |
+| hiring_ranking_snapshots | cohort_id | hiring_evaluation_cohorts.cohort_id | fk_hiring_ranking_snapshots_cohort |
+| hiring_ranking_entries | ranking_snapshot_id | hiring_ranking_snapshots.ranking_snapshot_id | fk_hiring_ranking_entries_snapshot |
+| hiring_ranking_entries | summary_id | candidate_evaluation_summaries.summary_id | fk_hiring_ranking_entries_summary |
 | embeddings | posting_id | postings.posting_id | fk_embeddings_posting |
 | embeddings | tag_id | criterion_tags.tag_id | fk_embeddings_tag |
 | embeddings | question_id | question_bank.question_id | fk_embeddings_question |

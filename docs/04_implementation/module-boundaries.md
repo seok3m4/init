@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | `backend/api/src/modules/auth` | Auth | A | 로그인, 회원가입, 이메일 인증, Dev/JWT Auth |
 | `backend/api/src/modules/company-recruiting` | Company Recruiting | B | 공고, 지원자 등록/초대, 전형 판정 |
-| `backend/api/src/modules/company-interview` | Company Interview | C | 평가 기준, 질문 뱅크, 면접 설정 |
+| `backend/api/src/modules/company-interview` | Company Interview | C | 평가 기준, 질문 뱅크, 면접 설정, 채용 판정 시뮬레이션 정책·코호트 설정 |
 | `backend/api/src/modules/company-profile` | Company Profile | A/B | 회사 정보, 회사 로고, 기업 알림 설정 |
 | `backend/api/src/modules/candidate` | Candidate | D | 공고 조회, 지원서 제출, 지원현황, 마이페이지 |
 | `backend/api/src/modules/interview` | Interview Runtime | D/E | 모의/채용 면접 세션, 답변, 완료 처리 |
@@ -97,6 +97,12 @@ DTO와 API client 타입은 아래 naming을 따른다. 같은 요청/응답 타
 | `evaluation_reports` | 생성, 상태, 요약, 총점 | E | B/D 제한 조회 |
 | `question_bank` | CRUD, 공고/평가 기준 연결 | C | D/E |
 | `evaluation_criteria` | CRUD, weight/pass score | C | B/E |
+| `hiring_evaluation_policies` | 정책 버전, 직무/인재상 비중, 절대 gate, 동점 방식 | C | D/E |
+| `hiring_question_set_snapshots` | 코호트 공통 질문과 순서, 본질문/꼬리질문 한도 | C | D/E |
+| `hiring_evaluation_cohorts` | 코호트 생성, 정원, `OPEN -> LOCKED` | C | D/E |
+| `hiring_evaluation_cohorts` | `LOCKED -> EVALUATED -> FINALIZED` | C/E | B/D 제한 조회 |
+| `candidate_evaluation_summaries` | 지원자별 NCS/인재상 집계와 근거 충족률 | D/E | C/B 제한 조회 |
+| `hiring_ranking_snapshots`, `hiring_ranking_entries` | 상대평가 revision, 순위, 백분위, 시뮬레이션 판정 | C/E | B/D 제한 조회 |
 
 공유 테이블을 수정하는 PR은 위 field owner를 기준으로 리뷰어를 지정한다. owner가 아닌 모듈에서 직접 write가 필요하면 먼저 `docs/03_contracts`와 이 문서를 수정한다.
 
@@ -123,7 +129,7 @@ DTO와 API client 타입은 아래 naming을 따른다. 같은 요청/응답 타
 | Module | Owns | Reads | Representative APIs | Notes |
 | --- |--- |--- |--- |--- |
 | auth-common | users, companies, candidate_profiles | Redis/TTL cache | /auth/* | 이메일 인증 코드는 DB 저장 금지 |
-| company | postings, evaluation_criteria, question_bank, applications screening fields | reports, candidate_profiles | /company/* | 기업은 자기 회사 공고/지원자만 접근 |
+| company | postings, evaluation_criteria, question_bank, hiring_evaluation_policies, hiring_question_set_snapshots, hiring_evaluation_cohorts, applications screening fields | reports, candidate_profiles, candidate_evaluation_summaries, hiring_ranking_snapshots | /company/* | 기업은 자기 회사 공고/지원자와 본인이 만든 시뮬레이션 코호트만 접근 |
 | candidate-interview | interview_sessions, interview_answers, consent_records | applications, postings | /candidate/*interview* | 모의면접과 채용면접은 `interview_type`으로 분리 |
 | ai-report | evaluation_reports, report_scores, report_evidences, ai_process_logs, ai_guardrail_logs, embeddings | documents, answers, criteria | /reports/*, /ai/* | 가드레일 통과 전 결과 저장 금지 |
 | file-storage | file_assets | users | /candidate/resume, /company/profile/logo | 원본 파일은 Object Storage |
