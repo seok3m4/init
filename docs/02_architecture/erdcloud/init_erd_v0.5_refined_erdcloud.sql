@@ -361,17 +361,34 @@ CREATE TABLE interview_session_questions (
     -- 세션 전용 비공개 질문 식별자
     runtime_question_id BIGINT,
 
-    -- 세션 전용 질문 유형
+    -- 세션에 고정한 질문 유형 또는 세션 전용 질문 유형
     question_type VARCHAR(50),
 
-    -- 세션 전용 질문 내용
+    -- 세션에 고정한 질문 본문 또는 세션 전용 질문 내용
     content TEXT,
 
     -- 세션 안에서의 질문 순서
     sort_order INTEGER NOT NULL,
 
     -- 세션 질문 고정 시각
-    created_at TIMESTAMP NOT NULL
+    created_at TIMESTAMP NOT NULL,
+
+    CONSTRAINT interview_session_questions_private_shape_check CHECK (
+        (
+            question_id IS NOT NULL
+            AND runtime_question_id IS NULL
+            AND (
+                (question_type IS NULL AND content IS NULL)
+                OR (question_type IS NOT NULL AND content IS NOT NULL)
+            )
+        )
+        OR (
+            question_id IS NULL
+            AND runtime_question_id IS NOT NULL
+            AND question_type IS NOT NULL
+            AND content IS NOT NULL
+        )
+    )
 );
 
 CREATE TABLE ncs_evaluation_snapshots (

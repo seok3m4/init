@@ -306,8 +306,8 @@
 | session_id | BIGINT NOT NULL | 질문을 소비하는 면접 세션 FK |
 | question_id | BIGINT | 질문 뱅크에서 선택한 세션 질문 FK |
 | runtime_question_id | BIGINT UNIQUE | 세션 전용 비공개 질문 식별자 |
-| question_type | VARCHAR(50) | 세션 전용 질문 유형 |
-| content | TEXT | 세션 전용 질문 내용 |
+| question_type | VARCHAR(50) | 세션에 고정한 질문 유형. 질문 뱅크 질문의 최초 표현 또는 세션 전용 질문에 사용 |
+| content | TEXT | 세션에 고정한 질문 본문. 질문 뱅크 질문의 최초 표현 또는 세션 전용 질문에 사용 |
 | sort_order | INTEGER NOT NULL | 세션 안에서의 질문 순서. 0부터 시작 |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 세션 질문 고정 시각 |
 
@@ -316,7 +316,8 @@
 - 모의·채용 면접 세션이 선택한 질문 ID와 순서는 세션 생성 또는 런타임 초기화 시 저장한다.
 - 서버 재시작이나 이후 질문 뱅크·질문 세트 변경은 이미 생성된 세션의 질문 순서에 영향을 주지 않는다.
 - 런타임 꼬리질문을 삽입하면 같은 세션의 `sort_order`를 원자적으로 다시 저장한다.
-- 질문 뱅크 질문은 `question_id`만 사용하고, 세션 전용 비공개 질문은 `runtime_question_id`, `question_type`, `content`를 함께 사용한다.
+- 질문 뱅크 질문은 `question_id`를 식별자로 사용한다. 레거시 row는 `question_type`, `content`가 없을 수 있고, 새로 저장하는 row는 지원자에게 처음 제시한 유형과 본문을 두 컬럼에 함께 고정할 수 있다.
+- 세션 전용 비공개 질문은 `question_id` 없이 `runtime_question_id`, `question_type`, `content`를 반드시 함께 사용한다.
 - 마이그레이션 이전 세션처럼 스냅샷이 없는 레거시 row만 기존 질문 복원 규칙을 fallback으로 사용한다.
 
 ### ncs_evaluation_snapshots

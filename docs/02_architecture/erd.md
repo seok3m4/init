@@ -60,7 +60,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | application_documents | document_id | 7 | 지원서 첨부 서류와 파싱 결과 | application_id -> applications.application_id / file_id -> file_assets.file_id |
 | consent_records | consent_id | 5 | 지원/면접 동의 이력 | application_id -> applications.application_id |
 | interview_sessions | session_id | 8 | 모의/채용 면접 세션 | application_id -> applications.application_id / candidate_id -> candidate_profiles.candidate_id |
-| interview_session_questions | session_question_id | 8 | 세션별 질문 순서와 비공개 질문 스냅샷 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id |
+| interview_session_questions | session_question_id | 8 | 세션별 질문 순서와 최초 질문 표현·비공개 질문 스냅샷 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id |
 | ncs_evaluation_snapshots | snapshot_id | 8 | 세션 질문별 NCS 평가 기준 불변 스냅샷 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id |
 | interview_answers | answer_id | 9 | 질문별 영상/음성/STT 답변 | session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / session_question_id -> interview_session_questions.session_question_id / video_file_id -> file_assets.file_id / audio_file_id -> file_assets.file_id |
 | follow_up_questions | follow_up_id | 5 | 답변 기반 꼬리질문 | answer_id -> interview_answers.answer_id |
