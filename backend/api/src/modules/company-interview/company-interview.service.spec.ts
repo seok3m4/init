@@ -63,6 +63,7 @@ function hiringSimulationInput(
   overrides: Partial<CreateHiringSimulationDto> = {},
 ): CreateHiringSimulationDto {
   return {
+    requestKey: 'hiring-simulation:test-1',
     postingId: 1,
     sourceQuestionSetId,
     title: '2026 백엔드 채용 판정 시뮬레이션',
@@ -508,6 +509,17 @@ describe('CompanyInterviewService', () => {
       400,
       'QUESTION_NOT_IN_ACTIVE_SET',
     );
+
+    await service.deleteQuestion(companyUser, 1);
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(
+          companyUser,
+          hiringSimulationInput(sourceQuestionSet.questionSetId),
+        ),
+      409,
+      'QUESTION_NOT_ACTIVE',
+    );
   });
 
   it('rejects another company accessing the posting during simulation creation', async () => {
@@ -521,6 +533,33 @@ describe('CompanyInterviewService', () => {
           hiringSimulationInput(sourceQuestionSet.questionSetId),
         ),
       403,
+    );
+  });
+
+  it('reuses the same request key only when normalized input is unchanged', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+    const input = hiringSimulationInput(sourceQuestionSet.questionSetId, {
+      requestKey: 'hiring-simulation:idempotent',
+    });
+
+    const first = await service.createHiringSimulation(companyUser, input);
+    const replay = await service.createHiringSimulation(companyUser, {
+      ...input,
+      title: `  ${input.title}  `,
+    });
+
+    assert.equal(replay.cohort.cohortId, first.cohort.cohortId);
+    assert.equal(replay.policy.policyVersion, first.policy.policyVersion);
+
+    await assertApiError(
+      () =>
+        service.createHiringSimulation(companyUser, {
+          ...input,
+          capacity: input.capacity + 1,
+        }),
+      409,
+      'REQUEST_KEY_REUSED',
     );
   });
 
@@ -540,6 +579,7 @@ describe('CompanyInterviewService', () => {
     const second = await service.createHiringSimulation(
       companyUser,
       hiringSimulationInput(sourceQuestionSet.questionSetId, {
+        requestKey: 'hiring-simulation:test-2',
         title: '두 번째 채용 판정 시뮬레이션',
         jobWeightPercent: 40,
         talentWeightPercent: 60,

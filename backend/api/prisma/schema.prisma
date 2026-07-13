@@ -231,6 +231,7 @@ model Company {
   questions                  Question[]
   paymentCustomers           PaymentCustomer[]
   paymentOrders              PaymentOrder[]
+  hiringEvaluationCohorts    HiringEvaluationCohort[]
 
   @@map("companies")
 }
@@ -742,10 +743,13 @@ model HiringQuestionSetSnapshot {
 
 model HiringEvaluationCohort {
   cohortId              BigInt                       @id @default(autoincrement()) @map("cohort_id")
+  companyId             BigInt                       @map("company_id")
   postingId             BigInt?                      @map("posting_id")
   policyId              BigInt                       @map("policy_id")
   questionSetSnapshotId BigInt                       @map("question_set_snapshot_id")
   createdByUserId       BigInt                       @map("created_by_user_id")
+  requestKey            String                       @map("request_key") @db.VarChar(128)
+  configurationHash     String                       @map("configuration_hash") @db.VarChar(80)
   title                 String                       @db.VarChar(200)
   jobRole               String                       @map("job_role") @db.VarChar(100)
   status                HiringCohortStatus           @default(OPEN)
@@ -756,6 +760,7 @@ model HiringEvaluationCohort {
   finalizedAt           DateTime?                    @map("finalized_at")
   createdAt             DateTime                     @default(now()) @map("created_at")
   updatedAt             DateTime                     @updatedAt @map("updated_at")
+  company               Company                      @relation(fields: [companyId], references: [companyId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_company")
   posting               Posting?                     @relation(fields: [postingId], references: [postingId], onDelete: SetNull, map: "fk_hiring_evaluation_cohorts_posting")
   policy                HiringEvaluationPolicy       @relation(fields: [policyId], references: [policyId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_policy")
   questionSetSnapshot   HiringQuestionSetSnapshot    @relation(fields: [questionSetSnapshotId], references: [questionSetSnapshotId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_question_snapshot")
@@ -763,6 +768,8 @@ model HiringEvaluationCohort {
   candidateSummaries    CandidateEvaluationSummary[]
   rankingSnapshots      HiringRankingSnapshot[]
 
+  @@unique([createdByUserId, requestKey], map: "uk_hiring_evaluation_cohorts_creator_request")
+  @@index([companyId, status], map: "idx_hiring_evaluation_cohorts_company_status")
   @@index([postingId, status], map: "idx_hiring_evaluation_cohorts_posting_status")
   @@index([policyId], map: "idx_hiring_evaluation_cohorts_policy")
   @@index([questionSetSnapshotId], map: "idx_hiring_evaluation_cohorts_question_snapshot")
@@ -821,8 +828,8 @@ model HiringRankingEntry {
   rankingEntryId     BigInt                     @id @default(autoincrement()) @map("ranking_entry_id")
   rankingSnapshotId  BigInt                     @map("ranking_snapshot_id")
   summaryId          BigInt                     @map("summary_id")
-  rank               Int
-  percentile         Decimal                    @db.Decimal(5, 2)
+  rank               Int?
+  percentile         Decimal?                   @db.Decimal(5, 2)
   weightedTotalScore Decimal?                   @map("weighted_total_score") @db.Decimal(5, 2)
   decision           HiringDecisionOutcome
   tieBreakJson       Json                       @map("tie_break_json") @db.JsonB

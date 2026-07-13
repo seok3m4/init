@@ -16,6 +16,8 @@ import {
   CompanyInterviewRepository,
   ConfirmQuestionSetInput,
   CreateHiringSimulationConfigurationInput,
+  HiringQuestionSetChangedError,
+  HiringSimulationRequestKeyConflictError,
   UpdateTimePolicyInput,
   UpdateCriterionInput,
   UpdateQuestionInput,
@@ -340,55 +342,126 @@ export class PrismaCompanyInterviewRepository
   async createHiringSimulationConfiguration(
     input: CreateHiringSimulationConfigurationInput,
   ): Promise<HiringSimulationConfigurationRecord> {
-    const cohort = await this.prisma.$transaction(async (tx) => {
-      const policy = await tx.hiringEvaluationPolicy.create({
-        data: {
-          postingId: BigInt(input.policy.postingId),
-          createdByUserId: BigInt(input.policy.createdByUserId),
-          policyVersion: input.policy.policyVersion,
-          decisionMode: input.policy.decisionMode,
-          jobWeightPercent: input.policy.jobWeightPercent,
-          talentWeightPercent: input.policy.talentWeightPercent,
-          minimumJobScore: input.policy.minimumJobScore,
-          minimumTalentScore: input.policy.minimumTalentScore,
-          minimumEvidenceCoveragePercent:
-            input.policy.minimumEvidenceCoveragePercent,
-          tieBreakMode: 'WEIGHT_ORDER',
-          snapshotJson: input.policy.snapshotJson as Prisma.InputJsonValue,
-        },
-      });
-      const questionSetSnapshot = await tx.hiringQuestionSetSnapshot.create({
-        data: {
-          postingId: BigInt(input.questionSetSnapshot.postingId),
-          sourceQuestionSetId: BigInt(
-            input.questionSetSnapshot.sourceQuestionSetId,
-          ),
-          snapshotVersion: input.questionSetSnapshot.snapshotVersion,
-          jobRole: input.questionSetSnapshot.jobRole,
-          mode: input.questionSetSnapshot.mode,
-          questionCount: input.questionSetSnapshot.questionCount,
-          maxFollowUpCount: input.questionSetSnapshot.maxFollowUpCount,
-          snapshotJson:
-            input.questionSetSnapshot.snapshotJson as Prisma.InputJsonValue,
-        },
+    const existing = await this.findHiringSimulationConfigurationByRequestKey(
+      input.cohort.createdByUserId,
+      input.cohort.requestKey,
+    );
+    if (existing) {
+      if (existing.cohort.configurationHash === input.cohort.configurationHash) {
+        return existing;
+      }
+      throw new HiringSimulationRequestKeyConflictError();
+    }
+
+    try {
+      const cohort = await this.prisma.$transaction(async (tx) => {
+        const expectedQuestionIds =
+          input.questionSetSnapshot.expectedQuestionIds.map((questionId) =>
+            BigInt(questionId),
+          );
+        const sourceQuestionSet = await tx.interviewQuestionSet.findFirst({
+          where: {
+            questionSetId: BigInt(
+              input.questionSetSnapshot.sourceQuestionSetId,
+            ),
+            postingId: BigInt(input.questionSetSnapshot.postingId),
+            status: 'ACTIVE',
+          },
+          select: {
+            items: {
+              where: { questionId: { in: expectedQuestionIds } },
+              select: {
+                questionId: true,
+                question: {
+                  select: {
+                    companyId: true,
+                    postingId: true,
+                    isActive: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (
+          !sourceQuestionSet ||
+          sourceQuestionSet.items.length !== expectedQuestionIds.length ||
+          sourceQuestionSet.items.some(
+            (item) =>
+              !item.question.isActive ||
+              item.question.companyId !==
+                BigInt(input.questionSetSnapshot.companyId) ||
+              item.question.postingId !==
+                BigInt(input.questionSetSnapshot.postingId),
+          )
+        ) {
+          throw new HiringQuestionSetChangedError();
+        }
+
+        const policy = await tx.hiringEvaluationPolicy.create({
+          data: {
+            postingId: BigInt(input.policy.postingId),
+            createdByUserId: BigInt(input.policy.createdByUserId),
+            policyVersion: input.policy.policyVersion,
+            decisionMode: input.policy.decisionMode,
+            jobWeightPercent: input.policy.jobWeightPercent,
+            talentWeightPercent: input.policy.talentWeightPercent,
+            minimumJobScore: input.policy.minimumJobScore,
+            minimumTalentScore: input.policy.minimumTalentScore,
+            minimumEvidenceCoveragePercent:
+              input.policy.minimumEvidenceCoveragePercent,
+            tieBreakMode: 'WEIGHT_ORDER',
+            snapshotJson: input.policy.snapshotJson as Prisma.InputJsonValue,
+          },
+        });
+        const questionSetSnapshot = await tx.hiringQuestionSetSnapshot.create({
+          data: {
+            postingId: BigInt(input.questionSetSnapshot.postingId),
+            sourceQuestionSetId: BigInt(
+              input.questionSetSnapshot.sourceQuestionSetId,
+            ),
+            snapshotVersion: input.questionSetSnapshot.snapshotVersion,
+            jobRole: input.questionSetSnapshot.jobRole,
+            mode: input.questionSetSnapshot.mode,
+            questionCount: input.questionSetSnapshot.questionCount,
+            maxFollowUpCount: input.questionSetSnapshot.maxFollowUpCount,
+            snapshotJson:
+              input.questionSetSnapshot.snapshotJson as Prisma.InputJsonValue,
+          },
+        });
+
+        return tx.hiringEvaluationCohort.create({
+          data: {
+            companyId: BigInt(input.cohort.companyId),
+            postingId: BigInt(input.cohort.postingId),
+            policyId: policy.policyId,
+            questionSetSnapshotId: questionSetSnapshot.questionSetSnapshotId,
+            createdByUserId: BigInt(input.cohort.createdByUserId),
+            requestKey: input.cohort.requestKey,
+            configurationHash: input.cohort.configurationHash,
+            title: input.cohort.title,
+            jobRole: input.cohort.jobRole,
+            status: 'OPEN',
+            capacity: input.cohort.capacity,
+          },
+          include: HIRING_SIMULATION_INCLUDE,
+        });
       });
 
-      return tx.hiringEvaluationCohort.create({
-        data: {
-          postingId: BigInt(input.cohort.postingId),
-          policyId: policy.policyId,
-          questionSetSnapshotId: questionSetSnapshot.questionSetSnapshotId,
-          createdByUserId: BigInt(input.cohort.createdByUserId),
-          title: input.cohort.title,
-          jobRole: input.cohort.jobRole,
-          status: 'OPEN',
-          capacity: input.cohort.capacity,
-        },
-        include: HIRING_SIMULATION_INCLUDE,
-      });
-    });
-
-    return mapHiringSimulation(cohort);
+      return mapHiringSimulation(cohort);
+    } catch (error) {
+      if (!isPrismaUniqueConstraintError(error)) {
+        throw error;
+      }
+      const replay = await this.findHiringSimulationConfigurationByRequestKey(
+        input.cohort.createdByUserId,
+        input.cohort.requestKey,
+      );
+      if (replay?.cohort.configurationHash === input.cohort.configurationHash) {
+        return replay;
+      }
+      throw new HiringSimulationRequestKeyConflictError();
+    }
   }
 
   async findHiringSimulationConfiguration(
@@ -396,6 +469,22 @@ export class PrismaCompanyInterviewRepository
   ): Promise<HiringSimulationConfigurationRecord | undefined> {
     const cohort = await this.prisma.hiringEvaluationCohort.findUnique({
       where: { cohortId: BigInt(cohortId) },
+      include: HIRING_SIMULATION_INCLUDE,
+    });
+    return cohort ? mapHiringSimulation(cohort) : undefined;
+  }
+
+  async findHiringSimulationConfigurationByRequestKey(
+    createdByUserId: number,
+    requestKey: string,
+  ): Promise<HiringSimulationConfigurationRecord | undefined> {
+    const cohort = await this.prisma.hiringEvaluationCohort.findUnique({
+      where: {
+        createdByUserId_requestKey: {
+          createdByUserId: BigInt(createdByUserId),
+          requestKey,
+        },
+      },
       include: HIRING_SIMULATION_INCLUDE,
     });
     return cohort ? mapHiringSimulation(cohort) : undefined;
@@ -552,12 +641,13 @@ function mapHiringSimulation(
   return {
     cohort: {
       cohortId: Number(cohort.cohortId),
+      companyId: Number(cohort.companyId),
       postingId,
-      companyId:
-        cohort.posting === null ? null : Number(cohort.posting.companyId),
       policyId: Number(cohort.policyId),
       questionSetSnapshotId: Number(cohort.questionSetSnapshotId),
       createdByUserId: Number(cohort.createdByUserId),
+      requestKey: cohort.requestKey,
+      configurationHash: cohort.configurationHash,
       title: cohort.title,
       jobRole: cohort.jobRole,
       status: cohort.status,
@@ -605,4 +695,13 @@ function mapHiringSimulation(
       createdAt: cohort.questionSetSnapshot.createdAt,
     },
   };
+}
+
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'P2002'
+  );
 }

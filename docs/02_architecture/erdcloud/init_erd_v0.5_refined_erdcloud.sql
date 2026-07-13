@@ -690,10 +690,13 @@ CREATE TABLE hiring_question_set_snapshots (
 
 CREATE TABLE hiring_evaluation_cohorts (
     cohort_id BIGINT PRIMARY KEY,
+    company_id BIGINT NOT NULL,
     posting_id BIGINT,
     policy_id BIGINT NOT NULL,
     question_set_snapshot_id BIGINT NOT NULL,
     created_by_user_id BIGINT NOT NULL,
+    request_key VARCHAR(128) NOT NULL,
+    configuration_hash VARCHAR(80) NOT NULL,
     title VARCHAR(200) NOT NULL,
     job_role VARCHAR(100) NOT NULL,
     status VARCHAR(30) NOT NULL,
@@ -741,8 +744,8 @@ CREATE TABLE hiring_ranking_entries (
     ranking_entry_id BIGINT PRIMARY KEY,
     ranking_snapshot_id BIGINT NOT NULL,
     summary_id BIGINT NOT NULL,
-    rank INTEGER NOT NULL,
-    percentile DECIMAL(5,2) NOT NULL,
+    rank INTEGER,
+    percentile DECIMAL(5,2),
     weighted_total_score DECIMAL(5,2),
     decision VARCHAR(40) NOT NULL,
     tie_break_json JSONB NOT NULL,
@@ -1003,6 +1006,10 @@ ALTER TABLE hiring_question_set_snapshots
     FOREIGN KEY (source_question_set_id) REFERENCES interview_question_sets(question_set_id);
 
 ALTER TABLE hiring_evaluation_cohorts
+    ADD CONSTRAINT fk_hiring_evaluation_cohorts_company
+    FOREIGN KEY (company_id) REFERENCES companies(company_id);
+
+ALTER TABLE hiring_evaluation_cohorts
     ADD CONSTRAINT fk_hiring_evaluation_cohorts_posting
     FOREIGN KEY (posting_id) REFERENCES postings(posting_id);
 
@@ -1104,8 +1111,10 @@ CREATE UNIQUE INDEX uk_hiring_question_set_snapshots_version ON hiring_question_
 CREATE INDEX idx_hiring_question_set_snapshots_posting_created ON hiring_question_set_snapshots(posting_id, created_at);
 CREATE INDEX idx_hiring_question_set_snapshots_source_set ON hiring_question_set_snapshots(source_question_set_id);
 CREATE INDEX idx_hiring_evaluation_cohorts_posting_status ON hiring_evaluation_cohorts(posting_id, status);
+CREATE INDEX idx_hiring_evaluation_cohorts_company_status ON hiring_evaluation_cohorts(company_id, status);
 CREATE INDEX idx_hiring_evaluation_cohorts_policy ON hiring_evaluation_cohorts(policy_id);
 CREATE INDEX idx_hiring_evaluation_cohorts_question_snapshot ON hiring_evaluation_cohorts(question_set_snapshot_id);
+CREATE UNIQUE INDEX uk_hiring_evaluation_cohorts_creator_request ON hiring_evaluation_cohorts(created_by_user_id, request_key);
 CREATE UNIQUE INDEX uk_candidate_evaluation_summaries_cohort_candidate ON candidate_evaluation_summaries(cohort_id, candidate_id);
 CREATE UNIQUE INDEX uk_candidate_evaluation_summaries_cohort_session ON candidate_evaluation_summaries(cohort_id, session_id);
 CREATE INDEX idx_candidate_evaluation_summaries_cohort_status ON candidate_evaluation_summaries(cohort_id, status);

@@ -1951,6 +1951,7 @@ AI 리포트 금지 기준:
 - 비동기: N
 - 계산 계약: `docs/03_contracts/hiring-evaluation.md`
 - 요청 데이터:
+  - `requestKey`: string, required, 8~128자. 영문·숫자와 `._:-`만 허용하는 요청 멱등 키
   - `postingId`: number, required, 1 이상의 정수
   - `sourceQuestionSetId`: number, required, 1 이상의 정수
   - `title`: string, required, trim 후 1~200자
@@ -1979,11 +1980,13 @@ AI 리포트 금지 기준:
   - 모든 `orderedQuestionIds`는 해당 `ACTIVE` 질문 세트의 항목에 실제로 포함되어야 한다.
 - 저장/불변성:
   - repository는 새 `HiringEvaluationPolicy`, 새 `HiringQuestionSetSnapshot`, 새 `HiringEvaluationCohort(status=OPEN)`를 하나의 DB transaction에서 생성한다.
+  - 같은 기업 사용자의 같은 `requestKey`와 같은 정규화 입력은 기존 응답을 재사용한다. 같은 key에 다른 입력을 보내면 `COMMON_CONFLICT`다.
+  - transaction 안에서 원본 질문 세트가 여전히 해당 공고의 `ACTIVE` 세트이고 선택 질문이 모두 활성 상태인지 재검증한다. 상태가 달라졌으면 저장하지 않고 `QUESTION_SET_CHANGED` conflict를 반환한다.
   - 기존 정책, 질문 snapshot, 코호트 row를 update/upsert하거나 덮어쓰지 않는다.
   - 정책 `snapshotJson`은 `schemaVersion`, `administratorInput`, `tieBreakOrder`를 포함한다.
   - `administratorInput`은 `postingId`, 판정 모드, 두 비중, 세 최소 기준을 포함한다.
   - `tieBreakOrder`는 종합점수, 더 높은 비중 트랙 점수, 해당 트랙 세부 가중치, 근거 충족률 순서를 명시한다. 두 트랙 비중이 같으면 높은 비중 트랙 단계는 생략한다.
-  - 질문 `snapshotJson`은 `schemaVersion`, `postingId`, `sourceQuestionSetId`, `jobRole`, 모드, 질문 수, 꼬리질문 한도와 정렬된 `{ questionId, order, content, criterionId }[]`를 포함한다.
+  - 질문 `snapshotJson`은 `schemaVersion=hiring-question-set-configuration.v1`, `postingId`, `sourceQuestionSetId`, `jobRole`, 모드, 질문 수, 꼬리질문 한도와 정렬된 `{ questionId, order, content, criterionId }[]`를 포함한다.
   - 정책 `policyVersion`과 질문 `snapshotVersion`은 생성마다 새 불변 버전을 발급한다.
 - 응답 데이터:
   - `cohort`: `{ cohortId, postingId, policyId, questionSetSnapshotId, title, jobRole, status, capacity, openedAt, createdAt }`

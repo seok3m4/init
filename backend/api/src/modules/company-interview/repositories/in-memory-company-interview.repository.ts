@@ -18,6 +18,8 @@ import {
   ConfirmQuestionSetInput,
   CreateHiringSimulationConfigurationInput,
   CreateQuestionInput,
+  HiringQuestionSetChangedError,
+  HiringSimulationRequestKeyConflictError,
   UpdateCriterionInput,
   UpdateQuestionInput,
   UpdateTimePolicyInput,
@@ -455,11 +457,41 @@ export class InMemoryCompanyInterviewRepository
   async createHiringSimulationConfiguration(
     input: CreateHiringSimulationConfigurationInput,
   ): Promise<HiringSimulationConfigurationRecord> {
+    const existing = await this.findHiringSimulationConfigurationByRequestKey(
+      input.cohort.createdByUserId,
+      input.cohort.requestKey,
+    );
+    if (existing) {
+      if (existing.cohort.configurationHash === input.cohort.configurationHash) {
+        return existing;
+      }
+      throw new HiringSimulationRequestKeyConflictError();
+    }
+
     const posting = this.postings.find(
       (candidate) => candidate.postingId === input.cohort.postingId,
     );
-    if (!posting) {
-      throw new Error('Posting not found');
+    const activeQuestionSet = await this.findActiveQuestionSet(
+      input.questionSetSnapshot.postingId,
+    );
+    const selectedQuestions = new Set(
+      input.questionSetSnapshot.expectedQuestionIds,
+    );
+    const activeQuestionIds = new Set(
+      activeQuestionSet?.items
+        .filter((item) => item.question?.isActive)
+        .map((item) => item.questionId) ?? [],
+    );
+    if (
+      !posting ||
+      posting.companyId !== input.cohort.companyId ||
+      activeQuestionSet?.questionSetId !==
+        input.questionSetSnapshot.sourceQuestionSetId ||
+      [...selectedQuestions].some(
+        (questionId) => !activeQuestionIds.has(questionId),
+      )
+    ) {
+      throw new HiringQuestionSetChangedError();
     }
 
     const createdAt = new Date();
@@ -496,10 +528,12 @@ export class InMemoryCompanyInterviewRepository
     const cohort: HiringEvaluationCohortRecord = {
       cohortId: this.nextHiringCohortId,
       postingId: input.cohort.postingId,
-      companyId: posting.companyId,
+      companyId: input.cohort.companyId,
       policyId: policy.policyId,
       questionSetSnapshotId: questionSetSnapshot.questionSetSnapshotId,
       createdByUserId: input.cohort.createdByUserId,
+      requestKey: input.cohort.requestKey,
+      configurationHash: input.cohort.configurationHash,
       title: input.cohort.title,
       jobRole: input.cohort.jobRole,
       status: 'OPEN',
@@ -550,6 +584,20 @@ export class InMemoryCompanyInterviewRepository
       policy,
       questionSetSnapshot,
     });
+  }
+
+  async findHiringSimulationConfigurationByRequestKey(
+    createdByUserId: number,
+    requestKey: string,
+  ): Promise<HiringSimulationConfigurationRecord | undefined> {
+    const cohort = this.hiringCohorts.find(
+      (candidate) =>
+        candidate.createdByUserId === createdByUserId &&
+        candidate.requestKey === requestKey,
+    );
+    return cohort
+      ? this.findHiringSimulationConfiguration(cohort.cohortId)
+      : undefined;
   }
 
   private hydrateQuestionSet(questionSet: QuestionSetRecord): QuestionSetRecord {

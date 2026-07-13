@@ -17,6 +17,20 @@ export const COMPANY_INTERVIEW_REPOSITORY = Symbol(
   'COMPANY_INTERVIEW_REPOSITORY',
 );
 
+export class HiringQuestionSetChangedError extends Error {
+  constructor() {
+    super('The source question set changed before the simulation was saved.');
+    this.name = 'HiringQuestionSetChangedError';
+  }
+}
+
+export class HiringSimulationRequestKeyConflictError extends Error {
+  constructor() {
+    super('The request key is already associated with different input.');
+    this.name = 'HiringSimulationRequestKeyConflictError';
+  }
+}
+
 export type UpdateCriterionInput = {
   criterionId?: number;
   tagId: number;
@@ -70,8 +84,10 @@ export type CreateHiringSimulationConfigurationInput = {
     snapshotJson: HiringPolicySnapshot;
   };
   questionSetSnapshot: {
+    companyId: number;
     postingId: number;
     sourceQuestionSetId: number;
+    expectedQuestionIds: number[];
     snapshotVersion: string;
     jobRole: string;
     mode: HiringQuestionSetMode;
@@ -80,8 +96,11 @@ export type CreateHiringSimulationConfigurationInput = {
     snapshotJson: HiringQuestionSetSnapshotJson;
   };
   cohort: {
+    companyId: number;
     postingId: number;
     createdByUserId: number;
+    requestKey: string;
+    configurationHash: string;
     title: string;
     jobRole: string;
     capacity: number;
@@ -121,5 +140,9 @@ export interface CompanyInterviewRepository {
   ): Promise<HiringSimulationConfigurationRecord>;
   findHiringSimulationConfiguration(
     cohortId: number,
+  ): Promise<HiringSimulationConfigurationRecord | undefined>;
+  findHiringSimulationConfigurationByRequestKey(
+    createdByUserId: number,
+    requestKey: string,
   ): Promise<HiringSimulationConfigurationRecord | undefined>;
 }

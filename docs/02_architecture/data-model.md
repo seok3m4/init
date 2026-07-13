@@ -506,10 +506,13 @@
 | Column | Definition | Description |
 | --- |--- |--- |
 | cohort_id | BIGINT PRIMARY KEY | 동일 조건으로 비교할 지원자 집합 PK |
+| company_id | BIGINT NOT NULL | 공고 삭제 이후에도 소유권을 판별하기 위한 기업 FK snapshot |
 | posting_id | BIGINT | 실제 공고 기반 코호트이면 postings FK |
 | policy_id | BIGINT NOT NULL | 고정 평가 정책 FK |
 | question_set_snapshot_id | BIGINT NOT NULL | 고정 질문 세트 snapshot FK |
 | created_by_user_id | BIGINT NOT NULL | 코호트를 만든 관리자 또는 기업 사용자 FK |
+| request_key | VARCHAR(128) NOT NULL | 생성 요청 멱등 키. 같은 사용자 안에서 unique |
+| configuration_hash | VARCHAR(80) NOT NULL | 정규화한 관리자 입력과 질문 snapshot의 SHA-256 |
 | title | VARCHAR(200) NOT NULL | 관리자용 코호트 이름 |
 | job_role | VARCHAR(100) NOT NULL | 상대평가 직무 |
 | status | VARCHAR(30) NOT NULL | OPEN, LOCKED, EVALUATED, FINALIZED |
@@ -521,7 +524,7 @@
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 생성 시각 |
 | updated_at | TIMESTAMP NOT NULL | 상태 갱신 시각 |
 
-코호트 상태는 `OPEN -> LOCKED -> EVALUATED -> FINALIZED`로만 전이한다. `LOCKED` 이후에는 `policy_id`, `question_set_snapshot_id`, `capacity`와 지원자 집합을 변경하지 않는다.
+코호트 상태는 `OPEN -> LOCKED -> EVALUATED -> FINALIZED`로만 전이한다. `LOCKED` 이후에는 `policy_id`, `question_set_snapshot_id`, `capacity`와 지원자 집합을 변경하지 않는다. `(created_by_user_id, request_key)`는 unique이며 같은 hash 재전달은 기존 코호트를 재사용하고 다른 hash는 충돌로 거부한다.
 
 ### candidate_evaluation_summaries
 
@@ -569,8 +572,8 @@
 | ranking_entry_id | BIGINT PRIMARY KEY | 순위 snapshot 지원자 항목 PK |
 | ranking_snapshot_id | BIGINT NOT NULL | 순위 snapshot FK |
 | summary_id | BIGINT NOT NULL | 계산 입력인 지원자 종합평가 FK |
-| rank | INTEGER NOT NULL | 동점을 허용하는 1 기반 순위 |
-| percentile | DECIMAL(5,2) NOT NULL | 코호트 내 백분위 0~100 |
+| rank | INTEGER | 동점을 허용하는 1 기반 순위. 절대 gate 미통과·근거 부족이면 NULL |
+| percentile | DECIMAL(5,2) | rank가 있는 지원자의 코호트 내 백분위 0~100 |
 | weighted_total_score | DECIMAL(5,2) | snapshot 당시 종합점수 0~100 |
 | decision | VARCHAR(40) NOT NULL | PASS, WAITLIST, FAIL, INSUFFICIENT_EVIDENCE |
 | tie_break_json | JSONB NOT NULL | 관리자 비중 순으로 비교한 값과 동일 순위 사유 |

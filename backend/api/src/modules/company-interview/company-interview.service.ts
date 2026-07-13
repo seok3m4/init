@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { CurrentUser } from '@init/common';
 import {
@@ -50,6 +50,8 @@ import {
 import {
   COMPANY_INTERVIEW_REPOSITORY,
   CompanyInterviewRepository,
+  HiringQuestionSetChangedError,
+  HiringSimulationRequestKeyConflictError,
 } from './repositories/company-interview.repository';
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
@@ -371,7 +373,7 @@ export class CompanyInterviewService {
       ),
     };
     const questionSnapshot: HiringQuestionSetSnapshotJson = {
-      schemaVersion: 'hiring-question-set.v1',
+      schemaVersion: 'hiring-question-set-configuration.v1',
       postingId: posting.postingId,
       sourceQuestionSetId: sourceQuestionSet.questionSetId,
       jobRole: posting.jobRole,
@@ -380,9 +382,29 @@ export class CompanyInterviewService {
       maxFollowUpCount,
       questions,
     };
+    const configurationHash = this.createHiringConfigurationHash({
+      title: dto.title.trim(),
+      capacity: dto.capacity,
+      policy: policySnapshot,
+      questionSet: questionSnapshot,
+    });
+    const existing =
+      await this.repository.findHiringSimulationConfigurationByRequestKey(
+        currentUser.userId,
+        dto.requestKey,
+      );
+    if (existing) {
+      if (existing.cohort.configurationHash !== configurationHash) {
+        conflict('이미 다른 설정에 사용한 요청 키입니다.', [
+          { field: 'requestKey', reason: 'REQUEST_KEY_REUSED' },
+        ]);
+      }
+      return this.mapHiringSimulation(existing);
+    }
 
-    const configuration =
-      await this.repository.createHiringSimulationConfiguration({
+    let configuration: HiringSimulationConfigurationRecord;
+    try {
+      configuration = await this.repository.createHiringSimulationConfiguration({
         policy: {
           postingId: posting.postingId,
           createdByUserId: currentUser.userId,
@@ -397,9 +419,11 @@ export class CompanyInterviewService {
           snapshotJson: policySnapshot,
         },
         questionSetSnapshot: {
+          companyId: currentUser.companyId,
           postingId: posting.postingId,
           sourceQuestionSetId: sourceQuestionSet.questionSetId,
-          snapshotVersion: `hiring-question-set-v1-${randomUUID()}`,
+          expectedQuestionIds: questions.map((question) => question.questionId),
+          snapshotVersion: `hiring-question-set-configuration-v1-${randomUUID()}`,
           jobRole: posting.jobRole,
           mode: dto.questionSetMode,
           questionCount,
@@ -407,13 +431,29 @@ export class CompanyInterviewService {
           snapshotJson: questionSnapshot,
         },
         cohort: {
+          companyId: currentUser.companyId,
           postingId: posting.postingId,
           createdByUserId: currentUser.userId,
+          requestKey: dto.requestKey,
+          configurationHash,
           title: dto.title.trim(),
           jobRole: posting.jobRole,
           capacity: dto.capacity,
         },
       });
+    } catch (error) {
+      if (error instanceof HiringQuestionSetChangedError) {
+        conflict('저장 중 질문 세트가 변경되었습니다. 다시 확인해주세요.', [
+          { field: 'sourceQuestionSetId', reason: 'QUESTION_SET_CHANGED' },
+        ]);
+      }
+      if (error instanceof HiringSimulationRequestKeyConflictError) {
+        conflict('이미 다른 설정에 사용한 요청 키입니다.', [
+          { field: 'requestKey', reason: 'REQUEST_KEY_REUSED' },
+        ]);
+      }
+      throw error;
+    }
 
     return this.mapHiringSimulation(configuration);
   }
@@ -476,6 +516,16 @@ export class CompanyInterviewService {
     dto: CreateHiringSimulationDto,
     decisionMode: HiringDecisionMode,
   ): void {
+    if (
+      typeof dto.requestKey !== 'string' ||
+      dto.requestKey.length < 8 ||
+      dto.requestKey.length > 128 ||
+      !/^[A-Za-z0-9._:-]+$/.test(dto.requestKey)
+    ) {
+      validationFailed('요청 키를 확인해주세요.', [
+        { field: 'requestKey', reason: 'OUT_OF_RANGE' },
+      ]);
+    }
     this.assertIntegerInRange(
       'postingId',
       dto.postingId,
@@ -701,6 +751,11 @@ export class CompanyInterviewService {
           { field: 'orderedQuestionIds', reason: 'RESOURCE_NOT_FOUND' },
         ]);
       }
+      if (!item.question.isActive) {
+        conflict('활성 질문만 채용 시뮬레이션에 사용할 수 있습니다.', [
+          { field: 'orderedQuestionIds', reason: 'QUESTION_NOT_ACTIVE' },
+        ]);
+      }
       if (item.question.companyId !== currentUser.companyId) {
         forbidden('질문 접근 권한이 없습니다.', [
           {
@@ -744,6 +799,17 @@ export class CompanyInterviewService {
     }
     order.push({ field: 'EVIDENCE_COVERAGE_PERCENT', direction: 'DESC' });
     return order;
+  }
+
+  private createHiringConfigurationHash(value: {
+    title: string;
+    capacity: number;
+    policy: HiringPolicySnapshot;
+    questionSet: HiringQuestionSetSnapshotJson;
+  }): string {
+    return `sha256:${createHash('sha256')
+      .update(JSON.stringify(value), 'utf8')
+      .digest('hex')}`;
   }
 
   private assertIntegerInRange(

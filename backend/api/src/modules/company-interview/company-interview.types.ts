@@ -75,7 +75,7 @@ export type HiringQuestionSnapshotItem = {
 };
 
 export type HiringQuestionSetSnapshotJson = {
-  schemaVersion: 'hiring-question-set.v1';
+  schemaVersion: 'hiring-question-set-configuration.v1';
   postingId: number;
   sourceQuestionSetId: number;
   jobRole: string;
@@ -178,11 +178,13 @@ export type HiringQuestionSetSnapshotRecord = {
 
 export type HiringEvaluationCohortRecord = {
   cohortId: number;
+  companyId: number;
   postingId: number;
-  companyId: number | null;
   policyId: number;
   questionSetSnapshotId: number;
   createdByUserId: number;
+  requestKey: string;
+  configurationHash: string;
   title: string;
   jobRole: string;
   status: HiringCohortStatus;

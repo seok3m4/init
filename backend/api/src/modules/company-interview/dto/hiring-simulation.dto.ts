@@ -8,6 +8,7 @@ import {
   IsString,
   Max,
   MaxLength,
+  Matches,
   Min,
   MinLength,
 } from 'class-validator';
@@ -23,6 +24,12 @@ import {
 } from '../company-interview.types';
 
 export class CreateHiringSimulationDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  @Matches(/^[A-Za-z0-9._:-]+$/)
+  requestKey!: string;
+
   @Type(() => Number)
   @IsInt()
   @Min(1)
