@@ -1540,11 +1540,15 @@ export class InterviewService {
     current: boolean,
     runtimeSortOrder?: number,
   ): Promise<InterviewQuestionView> {
+    const exposeQuestionText = this.shouldExposeQuestionText(session);
+    const evaluationSnapshot = exposeQuestionText
+      ? await this.interviewRepository.findNcsEvaluationSnapshot(session.sessionId, question.questionId)
+      : undefined;
     return {
       questionId: question.questionId,
       questionType: question.questionType,
       sortOrder: runtimeSortOrder ?? question.sortOrder,
-      content: this.shouldExposeQuestionText(session) ? question.content : undefined,
+      content: exposeQuestionText ? evaluationSnapshot?.question.content ?? question.content : undefined,
       audioPrompt: `audio://interview-questions/${question.questionId}`,
       answered: Boolean(await this.interviewRepository.findAnswer(session.sessionId, question.questionId)),
       current,

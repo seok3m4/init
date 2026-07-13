@@ -3,15 +3,13 @@ import { PrismaService } from "../../shared/prisma.service";
 import { AuthModule } from "../auth/auth.module";
 import { CandidateModule } from "../candidate";
 import { PaymentModule } from "../payment/payment.module";
-import { InMemoryReportRepository } from "../report/repository/in-memory-report.repository";
-import { PrismaReportRepository } from "../report/repository/prisma-report.repository";
-import { REPORT_REPOSITORY } from "../report/repository/report.repository";
-import { AiJobDispatcherService } from "../report/service/ai-job-dispatcher.service";
-import { AI_JOB_QUEUE_PUBLISHER, createAiJobQueuePublisher } from "../report/service/ai-job-queue.publisher";
+import { AiJobInfrastructureModule } from "../report/ai-job-infrastructure.module";
 import { InterviewController } from "./controller/interview.controller";
 import { BuiltInNcsEvaluationSnapshotResolver } from "./ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver";
 import { NCS_EVALUATION_SNAPSHOT_RESOLVER } from "./ncs-evaluation/ncs-evaluation-snapshot";
 import { NcsOpenApiClient } from "./ncs-evaluation/ncs-open-api.client";
+import { OfficialNcsEvaluationSnapshotResolver } from "./ncs-evaluation/official-ncs-evaluation-snapshot.resolver";
+import { OfficialNcsReferenceCatalogService } from "./ncs-evaluation/official-ncs-reference-catalog.service";
 import { DefaultPublicApplicationAccessVerifier, PUBLIC_APPLICATION_ACCESS_VERIFIER } from "./public/public-application-access.verifier";
 import { PublicInterviewAccessGuard } from "./public/public-interview-access.guard";
 import { PublicInterviewAccessTokenService } from "./public/public-interview-access-token.service";
@@ -23,26 +21,8 @@ import { PrismaInterviewRepository } from "./repository/prisma-interview.reposit
 import { INTERVIEW_MEDIA_STORAGE, S3InterviewMediaStorageAdapter } from "./service/interview-media-storage.adapter";
 import { InterviewService } from "./service/interview.service";
 
-const usePrismaReportRepository = process.env.NODE_ENV !== "test" && Boolean(process.env.DATABASE_URL);
-
-const reportRepositoryProviders = usePrismaReportRepository
-  ? [
-      {
-        provide: REPORT_REPOSITORY,
-        inject: [PrismaService],
-        useFactory: (prisma: PrismaService) => new PrismaReportRepository(prisma),
-      },
-    ]
-  : [
-      InMemoryReportRepository,
-      {
-        provide: REPORT_REPOSITORY,
-        useExisting: InMemoryReportRepository,
-      },
-    ];
-
 @Module({
-  imports: [AuthModule, CandidateModule, PaymentModule],
+  imports: [AuthModule, CandidateModule, PaymentModule, AiJobInfrastructureModule],
   controllers: [InterviewController, PublicInterviewController],
   providers: [
     PrismaService,
@@ -56,17 +36,13 @@ const reportRepositoryProviders = usePrismaReportRepository
         return new PrismaInterviewRepository(prisma);
       },
     },
-    AiJobDispatcherService,
-    {
-      provide: AI_JOB_QUEUE_PUBLISHER,
-      useFactory: () => createAiJobQueuePublisher(),
-    },
-    ...reportRepositoryProviders,
     NcsOpenApiClient,
+    OfficialNcsReferenceCatalogService,
     BuiltInNcsEvaluationSnapshotResolver,
+    OfficialNcsEvaluationSnapshotResolver,
     {
       provide: NCS_EVALUATION_SNAPSHOT_RESOLVER,
-      useExisting: BuiltInNcsEvaluationSnapshotResolver,
+      useExisting: OfficialNcsEvaluationSnapshotResolver,
     },
     InterviewService,
     {
@@ -81,6 +57,12 @@ const reportRepositoryProviders = usePrismaReportRepository
       useClass: DefaultPublicApplicationAccessVerifier,
     },
   ],
-  exports: [INTERVIEW_REPOSITORY, InterviewService, PublicInterviewService, NcsOpenApiClient],
+  exports: [
+    INTERVIEW_REPOSITORY,
+    InterviewService,
+    PublicInterviewService,
+    NcsOpenApiClient,
+    OfficialNcsReferenceCatalogService,
+  ],
 })
 export class InterviewModule {}

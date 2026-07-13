@@ -55,11 +55,11 @@ Authorization: candidate bearer token
 ### Session Evaluation Snapshot
 
 - 모의면접 시작 요청의 `jobRole`은 trim 후 최대 80자이며, 서버가 평가 가능한 질문별 프로필을 선택하는 입력이다.
-- 텍스트 연습 화면이 제공하는 백엔드, 프론트엔드, 풀스택, AI/ML, 데이터, DevOps/SRE, QA, 보안 직무는 각각 다른 합성 직무 프로필을 사용한다.
+- 텍스트 연습 화면이 제공하는 백엔드, 프론트엔드, 풀스택, AI/ML, 데이터, DevOps/SRE, QA, 보안 직무는 서버가 관리하는 별칭을 통해 공식 NCS 직무·능력단위에 매핑한다.
 - 서버는 세션 생성 시 평가 가능한 질문마다 `ncs_evaluation_snapshots` row를 생성하고 `jobRole`, 계약·snapshot 버전과 전체 snapshot JSON을 고정한다.
 - 같은 `sessionId + questionId`의 최초 snapshot은 이후 프로필 코드나 질문 뱅크가 변경돼도 덮어쓰지 않는다.
 - 마이그레이션 이전 세션처럼 snapshot row가 없는 경우에만 평가 요청 시 현재 서버 프로필을 한 번 생성해 원자적으로 예약한다.
-- 현재 내장 프로필은 `SYNTHETIC_NCS_LIKE`이며 공식 NCS 코드·원문·인증으로 표시하지 않는다.
+- 공식 참조 데이터가 준비된 직무는 `OFFICIAL_NCS`, API 미설정·동기화 실패·매핑 부재 시에는 기존 `SYNTHETIC_NCS_LIKE` 스냅샷을 사용한다.
 
 ### Text Practice Modes
 
@@ -67,18 +67,20 @@ Authorization: candidate bearer token
 - 텍스트 연습 화면의 본질문 수와 세션 전체 꼬리질문 한도는 각각 `3/2`, `5/3`, `7/4`다.
 - 꼬리질문은 별도 평가 문항이 아니라 같은 본질문의 누락 근거를 보완하며 문항당 최대 한 번만 허용한다.
 - 전용 모드 요청은 일반 모의면접의 `questionTypes`와 함께 보낼 수 없다.
-- 현재 질문은행과 평가 프로필은 서비스 합성 자료다. 공식 NCS 정보 API의 직무·능력단위·수행준거 KSA·평가지침을 수집한 뒤 면접용 행동지표와 점수 앵커로 변환해 snapshot을 교체한다.
+- 현재 질문은행, 행동지표와 점수 앵커는 서비스가 면접 관찰 가능 형태로 변환한 자료다. 공식 참조 API에서 수집한 직무·능력단위·능력단위요소의 코드와 원문은 변환 결과의 출처로 snapshot에 함께 고정한다.
 - 공식 API는 평가 원천을 제공하지만 답변 점수, 근거 충족 규칙, 질문 구성은 제공하지 않으므로 이 변환 결과는 원문·코드·기준일과 함께 별도 버전으로 관리한다.
 - 현재 세션 전체 꼬리질문 한도는 텍스트 연습 클라이언트가 적용한다. 서버 영구 상태 기반 강제는 practice mode를 세션에 저장하는 후속 계약에서 다룬다.
 
-공식 원천 연동 시 한국산업인력공단 국가직무능력표준 정보 API의 직무(`ncsDutyInfo`), 능력단위(`ncsCompeUnitInfo`), 능력단위요소(`ncsCompeUnitFactrInfo`), 수행준거 KSA(`ncsKsaInfo`), 평가지침(`ncsEvalInfo`)을 함께 snapshot 입력으로 사용한다. 현재 화면의 개발 직무명은 합성 프로필 별칭이며 공식 NCS 세분류가 아니다. 직무 선택지는 공식 직무 수집·버전 고정 이후 NCS 코드와 명칭을 기준으로 교체한다.
+현재 연동은 한국산업인력공단 NCS 분류체계 및 능력단위 조회 API(`hrdkapi`)의 `NCS007`을 사용한다. `USG_YN=Y`인 최신 `NCS_DEGR`의 직무, 능력단위, 능력단위요소를 snapshot 입력으로 사용한다. 별도 승인이 필요한 국가직무능력표준 정보 API(`ncsInfo`)의 수행준거 KSA(`ncsKsaInfo`)와 평가지침(`ncsEvalInfo`)은 상세 원천 보강 단계에서 추가한다. 현재 화면의 개발 직무명은 공식 NCS 직무명의 사용자용 별칭이며, 전체 직무 선택지는 별도 카탈로그 UI 계약에서 확장한다.
 
 ### Official NCS API Configuration
 
 - 백엔드 API만 `NCS_OPEN_API_SERVICE_KEY`를 읽으며 브라우저, API 응답, 로그, queue payload에 키를 포함하지 않는다.
-- 기본 URL은 `NCS_OPEN_API_BASE_URL=https://apis.data.go.kr/B490007/ncsInfo`, 요청 제한 시간은 `NCS_OPEN_API_TIMEOUT_MS=10000`이다.
+- 참조 데이터 기본 URL은 `NCS_OPEN_API_BASE_URL=https://apis.data.go.kr/B490007/hrdkapi`다. 상세 원천용 URL은 `NCS_OPEN_API_DETAIL_BASE_URL=https://apis.data.go.kr/B490007/ncsInfo`로 분리한다.
+- `NCS_OPEN_API_SYNC_ON_STARTUP=true`일 때만 API 프로세스 시작 시 공식 참조 데이터를 적재하며 요청 제한 시간은 `NCS_OPEN_API_TIMEOUT_MS=30000`이다.
 - 로컬 실제 값은 Git에서 제외되는 `backend/api/.env`에 두고 저장소에는 `backend/api/.env.example`의 빈 항목만 유지한다.
-- 면접 요청 중 원격 API를 호출하지 않는다. 공식 데이터는 사전 동기화하고 세션 생성 시 저장된 버전의 immutable evaluation snapshot을 사용한다.
+- 시작 시 동기화는 직무 검색어별로 독립 실행하고, 일부 또는 전체 요청이 실패해도 서버 시작과 기존 합성 평가 흐름을 막지 않는다.
+- 면접 요청 중 원격 API를 호출하지 않는다. 공식 데이터는 메모리에 사전 동기화하고 세션 생성 시 해당 버전의 immutable evaluation snapshot을 DB에 저장한다.
 
 ### Input Quality Gate
 

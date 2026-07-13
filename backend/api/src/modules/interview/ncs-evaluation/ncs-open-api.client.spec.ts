@@ -8,11 +8,12 @@ describe("NcsOpenApiClient", () => {
     jest.restoreAllMocks();
   });
 
-  it("loads a server-only service key and defaults", () => {
+  it("loads server-only credentials and separate reference/detail endpoints", () => {
     expect(loadNcsOpenApiConfig({ NCS_OPEN_API_SERVICE_KEY: " decoded-key " })).toEqual({
       serviceKey: "decoded-key",
-      baseUrl: "https://apis.data.go.kr/B490007/ncsInfo",
-      timeoutMs: 10_000,
+      baseUrl: "https://apis.data.go.kr/B490007/hrdkapi",
+      detailBaseUrl: "https://apis.data.go.kr/B490007/ncsInfo",
+      timeoutMs: 30_000,
     });
   });
 
@@ -20,7 +21,11 @@ describe("NcsOpenApiClient", () => {
     expect(() => loadNcsOpenApiConfig({})).toThrow("NCS_OPEN_API_SERVICE_KEY");
     expect(() => loadNcsOpenApiConfig({
       NCS_OPEN_API_SERVICE_KEY: "key",
-      NCS_OPEN_API_BASE_URL: "http://apis.data.go.kr/B490007/ncsInfo",
+      NCS_OPEN_API_BASE_URL: "http://apis.data.go.kr/B490007/hrdkapi",
+    })).toThrow("HTTPS");
+    expect(() => loadNcsOpenApiConfig({
+      NCS_OPEN_API_SERVICE_KEY: "key",
+      NCS_OPEN_API_DETAIL_BASE_URL: "http://apis.data.go.kr/B490007/ncsInfo",
     })).toThrow("HTTPS");
     expect(() => loadNcsOpenApiConfig({
       NCS_OPEN_API_SERVICE_KEY: "key",
@@ -28,7 +33,29 @@ describe("NcsOpenApiClient", () => {
     })).toThrow("positive integer");
   });
 
-  it("adds the service key without exposing it to call parameters", async () => {
+  it("requests JSON reference data with a server-owned service key", async () => {
+    let requestedUrl = "";
+    globalThis.fetch = jest.fn(async (input: string | URL | Request) => {
+      requestedUrl = String(input);
+      return new Response(JSON.stringify({ response: { header: { resultCode: "00" }, body: { items: {} } } }), {
+        status: 200,
+      });
+    }) as typeof fetch;
+
+    const client = new NcsOpenApiClient();
+    const body = await client.requestJson("NCS007", { LVL: 1, SWRD: "응용SW" }, {
+      NCS_OPEN_API_SERVICE_KEY: "key+/=",
+    });
+
+    const url = new URL(requestedUrl);
+    expect(url.pathname).toBe("/B490007/hrdkapi/NCS007");
+    expect(url.searchParams.get("serviceKey")).toBe("key+/=");
+    expect(url.searchParams.get("LVL")).toBe("1");
+    expect(url.searchParams.get("SWRD")).toBe("응용SW");
+    expect(body).toEqual(expect.objectContaining({ response: expect.any(Object) }));
+  });
+
+  it("keeps the detail XML API on its separate endpoint", async () => {
     let requestedUrl = "";
     globalThis.fetch = jest.fn(async (input: string | URL | Request) => {
       requestedUrl = String(input);
@@ -36,28 +63,20 @@ describe("NcsOpenApiClient", () => {
     }) as typeof fetch;
 
     const client = new NcsOpenApiClient();
-    const body = await client.requestXml(
-      "ncsDutyInfo",
-      { pageNo: 1, numOfRows: 100 },
-      { NCS_OPEN_API_SERVICE_KEY: "key+/=" },
-    );
-
-    const url = new URL(requestedUrl);
-    expect(url.pathname).toBe("/B490007/ncsInfo/ncsDutyInfo");
-    expect(url.searchParams.get("serviceKey")).toBe("key+/=");
-    expect(url.searchParams.get("pageNo")).toBe("1");
-    expect(url.searchParams.get("numOfRows")).toBe("100");
-    expect(body).toContain("<body");
+    await client.requestXml("ncsDutyInfo", { pageNo: 1 }, { NCS_OPEN_API_SERVICE_KEY: "key" });
+    expect(new URL(requestedUrl).pathname).toBe("/B490007/ncsInfo/ncsDutyInfo");
   });
 
-  it("does not include the credential in provider errors", async () => {
-    globalThis.fetch = jest.fn(async () => new Response("provider failure", { status: 500 })) as typeof fetch;
+  it("rejects provider errors without including credentials", async () => {
+    globalThis.fetch = jest.fn(async () => new Response(JSON.stringify({
+      response: { header: { resultCode: "03", resultMsg: "provider failure" } },
+    }), { status: 200 })) as typeof fetch;
     const client = new NcsOpenApiClient();
 
-    await expect(client.requestXml("ncsDutyInfo", {}, {
+    await expect(client.requestJson("NCS001", {}, {
       NCS_OPEN_API_SERVICE_KEY: "private-key",
-    })).rejects.toThrow("status 500");
-    await expect(client.requestXml("ncsDutyInfo", {}, {
+    })).rejects.toThrow("provider error 03");
+    await expect(client.requestJson("NCS001", {}, {
       NCS_OPEN_API_SERVICE_KEY: "private-key",
     })).rejects.not.toThrow("private-key");
   });
