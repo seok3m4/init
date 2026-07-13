@@ -32,7 +32,25 @@ export function normalizeTalentWeights(weights: readonly number[]): number[] {
     allocation.points += 1;
   }
 
-  return allocations.sort((left, right) => left.index - right.index).map((allocation) => allocation.points);
+  ensurePositiveAllocations(allocations);
+
+  return allocations.map((allocation) => allocation.points);
+}
+
+function ensurePositiveAllocations(
+  allocations: Array<{ index: number; points: number; remainder: bigint }>,
+): void {
+  for (const allocation of allocations) {
+    if (allocation.points > 0) continue;
+
+    const donor = allocations
+      .filter((candidate) => candidate.points > 1)
+      .sort((left, right) => right.points - left.points || left.index - right.index)[0];
+    if (!donor) throw new Error("positive weight allocation invariant failed");
+
+    allocation.points = 1;
+    donor.points -= 1;
+  }
 }
 
 interface DecimalInteger {

@@ -4,7 +4,7 @@
 
 M3는 기업이 입력한 인재상 1~6개를 채용 면접 발화에서 확인 가능한 행동 루브릭 snapshot으로 변환한다. 이 단계는 provider/network 호출, 실제 답변 채점, 지원자 종합점수 계산, 채용 판정을 수행하지 않는다.
 
-결정론적 baseline 진입점은 `backend/worker/src/talent-rubric/generator.ts`의 `generateTalentRubricSnapshot`이다. 추후 AI provider를 사용하더라도 이 문서의 `talent-rubric-snapshot.v1` 출력 계약과 불변식을 동일하게 만족해야 하며, provider별 알고리즘 버전은 별도 `rubricVersion`으로 식별한다.
+결정론적 baseline 진입점은 `backend/worker/src/talent-rubric/generator.ts`의 `generateTalentRubricSnapshot`이다. 추후 AI provider를 사용하더라도 이 문서의 `talent-rubric-snapshot.v1` 출력 계약과 불변식을 동일하게 만족해야 하며, provider별 알고리즘 버전은 별도 `rubricVersion`으로 식별한다. 생성 결과나 외부 provider 결과는 M4에서 사용하기 전에 `validateTalentRubricSnapshot` 런타임 검증을 통과해야 한다.
 
 ## Input
 
@@ -107,12 +107,13 @@ M3는 기업이 입력한 인재상 1~6개를 채용 면접 발화에서 확인 
 1. 같은 입력 순서와 정규화된 값은 항상 동일한 전체 결과와 `sourceHash`를 만든다.
 2. `sourceHash`는 정규화한 `name`, `description`, 유효 weight(생략 시 1)를 입력 순서대로 JSON 직렬화한 값의 SHA-256이다. 원문은 snapshot에 별도로 복제하지 않는다.
 3. criterion ID는 정규화한 해당 항목의 이름과 설명으로 만든 안정적인 SHA-256 기반 ID다.
-4. weight는 exact decimal largest-remainder 방식으로 정수화하고, 나머지가 같으면 입력 순서를 우선한다. 모든 criterion weight 합계는 정확히 100이다.
+4. weight는 exact decimal largest-remainder 방식으로 정수화하고, 나머지가 같으면 입력 순서를 우선한다. 배정 결과가 0인 criterion은 입력 순서대로 1로 올리고, 그때마다 현재 점수가 가장 큰 criterion(동점은 입력 순서 우선)에서 1을 회수한다. 모든 criterion weight는 1 이상이고 합계는 정확히 100이다.
 5. criterion마다 4개의 indicator가 있으며 허용 evidence type은 `ACTION`, `RATIONALE`, `RESULT`, `REFLECTION`뿐이다. 모든 indicator의 관찰 원천은 `ANSWER_TRANSCRIPT`다.
 6. 원문의 안전한 의미는 criterion `name`과 `definition`에 유지한다. baseline은 직무, 성과 수치, 상황 또는 경험을 새 사실로 보충하지 않는다.
 7. 성별, 나이, 출신 학교, 외모, 장애 등 민감 속성과 시선, 표정, 목소리 톤 등 비언어 신호는 criterion, indicator, anchor에 남기지 않는다. 탐지한 범주는 `prohibitedSignals.detectedInSource`에만 기록한다.
 8. scoring anchor는 `level`과 `evidenceStrength`가 1부터 5까지 함께 단조 증가한다. 필수 근거 충족 전에는 anchor를 적용하지 않는다.
 9. snapshot 생성은 점수, 합격 가능성, 채용 결정을 반환하지 않는다.
+10. snapshot은 계약 버전, ID·이름 유일성, 1~100 정수 가중치와 합계, indicator·required evidence 순서, 1~5 anchor, evidence policy, 금지 신호 처분을 런타임에서 검증한다.
 
 ## M4 Consumption
 

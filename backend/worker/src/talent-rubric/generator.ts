@@ -19,6 +19,7 @@ import {
   validateAndNormalizeTalentProfileItems,
   type NormalizedTalentProfileItem,
 } from "./validation";
+import { validateTalentRubricSnapshot } from "./snapshot-validator";
 import { normalizeTalentWeights } from "./weight-normalizer";
 
 const REQUIRED_EVIDENCE: readonly TalentEvidenceType[] = ["ACTION", "RATIONALE", "RESULT", "REFLECTION"];
@@ -68,11 +69,7 @@ export function generateTalentRubricSnapshot(
     buildCriterion(item, meanings[index]!, normalizedWeights[index] ?? 0),
   );
 
-  if (criteria.reduce((sum, criterion) => sum + criterion.weight, 0) !== 100) {
-    throw new Error("talent rubric weight invariant failed");
-  }
-
-  return {
+  return validateTalentRubricSnapshot({
     contractVersion: TALENT_RUBRIC_CONTRACT_VERSION,
     rubricVersion: TALENT_RUBRIC_VERSION,
     sourceHash,
@@ -84,7 +81,7 @@ export function generateTalentRubricSnapshot(
       insufficientEvidenceScore: null,
     },
     prohibitedSignals: summarizeProhibitedSignals(normalized),
-  };
+  });
 }
 
 function createTalentRubricSourceHash(items: readonly NormalizedTalentProfileItem[]): string {

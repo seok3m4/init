@@ -31,7 +31,11 @@ const SIGNAL_GROUPS: readonly SignalGroup[] = [
     rules: [
       { label: "성별/성 정체성", pattern: /성별|성\s*정체성|여성|남성|\bgender\b|\bsex\b/giu },
       { label: "나이/연령", pattern: /나이|연령|생년월일|\bage\b/giu },
-      { label: "출신 학교/학벌", pattern: /출신\s*학교|출신학교|학벌|학교|\bschool\b|\buniversity\b/giu },
+      {
+        label: "출신 학교/학벌",
+        pattern:
+          /출신\s*학교|출신학교|학벌|학교(?!\s*(?:시스템|서비스|플랫폼|프로젝트|운영|교육|행정|네트워크|서버))|\bschool\b|\buniversity\b/giu,
+      },
       { label: "외모/용모", pattern: /외모|용모|\bappearance\b/giu },
       {
         label: "장애 여부",

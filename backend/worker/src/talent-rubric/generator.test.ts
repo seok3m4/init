@@ -27,7 +27,7 @@ test("동일한 입력 순서와 값은 동일한 snapshot과 sourceHash를 만�
 test("largest-remainder 방식으로 정수 가중치 합계를 정확히 100으로 만든다", () => {
   assert.deepEqual(normalizeTalentWeights([1, 1, 1]), [34, 33, 33]);
   assert.deepEqual(normalizeTalentWeights([0.1, 0.2, 0.3]), [17, 33, 50]);
-  assert.deepEqual(normalizeTalentWeights([Number.MIN_VALUE, Number.MAX_VALUE]), [0, 100]);
+  assert.deepEqual(normalizeTalentWeights([Number.MIN_VALUE, Number.MAX_VALUE]), [1, 99]);
 
   const snapshot = generateTalentRubricSnapshot([
     { name: "A", description: "A 행동", weight: 1 },
@@ -35,6 +35,7 @@ test("largest-remainder 방식으로 정수 가중치 합계를 정확히 100으
     { name: "C", description: "C 행동" },
   ]);
   assert.equal(snapshot.criteria.reduce((sum, criterion) => sum + criterion.weight, 0), 100);
+  assert.ok(snapshot.criteria.every((criterion) => criterion.weight >= 1));
   assert.deepEqual(snapshot.criteria.map((criterion) => criterion.weight), [34, 33, 33]);
 });
 
@@ -134,6 +135,18 @@ test("민감 속성과 비언어 신호를 점수 기준에서 제거하고 금�
     technicalIncident.prohibitedSignals.find((signal) => signal.category === "NONVERBAL_SIGNAL")?.detectedInSource,
     [],
   );
+
+  const technicalContext = generateTalentRubricSnapshot([
+    {
+      name: "교육 플랫폼 운영",
+      description: "학교 시스템과 서비스 장애를 자세하게 분석하고 복구 결과를 확인한다.",
+    },
+  ]);
+  assert.equal(
+    technicalContext.criteria[0]?.definition,
+    "학교 시스템과 서비스 장애를 자세하게 분석하고 복구 결과를 확인한다.",
+  );
+  assert.ok(technicalContext.prohibitedSignals.every((signal) => signal.detectedInSource.length === 0));
 });
 
 test("금지 신호 제거 후 같은 이름이 되는 인재상은 중복으로 거부한다", () => {
