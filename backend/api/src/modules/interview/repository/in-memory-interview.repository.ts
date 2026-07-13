@@ -1,5 +1,6 @@
 import type { InterviewAnswer, InterviewQuestion, RuntimeInterviewSession } from "../interview.runtime.types";
 import type { NcsEvaluationSnapshot } from "../ncs-evaluation/ncs-evaluation-snapshot";
+import { NCS_TEXT_PRACTICE_QUESTIONS } from "../ncs-evaluation/ncs-text-practice-mode";
 import type {
   CompletedFollowUpProcess,
   CreateInterviewAnswerInput,
@@ -47,6 +48,12 @@ export class InMemoryInterviewRepository implements InterviewRepository {
       interviewType: "MOCK",
       isActive: true,
     },
+    ...NCS_TEXT_PRACTICE_QUESTIONS.map((question, index) => ({
+      ...question,
+      questionId: 5 + index,
+      interviewType: "MOCK" as const,
+      isActive: true,
+    })),
     {
       questionId: 101,
       questionType: "INTRO",

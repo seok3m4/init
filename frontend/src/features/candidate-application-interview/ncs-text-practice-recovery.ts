@@ -1,4 +1,4 @@
-export const NCS_TEXT_PRACTICE_RECOVERY_KEY = "final-weapon:ncs-text-practice:pending:v1";
+export const NCS_TEXT_PRACTICE_RECOVERY_KEY = "final-weapon:ncs-text-practice:pending:v2";
 const RECOVERY_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
 
 type RecoverableQuestionType = "INTRO" | "TECHNICAL" | "EXPERIENCE" | "SITUATION" | "FOLLOW_UP" | "CLOSING";
@@ -21,12 +21,22 @@ export interface NcsTextPracticeRecoveryQuestion {
   current: boolean;
 }
 
+export interface NcsTextPracticeQuestionSummary {
+  questionId: number;
+  score: number | null;
+  followUpUsed: boolean;
+}
+
 export interface NcsTextPracticeRecovery {
-  version: 1;
+  version: 2;
   processLogId: number;
   sessionId: number;
   jobRole: string;
-  focus: "TECHNICAL" | "EXPERIENCE";
+  mode: "QUICK" | "STANDARD" | "DEEP";
+  questionIndex: number;
+  totalQuestions: number;
+  followUpsUsed: number;
+  questionSummaries: NcsTextPracticeQuestionSummary[];
   question: NcsTextPracticeRecoveryQuestion;
   currentPrompt: string;
   transcript: string;
@@ -81,11 +91,16 @@ export function clearNcsTextPracticeRecovery(storage: NcsRecoveryStorage): void 
 function isRecovery(value: unknown): value is NcsTextPracticeRecovery {
   if (!isRecord(value) || !isRecord(value.question)) return false;
   return (
-    value.version === 1 &&
+    value.version === 2 &&
     isPositiveInteger(value.processLogId) &&
     isPositiveInteger(value.sessionId) &&
     typeof value.jobRole === "string" && value.jobRole.trim().length > 0 &&
-    ["TECHNICAL", "EXPERIENCE"].includes(String(value.focus)) &&
+    ["QUICK", "STANDARD", "DEEP"].includes(String(value.mode)) &&
+    isNonNegativeInteger(value.questionIndex) &&
+    isPositiveInteger(value.totalQuestions) && value.totalQuestions <= 7 &&
+    value.questionIndex < value.totalQuestions &&
+    isNonNegativeInteger(value.followUpsUsed) && value.followUpsUsed <= 4 &&
+    Array.isArray(value.questionSummaries) && value.questionSummaries.every(isQuestionSummary) &&
     isPositiveInteger(value.question.questionId) &&
     RECOVERABLE_QUESTION_TYPES.includes(value.question.questionType as RecoverableQuestionType) &&
     typeof value.question.content === "string" && value.question.content.trim().length > 0 &&
@@ -97,6 +112,15 @@ function isRecovery(value: unknown): value is NcsTextPracticeRecovery {
     typeof value.transcript === "string" && value.transcript.trim().length > 0 && value.transcript.length <= 20_000 &&
     (value.followUpAttempt === 0 || value.followUpAttempt === 1) &&
     typeof value.storedAt === "number" && Number.isFinite(value.storedAt)
+  );
+}
+
+function isQuestionSummary(value: unknown): value is NcsTextPracticeQuestionSummary {
+  if (!isRecord(value)) return false;
+  return (
+    isPositiveInteger(value.questionId) &&
+    (value.score === null || (isNonNegativeInteger(value.score) && value.score <= 100)) &&
+    typeof value.followUpUsed === "boolean"
   );
 }
 

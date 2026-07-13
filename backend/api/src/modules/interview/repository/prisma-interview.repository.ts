@@ -11,6 +11,7 @@ import {
   parseNcsEvaluationSnapshot,
   type NcsEvaluationSnapshot,
 } from "../ncs-evaluation/ncs-evaluation-snapshot";
+import { NCS_TEXT_PRACTICE_QUESTIONS } from "../ncs-evaluation/ncs-text-practice-mode";
 import type {
   CompletedFollowUpProcess,
   CreateInterviewAnswerInput,
@@ -45,6 +46,7 @@ const FALLBACK_MOCK_QUESTIONS: Omit<InterviewQuestion, "questionId" | "isActive"
     content: "면접관에게 꼭 기억되었으면 하는 본인의 강점은 무엇인가요?",
     sortOrder: 4,
   },
+  ...NCS_TEXT_PRACTICE_QUESTIONS,
 ];
 
 const FALLBACK_RECRUITING_QUESTIONS: Omit<InterviewQuestion, "questionId" | "isActive" | "interviewType">[] = [
@@ -77,14 +79,14 @@ export class PrismaInterviewRepository implements InterviewRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async listQuestions(filter: InterviewQuestionFilter = {}): Promise<InterviewQuestion[]> {
+    if (filter.interviewType === "MOCK") {
+      await this.ensureMockFallbackQuestions();
+    }
     let questions = await this.queryQuestions(filter);
     if (questions.length > 0) {
       return questions;
     }
 
-    if (filter.interviewType === "MOCK") {
-      await this.ensureMockFallbackQuestions();
-    }
     if (filter.interviewType === "RECRUITING" && filter.postingId !== undefined) {
       await this.ensureRecruitingFallbackQuestions(filter.postingId);
     }

@@ -61,6 +61,18 @@ Authorization: candidate bearer token
 - 마이그레이션 이전 세션처럼 snapshot row가 없는 경우에만 평가 요청 시 현재 서버 프로필을 한 번 생성해 원자적으로 예약한다.
 - 현재 내장 프로필은 `SYNTHETIC_NCS_LIKE`이며 공식 NCS 코드·원문·인증으로 표시하지 않는다.
 
+### Text Practice Modes
+
+- `POST /candidate/mock-interviews`의 `ncsPracticeMode`는 `QUICK`, `STANDARD`, `DEEP` 중 하나다.
+- 텍스트 연습 화면의 본질문 수와 세션 전체 꼬리질문 한도는 각각 `3/2`, `5/3`, `7/4`다.
+- 꼬리질문은 별도 평가 문항이 아니라 같은 본질문의 누락 근거를 보완하며 문항당 최대 한 번만 허용한다.
+- 전용 모드 요청은 일반 모의면접의 `questionTypes`와 함께 보낼 수 없다.
+- 현재 질문은행과 평가 프로필은 서비스 합성 자료다. 공식 NCS 정보 API의 직무·능력단위·수행준거 KSA·평가지침을 수집한 뒤 면접용 행동지표와 점수 앵커로 변환해 snapshot을 교체한다.
+- 공식 API는 평가 원천을 제공하지만 답변 점수, 근거 충족 규칙, 질문 구성은 제공하지 않으므로 이 변환 결과는 원문·코드·기준일과 함께 별도 버전으로 관리한다.
+- 현재 세션 전체 꼬리질문 한도는 텍스트 연습 클라이언트가 적용한다. 서버 영구 상태 기반 강제는 practice mode를 세션에 저장하는 후속 계약에서 다룬다.
+
+공식 원천 연동 시 한국산업인력공단 국가직무능력표준 정보 API의 직무(`ncsDutyInfo`), 능력단위(`ncsCompeUnitInfo`), 능력단위요소(`ncsCompeUnitFactrInfo`), 수행준거 KSA(`ncsKsaInfo`), 평가지침(`ncsEvalInfo`)을 함께 snapshot 입력으로 사용한다. 현재 화면의 개발 직무명은 합성 프로필 별칭이며 공식 NCS 세분류가 아니다. 직무 선택지는 공식 직무 수집·버전 고정 이후 NCS 코드와 명칭을 기준으로 교체한다.
+
 ### Input Quality Gate
 
 API는 평가 작업을 만들기 전에 canonical transcript가 최소한의 평가 가능 조건을 충족하는지 확인한다.

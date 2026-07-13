@@ -41,6 +41,12 @@ import {
   type NcsEvaluationSnapshot,
   type NcsEvaluationSnapshotResolver,
 } from "../ncs-evaluation/ncs-evaluation-snapshot";
+import {
+  isNcsTextPracticeMode,
+  isNcsTextPracticeQuestion,
+  NCS_TEXT_PRACTICE_MODE_POLICY,
+  selectNcsTextPracticeQuestions,
+} from "../ncs-evaluation/ncs-text-practice-mode";
 import { AiJobDispatcherService } from "../../report/service/ai-job-dispatcher.service";
 import {
   CandidateMockInterviewPassService,
@@ -1551,6 +1557,29 @@ export class InterviewService {
 
   private async selectMockQuestionIds(dto: StartMockInterviewDto): Promise<number[]> {
     const requestBody = this.toRequestBody(dto, "mockInterview");
+    const practiceMode = requestBody.ncsPracticeMode;
+    if (practiceMode !== undefined && !isNcsTextPracticeMode(practiceMode)) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "NCS practice mode is invalid.", 400, [
+        { field: "ncsPracticeMode", reason: "QUICK, STANDARD or DEEP is required" },
+      ]);
+    }
+    if (practiceMode && requestBody.questionTypes !== undefined) {
+      throw new CandidateDomainError("COMMON_VALIDATION_FAILED", "NCS practice mode cannot use questionTypes.", 400, [
+        { field: "questionTypes", reason: "questionTypes must be omitted when ncsPracticeMode is set" },
+      ]);
+    }
+
+    if (practiceMode) {
+      const questions = await this.interviewRepository.listQuestions({ interviewType: "MOCK" });
+      const selected = selectNcsTextPracticeQuestions(questions, practiceMode);
+      if (selected.length !== NCS_TEXT_PRACTICE_MODE_POLICY[practiceMode].questionCount) {
+        throw new CandidateDomainError("COMMON_NOT_FOUND", "NCS practice questions are unavailable.", 404, [
+          { field: "ncsPracticeMode", reason: "configured question bank is incomplete" },
+        ]);
+      }
+      return selected.map((question) => question.questionId);
+    }
+
     const requestedTypes = Array.isArray(requestBody.questionTypes)
       ? requestBody.questionTypes
       : [...DEFAULT_MOCK_QUESTION_TYPES];
@@ -1560,10 +1589,10 @@ export class InterviewService {
       ]);
     }
 
-    const questions = await this.interviewRepository.listQuestions({
+    const questions = (await this.interviewRepository.listQuestions({
       interviewType: "MOCK",
       questionTypes: requestedTypes,
-    });
+    })).filter((question) => !isNcsTextPracticeQuestion(question));
     if (questions.length === 0) {
       return (await this.interviewRepository.listQuestions({ interviewType: "MOCK" })).map((question) => question.questionId);
     }

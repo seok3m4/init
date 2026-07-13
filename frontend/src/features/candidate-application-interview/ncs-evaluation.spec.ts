@@ -377,11 +377,15 @@ function validOutput() {
 
 function validRecovery(): NcsTextPracticeRecovery {
   return {
-    version: 1,
+    version: 2,
     processLogId: 901,
     sessionId: 101,
     jobRole: "백엔드 개발자",
-    focus: "TECHNICAL",
+    mode: "STANDARD",
+    questionIndex: 1,
+    totalQuestions: 5,
+    followUpsUsed: 1,
+    questionSummaries: [{ questionId: 500, score: 85, followUpUsed: false }],
     question: {
       questionId: 501,
       questionType: "TECHNICAL",

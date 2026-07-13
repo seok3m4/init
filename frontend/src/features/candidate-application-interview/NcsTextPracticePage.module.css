@@ -110,6 +110,10 @@
   border-radius: 8px;
 }
 
+.modeSegmented {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .segmented label {
   position: relative;
   display: grid;

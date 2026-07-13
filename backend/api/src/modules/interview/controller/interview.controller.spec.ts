@@ -146,6 +146,64 @@ async function assertInterviewHttpError(
   }
 }
 
+test("NCS 텍스트 연습 모드별로 전용 본질문 수를 고정한다", async () => {
+  const repository = new InMemoryCandidateRepository();
+  const candidateService = new CandidateService(repository);
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
+
+  for (const [mode, expectedCount] of [
+    ["QUICK", 3],
+    ["STANDARD", 5],
+    ["DEEP", 7],
+  ] as const) {
+    const started = await controller.startMockInterview(validCandidateRequest, {
+      jobRole: "백엔드 개발자",
+      ncsPracticeMode: mode,
+      showQuestionText: true,
+    });
+    const questions = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
+
+    assert.equal(started.data.totalQuestions, expectedCount);
+    assert.equal(questions.data.questions.length, expectedCount);
+    assert.equal(questions.data.questions.some((question) => question.questionType === "INTRO"), false);
+    assert.equal(questions.data.questions.some((question) => question.questionType === "CLOSING"), false);
+  }
+});
+
+test("NCS 텍스트 연습 모드와 일반 질문 유형을 함께 요청하면 거부한다", async () => {
+  const repository = new InMemoryCandidateRepository();
+  const candidateService = new CandidateService(repository);
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
+
+  await assertInterviewHttpError(
+    () => controller.startMockInterview(validCandidateRequest, {
+      ncsPracticeMode: "QUICK",
+      questionTypes: ["TECHNICAL"],
+      showQuestionText: true,
+    }),
+    400,
+    "COMMON_VALIDATION_FAILED",
+  );
+});
+
+test("일반 모의면접 질문 유형 선택에는 NCS 전용 질문이 섞이지 않는다", async () => {
+  const repository = new InMemoryCandidateRepository();
+  const candidateService = new CandidateService(repository);
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
+
+  const started = await controller.startMockInterview(validCandidateRequest, {
+    questionTypes: ["TECHNICAL"],
+    showQuestionText: true,
+  });
+  const questions = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
+
+  assert.equal(questions.data.questions.length, 1);
+  assert.equal(questions.data.questions[0]?.content, "최근 프로젝트에서 내린 기술적 의사결정 하나와 그때 고려한 장단점을 설명해주세요.");
+});
+
 test("explicit follow-up insert focuses the inserted question and is idempotent", async () => {
   const repository = new InMemoryCandidateRepository();
   const candidateService = new CandidateService(repository);

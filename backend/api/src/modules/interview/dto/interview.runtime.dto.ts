@@ -1,5 +1,6 @@
 import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsPositive, IsString, MaxLength, Min } from "class-validator";
 import type { QuestionType } from "../interview.runtime.types";
+import type { NcsTextPracticeMode } from "../ncs-evaluation/ncs-text-practice-mode";
 
 export class RuntimeFileAssetDto {
   @IsString()
@@ -30,6 +31,10 @@ export class StartMockInterviewDto {
   @IsArray()
   @IsIn(["INTRO", "TECHNICAL", "EXPERIENCE", "SITUATION", "FOLLOW_UP", "CLOSING"], { each: true })
   questionTypes?: QuestionType[];
+
+  @IsOptional()
+  @IsIn(["QUICK", "STANDARD", "DEEP"])
+  ncsPracticeMode?: NcsTextPracticeMode;
 
   @IsOptional()
   @IsBoolean()

@@ -338,6 +338,7 @@ export interface StartMockInterviewRequest {
   jobRole?: string;
   difficulty?: "EASY" | "NORMAL" | "HARD";
   questionTypes?: QuestionType[];
+  ncsPracticeMode?: "QUICK" | "STANDARD" | "DEEP";
   showQuestionText?: boolean;
 }
 

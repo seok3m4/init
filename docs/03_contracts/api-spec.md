@@ -2181,16 +2181,21 @@ AI 리포트 금지 기준:
 ### API-044 POST /candidate/mock-interviews
 - 도메인: 지원자 - 모의면접
 - 권한/인증: 지원자 / 지원자 사용자 로그인
-- 관련 화면: AI 모의면접 시작 화면 (/candidate/mock-interview/start)
+- 관련 화면: AI 모의면접 시작 화면 (`/candidate/mock-interview/start`), NCS 텍스트 연습 화면 (`/candidate/mock-interview/ncs-practice`)
 - UI Type: page
 - 상태 코드: 200 OK
 - 비동기: N
 - 요청 데이터:
-  - 직무 선택, 난이도, 질문 유형
+  - 공통: 직무 선택, 난이도, 질문 유형, 질문 텍스트 표시 여부
+  - NCS 텍스트 연습: `ncsPracticeMode=QUICK|STANDARD|DEEP`. `questionTypes`와 함께 보낼 수 없다.
+    - `QUICK`: 본질문 3개, 텍스트 연습 화면의 전체 꼬리질문 최대 2개
+    - `STANDARD`: 본질문 5개, 텍스트 연습 화면의 전체 꼬리질문 최대 3개
+    - `DEEP`: 본질문 7개, 텍스트 연습 화면의 전체 꼬리질문 최대 4개
 - 검증/전제조건:
   - 로그인 사용자
 - 성공 응답/처리:
   - 모의면접 세션 생성
+  - NCS 텍스트 연습 모드는 서버 고정 질문은행에서 모드별 본질문 수만큼 선택하고 질문별 평가 snapshot을 생성한다.
 - 오류/예외:
   - 질문 생성 실패 시 기본 질문 세트를 제공한다.
 - 관련 ERD 테이블:

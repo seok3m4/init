@@ -22,18 +22,21 @@ import {
   clearNcsTextPracticeRecovery,
   loadNcsTextPracticeRecovery,
   saveNcsTextPracticeRecovery,
+  type NcsTextPracticeQuestionSummary,
   type NcsTextPracticeRecovery,
 } from "./ncs-text-practice-recovery";
 import { candidateApplicationInterviewRoutes } from "./routes";
 import styles from "./NcsTextPracticePage.module.css";
 
-type PracticeFocus = "TECHNICAL" | "EXPERIENCE";
-type EvaluationPhase = "IDLE" | "STARTING" | "ANSWERING" | "QUEUED" | "RUNNING" | "DELAYED" | "RESULT";
+type PracticeMode = "QUICK" | "STANDARD" | "DEEP";
+type EvaluationPhase = "IDLE" | "STARTING" | "ADVANCING" | "ANSWERING" | "QUEUED" | "RUNNING" | "DELAYED" | "RESULT";
 
 interface PracticeSession {
   sessionId: number;
   jobRole: string;
-  focus: PracticeFocus;
+  mode: PracticeMode;
+  questionIndex: number;
+  totalQuestions: number;
   question: RuntimeQuestionView & { content: string };
 }
 
@@ -48,9 +51,15 @@ const JOB_ROLES = [
   "QA 엔지니어",
   "보안 엔지니어",
 ] as const;
-const FOCUS_OPTIONS: Array<{ value: PracticeFocus; label: string }> = [
-  { value: "TECHNICAL", label: "기술 의사결정" },
-  { value: "EXPERIENCE", label: "경험과 적용" },
+const PRACTICE_MODES: Array<{
+  value: PracticeMode;
+  label: string;
+  questionCount: number;
+  maxFollowUps: number;
+}> = [
+  { value: "QUICK", label: "빠른 3문항", questionCount: 3, maxFollowUps: 2 },
+  { value: "STANDARD", label: "기본 5문항", questionCount: 5, maxFollowUps: 3 },
+  { value: "DEEP", label: "심층 7문항", questionCount: 7, maxFollowUps: 4 },
 ];
 const EVIDENCE_LABELS: Record<NcsEvidenceType | "CONTRADICTION", string> = {
   SITUATION: "상황",
@@ -67,13 +76,15 @@ const EVIDENCE_LABELS: Record<NcsEvidenceType | "CONTRADICTION", string> = {
 
 export function NcsTextPracticePage() {
   const [jobRole, setJobRole] = useState<(typeof JOB_ROLES)[number]>("백엔드 개발자");
-  const [focus, setFocus] = useState<PracticeFocus>("TECHNICAL");
+  const [mode, setMode] = useState<PracticeMode>("STANDARD");
   const [session, setSession] = useState<PracticeSession>();
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [answer, setAnswer] = useState("");
   const [baseTranscript, setBaseTranscript] = useState("");
   const [savedTranscript, setSavedTranscript] = useState("");
   const [followUpAttempt, setFollowUpAttempt] = useState<0 | 1>(0);
+  const [followUpsUsed, setFollowUpsUsed] = useState(0);
+  const [questionSummaries, setQuestionSummaries] = useState<NcsTextPracticeQuestionSummary[]>([]);
   const [result, setResult] = useState<NcsEvaluationProductOutput>();
   const [phase, setPhase] = useState<EvaluationPhase>("IDLE");
   const [error, setError] = useState("");
@@ -106,6 +117,12 @@ export function NcsTextPracticePage() {
       setBaseTranscript(pending.transcript);
       setSavedTranscript(pending.transcript);
       setResult(evaluated);
+      const summary = summarizeResult(evaluated);
+      setQuestionSummaries((current) => upsertQuestionSummary(current, {
+        questionId: pending.question.questionId,
+        score: summary?.score ?? null,
+        followUpUsed: pending.followUpAttempt > 0,
+      }));
       setPhase("RESULT");
     } catch (evaluationError) {
       if ((evaluationError as Error)?.name === "AbortError") return;
@@ -127,11 +144,13 @@ export function NcsTextPracticePage() {
     const pending = loadNcsTextPracticeRecovery(window.sessionStorage);
     if (pending) {
       setJobRole(pending.jobRole as (typeof JOB_ROLES)[number]);
-      setFocus(pending.focus);
+      setMode(pending.mode);
       setSession({
         sessionId: pending.sessionId,
         jobRole: pending.jobRole,
-        focus: pending.focus,
+        mode: pending.mode,
+        questionIndex: pending.questionIndex,
+        totalQuestions: pending.totalQuestions,
         question: pending.question,
       });
       setCurrentPrompt(pending.currentPrompt);
@@ -139,6 +158,8 @@ export function NcsTextPracticePage() {
       setBaseTranscript(pending.transcript);
       setSavedTranscript(pending.transcript);
       setFollowUpAttempt(pending.followUpAttempt);
+      setFollowUpsUsed(pending.followUpsUsed);
+      setQuestionSummaries(pending.questionSummaries);
       setPendingEvaluation(pending);
       void resumePendingEvaluation(pending);
     }
@@ -149,9 +170,16 @@ export function NcsTextPracticePage() {
     0,
     MAX_TRANSCRIPT_LENGTH - baseTranscript.length - (baseTranscript ? 1 : 0),
   );
-  const busy = ["STARTING", "QUEUED", "RUNNING", "DELAYED"].includes(phase);
+  const busy = ["STARTING", "ADVANCING", "QUEUED", "RUNNING", "DELAYED"].includes(phase);
   const activelyPolling = ["QUEUED", "RUNNING"].includes(phase);
   const resultSummary = useMemo(() => summarizeResult(result), [result]);
+  const modePolicy = practiceModePolicy(session?.mode ?? mode);
+  const aggregateSummary = useMemo(
+    () => summarizeSession(questionSummaries, session?.totalQuestions ?? modePolicy.questionCount),
+    [modePolicy.questionCount, questionSummaries, session?.totalQuestions],
+  );
+  const isLastQuestion = Boolean(session && session.questionIndex === session.totalQuestions - 1);
+  const followUpAvailable = followUpAttempt === 0 && followUpsUsed < modePolicy.maxFollowUps;
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -167,13 +195,14 @@ export function NcsTextPracticePage() {
       const started = await api.startMockInterview({
         jobRole,
         difficulty: "NORMAL",
-        questionTypes: [focus],
+        ncsPracticeMode: mode,
         showQuestionText: true,
       });
       let question = started.data.currentQuestion;
       if (!question?.content) {
         const questions = await api.listMockQuestions(started.data.sessionId);
-        question = questions.data.questions.find((item) => item.questionType === focus && item.content);
+        question = questions.data.questions.find((item) => item.current && item.content)
+          ?? questions.data.questions.find((item) => item.content);
       }
       if (!question?.content) {
         throw new Error("평가 가능한 질문을 불러오지 못했습니다.");
@@ -182,7 +211,9 @@ export function NcsTextPracticePage() {
       setSession({
         sessionId: started.data.sessionId,
         jobRole,
-        focus,
+        mode,
+        questionIndex: 0,
+        totalQuestions: started.data.totalQuestions,
         question: question as RuntimeQuestionView & { content: string },
       });
       setCurrentPrompt(question.content);
@@ -190,6 +221,8 @@ export function NcsTextPracticePage() {
       setBaseTranscript("");
       setSavedTranscript("");
       setFollowUpAttempt(0);
+      setFollowUpsUsed(0);
+      setQuestionSummaries([]);
       setResult(undefined);
       setSessionCompleted(false);
       setPhase("ANSWERING");
@@ -235,11 +268,15 @@ export function NcsTextPracticePage() {
         requestEvaluation: api.requestMockNcsEvaluation,
       });
       const pending: NcsTextPracticeRecovery = {
-        version: 1,
+        version: 2,
         processLogId: handoff.processLogId,
         sessionId: session.sessionId,
         jobRole: session.jobRole,
-        focus: session.focus,
+        mode: session.mode,
+        questionIndex: session.questionIndex,
+        totalQuestions: session.totalQuestions,
+        followUpsUsed,
+        questionSummaries,
         question: session.question,
         currentPrompt,
         transcript: persistedAnswer.transcript,
@@ -261,10 +298,11 @@ export function NcsTextPracticePage() {
 
   function handleFollowUp() {
     const suggestedQuestion = result?.followUp.suggestedQuestion;
-    if (!suggestedQuestion || followUpAttempt > 0) return;
+    if (!suggestedQuestion || !followUpAvailable) return;
     setCurrentPrompt(suggestedQuestion);
     setAnswer("");
     setFollowUpAttempt(1);
+    setFollowUpsUsed((current) => current + 1);
     setResult(undefined);
     setError("");
     setMessage("");
@@ -291,22 +329,39 @@ export function NcsTextPracticePage() {
     }
   }
 
-  async function handleNewQuestion() {
-    if (session && savedTranscript && !sessionCompleted) {
-      try {
-        const api = getCandidateApi();
-        await saveTextInputPracticeAnswer({
-          sessionId: session.sessionId,
-          questionId: session.question.questionId,
-          transcript: savedTranscript,
-          saveAnswer: api.saveMockAnswer,
-        });
-        await api.completeMockInterview(session.sessionId);
-      } catch (completeError) {
-        setError(errorMessage(completeError));
-        return;
+  async function handleNextQuestion() {
+    if (!session || isLastQuestion || phase !== "RESULT") return;
+    setError("");
+    setMessage("");
+    setPhase("ADVANCING");
+    try {
+      const api = getCandidateApi();
+      const moved = await api.moveMockNextQuestion(session.sessionId);
+      let question = moved.data.currentQuestion;
+      if (!question?.content) {
+        const questions = await api.listMockQuestions(session.sessionId);
+        question = questions.data.questions.find((item) => item.current && item.content);
       }
+      if (!question?.content) throw new Error("다음 평가 질문을 불러오지 못했습니다.");
+      setSession({
+        ...session,
+        questionIndex: session.questionIndex + 1,
+        question: question as RuntimeQuestionView & { content: string },
+      });
+      setCurrentPrompt(question.content);
+      setAnswer("");
+      setBaseTranscript("");
+      setSavedTranscript("");
+      setFollowUpAttempt(0);
+      setResult(undefined);
+      setPhase("ANSWERING");
+    } catch (nextError) {
+      setError(errorMessage(nextError));
+      setPhase("RESULT");
     }
+  }
+
+  function handleNewPractice() {
     pollingControllerRef.current?.abort();
     clearNcsTextPracticeRecovery(window.sessionStorage);
     setPendingEvaluation(undefined);
@@ -316,6 +371,8 @@ export function NcsTextPracticePage() {
     setBaseTranscript("");
     setSavedTranscript("");
     setFollowUpAttempt(0);
+    setFollowUpsUsed(0);
+    setQuestionSummaries([]);
     setResult(undefined);
     setSessionCompleted(false);
     setError("");
@@ -358,16 +415,16 @@ export function NcsTextPracticePage() {
                 </select>
               </label>
               <fieldset className={styles.focusField}>
-                <legend>질문 유형</legend>
-                <div className={styles.segmented}>
-                  {FOCUS_OPTIONS.map((option) => (
+                <legend>연습 모드</legend>
+                <div className={`${styles.segmented} ${styles.modeSegmented}`}>
+                  {PRACTICE_MODES.map((option) => (
                     <label key={option.value}>
                       <input
                         type="radio"
-                        name="practiceFocus"
+                        name="practiceMode"
                         value={option.value}
-                        checked={focus === option.value}
-                        onChange={() => setFocus(option.value)}
+                        checked={mode === option.value}
+                        onChange={() => setMode(option.value)}
                       />
                       <span>{option.label}</span>
                     </label>
@@ -384,7 +441,7 @@ export function NcsTextPracticePage() {
             <section className={styles.workspace} aria-labelledby="ncs-current-question">
               <div className={styles.answerPane}>
                 <div className={styles.questionMeta}>
-                  <span>{followUpAttempt ? "추가 질문" : focusLabel(session.focus)}</span>
+                  <span>{followUpAttempt ? "추가 질문" : questionTypeLabel(session.question.questionType)}</span>
                   <span>{session.jobRole}</span>
                 </div>
                 <h2 id="ncs-current-question">{currentPrompt}</h2>
@@ -429,12 +486,24 @@ export function NcsTextPracticePage() {
                     <dd>{session.jobRole}</dd>
                   </div>
                   <div>
+                    <dt>모드</dt>
+                    <dd>{modePolicy.label}</dd>
+                  </div>
+                  <div>
+                    <dt>진행</dt>
+                    <dd>{session.questionIndex + 1} / {session.totalQuestions}</dd>
+                  </div>
+                  <div>
                     <dt>질문</dt>
-                    <dd>{focusLabel(session.focus)}</dd>
+                    <dd>{questionTypeLabel(session.question.questionType)}</dd>
                   </div>
                   <div>
                     <dt>답변 단계</dt>
                     <dd>{followUpAttempt ? "근거 보완" : "첫 답변"}</dd>
+                  </div>
+                  <div>
+                    <dt>꼬리질문</dt>
+                    <dd>{followUpsUsed} / {modePolicy.maxFollowUps}</dd>
                   </div>
                   <div>
                     <dt>평가 상태</dt>
@@ -461,6 +530,41 @@ export function NcsTextPracticePage() {
                 </button>
               ) : null}
             </div>
+
+            {sessionCompleted ? (
+              <section className={styles.result} aria-labelledby="ncs-session-summary-title">
+                <header className={styles.resultHeader}>
+                  <div>
+                    <span className={styles.stepLabel}>종합</span>
+                    <h2 id="ncs-session-summary-title">연습 결과</h2>
+                  </div>
+                  <span
+                    className={styles.coverageBadge}
+                    data-tone={aggregateSummary.completedCount === session.totalQuestions ? "sufficient" : "low"}
+                  >
+                    문항 평가 범위 {Math.round(aggregateSummary.coverageRatio * 100)}%
+                  </span>
+                </header>
+                <div className={styles.summary}>
+                  <div>
+                    <span>종합 행동 근거 점수</span>
+                    <strong>{aggregateSummary.score === null ? "평가 보류" : `${aggregateSummary.score}점`}</strong>
+                  </div>
+                  <div>
+                    <span>평가 완료 문항</span>
+                    <strong>{aggregateSummary.completedCount} / {session.totalQuestions}</strong>
+                  </div>
+                  <div>
+                    <span>꼬리질문 사용</span>
+                    <strong>{followUpsUsed} / {modePolicy.maxFollowUps}</strong>
+                  </div>
+                  <div>
+                    <span>연습 모드</span>
+                    <strong>{modePolicy.label}</strong>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             {result && resultSummary ? (
               <section className={styles.result} aria-labelledby="ncs-result-title">
@@ -550,17 +654,17 @@ export function NcsTextPracticePage() {
                 </div>
 
                 {result.followUp.required ? (
-                  <div className={styles.followUp} data-exhausted={followUpAttempt > 0}>
+                  <div className={styles.followUp} data-exhausted={!followUpAvailable}>
                     <div>
-                      <span>{followUpAttempt > 0 ? "남은 근거" : "추가 질문"}</span>
+                      <span>{followUpAvailable ? "추가 질문" : "남은 근거"}</span>
                       <strong>
-                        {followUpAttempt > 0
+                        {!followUpAvailable
                           ? result.followUp.missingEvidence.map((item) => EVIDENCE_LABELS[item]).join(", ") ||
                             "구체적 행동 근거"
                           : result.followUp.suggestedQuestion}
                       </strong>
                     </div>
-                    {followUpAttempt === 0 && result.followUp.suggestedQuestion ? (
+                    {followUpAvailable && result.followUp.suggestedQuestion ? (
                       <button className={styles.secondaryButton} type="button" onClick={handleFollowUp}>
                         추가 답변
                       </button>
@@ -569,17 +673,19 @@ export function NcsTextPracticePage() {
                 ) : null}
 
                 <footer className={styles.resultActions}>
-                  <button
-                    className={styles.secondaryButton}
-                    type="button"
-                    onClick={() => void handleComplete()}
-                    disabled={sessionCompleted}
-                  >
-                    {sessionCompleted ? "연습 완료" : "연습 종료"}
-                  </button>
-                  <button className={styles.primaryButton} type="button" onClick={() => void handleNewQuestion()}>
-                    새 질문
-                  </button>
+                  {sessionCompleted ? (
+                    <button className={styles.primaryButton} type="button" onClick={handleNewPractice}>
+                      새 연습
+                    </button>
+                  ) : isLastQuestion ? (
+                    <button className={styles.primaryButton} type="button" onClick={() => void handleComplete()}>
+                      결과 확정
+                    </button>
+                  ) : (
+                    <button className={styles.primaryButton} type="button" onClick={() => void handleNextQuestion()}>
+                      {phase === "ADVANCING" ? "다음 질문 준비 중" : "다음 질문"}
+                    </button>
+                  )}
                 </footer>
               </section>
             ) : null}
@@ -634,14 +740,48 @@ function summarizeResult(result?: NcsEvaluationProductOutput) {
   return { score, levelLabel: levelLabel(level) };
 }
 
-function focusLabel(focus: PracticeFocus): string {
-  return FOCUS_OPTIONS.find((option) => option.value === focus)?.label ?? focus;
+function summarizeSession(questionSummaries: NcsTextPracticeQuestionSummary[], totalQuestions: number) {
+  const completedCount = questionSummaries.length;
+  const scored = questionSummaries.filter(
+    (summary): summary is NcsTextPracticeQuestionSummary & { score: number } =>
+      summary.score !== null,
+  );
+  const complete = completedCount === totalQuestions && scored.length === totalQuestions;
+  return {
+    completedCount,
+    coverageRatio: totalQuestions > 0 ? completedCount / totalQuestions : 0,
+    score: complete
+      ? Math.round(scored.reduce((sum, summary) => sum + summary.score, 0) / scored.length)
+      : null,
+  };
+}
+
+function upsertQuestionSummary(
+  summaries: NcsTextPracticeQuestionSummary[],
+  summary: NcsTextPracticeQuestionSummary,
+): NcsTextPracticeQuestionSummary[] {
+  return [...summaries.filter((item) => item.questionId !== summary.questionId), summary];
+}
+
+function practiceModePolicy(mode: PracticeMode) {
+  return PRACTICE_MODES.find((option) => option.value === mode) ?? PRACTICE_MODES[1];
+}
+
+function questionTypeLabel(questionType: RuntimeQuestionView["questionType"]): string {
+  const labels: Partial<Record<RuntimeQuestionView["questionType"], string>> = {
+    TECHNICAL: "기술 의사결정",
+    EXPERIENCE: "경험과 적용",
+    SITUATION: "상황 대응",
+    FOLLOW_UP: "추가 질문",
+  };
+  return labels[questionType] ?? "직무 질문";
 }
 
 function phaseLabel(phase: EvaluationPhase): string {
   const labels: Record<EvaluationPhase, string> = {
     IDLE: "설정 중",
     STARTING: "질문 준비 중",
+    ADVANCING: "다음 질문 준비 중",
     ANSWERING: "답변 작성 중",
     QUEUED: "평가 대기",
     RUNNING: "답변 분석 중",
