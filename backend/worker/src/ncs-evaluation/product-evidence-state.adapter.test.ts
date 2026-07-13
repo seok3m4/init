@@ -59,7 +59,25 @@ test("평가 가능한 답변도 필수 근거가 빠지면 꼬리질문을 반�
   assert.notEqual(output.behaviorEvaluations[0]?.score, null);
   assert.equal(output.followUp.required, true);
   assert.ok(output.followUp.missingEvidence.includes("RESULT"));
-  assert.match(output.followUp.suggestedQuestion ?? "", /확인한 결과/u);
+  assert.match(output.followUp.suggestedQuestion ?? "", /다른 대안.*기준/u);
+  assert.match(output.followUp.suggestedQuestion ?? "", /적용 전후.*지표/u);
+  assert.doesNotMatch(output.followUp.suggestedQuestion ?? "", /다음 근거/u);
+});
+
+test("선택 직무와 다른 도메인의 답변은 평가를 보류하고 직무 중심 꼬리질문을 반환한다", () => {
+  const adapter = new ProductEvidenceStateNcsEvaluationAdapter();
+  const output = adapter.evaluate(productPayload({
+    transcript:
+      "React 컴포넌트 렌더링 방식을 비교하고 서버 컴포넌트를 적용했습니다. 번들 크기와 LCP를 측정해 사용자 화면이 빨라진 것을 확인했습니다.",
+  }));
+  const evaluation = output.behaviorEvaluations[0];
+
+  assert.equal(evaluation?.status, "INSUFFICIENT_EVIDENCE");
+  assert.equal(evaluation?.score, null);
+  assert.equal(output.evidences.length, 0);
+  assert.match(evaluation?.rationale ?? "", /선택한 직무의 업무 맥락/u);
+  assert.match(output.followUp.suggestedQuestion ?? "", /백엔드 개발자로서/u);
+  assert.match(output.followUp.suggestedQuestion ?? "", /API, 데이터 처리 또는 서버 운영/u);
 });
 
 test("follow-up 질문에서는 추가 꼬리질문 생성을 중단한다", () => {

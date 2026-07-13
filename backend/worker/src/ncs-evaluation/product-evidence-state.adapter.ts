@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import { EvidenceStateNcsEvaluator } from "../experiments/ncs-evaluation/evidence-state/evaluator";
+import {
+  EvidenceStateNcsEvaluator,
+  isJobRoleDomainRelevant,
+} from "../experiments/ncs-evaluation/evidence-state/evaluator";
 import {
   NCS_EVALUATION_CONTRACT_VERSION,
   NCS_SCORE_MAP,
@@ -85,17 +88,16 @@ const EVIDENCE_TYPES: readonly NcsEvidenceType[] = [
   "TRADEOFF",
 ];
 
-const EVIDENCE_LABELS: Record<NcsEvidenceType, string> = {
-  SITUATION: "상황",
-  TASK: "담당 과제",
-  ACTION: "직접 수행한 행동",
-  RATIONALE: "선택 근거",
-  RESULT: "확인한 결과",
-  REFLECTION: "회고와 재발 방지",
-  KNOWLEDGE: "적용한 지식",
-  CONSTRAINT: "제약 조건",
-  TRADEOFF: "검토한 대안",
-};
+const JOB_ROLE_INTERVIEW_CONTEXTS: Array<{ role: RegExp; context: string }> = [
+  { role: /백엔드|backend/iu, context: "API, 데이터 처리 또는 서버 운영" },
+  { role: /프론트엔드|frontend/iu, context: "사용자 경험, 접근성 또는 브라우저 성능" },
+  { role: /풀스택|full\s*stack|fullstack/iu, context: "클라이언트와 서버의 경계 또는 데이터 흐름" },
+  { role: /AI\s*\/\s*ML|AI\s*엔지니어|ML\s*엔지니어/iu, context: "데이터 품질, 모델 성능 또는 실험 재현성" },
+  { role: /데이터\s*엔지니어|data\s*engineer/iu, context: "데이터 파이프라인, 정합성 또는 처리 신뢰성" },
+  { role: /DevOps|SRE/iu, context: "배포 안정성, 관측 가능성 또는 장애 복구" },
+  { role: /QA\s*엔지니어|quality\s*assurance/iu, context: "재현 조건, 테스트 전략 또는 품질 위험" },
+  { role: /보안\s*엔지니어|security\s*engineer/iu, context: "위협, 보안 통제 또는 잔여 위험" },
+];
 
 const SENSITIVE_ATTRIBUTE_PATTERN =
   /(?:제\s*이름은|저는\s*(?:여성|남성)|나이는?\s*\d+\s*살|대학교\s*출신|출신\s*학교|출신지는?|장애인|신체\s*장애|건강\s*상태)/iu;
@@ -407,15 +409,52 @@ function toProductFollowUp(
     evaluated.behaviorEvaluations.some((evaluation) => evaluation.missingEvidence.includes(type)),
   );
   const required = missingEvidence.length > 0 && parsed.evaluationSnapshot.question.questionType !== "FOLLOW_UP";
+  const roleOrUnitName = parsed.evaluationSnapshot.jobRole ?? parsed.evaluationSnapshot.ncsContext.unit.name;
+  const roleDomainRelevant = isJobRoleDomainRelevant(roleOrUnitName, parsed.transcript);
 
   return {
     required,
     reason: required ? "필수 행동 근거가 부족해 한 차례 추가 확인이 필요합니다." : null,
     missingEvidence,
     suggestedQuestion: required
-      ? `방금 답변에서 다음 근거를 구체적으로 설명해 주세요: ${missingEvidence.map((type) => EVIDENCE_LABELS[type]).join(", ")}.`
+      ? productFollowUpQuestion(parsed.evaluationSnapshot.jobRole, missingEvidence, roleDomainRelevant)
       : null,
   };
+}
+
+function productFollowUpQuestion(
+  jobRole: string | null,
+  missingEvidence: NcsEvidenceType[],
+  roleDomainRelevant: boolean,
+): string {
+  if (!roleDomainRelevant && jobRole) {
+    const context = JOB_ROLE_INTERVIEW_CONTEXTS.find((candidate) => candidate.role.test(jobRole))?.context
+      ?? "선택한 직무의 실제 업무";
+    return `${jobRole}로서 직접 해결한 ${context} 문제를 하나 말씀해 주세요. 당시 어떤 대안을 비교해 무엇을 직접 적용했고, 결과를 어떤 지표나 현상으로 확인했나요?`;
+  }
+
+  const missing = new Set(missingEvidence);
+  const questions: string[] = [];
+  if (hasAnyMissing(missing, ["SITUATION", "TASK", "ACTION"])) {
+    questions.push("당시 어떤 문제가 있었고, 그 과정에서 맡아 직접 수행한 일은 무엇이었나요?");
+  }
+  if (hasAnyMissing(missing, ["RATIONALE", "TRADEOFF", "CONSTRAINT"])) {
+    questions.push("함께 검토한 다른 대안과 제약은 무엇이었고, 어떤 기준으로 최종 방식을 선택했나요?");
+  }
+  if (missing.has("RESULT")) {
+    questions.push("적용 전후 어떤 지표나 현상으로 효과를 확인했나요?");
+  }
+  if (missing.has("REFLECTION")) {
+    questions.push("이 경험 이후 다음 업무 방식이나 재발 방지 조치가 어떻게 달라졌나요?");
+  }
+  if (missing.has("KNOWLEDGE") && questions.length === 0) {
+    questions.push("그 판단에 활용한 기술 지식이나 원리를 실제 결정과 연결해 설명해 주시겠어요?");
+  }
+  return questions.join(" ") || "당시 본인이 내린 판단과 직접 수행한 행동을 구체적인 결과와 함께 설명해 주시겠어요?";
+}
+
+function hasAnyMissing(missing: Set<NcsEvidenceType>, targets: NcsEvidenceType[]): boolean {
+  return targets.some((target) => missing.has(target));
 }
 
 function assertProductOutputInvariants(

@@ -55,7 +55,7 @@ export interface EvidenceStateSegment {
 /** Intermediate extractor output. It intentionally contains no status, level, score, or confidence. */
 export interface BehaviorEvidenceState {
   behaviorIndex: number;
-  relevance: "NONE" | "DIRECT";
+  relevance: "NONE" | "DOMAIN_MISMATCH" | "DIRECT";
   agency: "NONE" | "GENERIC" | "SELF" | "CONTRADICTED";
   requiredEvidence: NcsEvidenceType[];
   availableEvidence: NcsEvidenceType[];
@@ -95,6 +95,12 @@ interface ProfileRule {
   transcript: RegExp;
 }
 
+interface JobRoleDomainRule {
+  role: RegExp;
+  strongSignals: RegExp[];
+  supportingSignals: RegExp[];
+}
+
 const PROFILE_RULES: ProfileRule[] = [
   {
     profile: "DATABASE",
@@ -125,6 +131,103 @@ const PROFILE_RULES: ProfileRule[] = [
     profile: "INCIDENT",
     intent: /(징후|원인을?\s*좁|복구|장애|서비스\s*문제|해결\s*결과)/u,
     transcript: /(장애|오류|경보|로그|서버|롤백|복구|정상화|지연|큐|배포|재시작|원인|설정)/u,
+  },
+];
+
+const JOB_ROLE_DOMAIN_RULES: JobRoleDomainRule[] = [
+  {
+    role: /백엔드|backend/iu,
+    strongSignals: [
+      /(?:실행\s*계획|풀스캔|복합\s*인덱스|쿼리\s*튜닝|커넥션\s*풀)/iu,
+      /(?:트랜잭션|동시성\s*제어|데드락|DB\s*락|격리\s*수준)/iu,
+      /(?:PostgreSQL|MySQL|MongoDB|Redis|Kafka|SQS|RabbitMQ|pgvector)/iu,
+      /(?:NestJS|Spring|Express|Fastify|백엔드\s*서버)/iu,
+    ],
+    supportingSignals: [
+      /\bAPI\b/iu,
+      /(?:엔드포인트|REST|GraphQL|gRPC)/iu,
+      /(?:데이터베이스|\bDB\b|\bSQL\b|쿼리|인덱스)/iu,
+      /(?:DTO|OpenAPI|Swagger|HTTP\s*상태|응답\s*스키마)/iu,
+      /(?:JWT|인증|인가|권한\s*검증)/iu,
+      /(?:TPS|QPS|DB\s*CPU|처리량|응답\s*시간)/iu,
+    ],
+  },
+  {
+    role: /프론트엔드|frontend/iu,
+    strongSignals: [
+      /(?:React|Vue|Angular|Svelte|Next\.js|Nuxt)/iu,
+      /(?:DOM|Hydration|렌더링|리렌더링|컴포넌트|상태\s*관리)/iu,
+      /(?:LCP|CLS|INP|Web\s*Vitals|번들\s*크기|코드\s*스플리팅)/iu,
+      /(?:접근성|ARIA|키보드\s*탐색|스크린\s*리더)/iu,
+    ],
+    supportingSignals: [
+      /(?:브라우저|클라이언트|프론트엔드)/iu,
+      /(?:CSS|레이아웃|반응형|미디어\s*쿼리)/iu,
+      /(?:사용자\s*경험|UX|인터랙션)/iu,
+    ],
+  },
+  {
+    role: /풀스택|full\s*stack|fullstack/iu,
+    strongSignals: [
+      /(?:클라이언트|프론트엔드).{0,40}(?:서버|백엔드)|(?:서버|백엔드).{0,40}(?:클라이언트|프론트엔드)/iu,
+      /(?:React|Vue|Next\.js).{0,80}(?:NestJS|Spring|Express|PostgreSQL|MySQL)/iu,
+      /(?:API\s*계약|데이터\s*흐름|통합\s*테스트|end-to-end|E2E)/iu,
+    ],
+    supportingSignals: [
+      /(?:React|Vue|DOM|컴포넌트|브라우저)/iu,
+      /(?:API|데이터베이스|\bDB\b|NestJS|Spring|Express)/iu,
+      /(?:클라이언트|서버|프론트엔드|백엔드)/iu,
+    ],
+  },
+  {
+    role: /AI\s*\/\s*ML|AI\s*엔지니어|ML\s*엔지니어|machine\s*learning/iu,
+    strongSignals: [
+      /(?:모델\s*학습|파인튜닝|fine-?tuning|추론|임베딩|프롬프트)/iu,
+      /(?:정밀도|재현율|F1|AUC|정확도|hallucination|환각)/iu,
+      /(?:학습\s*데이터|검증\s*데이터|데이터셋|feature|특징량)/iu,
+      /(?:MLflow|PyTorch|TensorFlow|scikit-learn|벡터\s*검색)/iu,
+    ],
+    supportingSignals: [/(?:AI|ML|LLM|모델)/iu, /(?:실험|평가\s*지표|재현성)/iu],
+  },
+  {
+    role: /데이터\s*엔지니어|data\s*engineer/iu,
+    strongSignals: [
+      /(?:ETL|ELT|데이터\s*파이프라인|Airflow|Dagster|dbt)/iu,
+      /(?:데이터\s*웨어하우스|데이터\s*레이크|BigQuery|Snowflake|Redshift)/iu,
+      /(?:스키마\s*진화|데이터\s*정합성|데이터\s*품질|파티셔닝)/iu,
+      /(?:배치\s*처리|스트림\s*처리|Spark|Flink)/iu,
+    ],
+    supportingSignals: [/(?:데이터\s*적재|수집|변환)/iu, /(?:Kafka|SQL|처리량|지연)/iu],
+  },
+  {
+    role: /DevOps|SRE|site\s*reliability/iu,
+    strongSignals: [
+      /(?:CI\s*\/\s*CD|GitHub\s*Actions|Jenkins|배포\s*파이프라인)/iu,
+      /(?:Docker|Kubernetes|K8s|ECS|Terraform)/iu,
+      /(?:SLO|SLI|에러\s*버짓|관측\s*가능성|Prometheus|Grafana)/iu,
+      /(?:장애\s*복구|롤백|블루-그린|카나리\s*배포)/iu,
+    ],
+    supportingSignals: [/(?:배포|인프라|운영|모니터링)/iu, /(?:로그|메트릭|알림|복구)/iu],
+  },
+  {
+    role: /QA\s*엔지니어|quality\s*assurance/iu,
+    strongSignals: [
+      /(?:테스트\s*케이스|테스트\s*전략|회귀\s*테스트|탐색적\s*테스트)/iu,
+      /(?:결함\s*재현|재현\s*조건|버그\s*리포트|결함\s*관리)/iu,
+      /(?:Playwright|Cypress|Selenium|Appium|테스트\s*자동화)/iu,
+      /(?:테스트\s*커버리지|품질\s*위험|출시\s*기준)/iu,
+    ],
+    supportingSignals: [/(?:QA|테스트|검증)/iu, /(?:결함|품질|재현|회귀)/iu],
+  },
+  {
+    role: /보안\s*엔지니어|security\s*engineer/iu,
+    strongSignals: [
+      /(?:위협\s*모델링|취약점|OWASP|CVE|침투\s*테스트)/iu,
+      /(?:암호화|키\s*관리|KMS|시크릿\s*관리)/iu,
+      /(?:접근\s*통제|최소\s*권한|권한\s*상승|인증\s*우회)/iu,
+      /(?:보안\s*감사|감사\s*로그|침해\s*대응|공격\s*탐지)/iu,
+    ],
+    supportingSignals: [/(?:보안|위협|공격|취약)/iu, /(?:인증|인가|권한|차단)/iu],
   },
 ];
 
@@ -185,6 +288,16 @@ export class EvidenceStateNcsEvaluator implements NcsEvaluationStrategy {
   }
 }
 
+export function isJobRoleDomainRelevant(roleOrUnitName: string | null | undefined, transcript: string): boolean {
+  if (!roleOrUnitName) return true;
+  const rule = JOB_ROLE_DOMAIN_RULES.find((candidate) => candidate.role.test(roleOrUnitName));
+  if (!rule) return true;
+  const text = normalize(transcript);
+  if (!text) return false;
+  if (rule.strongSignals.some((signal) => signal.test(text))) return true;
+  return rule.supportingSignals.filter((signal) => signal.test(text)).length >= 2;
+}
+
 export function createEvidenceStateMaterial(input: NcsEvaluationInput): EvidenceStateMaterial {
   return {
     transcript: input.answer.transcript,
@@ -213,11 +326,13 @@ export function extractBehaviorEvidenceStates(material: EvidenceStateMaterial): 
   const segments = transcriptSegments(material.transcript);
   const usableText = normalize(segments.map((segment) => segment.analysisText).join(" "));
   const lowInformation = usableText.length === 0 || LOW_INFORMATION_PATTERN.test(usableText);
+  const roleDomainRelevant = isJobRoleDomainRelevant(material.unitName, usableText);
   const behaviorCount = material.behaviorPoints.length;
 
   return material.behaviorPoints.map((behaviorPoint, behaviorIndex) => {
     const profile = profileFor(behaviorPoint.description, material);
     const transcriptRelevant = !lowInformation
+      && roleDomainRelevant
       && isRelevantText(usableText, profile, behaviorPoint.description, material.unitDefinition);
     const directIndexes = new Set(
       segments
@@ -253,10 +368,14 @@ export function extractBehaviorEvidenceStates(material: EvidenceStateMaterial): 
     const genericOnly = GENERIC_PATTERN.test(usableText)
       && !hasAnyEvidence(observedSupporting, ["RATIONALE", "RESULT", "REFLECTION"]);
     const hasAction = observedSupporting.includes("ACTION");
-    const relevance = stateSegments.length > 0 ? "DIRECT" as const : "NONE" as const;
+    const relevance = stateSegments.length > 0
+      ? "DIRECT" as const
+      : !lowInformation && !roleDomainRelevant
+        ? "DOMAIN_MISMATCH" as const
+        : "NONE" as const;
     const agency = contradictingSegments.length > 0
       ? "CONTRADICTED" as const
-      : relevance === "NONE"
+      : relevance !== "DIRECT"
         ? "NONE" as const
         : genericOnly || !hasAction
           ? "GENERIC" as const
@@ -286,7 +405,7 @@ export function mapEvidenceState(
   const evidenceCount = state.supportingSegments.length + state.contradictingSegments.length;
   let level: 1 | 2 | 3 | 4 | 5 | null;
 
-  if (state.relevance === "NONE" || evidenceCount < minimumSupportingEvidence) {
+  if (state.relevance !== "DIRECT" || evidenceCount < minimumSupportingEvidence) {
     level = null;
   } else if (state.agency === "CONTRADICTED") {
     level = 1;
@@ -507,6 +626,9 @@ function confidenceFor(
 
 function rationaleFor(state: BehaviorEvidenceState, level: 1 | 2 | 3 | 4 | 5 | null): string {
   if (level === null) {
+    if (state.relevance === "DOMAIN_MISMATCH") {
+      return "선택한 직무의 업무 맥락과 직접 연결되는 발화 근거를 확인하지 못했습니다.";
+    }
     return "행동 포인트와 의미상 연결되는 직접 발화 근거를 확인하지 못했습니다.";
   }
   if (level === 1) {
