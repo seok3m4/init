@@ -28,7 +28,7 @@
     "^frontend/package(-lock)?\\.json$",
     "^frontend/(eslint\\.config\\.mjs|next-env\\.d\\.ts|next\\.config\\.(js|ts)|tsconfig\\.json)$",
     "^backend/(api|common|worker)/package(-lock)?\\.json$",
-    "^backend/api/(jest\\.config\\.js|nest-cli\\.json|tsconfig(\\.build)?\\.json)$",
+    "^backend/api/(jest\\.(config|setup)\\.js|nest-cli\\.json|tsconfig(\\.build)?\\.json)$",
     "^backend/common/tsconfig\\.json$",
     "^backend/worker/tsconfig\\.json$"
   ],
