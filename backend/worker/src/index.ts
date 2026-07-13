@@ -9,6 +9,7 @@ export * from "./prisma-process-log.repository";
 export * from "./process-log.repository";
 export * from "./queue";
 export * from "./report-failure.handler";
+export * from "./talent-rubric";
 export * from "./worker-env";
 export * from "./worker-errors";
 export * from "./worker-bootstrap";
