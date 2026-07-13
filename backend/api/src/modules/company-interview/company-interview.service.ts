@@ -773,6 +773,7 @@ export class CompanyInterviewService {
       return {
         questionId,
         order: index + 1,
+        questionType: item.question.questionType,
         content: item.question.content,
         criterionId: item.criterionId ?? item.question.criterionId,
       };

@@ -496,7 +496,7 @@
 | mode | VARCHAR(30) NOT NULL | QUICK, STANDARD, DEEP, CUSTOM |
 | question_count | INTEGER NOT NULL | 점수 분모에 포함되는 본질문 수 |
 | max_follow_up_count | INTEGER NOT NULL | 코호트 지원자별 최대 꼬리질문 수 |
-| snapshot_json | JSONB NOT NULL | 정렬된 질문, NCS 단위, 인재상 기준 연결의 immutable 복사본 |
+| snapshot_json | JSONB NOT NULL | 질문 ID·순서·유형·본문과 NCS 단위, 인재상 기준 연결의 immutable 복사본 |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | 질문 세트 고정 시각 |
 
 `QUICK`, `STANDARD`, `DEEP`은 각각 본질문/꼬리질문 한도를 `3/2`, `5/3`, `7/4`로 고정한다. `CUSTOM`은 양수 본질문 수와 0 이상의 꼬리질문 한도를 직접 저장한다. 꼬리질문은 본질문 점수의 근거 보완이며 별도 점수 분모가 아니다.

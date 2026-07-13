@@ -1986,7 +1986,7 @@ AI 리포트 금지 기준:
   - 정책 `snapshotJson`은 `schemaVersion`, `administratorInput`, `tieBreakOrder`를 포함한다.
   - `administratorInput`은 `postingId`, 판정 모드, 두 비중, 세 최소 기준을 포함한다.
   - `tieBreakOrder`는 종합점수, 더 높은 비중 트랙 점수, 해당 트랙 세부 가중치, 근거 충족률 순서를 명시한다. 두 트랙 비중이 같으면 높은 비중 트랙 단계는 생략한다.
-  - 질문 `snapshotJson`은 `schemaVersion=hiring-question-set-configuration.v1`, `postingId`, `sourceQuestionSetId`, `jobRole`, 모드, 질문 수, 꼬리질문 한도와 정렬된 `{ questionId, order, content, criterionId }[]`를 포함한다.
+  - 질문 `snapshotJson`은 `schemaVersion=hiring-question-set-configuration.v1`, `postingId`, `sourceQuestionSetId`, `jobRole`, 모드, 질문 수, 꼬리질문 한도와 정렬된 `{ questionId, order, questionType, content, criterionId }[]`를 포함한다.
   - 정책 `policyVersion`과 질문 `snapshotVersion`은 생성마다 새 불변 버전을 발급한다.
 - 응답 데이터:
   - `cohort`: `{ cohortId, postingId, policyId, questionSetSnapshotId, title, jobRole, status, capacity, openedAt, createdAt }`

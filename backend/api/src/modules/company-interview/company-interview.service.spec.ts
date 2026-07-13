@@ -427,6 +427,12 @@ describe('CompanyInterviewService', () => {
       ),
       [1, 2, 3],
     );
+    assert.deepEqual(
+      result.questionSetSnapshot.snapshotJson.questions.map(
+        (question) => question.questionType,
+      ),
+      ['EXPERIENCE', 'TECHNICAL', 'TECHNICAL'],
+    );
     assert.equal(
       result.questionSetSnapshot.snapshotJson.questions[1].content,
       'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',

@@ -70,6 +70,7 @@ export type HiringPolicySnapshot = {
 export type HiringQuestionSnapshotItem = {
   questionId: number;
   order: number;
+  questionType: QuestionType;
   content: string;
   criterionId: number | null;
 };

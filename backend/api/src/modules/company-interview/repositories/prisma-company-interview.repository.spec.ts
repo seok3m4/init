@@ -81,6 +81,7 @@ function configurationInput(): CreateHiringSimulationConfigurationInput {
         questions: [101, 102, 103].map((questionId, index) => ({
           questionId,
           order: index + 1,
+          questionType: 'TECHNICAL',
           content: `질문 ${index + 1}`,
           criterionId: index + 1,
         })),
