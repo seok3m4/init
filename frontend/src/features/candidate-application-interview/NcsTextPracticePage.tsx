@@ -81,6 +81,7 @@ export function NcsTextPracticePage() {
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [pendingEvaluation, setPendingEvaluation] = useState<NcsTextPracticeRecovery>();
   const pollingControllerRef = useRef<AbortController | undefined>(undefined);
+  const evaluationSubmissionRef = useRef(false);
 
   const resumePendingEvaluation = useCallback(async (pending: NcsTextPracticeRecovery) => {
     const controller = new AbortController();
@@ -200,7 +201,7 @@ export function NcsTextPracticePage() {
 
   async function handleEvaluate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session) return;
+    if (!session || phase !== "ANSWERING" || sessionCompleted || evaluationSubmissionRef.current) return;
 
     const nextAnswer = answer.trim();
     if (!nextAnswer) {
@@ -213,6 +214,7 @@ export function NcsTextPracticePage() {
       return;
     }
 
+    evaluationSubmissionRef.current = true;
     setError("");
     setMessage("");
     setPhase("QUEUED");
@@ -252,6 +254,8 @@ export function NcsTextPracticePage() {
         setError(errorMessage(evaluationError));
         setPhase("ANSWERING");
       }
+    } finally {
+      evaluationSubmissionRef.current = false;
     }
   }
 
@@ -391,6 +395,7 @@ export function NcsTextPracticePage() {
                     value={answer}
                     maxLength={answerLimit}
                     placeholder="상황, 본인이 한 행동, 선택 이유와 확인한 결과를 중심으로 작성하세요."
+                    readOnly={phase === "RESULT"}
                     disabled={busy || sessionCompleted}
                     onChange={(event) => setAnswer(event.target.value)}
                   />
@@ -401,7 +406,7 @@ export function NcsTextPracticePage() {
                     <button
                       className={styles.primaryButton}
                       type="submit"
-                      disabled={busy || sessionCompleted || !answer.trim()}
+                      disabled={busy || phase === "RESULT" || sessionCompleted || !answer.trim()}
                     >
                       {phase === "QUEUED"
                         ? "평가 요청 중"
@@ -409,7 +414,9 @@ export function NcsTextPracticePage() {
                           ? "답변 분석 중"
                           : phase === "DELAYED"
                             ? "처리 지연"
-                            : "답변 평가"}
+                            : phase === "RESULT"
+                              ? "평가 완료"
+                              : "답변 평가"}
                     </button>
                   </div>
                 </form>
@@ -479,6 +486,16 @@ export function NcsTextPracticePage() {
                   <div>
                     <span>확인된 근거</span>
                     <strong>{result.evidences.length}개</strong>
+                  </div>
+                  <div>
+                    <span>답변 과정</span>
+                    <strong>
+                      {followUpAttempt
+                        ? "꼬리질문 보완"
+                        : result.followUp.required
+                          ? "첫 답변 근거 부족"
+                          : "첫 답변 완결"}
+                    </strong>
                   </div>
                 </div>
 

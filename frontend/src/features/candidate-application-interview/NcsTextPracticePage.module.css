@@ -266,6 +266,10 @@
   background: #f7f7f5;
 }
 
+.answerForm textarea:read-only {
+  background: #f7f7f5;
+}
+
 .answerFooter {
   display: flex;
   gap: 16px;
@@ -399,7 +403,7 @@
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid rgba(55, 53, 47, 0.12);
   border-bottom: 1px solid rgba(55, 53, 47, 0.12);
 }
@@ -689,6 +693,10 @@
   .workspace,
   .resultGrid {
     grid-template-columns: 1fr;
+  }
+
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .setup {

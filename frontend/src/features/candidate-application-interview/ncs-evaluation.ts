@@ -525,7 +525,6 @@ function throwIfAborted(signal?: AbortSignal): void {
 function waitFor(milliseconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => signal?.removeEventListener("abort", onAbort);
     const onTimeout = () => {
       if (settled) return;
@@ -542,7 +541,7 @@ function waitFor(milliseconds: number, signal?: AbortSignal): Promise<void> {
       error.name = "AbortError";
       reject(error);
     };
-    timeoutId = setTimeout(onTimeout, milliseconds);
+    const timeoutId = setTimeout(onTimeout, milliseconds);
     signal?.addEventListener("abort", onAbort, { once: true });
     if (signal?.aborted) onAbort();
   });
