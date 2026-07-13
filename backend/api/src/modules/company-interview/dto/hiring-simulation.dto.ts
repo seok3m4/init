@@ -4,6 +4,7 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -17,10 +18,12 @@ import {
   HIRING_QUESTION_SET_MODES,
   HiringCohortStatus,
   HiringDecisionMode,
+  HiringEvaluationContextSnapshotJson,
   HiringPolicySnapshot,
   HiringQuestionSetMode,
   HiringQuestionSetSnapshotJson,
   HiringTieBreakMode,
+  TalentRubricSnapshotJson,
 } from '../company-interview.types';
 
 export class CreateHiringSimulationDto {
@@ -110,16 +113,58 @@ export class CreateHiringSimulationDto {
   orderedQuestionIds!: number[];
 }
 
+export class LockHiringSimulationDto {
+  @IsString()
+  @Matches(/^sha256:[0-9a-f]{64}$/)
+  expectedConfigurationHash!: string;
+
+  @IsObject()
+  talentRubric!: TalentRubricSnapshotJson;
+}
+
+export class EvaluateHiringAnswerDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sessionId!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  questionId!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  primaryAnswerId!: number;
+}
+
+export class HiringAnswerEvaluationJobResponseDto {
+  accepted!: true;
+  processLogId!: number;
+  status!: string;
+  queued!: boolean;
+  deduplicated!: boolean;
+  contextVersion!: string;
+  cohortId!: number;
+  candidateId!: number;
+  sessionId!: number;
+  questionId!: number;
+  primaryAnswerId!: number;
+}
+
 export class HiringSimulationCohortResponseDto {
   cohortId!: number;
   postingId!: number;
   policyId!: number;
   questionSetSnapshotId!: number;
+  configurationHash!: string;
   title!: string;
   jobRole!: string;
   status!: HiringCohortStatus;
   capacity!: number;
   openedAt!: string;
+  lockedAt!: string | null;
   createdAt!: string;
 }
 
@@ -145,7 +190,9 @@ export class HiringSimulationQuestionSetResponseDto {
   mode!: HiringQuestionSetMode;
   questionCount!: number;
   maxFollowUpCount!: number;
-  snapshotJson!: HiringQuestionSetSnapshotJson;
+  snapshotJson!:
+    | HiringQuestionSetSnapshotJson
+    | HiringEvaluationContextSnapshotJson;
   createdAt!: string;
 }
 

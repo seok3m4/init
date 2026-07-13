@@ -4,6 +4,7 @@ import { PrismaService } from '../../../shared/prisma.service';
 import {
   CriterionTagRecord,
   EvaluationCriterionRecord,
+  HiringEvaluationContextSnapshotJson,
   HiringPolicySnapshot,
   HiringQuestionSetSnapshotJson,
   HiringSimulationConfigurationRecord,
@@ -16,8 +17,11 @@ import {
   CompanyInterviewRepository,
   ConfirmQuestionSetInput,
   CreateHiringSimulationConfigurationInput,
+  HiringAnswerEvaluationSourceRecord,
+  HiringEvaluationContextLockError,
   HiringQuestionSetChangedError,
   HiringSimulationRequestKeyConflictError,
+  LockHiringEvaluationContextInput,
   UpdateTimePolicyInput,
   UpdateCriterionInput,
   UpdateQuestionInput,
@@ -474,6 +478,103 @@ export class PrismaCompanyInterviewRepository
     return cohort ? mapHiringSimulation(cohort) : undefined;
   }
 
+  async lockHiringEvaluationContext(
+    input: LockHiringEvaluationContextInput,
+  ): Promise<HiringSimulationConfigurationRecord> {
+    try {
+      const locked = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.hiringEvaluationCohort.findUnique({
+          where: { cohortId: BigInt(input.cohortId) },
+          include: HIRING_SIMULATION_INCLUDE,
+        });
+        if (!current || current.companyId !== BigInt(input.companyId)) {
+          throw new HiringEvaluationContextLockError('CONFIGURATION_CHANGED');
+        }
+
+        if (current.status === 'LOCKED') {
+          if (hasContextHash(current.questionSetSnapshot.snapshotJson, input.contextHash)) {
+            return current;
+          }
+          throw new HiringEvaluationContextLockError('CONTEXT_MISMATCH');
+        }
+        if (current.status !== 'OPEN') {
+          throw new HiringEvaluationContextLockError('COHORT_NOT_OPEN');
+        }
+        if (
+          current.configurationHash !== input.expectedConfigurationHash ||
+          current.questionSetSnapshotId !==
+            BigInt(input.expectedQuestionSetSnapshotId)
+        ) {
+          throw new HiringEvaluationContextLockError('CONFIGURATION_CHANGED');
+        }
+
+        const contextSnapshot = await tx.hiringQuestionSetSnapshot.create({
+          data: {
+            postingId: current.questionSetSnapshot.postingId,
+            sourceQuestionSetId:
+              current.questionSetSnapshot.sourceQuestionSetId,
+            snapshotVersion: input.contextSnapshotVersion,
+            jobRole: current.questionSetSnapshot.jobRole,
+            mode: current.questionSetSnapshot.mode,
+            questionCount: current.questionSetSnapshot.questionCount,
+            maxFollowUpCount:
+              current.questionSetSnapshot.maxFollowUpCount,
+            snapshotJson:
+              input.snapshotJson as unknown as Prisma.InputJsonValue,
+          },
+        });
+        const update = await tx.hiringEvaluationCohort.updateMany({
+          where: {
+            cohortId: current.cohortId,
+            companyId: BigInt(input.companyId),
+            status: 'OPEN',
+            configurationHash: input.expectedConfigurationHash,
+            questionSetSnapshotId: BigInt(
+              input.expectedQuestionSetSnapshotId,
+            ),
+          },
+          data: {
+            questionSetSnapshotId: contextSnapshot.questionSetSnapshotId,
+            status: 'LOCKED',
+            lockedAt: new Date(),
+          },
+        });
+        if (update.count !== 1) {
+          throw new HiringEvaluationContextLockError('COHORT_NOT_OPEN');
+        }
+
+        const result = await tx.hiringEvaluationCohort.findUnique({
+          where: { cohortId: current.cohortId },
+          include: HIRING_SIMULATION_INCLUDE,
+        });
+        if (!result) {
+          throw new HiringEvaluationContextLockError('CONFIGURATION_CHANGED');
+        }
+        return result;
+      });
+      return mapHiringSimulation(locked);
+    } catch (error) {
+      if (
+        error instanceof HiringEvaluationContextLockError &&
+        error.reason === 'COHORT_NOT_OPEN'
+      ) {
+        const replay = await this.findHiringSimulationConfiguration(
+          input.cohortId,
+        );
+        if (
+          replay?.cohort.status === 'LOCKED' &&
+          hasContextHash(
+            replay.questionSetSnapshot.snapshotJson,
+            input.contextHash,
+          )
+        ) {
+          return replay;
+        }
+      }
+      throw error;
+    }
+  }
+
   async findHiringSimulationConfigurationByRequestKey(
     createdByUserId: number,
     requestKey: string,
@@ -488,6 +589,144 @@ export class PrismaCompanyInterviewRepository
       include: HIRING_SIMULATION_INCLUDE,
     });
     return cohort ? mapHiringSimulation(cohort) : undefined;
+  }
+
+  async findHiringAnswerEvaluationSource(
+    sessionId: number,
+    questionId: number,
+    primaryAnswerId: number,
+  ): Promise<HiringAnswerEvaluationSourceRecord | undefined> {
+    const primaryAnswer = await this.prisma.interviewAnswer.findFirst({
+      where: {
+        answerId: BigInt(primaryAnswerId),
+        sessionId: BigInt(sessionId),
+        questionId: BigInt(questionId),
+      },
+      select: {
+        answerId: true,
+        questionId: true,
+        transcript: true,
+        session: {
+          select: {
+            sessionId: true,
+            applicationId: true,
+            candidateId: true,
+            interviewType: true,
+            status: true,
+            application: {
+              select: { postingId: true },
+            },
+          },
+        },
+      },
+    });
+    if (!primaryAnswer?.questionId) {
+      return undefined;
+    }
+
+    const persistedQuestions =
+      await this.prisma.interviewSessionQuestion.findMany({
+        where: { sessionId: BigInt(sessionId) },
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          questionId: true,
+          runtimeQuestionId: true,
+          questionType: true,
+          content: true,
+          sortOrder: true,
+          question: {
+            select: {
+              questionId: true,
+              questionType: true,
+              content: true,
+            },
+          },
+        },
+      });
+    const sessionQuestions = persistedQuestions.flatMap((candidate) => {
+      const persistedQuestionId =
+        candidate.questionId ??
+        candidate.runtimeQuestionId ??
+        candidate.question?.questionId;
+      const questionType =
+        candidate.questionType ?? candidate.question?.questionType;
+      const content = candidate.content ?? candidate.question?.content;
+      if (!persistedQuestionId || !questionType || !content) {
+        return [];
+      }
+      return [
+        {
+          questionId: Number(persistedQuestionId),
+          questionType: questionType as QuestionRecord['questionType'],
+          content,
+          sortOrder: candidate.sortOrder,
+        },
+      ];
+    });
+    const primaryIndex = sessionQuestions.findIndex(
+      (question) => question.questionId === questionId,
+    );
+    const generatedFollowUp = await this.prisma.followUpQuestion.findUnique({
+      where: {
+        answerIdPolicy: {
+          answerId: BigInt(primaryAnswerId),
+          policy: 'RECRUITING',
+        },
+      },
+      select: { content: true, generationStatus: true },
+    });
+    const nextQuestion =
+      primaryIndex < 0 ? undefined : sessionQuestions[primaryIndex + 1];
+    let followUpAnswer:
+      | HiringAnswerEvaluationSourceRecord['followUpAnswer']
+      | undefined;
+    if (
+      generatedFollowUp?.generationStatus === 'GENERATED' &&
+      nextQuestion?.questionType === 'FOLLOW_UP' &&
+      nextQuestion.content.trim() === generatedFollowUp.content.trim()
+    ) {
+      const answer = await this.prisma.interviewAnswer.findFirst({
+        where: {
+          sessionId: BigInt(sessionId),
+          questionId: BigInt(nextQuestion.questionId),
+        },
+        orderBy: { answerId: 'asc' },
+        select: { answerId: true, questionId: true, transcript: true },
+      });
+      if (answer?.questionId) {
+        followUpAnswer = {
+          answerId: Number(answer.answerId),
+          questionId: Number(answer.questionId),
+          transcript: answer.transcript,
+        };
+      }
+    }
+
+    return {
+      applicationId:
+        primaryAnswer.session.applicationId === null
+          ? null
+          : Number(primaryAnswer.session.applicationId),
+      postingId: primaryAnswer.session.application
+        ? Number(primaryAnswer.session.application.postingId)
+        : null,
+      candidateId: Number(primaryAnswer.session.candidateId),
+      sessionId: Number(primaryAnswer.session.sessionId),
+      interviewType: primaryAnswer.session.interviewType,
+      sessionStatus: primaryAnswer.session.status,
+      assignedQuestions: sessionQuestions.filter(
+        (question) => question.questionType !== 'FOLLOW_UP',
+      ),
+      primaryAnswer: {
+        answerId: Number(primaryAnswer.answerId),
+        questionId: Number(primaryAnswer.questionId),
+        transcript: primaryAnswer.transcript,
+      },
+      ...(followUpAnswer ? { followUpAnswer } : {}),
+      followUpsUsed: sessionQuestions.filter(
+        (question) => question.questionType === 'FOLLOW_UP',
+      ).length,
+    };
   }
 }
 
@@ -631,8 +870,9 @@ function mapHiringSimulation(
   cohort: HiringSimulationRow,
 ): HiringSimulationConfigurationRecord {
   const policySnapshot = cohort.policy.snapshotJson as unknown as HiringPolicySnapshot;
-  const questionSnapshot = cohort.questionSetSnapshot
-    .snapshotJson as unknown as HiringQuestionSetSnapshotJson;
+  const questionSnapshot = cohort.questionSetSnapshot.snapshotJson as unknown as
+    | HiringQuestionSetSnapshotJson
+    | HiringEvaluationContextSnapshotJson;
   const postingId =
     cohort.postingId === null
       ? policySnapshot.administratorInput.postingId
@@ -653,6 +893,7 @@ function mapHiringSimulation(
       status: cohort.status,
       capacity: cohort.capacity,
       openedAt: cohort.openedAt,
+      lockedAt: cohort.lockedAt,
       createdAt: cohort.createdAt,
     },
     policy: {
@@ -684,7 +925,10 @@ function mapHiringSimulation(
           : Number(cohort.questionSetSnapshot.postingId),
       sourceQuestionSetId:
         cohort.questionSetSnapshot.sourceQuestionSetId === null
-          ? questionSnapshot.sourceQuestionSetId
+          ? questionSnapshot.schemaVersion ===
+            'hiring-question-set-configuration.v1'
+            ? questionSnapshot.sourceQuestionSetId
+            : questionSnapshot.questionSet.sourceQuestionSetId
           : Number(cohort.questionSetSnapshot.sourceQuestionSetId),
       snapshotVersion: cohort.questionSetSnapshot.snapshotVersion,
       jobRole: cohort.questionSetSnapshot.jobRole,
@@ -695,6 +939,16 @@ function mapHiringSimulation(
       createdAt: cohort.questionSetSnapshot.createdAt,
     },
   };
+}
+
+function hasContextHash(value: unknown, expectedHash: string): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Reflect.get(value, 'schemaVersion') === 'hiring-evaluation-context.v1' &&
+    Reflect.get(value, 'contextHash') === expectedHash
+  );
 }
 
 function isPrismaUniqueConstraintError(error: unknown): boolean {

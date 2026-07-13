@@ -58,10 +58,11 @@
 1. M2는 관리자 입력과 선택 질문을 `hiring-question-set-configuration.v1` 불변 snapshot으로 생성하고 `OPEN` 코호트에 연결한다.
 2. M4는 `OPEN` 코호트를 잠글 때 공식/대체 NCS 평가 snapshot과 검증된 인재상 루브릭을 포함한 `hiring-evaluation-context.v1` 새 row를 생성한다. 기존 M2 snapshot row는 수정하지 않는다.
 3. 같은 transaction에서 코호트의 `question_set_snapshot_id`를 M4 snapshot으로 교체하고 상태를 `LOCKED`로 전이한다.
-4. `LOCKED` 이후에는 정책, 질문 순서, NCS 단위, 인재상 루브릭, 꼬리질문 한도와 지원자 집합을 변경하지 않는다.
+4. `LOCKED` 이후에는 정책, 질문 순서, NCS 단위, 인재상 루브릭과 꼬리질문 한도를 변경하지 않는다.
 5. M4 답변 평가는 이 최종 context version과 질문 identity가 일치할 때만 실행한다.
-6. M5 집계 결과가 모두 terminal이면 `EVALUATED`, M6 최종 ranking snapshot을 선택하면 `FINALIZED`로 전이한다.
-7. `EVALUATED` 상태에서는 입력이 같은 재실행은 기존 revision을 재사용하고, 입력 변경 재평가는 새 revision을 만든다. `FINALIZED` 이후에는 새 판정 revision을 만들지 않는다.
+6. M5 집계 시작 시 대상 지원자·세션 집합을 한 transaction에서 고정하며, 고정된 집합의 결과가 모두 terminal이면 `EVALUATED`로 전이한다.
+7. M6 최종 ranking snapshot을 선택하면 `FINALIZED`로 전이한다.
+8. `EVALUATED` 상태에서는 입력이 같은 재실행은 기존 revision을 재사용하고, 입력 변경 재평가는 새 revision을 만든다. `FINALIZED` 이후에는 새 판정 revision을 만들지 않는다.
 
 ## Milestone Order
 
@@ -77,6 +78,14 @@
 | 8 | M7 API, Views, E2E | 관리자 순위표, 지원자 리포트, 가상 코호트 전체 검증 | M6 |
 
 권장 실행 경로는 `M0 -> M1 -> (M2 || M3) -> M4 -> M5 -> M6 -> M7`이다. M2와 M3만 병렬로 진행하고, M4 이후는 앞 단계의 고정 계약을 소비하므로 순차 통합한다.
+
+## M4 Implementation Boundary
+
+- `POST /company/interviews/hiring-simulations/{cohortId}/lock`이 M2 정책·질문 snapshot과 M3 인재상 루브릭을 `hiring-evaluation-context.v1`으로 append하고 코호트를 원자적으로 `LOCKED` 전이한다.
+- `POST /company/interviews/hiring-simulations/{cohortId}/answer-evaluations`는 저장된 실제 채용면접 세션과 STT 답변만 조회해 context identity를 검증한 뒤 worker 작업을 생성한다.
+- worker는 질문 하나를 NCS·인재상 두 트랙으로 독립 평가하고 정확한 발화 offset과 `null` 근거 부족 상태를 보존한 불변 revision을 저장한다.
+- 같은 context와 answer revision은 API idempotency key와 DB unique 제약으로 재사용한다.
+- 이 단계에서는 질문별 점수를 평균내거나 코호트 합격/불합격을 만들지 않는다. 그 기능은 각각 M5와 M6 범위다.
 
 ## M1 Boundary
 

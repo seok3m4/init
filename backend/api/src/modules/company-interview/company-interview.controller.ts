@@ -18,7 +18,11 @@ import { ok, type RequestLike } from '../../shared/response-envelope';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CompanyInterviewService } from './company-interview.service';
 import { InterviewSettingsQueryDto } from './dto/interview-settings.dto';
-import { CreateHiringSimulationDto } from './dto/hiring-simulation.dto';
+import {
+  CreateHiringSimulationDto,
+  EvaluateHiringAnswerDto,
+  LockHiringSimulationDto,
+} from './dto/hiring-simulation.dto';
 import { UpdateEvaluationCriterionDto } from './dto/evaluation-criterion.dto';
 import {
   CreateInterviewQuestionDto,
@@ -125,6 +129,36 @@ export class CompanyInterviewController {
   ) {
     const data = await this.service.createHiringSimulation(
       request.currentUser,
+      body,
+    );
+    return ok(request, data);
+  }
+
+  @Post('hiring-simulations/:cohortId/lock')
+  @HttpCode(HttpStatus.OK)
+  async lockHiringSimulation(
+    @Req() request: CompanyRequest,
+    @Param('cohortId', ParseIntPipe) cohortId: number,
+    @Body() body: LockHiringSimulationDto,
+  ) {
+    const data = await this.service.lockHiringSimulation(
+      request.currentUser,
+      cohortId,
+      body,
+    );
+    return ok(request, data);
+  }
+
+  @Post('hiring-simulations/:cohortId/answer-evaluations')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async evaluateHiringAnswer(
+    @Req() request: CompanyRequest,
+    @Param('cohortId', ParseIntPipe) cohortId: number,
+    @Body() body: EvaluateHiringAnswerDto,
+  ) {
+    const data = await this.service.evaluateHiringAnswer(
+      request.currentUser,
+      cohortId,
       body,
     );
     return ok(request, data);

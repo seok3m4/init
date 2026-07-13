@@ -61,3 +61,42 @@
 - 민감 속성과 비언어 신호는 두 트랙의 점수와 tie-break에 사용하지 않는다.
 - 꼬리질문 답변은 누락 evidence를 보완하지만 새 본질문이나 가산점으로 계산하지 않는다.
 - M4는 질문별 evidence와 판정을 만들고, M5만 여러 질문 결과를 지원자 점수로 집계한다.
+
+## M4 Context Contract
+
+`hiring-evaluation-context.v1`은 다음 값을 한 번에 고정한다.
+
+- 코호트, 기업, 공고와 M2 `configurationHash`
+- 정책 ID·version과 `hiring-evaluation.v1` 계산 계약
+- 원본 M2 질문 snapshot ID·version
+- 질문 ID·순서·유형·본문·criterion 연결과 질문별 NCS snapshot
+- 직무, 질문 모드, 본질문 수와 지원자별 최대 꼬리질문 수
+- 검증된 `talent-rubric-snapshot.v1` 전체
+
+`contextHash`는 `contextVersion`, `contextHash`를 제외한 위 객체를 key-sorted canonical JSON으로 직렬화한 SHA-256이다. API와 worker는 같은 ASCII key 정렬을 사용하고 worker는 평가 전 hash를 다시 계산한다.
+
+## M4 Answer Input
+
+`hiring-answer-evaluation.v1` 입력은 `context`, `candidateId`, `sessionId`, `questionId`, `followUpsUsed`, `turns[]`로 구성한다.
+
+- 첫 turn은 반드시 저장된 본질문 답변인 `PRIMARY`다.
+- 이후 turn은 해당 본질문 직후의 저장된 꼬리질문 답변인 `FOLLOW_UP`만 허용한다.
+- `followUpsUsed`는 현재 질문 turn 수가 아니라 세션 전체에서 이미 생성된 꼬리질문 수다.
+- API는 transcript를 요청에서 받지 않고 DB의 `interview_answers.transcript`만 사용한다.
+- 실제 답변 평가 실행은 `IN_PROGRESS` 또는 `COMPLETED` 상태의 `RECRUITING` 세션만 허용한다.
+- 세션의 본질문 ID·유형·본문·순서가 context와 하나라도 다르면 실행하지 않는다.
+- API는 `interview_session_questions.question_type/content`에 처음 저장된 질문 표현을 보존해 이후 질문 뱅크 수정과 구분한다.
+
+## M4 Answer Output And Revision
+
+`hiring-answer-evaluation.v1` 출력은 context·answer revision identity, transcript turn 범위, `jobEvaluation`, `talentEvaluation`, guardrail과 evaluator version을 포함한다.
+
+- NCS와 인재상 criterion은 서로 독립 평가하며 한 트랙의 근거를 다른 트랙 점수로 변환하지 않는다.
+- 인재상 criterion은 ACTION/RATIONALE/RESULT/REFLECTION 필수 근거가 모두 있을 때만 1~5 anchor와 25/50/70/85/100 점수를 가진다.
+- 질문·직무 관련성이 없거나 필수 근거가 부족하면 점수는 `null`이다.
+- evidence quote는 PRIMARY/FOLLOW_UP을 줄바꿈 하나로 결합한 canonical transcript의 정확한 `startChar/endChar`를 가진다.
+- 세션 전체 꼬리질문 한도를 소진하면 근거가 부족해도 추가 질문을 제안하지 않는다.
+- `answerRevisionHash`는 context version, 지원자, 세션, 질문, 세션 전체 꼬리질문 사용 수와 모든 turn을 포함한다.
+- 가드레일 통과 결과만 `hiring_answer_evaluation_revisions`에 저장한다. 같은 process와 같은 answer revision은 unique 제약으로 중복 저장하지 않는다.
+- M4는 같은 공고와 잠긴 질문 context에 일치하는 개별 답변 revision을 만든다. 상대평가 대상 지원자·세션 집합은 M5 집계 시작 transaction에서 별도로 고정한다.
+- M4 결과는 합격/불합격을 만들지 않는다. M5가 질문별 revision을 집계하고 M6가 정책과 코호트 순위를 적용한다.

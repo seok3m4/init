@@ -1989,7 +1989,7 @@ AI 리포트 금지 기준:
   - 질문 `snapshotJson`은 `schemaVersion=hiring-question-set-configuration.v1`, `postingId`, `sourceQuestionSetId`, `jobRole`, 모드, 질문 수, 꼬리질문 한도와 정렬된 `{ questionId, order, questionType, content, criterionId }[]`를 포함한다.
   - 정책 `policyVersion`과 질문 `snapshotVersion`은 생성마다 새 불변 버전을 발급한다.
 - 응답 데이터:
-  - `cohort`: `{ cohortId, postingId, policyId, questionSetSnapshotId, title, jobRole, status, capacity, openedAt, createdAt }`
+  - `cohort`: `{ cohortId, postingId, policyId, questionSetSnapshotId, configurationHash, title, jobRole, status, capacity, openedAt, lockedAt, createdAt }`
   - `policy`: `{ policyId, policyVersion, decisionMode, jobWeightPercent, talentWeightPercent, minimumJobScore, minimumTalentScore, minimumEvidenceCoveragePercent, tieBreakMode, snapshotJson, createdAt }`
   - `questionSetSnapshot`: `{ questionSetSnapshotId, sourceQuestionSetId, snapshotVersion, jobRole, mode, questionCount, maxFollowUpCount, snapshotJson, createdAt }`
 - 범위 제외:
@@ -2013,6 +2013,69 @@ AI 리포트 금지 기준:
   - 저장 당시의 불변 version과 `snapshotJson`을 반환하며 현재 질문 내용이나 관리자 설정으로 재구성하지 않는다.
 - Error Codes:
   - `COMMON_FORBIDDEN`, `COMMON_NOT_FOUND`
+
+### API-039E POST /company/interviews/hiring-simulations/{cohortId}/lock
+- 도메인: 기업 - 면접관리
+- 권한/인증: Bearer JWT로 인증된 기업 사용자만 허용
+- 관련 화면: 채용 판정 시뮬레이션 설정 확정
+- UI Type: action
+- 상태 코드: 200 OK
+- 비동기: N
+- 계산 계약: `docs/03_contracts/hiring-evaluation.md`, `docs/03_contracts/talent-rubric.md`
+- Path Params:
+  - `cohortId`: number, required, 1 이상의 정수
+- 요청 데이터:
+  - `expectedConfigurationHash`: string, required, API-039C/D 응답의 `cohort.configurationHash`
+  - `talentRubric`: `talent-rubric-snapshot.v1` 전체 JSON, required
+- 검증/전제조건:
+  - 코호트는 현재 JWT 기업 사용자의 소유이며 `OPEN`이어야 한다.
+  - `expectedConfigurationHash`는 현재 코호트의 값과 일치해야 한다.
+  - 인재상 루브릭은 weight 합계, criterion·indicator 고유성, ACTION/RATIONALE/RESULT/REFLECTION 순서, 1~5 anchor와 금지 신호 제외 정책을 모두 만족해야 한다.
+  - 질문은 `TECHNICAL | EXPERIENCE | SITUATION`이어야 하며 각 질문에서 서버 NCS resolver가 유효한 snapshot을 생성할 수 있어야 한다.
+- 성공 응답/처리:
+  - 서버가 M2 질문 ID·순서·유형·본문에 NCS snapshot을 결합하고 검증된 M3 인재상 루브릭과 정책 version을 포함한 `hiring-evaluation-context.v1`을 만든다.
+  - 기존 M2 `hiring-question-set-configuration.v1` row는 수정하지 않고 새 snapshot row를 append한다.
+  - 새 snapshot 생성과 `OPEN -> LOCKED`, `questionSetSnapshotId` 교체, `lockedAt` 기록은 하나의 DB transaction에서 수행한다.
+  - 응답은 API-039C와 같은 구조이며 `cohort.status=LOCKED`, 새 `questionSetSnapshotId`, `lockedAt`과 최종 context JSON을 반환한다.
+  - context hash는 `contextVersion`, `contextHash`를 제외한 canonical key-sorted JSON의 SHA-256이다.
+- 멱등성과 경쟁 조건:
+  - 이미 같은 configuration과 같은 인재상 루브릭으로 잠긴 코호트에 같은 요청을 보내면 기존 context를 재사용한다.
+  - 다른 루브릭 또는 다른 context로 이미 잠겼으면 `CONTEXT_MISMATCH`, 잠금 사이에 설정 참조가 바뀌면 `CONFIGURATION_CHANGED` conflict다.
+  - 동시 요청은 조건부 `OPEN` update가 한 건 성공한 경우에만 commit하며, 패배 transaction이 만든 snapshot은 rollback한다.
+- Error Codes:
+  - `COMMON_FORBIDDEN`, `COMMON_NOT_FOUND`, `COMMON_VALIDATION_FAILED`, `COMMON_CONFLICT`
+
+### API-039F POST /company/interviews/hiring-simulations/{cohortId}/answer-evaluations
+- 도메인: 기업 - 면접관리
+- 권한/인증: Bearer JWT로 인증된 기업 사용자만 허용
+- 관련 화면: 채용 판정 시뮬레이션 지원자 평가
+- UI Type: system process
+- 상태 코드: 202 Accepted
+- 비동기: Y
+- Path Params:
+  - `cohortId`: number, required, 1 이상의 정수
+- 요청 데이터:
+  - `sessionId`: number, required, 실제 채용면접 세션 ID
+  - `questionId`: number, required, 잠긴 context의 본질문 ID
+  - `primaryAnswerId`: number, required, 해당 세션·질문의 저장 답변 ID
+  - transcript, NCS snapshot, 인재상 점수 또는 context JSON은 요청에서 받지 않는다.
+- 검증/전제조건:
+  - 코호트는 요청 기업 소유이고 `LOCKED` 상태이며 유효한 `hiring-evaluation-context.v1`을 참조해야 한다.
+  - 저장 답변은 `IN_PROGRESS` 또는 `COMPLETED` 상태의 `RECRUITING` 세션과 같은 공고·질문·지원자에 속해야 하고 STT transcript가 준비되어야 한다.
+  - `interview_session_questions`에 저장된 본질문 ID·유형·본문·순서는 context와 전부 같아야 한다.
+  - 본질문 직후 생성된 `RECRUITING` 꼬리질문의 저장 답변만 같은 평가 turn에 포함한다.
+  - 세션 전체 꼬리질문 사용 수는 context의 `maxFollowUpCount` 이하여야 한다.
+- 성공 응답/처리:
+  - 서버가 DB transcript를 trim한 canonical `PRIMARY/FOLLOW_UP` turn으로 만들고 전체 context, candidate/session/question identity와 세션 전체 꼬리질문 사용 수를 worker payload에 포함한다.
+  - process type은 `REPORT_GENERATE`, kind와 step은 `HIRING_ANSWER_EVALUATION`을 사용한다.
+  - context와 답변 revision 전체 hash를 idempotency key로 사용해 같은 입력 재요청은 기존 process를 재사용한다.
+  - 응답: `{ accepted, processLogId, status, queued, deduplicated, contextVersion, cohortId, candidateId, sessionId, questionId, primaryAnswerId }`
+  - transcript와 전체 worker `inputRef`는 응답하지 않는다.
+- Worker 저장:
+  - worker는 NCS와 인재상 트랙을 독립 평가하고 가드레일 통과 후 `hiring_answer_evaluation_revisions`에 불변 저장한다.
+  - context/question identity 변조, transcript offset 불일치, 꼬리질문 한도 위반은 non-retryable 실패다.
+- Error Codes:
+  - `COMMON_FORBIDDEN`, `COMMON_NOT_FOUND`, `COMMON_VALIDATION_FAILED`, `COMMON_CONFLICT`
 
 ### API-040 PATCH /company/interviews/time-policy
 - 도메인: 기업 - 면접관리

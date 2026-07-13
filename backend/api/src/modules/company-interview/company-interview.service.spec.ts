@@ -1,9 +1,19 @@
 import { strict as assert } from 'node:assert';
 import type { CurrentUser } from '@init/common';
 import { ApiException } from '../../shared/api-exception';
+import { BuiltInNcsEvaluationSnapshotResolver } from '../interview/ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver';
+import type {
+  AiJobDispatcherService,
+  DispatchAiJobCommand,
+} from '../report/service/ai-job-dispatcher.service';
 import { CompanyInterviewService } from './company-interview.service';
 import type { CreateHiringSimulationDto } from './dto/hiring-simulation.dto';
 import { InMemoryCompanyInterviewRepository } from './repositories/in-memory-company-interview.repository';
+import type {
+  HiringEvaluationContextSnapshotJson,
+  HiringQuestionSetSnapshotJson,
+  TalentRubricSnapshotJson,
+} from './company-interview.types';
 
 const companyUser: CurrentUser = {
   userId: 1,
@@ -76,6 +86,83 @@ function hiringSimulationInput(
     questionSetMode: 'QUICK',
     orderedQuestionIds: [3, 1, 2],
     ...overrides,
+  };
+}
+
+function requireQuestionSetConfiguration(
+  snapshot:
+    | HiringQuestionSetSnapshotJson
+    | HiringEvaluationContextSnapshotJson,
+): HiringQuestionSetSnapshotJson {
+  assert.equal(
+    snapshot.schemaVersion,
+    'hiring-question-set-configuration.v1',
+  );
+  return snapshot as HiringQuestionSetSnapshotJson;
+}
+
+function requireEvaluationContext(
+  snapshot:
+    | HiringQuestionSetSnapshotJson
+    | HiringEvaluationContextSnapshotJson,
+): HiringEvaluationContextSnapshotJson {
+  assert.equal(snapshot.schemaVersion, 'hiring-evaluation-context.v1');
+  return snapshot as HiringEvaluationContextSnapshotJson;
+}
+
+function talentRubric(name = '책임감'): TalentRubricSnapshotJson {
+  const evidenceTypes = [
+    'ACTION',
+    'RATIONALE',
+    'RESULT',
+    'REFLECTION',
+  ] as const;
+  const levels = [1, 2, 3, 4, 5] as const;
+  return {
+    contractVersion: 'talent-rubric-snapshot.v1',
+    rubricVersion: 'talent-rubric-v1-test',
+    sourceHash: `sha256:${'0'.repeat(64)}`,
+    criteria: [
+      {
+        id: 'talent-responsibility',
+        name,
+        definition: '맡은 일을 검증과 회고까지 책임지고 마무리한다.',
+        weight: 100,
+        behaviorIndicators: evidenceTypes.map((evidenceType, index) => ({
+          id: `talent-responsibility-${index + 1}`,
+          evidenceType,
+          observability: 'ANSWER_TRANSCRIPT' as const,
+          description: `${evidenceType} 근거를 답변에서 확인한다.`,
+        })),
+        requiredEvidence: [...evidenceTypes],
+        scoringAnchors: levels.map((level) => ({
+          level,
+          evidenceStrength: level,
+          label: `${level}단계`,
+          description: `${level}단계 수준의 구체적인 발화 근거가 있다.`,
+        })),
+      },
+    ],
+    evidencePolicy: {
+      source: 'ANSWER_TRANSCRIPT',
+      requiredEvidenceRule: 'ALL_REQUIRED',
+      missingRequiredEvidenceStatus: 'INSUFFICIENT_EVIDENCE',
+      insufficientEvidenceScore: null,
+    },
+    prohibitedSignals: [
+      {
+        category: 'SENSITIVE_ATTRIBUTE',
+        signals: ['연령', '성별'],
+        detectedInSource: [],
+        disposition: 'EXCLUDE_FROM_SCORING',
+      },
+      {
+        category: 'NONVERBAL_SIGNAL',
+        signals: ['시선', '표정'],
+        detectedInSource: [],
+        disposition: 'EXCLUDE_FROM_SCORING',
+      },
+    ],
   };
 }
 
@@ -415,31 +502,270 @@ describe('CompanyInterviewService', () => {
     assert.equal(result.questionSetSnapshot.mode, 'QUICK');
     assert.equal(result.questionSetSnapshot.questionCount, 3);
     assert.equal(result.questionSetSnapshot.maxFollowUpCount, 2);
+    const questionSnapshot = requireQuestionSetConfiguration(
+      result.questionSetSnapshot.snapshotJson,
+    );
     assert.deepEqual(
-      result.questionSetSnapshot.snapshotJson.questions.map(
+      questionSnapshot.questions.map(
         (question) => question.questionId,
       ),
       [3, 1, 2],
     );
     assert.deepEqual(
-      result.questionSetSnapshot.snapshotJson.questions.map(
+      questionSnapshot.questions.map(
         (question) => question.order,
       ),
       [1, 2, 3],
     );
     assert.deepEqual(
-      result.questionSetSnapshot.snapshotJson.questions.map(
+      questionSnapshot.questions.map(
         (question) => question.questionType,
       ),
       ['EXPERIENCE', 'TECHNICAL', 'TECHNICAL'],
     );
     assert.equal(
-      result.questionSetSnapshot.snapshotJson.questions[1].content,
+      questionSnapshot.questions[1].content,
       'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',
     );
     assert.equal(
-      result.questionSetSnapshot.snapshotJson.questions[1].criterionId,
+      questionSnapshot.questions[1].criterionId,
       1,
+    );
+  });
+
+  it('locks the M2 policy, question NCS snapshots, and M3 talent rubric into one context', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+    const created = await service.createHiringSimulation(
+      companyUser,
+      hiringSimulationInput(sourceQuestionSet.questionSetId),
+    );
+    const sourceSnapshotId = created.questionSetSnapshot.questionSetSnapshotId;
+    const sourceSnapshotVersion = created.questionSetSnapshot.snapshotVersion;
+    const rubric = talentRubric();
+
+    const locked = await service.lockHiringSimulation(
+      companyUser,
+      created.cohort.cohortId,
+      {
+        expectedConfigurationHash: created.cohort.configurationHash,
+        talentRubric: rubric,
+      },
+    );
+    const context = requireEvaluationContext(
+      locked.questionSetSnapshot.snapshotJson,
+    );
+
+    assert.equal(locked.cohort.status, 'LOCKED');
+    assert.ok(locked.cohort.lockedAt);
+    assert.notEqual(locked.questionSetSnapshot.questionSetSnapshotId, sourceSnapshotId);
+    assert.equal(context.sourceConfiguration.questionSetSnapshotId, sourceSnapshotId);
+    assert.equal(context.sourceConfiguration.questionSetSnapshotVersion, sourceSnapshotVersion);
+    assert.equal(context.cohort.configurationHash, created.cohort.configurationHash);
+    assert.match(context.contextHash, /^sha256:[0-9a-f]{64}$/);
+    assert.deepEqual(context.talentRubric, rubric);
+    assert.deepEqual(
+      context.questionSet.questions.map((question) => question.questionId),
+      [3, 1, 2],
+    );
+    assert.ok(
+      context.questionSet.questions.every(
+        (question) =>
+          question.ncsEvaluationSnapshot.question.questionId ===
+            String(question.questionId) &&
+          question.ncsEvaluationSnapshot.question.content === question.content &&
+          question.ncsEvaluationSnapshot.jobRole === context.questionSet.jobRole,
+      ),
+    );
+
+    const replay = await service.lockHiringSimulation(
+      companyUser,
+      created.cohort.cohortId,
+      {
+        expectedConfigurationHash: created.cohort.configurationHash,
+        talentRubric: rubric,
+      },
+    );
+    assert.equal(
+      replay.questionSetSnapshot.questionSetSnapshotId,
+      locked.questionSetSnapshot.questionSetSnapshotId,
+    );
+    assert.equal(
+      (await service.getHiringSimulation(companyUser, created.cohort.cohortId))
+        .questionSetSnapshot.snapshotVersion,
+      locked.questionSetSnapshot.snapshotVersion,
+    );
+  });
+
+  it('rejects invalid or conflicting context lock input', async () => {
+    const service = createService();
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+    const created = await service.createHiringSimulation(
+      companyUser,
+      hiringSimulationInput(sourceQuestionSet.questionSetId),
+    );
+    const invalidRubric = talentRubric();
+    invalidRubric.criteria[0].behaviorIndicators[0].id =
+      invalidRubric.criteria[0].id;
+
+    await assertApiError(
+      () =>
+        service.lockHiringSimulation(companyUser, created.cohort.cohortId, {
+          expectedConfigurationHash: created.cohort.configurationHash,
+          talentRubric: invalidRubric,
+        }),
+      400,
+      'MUST_DIFFER_FROM_CRITERION_ID',
+    );
+    await assertApiError(
+      () =>
+        service.lockHiringSimulation(companyUser, created.cohort.cohortId, {
+          expectedConfigurationHash: `sha256:${'f'.repeat(64)}`,
+          talentRubric: talentRubric(),
+        }),
+      409,
+      'CONFIGURATION_CHANGED',
+    );
+
+    await service.lockHiringSimulation(companyUser, created.cohort.cohortId, {
+      expectedConfigurationHash: created.cohort.configurationHash,
+      talentRubric: talentRubric(),
+    });
+    await assertApiError(
+      () =>
+        service.lockHiringSimulation(companyUser, created.cohort.cohortId, {
+          expectedConfigurationHash: created.cohort.configurationHash,
+          talentRubric: talentRubric('협업'),
+        }),
+      409,
+      'CONTEXT_MISMATCH',
+    );
+  });
+
+  it('dispatches only a stored recruiting answer whose session questions match the locked context', async () => {
+    const repository = new InMemoryCompanyInterviewRepository();
+    const dispatched: DispatchAiJobCommand[] = [];
+    const dispatcher = {
+      dispatch: async (command: DispatchAiJobCommand) => {
+        dispatched.push(command);
+        return {
+          processLogId: 991,
+          processType: 'REPORT_GENERATE' as const,
+          status: 'PENDING' as const,
+          inputRef: JSON.stringify(command.input),
+          queued: true,
+          deduplicated: false,
+        };
+      },
+    } as unknown as AiJobDispatcherService;
+    const service = new CompanyInterviewService(
+      repository,
+      new BuiltInNcsEvaluationSnapshotResolver(),
+      dispatcher,
+    );
+    const sourceQuestionSet = await confirmQuickQuestionSet(service);
+    const created = await service.createHiringSimulation(
+      companyUser,
+      hiringSimulationInput(sourceQuestionSet.questionSetId),
+    );
+    const locked = await service.lockHiringSimulation(
+      companyUser,
+      created.cohort.cohortId,
+      {
+        expectedConfigurationHash: created.cohort.configurationHash,
+        talentRubric: talentRubric(),
+      },
+    );
+    const context = requireEvaluationContext(
+      locked.questionSetSnapshot.snapshotJson,
+    );
+    const source = {
+      applicationId: 77,
+      postingId: 1,
+      candidateId: 301,
+      sessionId: 401,
+      interviewType: 'RECRUITING',
+      sessionStatus: 'COMPLETED',
+      assignedQuestions: context.questionSet.questions.map((question) => ({
+        questionId: question.questionId,
+        questionType: question.questionType,
+        content: question.content,
+        sortOrder: question.order - 1,
+      })),
+      primaryAnswer: {
+        answerId: 701,
+        questionId: 3,
+        transcript:
+          'API 계약 충돌을 확인하고 대안을 비교한 뒤 DTO를 통일했습니다. 회귀 테스트 결과 오류가 재발하지 않았고 다음 작업부터 계약 검토를 먼저 진행했습니다.',
+      },
+      followUpsUsed: 0,
+    };
+    repository.findHiringAnswerEvaluationSource = async () => source;
+
+    repository.findHiringAnswerEvaluationSource = async () => ({
+      ...source,
+      assignedQuestions: source.assignedQuestions.map((question, index) =>
+        index === 0 ? { ...question, content: '변조된 질문' } : question,
+      ),
+    });
+    await assertApiError(
+      () =>
+        service.evaluateHiringAnswer(companyUser, created.cohort.cohortId, {
+          sessionId: 401,
+          questionId: 3,
+          primaryAnswerId: 701,
+        }),
+      409,
+      'SESSION_QUESTION_SET_MISMATCH',
+    );
+    assert.equal(dispatched.length, 0);
+
+    repository.findHiringAnswerEvaluationSource = async () => ({
+      ...source,
+      sessionStatus: 'FAILED',
+    });
+    await assertApiError(
+      () =>
+        service.evaluateHiringAnswer(companyUser, created.cohort.cohortId, {
+          sessionId: 401,
+          questionId: 3,
+          primaryAnswerId: 701,
+        }),
+      409,
+      'SESSION_NOT_EVALUABLE',
+    );
+    assert.equal(dispatched.length, 0);
+
+    repository.findHiringAnswerEvaluationSource = async () => source;
+    const result = await service.evaluateHiringAnswer(
+      companyUser,
+      created.cohort.cohortId,
+      { sessionId: 401, questionId: 3, primaryAnswerId: 701 },
+    );
+
+    assert.equal(result.processLogId, 991);
+    assert.equal(result.contextVersion, context.contextVersion);
+    assert.equal(result.candidateId, 301);
+    const command = dispatched[0];
+    assert.equal(command?.processType, 'REPORT_GENERATE');
+    assert.match(command?.idempotencyKey ?? '', /^hiring-answer-eval:/);
+    const queueInput = command?.input as {
+      kind: string;
+      payload: {
+        step: string;
+        context: HiringEvaluationContextSnapshotJson;
+        followUpsUsed: number;
+        turns: Array<{ answerId: number; transcript: string }>;
+      };
+    };
+    assert.equal(queueInput.kind, 'HIRING_ANSWER_EVALUATION');
+    assert.equal(queueInput.payload.step, 'HIRING_ANSWER_EVALUATION');
+    assert.equal(queueInput.payload.context.contextHash, context.contextHash);
+    assert.equal(queueInput.payload.followUpsUsed, 0);
+    assert.equal(queueInput.payload.turns[0].answerId, 701);
+    assert.equal(
+      queueInput.payload.turns[0].transcript,
+      source.primaryAnswer.transcript,
     );
   });
 
@@ -595,6 +921,12 @@ describe('CompanyInterviewService', () => {
       companyUser,
       first.cohort.cohortId,
     );
+    const firstQuestionSnapshot = requireQuestionSetConfiguration(
+      firstDetail.questionSetSnapshot.snapshotJson,
+    );
+    const secondQuestionSnapshot = requireQuestionSetConfiguration(
+      second.questionSetSnapshot.snapshotJson,
+    );
 
     assert.notEqual(first.cohort.cohortId, second.cohort.cohortId);
     assert.notEqual(first.policy.policyId, second.policy.policyId);
@@ -609,13 +941,13 @@ describe('CompanyInterviewService', () => {
       60,
     );
     assert.equal(
-      firstDetail.questionSetSnapshot.snapshotJson.questions.find(
+      firstQuestionSnapshot.questions.find(
         (question) => question.questionId === 1,
       )?.content,
       'REST API 계약을 먼저 문서화해야 하는 이유를 설명해주세요.',
     );
     assert.equal(
-      second.questionSetSnapshot.snapshotJson.questions.find(
+      secondQuestionSnapshot.questions.find(
         (question) => question.questionId === 1,
       )?.content,
       '변경된 질문 내용은 기존 snapshot에 반영되면 안 됩니다.',

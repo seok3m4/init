@@ -18,8 +18,11 @@ import {
   ConfirmQuestionSetInput,
   CreateHiringSimulationConfigurationInput,
   CreateQuestionInput,
+  HiringEvaluationContextLockError,
+  HiringAnswerEvaluationSourceRecord,
   HiringQuestionSetChangedError,
   HiringSimulationRequestKeyConflictError,
+  LockHiringEvaluationContextInput,
   UpdateCriterionInput,
   UpdateQuestionInput,
   UpdateTimePolicyInput,
@@ -586,6 +589,66 @@ export class InMemoryCompanyInterviewRepository
     });
   }
 
+  async lockHiringEvaluationContext(
+    input: LockHiringEvaluationContextInput,
+  ): Promise<HiringSimulationConfigurationRecord> {
+    const current = await this.findHiringSimulationConfiguration(input.cohortId);
+    if (!current || current.cohort.companyId !== input.companyId) {
+      throw new HiringEvaluationContextLockError('CONFIGURATION_CHANGED');
+    }
+
+    if (current.cohort.status === 'LOCKED') {
+      const snapshot = current.questionSetSnapshot.snapshotJson;
+      if (
+        snapshot.schemaVersion === 'hiring-evaluation-context.v1' &&
+        snapshot.contextHash === input.contextHash
+      ) {
+        return current;
+      }
+      throw new HiringEvaluationContextLockError('CONTEXT_MISMATCH');
+    }
+    if (current.cohort.status !== 'OPEN') {
+      throw new HiringEvaluationContextLockError('COHORT_NOT_OPEN');
+    }
+    if (
+      current.cohort.configurationHash !== input.expectedConfigurationHash ||
+      current.cohort.questionSetSnapshotId !==
+        input.expectedQuestionSetSnapshotId
+    ) {
+      throw new HiringEvaluationContextLockError('CONFIGURATION_CHANGED');
+    }
+
+    const lockedAt = new Date();
+    const contextSnapshot: HiringQuestionSetSnapshotRecord = {
+      ...current.questionSetSnapshot,
+      questionSetSnapshotId: this.nextHiringQuestionSetSnapshotId,
+      snapshotVersion: input.contextSnapshotVersion,
+      snapshotJson: cloneQuestionSetSnapshot(input.snapshotJson),
+      createdAt: lockedAt,
+    };
+    this.hiringQuestionSetSnapshots = [
+      ...this.hiringQuestionSetSnapshots,
+      contextSnapshot,
+    ];
+    this.hiringCohorts = this.hiringCohorts.map((cohort) =>
+      cohort.cohortId === input.cohortId
+        ? {
+            ...cohort,
+            questionSetSnapshotId: contextSnapshot.questionSetSnapshotId,
+            status: 'LOCKED',
+            lockedAt,
+          }
+        : cohort,
+    );
+    this.nextHiringQuestionSetSnapshotId += 1;
+
+    const locked = await this.findHiringSimulationConfiguration(input.cohortId);
+    if (!locked) {
+      throw new HiringEvaluationContextLockError('CONFIGURATION_CHANGED');
+    }
+    return locked;
+  }
+
   async findHiringSimulationConfigurationByRequestKey(
     createdByUserId: number,
     requestKey: string,
@@ -598,6 +661,14 @@ export class InMemoryCompanyInterviewRepository
     return cohort
       ? this.findHiringSimulationConfiguration(cohort.cohortId)
       : undefined;
+  }
+
+  async findHiringAnswerEvaluationSource(
+    _sessionId: number,
+    _questionId: number,
+    _primaryAnswerId: number,
+  ): Promise<HiringAnswerEvaluationSourceRecord | undefined> {
+    return undefined;
   }
 
   private hydrateQuestionSet(questionSet: QuestionSetRecord): QuestionSetRecord {
@@ -624,12 +695,9 @@ function clonePolicySnapshot(snapshot: HiringPolicySnapshot): HiringPolicySnapsh
 }
 
 function cloneQuestionSetSnapshot(
-  snapshot: HiringQuestionSetSnapshotJson,
-): HiringQuestionSetSnapshotJson {
-  return {
-    ...snapshot,
-    questions: snapshot.questions.map((question) => ({ ...question })),
-  };
+  snapshot: HiringQuestionSetSnapshotRecord['snapshotJson'],
+): HiringQuestionSetSnapshotRecord['snapshotJson'] {
+  return JSON.parse(JSON.stringify(snapshot)) as HiringQuestionSetSnapshotRecord['snapshotJson'];
 }
 
 function cloneHiringSimulationConfiguration(
@@ -639,6 +707,9 @@ function cloneHiringSimulationConfiguration(
     cohort: {
       ...configuration.cohort,
       openedAt: new Date(configuration.cohort.openedAt),
+      lockedAt: configuration.cohort.lockedAt
+        ? new Date(configuration.cohort.lockedAt)
+        : null,
       createdAt: new Date(configuration.cohort.createdAt),
     },
     policy: {

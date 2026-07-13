@@ -63,6 +63,7 @@ import { InterviewService } from "./service/interview.service";
     PublicInterviewService,
     NcsOpenApiClient,
     OfficialNcsReferenceCatalogService,
+    NCS_EVALUATION_SNAPSHOT_RESOLVER,
   ],
 })
 export class InterviewModule {}

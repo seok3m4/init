@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CurrentUser } from '@init/common';
+import { AiJobDispatcherService } from '../report/service/ai-job-dispatcher.service';
+import { BuiltInNcsEvaluationSnapshotResolver } from '../interview/ncs-evaluation/built-in-ncs-evaluation-snapshot.resolver';
+import {
+  NCS_EVALUATION_SNAPSHOT_RESOLVER,
+  type NcsEvaluationSnapshotResolver,
+} from '../interview/ncs-evaluation/ncs-evaluation-snapshot';
 import {
   EvaluationCriterionResponseDto,
   UpdateEvaluationCriterionDto,
@@ -34,6 +40,7 @@ import {
   HIRING_DECISION_MODES,
   HIRING_QUESTION_SET_MODES,
   HiringDecisionMode,
+  HiringEvaluationContextSnapshotJson,
   HiringPolicySnapshot,
   HiringQuestionSetMode,
   HiringQuestionSetSnapshotJson,
@@ -45,11 +52,23 @@ import {
 } from './company-interview.types';
 import {
   CreateHiringSimulationDto,
+  EvaluateHiringAnswerDto,
+  HiringAnswerEvaluationJobResponseDto,
   HiringSimulationResponseDto,
+  LockHiringSimulationDto,
 } from './dto/hiring-simulation.dto';
+import {
+  bindNcsSnapshotToHiringQuestion,
+  createHiringEvaluationContextHash,
+  HiringEvaluationContextValidationError,
+  parseHiringEvaluationContextSnapshot,
+  sameCanonicalValue,
+  validateTalentRubricSnapshotJson,
+} from './hiring-evaluation-context';
 import {
   COMPANY_INTERVIEW_REPOSITORY,
   CompanyInterviewRepository,
+  HiringEvaluationContextLockError,
   HiringQuestionSetChangedError,
   HiringSimulationRequestKeyConflictError,
 } from './repositories/company-interview.repository';
@@ -61,6 +80,11 @@ export class CompanyInterviewService {
   constructor(
     @Inject(COMPANY_INTERVIEW_REPOSITORY)
     private readonly repository: CompanyInterviewRepository,
+    @Inject(NCS_EVALUATION_SNAPSHOT_RESOLVER)
+    private readonly ncsEvaluationSnapshotResolver: NcsEvaluationSnapshotResolver =
+      new BuiltInNcsEvaluationSnapshotResolver(),
+    @Optional()
+    private readonly aiJobDispatcher?: AiJobDispatcherService,
   ) {}
 
   async getSettings(
@@ -481,6 +505,372 @@ export class CompanyInterviewService {
     return this.mapHiringSimulation(configuration);
   }
 
+  async lockHiringSimulation(
+    currentUser: CurrentUser,
+    cohortId: number,
+    dto: LockHiringSimulationDto,
+  ): Promise<HiringSimulationResponseDto> {
+    this.assertCompanyUser(currentUser);
+    this.assertIntegerInRange('cohortId', cohortId, 1, Number.MAX_SAFE_INTEGER);
+    if (!/^sha256:[0-9a-f]{64}$/u.test(dto.expectedConfigurationHash)) {
+      validationFailed('설정 해시를 확인해주세요.', [
+        { field: 'expectedConfigurationHash', reason: 'INVALID_HASH' },
+      ]);
+    }
+
+    let talentRubric;
+    try {
+      talentRubric = validateTalentRubricSnapshotJson(dto.talentRubric);
+    } catch (error) {
+      if (error instanceof HiringEvaluationContextValidationError) {
+        validationFailed('인재상 루브릭 계약을 확인해주세요.', [
+          { field: error.field, reason: error.reason },
+        ]);
+      }
+      throw error;
+    }
+
+    const configuration =
+      await this.repository.findHiringSimulationConfiguration(cohortId);
+    if (!configuration) {
+      notFound('채용 판정 시뮬레이션을 찾을 수 없습니다.', [
+        { field: 'cohortId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
+    }
+    if (configuration.cohort.companyId !== currentUser.companyId) {
+      forbidden('채용 판정 시뮬레이션 접근 권한이 없습니다.', [
+        { field: 'cohortId', reason: 'COMPANY_OWNERSHIP_MISMATCH' },
+      ]);
+    }
+    if (
+      configuration.cohort.configurationHash !==
+      dto.expectedConfigurationHash
+    ) {
+      conflict('시뮬레이션 설정이 변경되었습니다.', [
+        {
+          field: 'expectedConfigurationHash',
+          reason: 'CONFIGURATION_CHANGED',
+        },
+      ]);
+    }
+
+    if (configuration.cohort.status === 'LOCKED') {
+      const context = parseHiringEvaluationContextSnapshot(
+        configuration.questionSetSnapshot.snapshotJson,
+      );
+      if (
+        context &&
+        sameCanonicalValue(context.talentRubric, talentRubric)
+      ) {
+        return this.mapHiringSimulation(configuration);
+      }
+      conflict('이미 다른 평가 컨텍스트로 잠긴 시뮬레이션입니다.', [
+        { field: 'talentRubric', reason: 'CONTEXT_MISMATCH' },
+      ]);
+    }
+    if (configuration.cohort.status !== 'OPEN') {
+      conflict('열린 시뮬레이션만 평가 컨텍스트를 잠글 수 있습니다.', [
+        { field: 'cohortId', reason: 'COHORT_NOT_OPEN' },
+      ]);
+    }
+
+    const sourceSnapshot = configuration.questionSetSnapshot.snapshotJson;
+    if (
+      sourceSnapshot.schemaVersion !==
+      'hiring-question-set-configuration.v1'
+    ) {
+      conflict('질문 설정 스냅샷이 변경되었습니다.', [
+        { field: 'questionSetSnapshot', reason: 'CONFIGURATION_CHANGED' },
+      ]);
+    }
+
+    const questions = sourceSnapshot.questions.map((question) => {
+      if (
+        question.questionType !== 'TECHNICAL' &&
+        question.questionType !== 'EXPERIENCE' &&
+        question.questionType !== 'SITUATION'
+      ) {
+        validationFailed('NCS 평가 가능한 질문 유형을 선택해주세요.', [
+          {
+            field: `questionSetSnapshot.questions[${question.order - 1}].questionType`,
+            reason: 'NCS_SNAPSHOT_UNAVAILABLE',
+          },
+        ]);
+      }
+      const resolved = this.ncsEvaluationSnapshotResolver.resolve({
+        questionId: question.questionId,
+        questionType: question.questionType,
+        content: question.content,
+        sortOrder: question.order,
+        interviewType: 'RECRUITING',
+        jobRole: sourceSnapshot.jobRole,
+        postingId: configuration.cohort.postingId,
+        ...(question.criterionId === null
+          ? {}
+          : { criterionId: question.criterionId }),
+        isActive: true,
+      });
+      if (!resolved) {
+        validationFailed('질문의 NCS 평가 기준을 생성할 수 없습니다.', [
+          {
+            field: `questionSetSnapshot.questions[${question.order - 1}]`,
+            reason: 'NCS_SNAPSHOT_UNAVAILABLE',
+          },
+        ]);
+      }
+      return {
+        ...question,
+        questionType: question.questionType,
+        ncsEvaluationSnapshot: bindNcsSnapshotToHiringQuestion(
+          resolved,
+          question,
+          sourceSnapshot.jobRole,
+        ),
+      };
+    });
+
+    const contextVersion = `hiring-evaluation-context-v1-${randomUUID()}`;
+    const hashInput = {
+      schemaVersion: 'hiring-evaluation-context.v1' as const,
+      calculationContractVersion: 'hiring-evaluation.v1' as const,
+      cohort: {
+        cohortId: configuration.cohort.cohortId,
+        companyId: configuration.cohort.companyId,
+        postingId: configuration.cohort.postingId,
+        configurationHash: configuration.cohort.configurationHash,
+      },
+      sourceConfiguration: {
+        policyId: configuration.policy.policyId,
+        policyVersion: configuration.policy.policyVersion,
+        questionSetSnapshotId:
+          configuration.questionSetSnapshot.questionSetSnapshotId,
+        questionSetSnapshotVersion:
+          configuration.questionSetSnapshot.snapshotVersion,
+      },
+      policy: configuration.policy.snapshotJson,
+      questionSet: {
+        sourceQuestionSetId: sourceSnapshot.sourceQuestionSetId,
+        jobRole: sourceSnapshot.jobRole,
+        mode: sourceSnapshot.mode,
+        questionCount: sourceSnapshot.questionCount,
+        maxFollowUpCount: sourceSnapshot.maxFollowUpCount,
+        questions,
+      },
+      talentRubric,
+    };
+    const contextSnapshot: HiringEvaluationContextSnapshotJson = {
+      ...hashInput,
+      contextVersion,
+      contextHash: createHiringEvaluationContextHash(hashInput),
+    };
+
+    try {
+      const locked = await this.repository.lockHiringEvaluationContext({
+        cohortId,
+        companyId: currentUser.companyId,
+        expectedConfigurationHash: dto.expectedConfigurationHash,
+        expectedQuestionSetSnapshotId:
+          configuration.questionSetSnapshot.questionSetSnapshotId,
+        contextSnapshotVersion: contextVersion,
+        contextHash: contextSnapshot.contextHash,
+        snapshotJson: contextSnapshot,
+      });
+      return this.mapHiringSimulation(locked);
+    } catch (error) {
+      if (error instanceof HiringEvaluationContextLockError) {
+        conflict('평가 컨텍스트 잠금 상태가 변경되었습니다.', [
+          { field: 'cohortId', reason: error.reason },
+        ]);
+      }
+      throw error;
+    }
+  }
+
+  async evaluateHiringAnswer(
+    currentUser: CurrentUser,
+    cohortId: number,
+    dto: EvaluateHiringAnswerDto,
+  ): Promise<HiringAnswerEvaluationJobResponseDto> {
+    this.assertCompanyUser(currentUser);
+    this.assertIntegerInRange('cohortId', cohortId, 1, Number.MAX_SAFE_INTEGER);
+    this.assertIntegerInRange(
+      'sessionId',
+      dto.sessionId,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    this.assertIntegerInRange(
+      'questionId',
+      dto.questionId,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    this.assertIntegerInRange(
+      'primaryAnswerId',
+      dto.primaryAnswerId,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    const configuration =
+      await this.repository.findHiringSimulationConfiguration(cohortId);
+    if (!configuration) {
+      notFound('채용 판정 시뮬레이션을 찾을 수 없습니다.', [
+        { field: 'cohortId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
+    }
+    if (configuration.cohort.companyId !== currentUser.companyId) {
+      forbidden('채용 판정 시뮬레이션 접근 권한이 없습니다.', [
+        { field: 'cohortId', reason: 'COMPANY_OWNERSHIP_MISMATCH' },
+      ]);
+    }
+    const context = parseHiringEvaluationContextSnapshot(
+      configuration.questionSetSnapshot.snapshotJson,
+    );
+    if (configuration.cohort.status !== 'LOCKED' || !context) {
+      conflict('잠긴 평가 컨텍스트가 필요합니다.', [
+        { field: 'cohortId', reason: 'EVALUATION_CONTEXT_NOT_LOCKED' },
+      ]);
+    }
+
+    const source = await this.repository.findHiringAnswerEvaluationSource(
+      dto.sessionId,
+      dto.questionId,
+      dto.primaryAnswerId,
+    );
+    if (!source) {
+      notFound('평가할 저장 답변을 찾을 수 없습니다.', [
+        { field: 'primaryAnswerId', reason: 'RESOURCE_NOT_FOUND' },
+      ]);
+    }
+    if (
+      source.interviewType !== 'RECRUITING' ||
+      source.postingId !== context.cohort.postingId ||
+      source.primaryAnswer.questionId !== dto.questionId
+    ) {
+      conflict('답변이 잠긴 평가 대상과 일치하지 않습니다.', [
+        { field: 'sessionId', reason: 'EVALUATION_CONTEXT_MISMATCH' },
+      ]);
+    }
+    if (!['IN_PROGRESS', 'COMPLETED'].includes(source.sessionStatus)) {
+      conflict('답변 평가가 가능한 면접 세션 상태가 아닙니다.', [
+        { field: 'sessionId', reason: 'SESSION_NOT_EVALUABLE' },
+      ]);
+    }
+
+    const sameQuestionSet =
+      source.assignedQuestions.length === context.questionSet.questions.length &&
+      source.assignedQuestions.every((question, index) => {
+        const expected = context.questionSet.questions[index];
+        return (
+          expected?.questionId === question.questionId &&
+          expected.questionType === question.questionType &&
+          expected.content === question.content &&
+          expected.order - 1 === question.sortOrder
+        );
+      });
+    if (!sameQuestionSet) {
+      conflict('면접 세션의 질문 세트가 잠긴 설정과 다릅니다.', [
+        { field: 'sessionId', reason: 'SESSION_QUESTION_SET_MISMATCH' },
+      ]);
+    }
+    if (
+      !context.questionSet.questions.some(
+        (question) => question.questionId === dto.questionId,
+      )
+    ) {
+      conflict('질문이 잠긴 평가 컨텍스트에 포함되지 않았습니다.', [
+        { field: 'questionId', reason: 'QUESTION_NOT_IN_CONTEXT' },
+      ]);
+    }
+    if (source.followUpsUsed > context.questionSet.maxFollowUpCount) {
+      conflict('면접 세션의 꼬리질문 수가 잠긴 한도를 초과했습니다.', [
+        { field: 'sessionId', reason: 'FOLLOW_UP_LIMIT_EXCEEDED' },
+      ]);
+    }
+
+    const turns: Array<{
+      turnId: string;
+      answerId: number;
+      kind: 'PRIMARY' | 'FOLLOW_UP';
+      transcript: string;
+    }> = [
+      {
+        turnId: `answer:${source.primaryAnswer.answerId}`,
+        answerId: source.primaryAnswer.answerId,
+        kind: 'PRIMARY',
+        transcript: this.canonicalEvaluationTranscript(
+          source.primaryAnswer.transcript,
+          'primaryAnswerId',
+        ),
+      },
+    ];
+    if (source.followUpAnswer) {
+      turns.push({
+        turnId: `answer:${source.followUpAnswer.answerId}`,
+        answerId: source.followUpAnswer.answerId,
+        kind: 'FOLLOW_UP',
+        transcript: this.canonicalEvaluationTranscript(
+          source.followUpAnswer.transcript,
+          'followUpAnswer',
+        ),
+      });
+    }
+    if (!this.aiJobDispatcher) {
+      conflict('AI 평가 작업 큐를 사용할 수 없습니다.', [
+        { field: 'cohortId', reason: 'AI_DISPATCH_UNAVAILABLE' },
+      ]);
+    }
+
+    const evaluationInput = {
+      contractVersion: 'hiring-answer-evaluation.v1' as const,
+      context,
+      candidateId: source.candidateId,
+      sessionId: source.sessionId,
+      questionId: dto.questionId,
+      followUpsUsed: source.followUpsUsed,
+      turns,
+    };
+    const inputHash = createHash('sha256')
+      .update(JSON.stringify(evaluationInput), 'utf8')
+      .digest('hex');
+    const process = await this.aiJobDispatcher.dispatch({
+      processType: 'REPORT_GENERATE',
+      input: {
+        kind: 'HIRING_ANSWER_EVALUATION',
+        requestedBy: {
+          userId: currentUser.userId,
+          userType: currentUser.userType,
+          companyId: currentUser.companyId,
+        },
+        payload: {
+          step: 'HIRING_ANSWER_EVALUATION',
+          ...evaluationInput,
+        },
+      },
+      refs: {
+        sessionId: source.sessionId,
+        ...(source.applicationId === null
+          ? {}
+          : { applicationId: source.applicationId }),
+      },
+      idempotencyKey: `hiring-answer-eval:${cohortId}:${inputHash}`,
+    });
+    return {
+      accepted: true,
+      processLogId: process.processLogId,
+      status: process.status,
+      queued: process.queued,
+      deduplicated: process.deduplicated,
+      contextVersion: context.contextVersion,
+      cohortId,
+      candidateId: source.candidateId,
+      sessionId: source.sessionId,
+      questionId: dto.questionId,
+      primaryAnswerId: source.primaryAnswer.answerId,
+    };
+  }
+
   private async getOwnedPosting(currentUser: CurrentUser, postingId?: number) {
     this.assertCompanyUser(currentUser);
 
@@ -826,6 +1216,19 @@ export class CompanyInterviewService {
     }
   }
 
+  private canonicalEvaluationTranscript(
+    value: string | null,
+    field: string,
+  ): string {
+    const transcript = value?.trim();
+    if (!transcript || transcript.length > 20_000) {
+      conflict('STT 발화가 준비된 답변만 평가할 수 있습니다.', [
+        { field, reason: 'TRANSCRIPT_NOT_READY' },
+      ]);
+    }
+    return transcript;
+  }
+
   private async findCriterion(criterionId: number): Promise<EvaluationCriterionRecord> {
     const criterion = await this.repository.findCriterion(criterionId);
 
@@ -939,11 +1342,13 @@ export class CompanyInterviewService {
         policyId: configuration.cohort.policyId,
         questionSetSnapshotId:
           configuration.cohort.questionSetSnapshotId,
+        configurationHash: configuration.cohort.configurationHash,
         title: configuration.cohort.title,
         jobRole: configuration.cohort.jobRole,
         status: configuration.cohort.status,
         capacity: configuration.cohort.capacity,
         openedAt: configuration.cohort.openedAt.toISOString(),
+        lockedAt: configuration.cohort.lockedAt?.toISOString() ?? null,
         createdAt: configuration.cohort.createdAt.toISOString(),
       },
       policy: {

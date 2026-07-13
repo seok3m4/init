@@ -206,6 +206,48 @@ export class PrismaInterviewRepository implements InterviewRepository {
   }
 
   async saveRuntimeSession(session: RuntimeInterviewSession): Promise<RuntimeInterviewSession> {
+    const existingSnapshots = await this.prisma.interviewSessionQuestion.findMany({
+      where: { sessionId: BigInt(session.sessionId) },
+      select: {
+        questionId: true,
+        runtimeQuestionId: true,
+        questionType: true,
+        content: true,
+      },
+    });
+    const currentQuestions = await this.prisma.question.findMany({
+      where: {
+        questionId: {
+          in: session.questionIds.map((questionId) => BigInt(questionId)),
+        },
+      },
+      select: { questionId: true, questionType: true, content: true },
+    });
+    const snapshotsByQuestionId = new Map(
+      existingSnapshots.flatMap((snapshot) => {
+        const questionId = snapshot.questionId ?? snapshot.runtimeQuestionId;
+        return questionId === null || !snapshot.questionType || !snapshot.content
+          ? []
+          : [
+              [
+                Number(questionId),
+                {
+                  questionType: snapshot.questionType,
+                  content: snapshot.content,
+                },
+              ] as const,
+            ];
+      }),
+    );
+    currentQuestions.forEach((question) => {
+      if (!snapshotsByQuestionId.has(Number(question.questionId))) {
+        snapshotsByQuestionId.set(Number(question.questionId), {
+          questionType: question.questionType,
+          content: question.content,
+        });
+      }
+    });
+
     const updated = await this.prisma.interviewSession.update({
       where: { sessionId: BigInt(session.sessionId) },
       data: {
@@ -215,10 +257,15 @@ export class PrismaInterviewRepository implements InterviewRepository {
         completedAt: session.completedAt ? new Date(session.completedAt) : null,
         sessionQuestions: {
           deleteMany: {},
-          create: session.questionIds.map((questionId, sortOrder) => ({
-            questionId: BigInt(questionId),
-            sortOrder,
-          })),
+          create: session.questionIds.map((questionId, sortOrder) => {
+            const snapshot = snapshotsByQuestionId.get(questionId);
+            return {
+              questionId: BigInt(questionId),
+              questionType: snapshot?.questionType,
+              content: snapshot?.content,
+              sortOrder,
+            };
+          }),
         },
       },
       include: { application: true },

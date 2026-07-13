@@ -117,6 +117,77 @@ describe("PrismaInterviewRepository", () => {
     assert.equal(session?.currentQuestionIndex, 0);
   });
 
+  it("preserves the first session question text snapshot when runtime state is saved again", async () => {
+    let createdQuestions: Array<{
+      questionId: bigint;
+      questionType?: PrismaQuestionType;
+      content?: string;
+      sortOrder: number;
+    }> = [];
+    const prisma = {
+      interviewSessionQuestion: {
+        async findMany() {
+          return [
+            {
+              questionId: 1201n,
+              runtimeQuestionId: null,
+              questionType: PrismaQuestionType.TECHNICAL,
+              content: "지원자가 실제로 본 고정 질문",
+            },
+          ];
+        },
+      },
+      question: {
+        async findMany() {
+          return [
+            recruitingQuestion(1201n, PrismaQuestionType.TECHNICAL, "나중에 변경된 질문"),
+            recruitingQuestion(1202n, PrismaQuestionType.EXPERIENCE, "새로 추가된 질문"),
+          ];
+        },
+      },
+      interviewSession: {
+        async update(args: {
+          data: {
+            sessionQuestions: {
+              create: typeof createdQuestions;
+            };
+          };
+        }) {
+          createdQuestions = args.data.sessionQuestions.create;
+          return {
+            sessionId: 9001n,
+            applicationId: 77n,
+            candidateId: 1n,
+            interviewType: PrismaInterviewType.RECRUITING,
+            status: PrismaInterviewStatus.IN_PROGRESS,
+            showQuestionText: false,
+            startedAt: new Date("2026-07-13T00:00:00.000Z"),
+            completedAt: null,
+            application: { postingId: 1n },
+          };
+        },
+      },
+    };
+    const repository = new PrismaInterviewRepository(prisma as never);
+
+    await repository.saveRuntimeSession({
+      sessionId: 9001,
+      applicationId: 77,
+      candidateId: 1,
+      interviewType: "RECRUITING",
+      status: "IN_PROGRESS",
+      showQuestionText: false,
+      currentQuestionIndex: 0,
+      questionIds: [1201, 1202],
+      startedAt: "2026-07-13T00:00:00.000Z",
+      updatedAt: "2026-07-13T00:00:00.000Z",
+    });
+
+    assert.equal(createdQuestions[0]?.content, "지원자가 실제로 본 고정 질문");
+    assert.equal(createdQuestions[1]?.content, "새로 추가된 질문");
+    assert.equal(createdQuestions[1]?.questionType, PrismaQuestionType.EXPERIENCE);
+  });
+
   it("atomically reuses the first persisted NCS evaluation snapshot", async () => {
     const original = new BuiltInNcsEvaluationSnapshotResolver().resolve({
       questionId: 1201,

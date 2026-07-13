@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import type { CreateHiringSimulationConfigurationInput } from './company-interview.repository';
-import { HiringQuestionSetChangedError } from './company-interview.repository';
+import {
+  HiringEvaluationContextLockError,
+  HiringQuestionSetChangedError,
+} from './company-interview.repository';
 import { PrismaCompanyInterviewRepository } from './prisma-company-interview.repository';
 
 test('revalidates the active question set inside the creation transaction', async () => {
@@ -29,6 +32,160 @@ test('revalidates the active question set inside the creation transaction', asyn
     HiringQuestionSetChangedError,
   );
   assert.equal(policyCreateCalled, false);
+});
+
+test('assembles a hiring evaluation source only from persisted session answers and question snapshots', async () => {
+  let answerQueryCount = 0;
+  const prisma = {
+    interviewAnswer: {
+      async findFirst() {
+        answerQueryCount += 1;
+        if (answerQueryCount === 1) {
+          return {
+            answerId: 701n,
+            questionId: 101n,
+            transcript: ' 본질문 발화 ',
+            session: {
+              sessionId: 401n,
+              applicationId: 77n,
+              candidateId: 301n,
+              interviewType: 'RECRUITING',
+              status: 'COMPLETED',
+              application: { postingId: 1n },
+            },
+          };
+        }
+        return {
+          answerId: 702n,
+          questionId: 901n,
+          transcript: '꼬리질문 발화',
+        };
+      },
+    },
+    interviewSessionQuestion: {
+      async findMany() {
+        return [
+          {
+            questionId: 101n,
+            runtimeQuestionId: null,
+            questionType: 'TECHNICAL',
+            content: '고정 본질문',
+            sortOrder: 0,
+            question: {
+              questionId: 101n,
+              questionType: 'TECHNICAL',
+              content: '현재 본질문',
+            },
+          },
+          {
+            questionId: 901n,
+            runtimeQuestionId: null,
+            questionType: 'FOLLOW_UP',
+            content: '고정 꼬리질문',
+            sortOrder: 1,
+            question: {
+              questionId: 901n,
+              questionType: 'FOLLOW_UP',
+              content: '현재 꼬리질문',
+            },
+          },
+        ];
+      },
+    },
+    followUpQuestion: {
+      async findUnique() {
+        return {
+          content: '고정 꼬리질문',
+          generationStatus: 'GENERATED',
+        };
+      },
+    },
+  };
+  const repository = new PrismaCompanyInterviewRepository(prisma as never);
+
+  const source = await repository.findHiringAnswerEvaluationSource(
+    401,
+    101,
+    701,
+  );
+
+  assert.equal(source?.postingId, 1);
+  assert.equal(source?.candidateId, 301);
+  assert.deepEqual(source?.assignedQuestions, [
+    {
+      questionId: 101,
+      questionType: 'TECHNICAL',
+      content: '고정 본질문',
+      sortOrder: 0,
+    },
+  ]);
+  assert.equal(source?.primaryAnswer.transcript, ' 본질문 발화 ');
+  assert.equal(source?.followUpAnswer?.answerId, 702);
+  assert.equal(source?.followUpsUsed, 1);
+});
+
+test('locks a context only while the cohort still references the expected open configuration', async () => {
+  const configurationHash = `sha256:${'a'.repeat(64)}`;
+  let updateWhere: Record<string, unknown> | undefined;
+  const transaction = {
+    hiringEvaluationCohort: {
+      async findUnique() {
+        return {
+          cohortId: 51n,
+          companyId: 1n,
+          status: 'OPEN',
+          configurationHash,
+          questionSetSnapshotId: 61n,
+          questionSetSnapshot: {
+            postingId: 1n,
+            sourceQuestionSetId: 10n,
+            jobRole: '백엔드 개발자',
+            mode: 'QUICK',
+            questionCount: 3,
+            maxFollowUpCount: 2,
+          },
+        };
+      },
+      async updateMany(input: { where: Record<string, unknown> }) {
+        updateWhere = input.where;
+        return { count: 0 };
+      },
+    },
+    hiringQuestionSetSnapshot: {
+      async create() {
+        return { questionSetSnapshotId: 62n };
+      },
+    },
+  };
+  const repository = new PrismaCompanyInterviewRepository({
+    hiringEvaluationCohort: {
+      findUnique: async () => undefined,
+    },
+    $transaction: async (callback: (tx: typeof transaction) => unknown) =>
+      callback(transaction),
+  } as never);
+
+  await assert.rejects(
+    repository.lockHiringEvaluationContext({
+      cohortId: 51,
+      companyId: 1,
+      expectedConfigurationHash: configurationHash,
+      expectedQuestionSetSnapshotId: 61,
+      contextSnapshotVersion: 'hiring-evaluation-context-v1-test',
+      contextHash: `sha256:${'b'.repeat(64)}`,
+      snapshotJson: {} as never,
+    }),
+    (error: unknown) =>
+      error instanceof HiringEvaluationContextLockError &&
+      error.reason === 'COHORT_NOT_OPEN',
+  );
+  assert.deepEqual(updateWhere, {
+    cohortId: 51n,
+    companyId: 1n,
+    status: 'OPEN',
+    configurationHash,
+    questionSetSnapshotId: 61n,
+  });
 });
 
 function configurationInput(): CreateHiringSimulationConfigurationInput {

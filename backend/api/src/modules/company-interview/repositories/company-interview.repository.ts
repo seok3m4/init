@@ -2,6 +2,7 @@ import {
   CriterionTagRecord,
   EvaluationCriterionRecord,
   HiringDecisionMode,
+  HiringEvaluationContextSnapshotJson,
   HiringPolicySnapshot,
   HiringQuestionSetMode,
   HiringQuestionSetSnapshotJson,
@@ -28,6 +29,18 @@ export class HiringSimulationRequestKeyConflictError extends Error {
   constructor() {
     super('The request key is already associated with different input.');
     this.name = 'HiringSimulationRequestKeyConflictError';
+  }
+}
+
+export type HiringEvaluationContextLockFailureReason =
+  | 'COHORT_NOT_OPEN'
+  | 'CONFIGURATION_CHANGED'
+  | 'CONTEXT_MISMATCH';
+
+export class HiringEvaluationContextLockError extends Error {
+  constructor(readonly reason: HiringEvaluationContextLockFailureReason) {
+    super(`The hiring evaluation context could not be locked: ${reason}.`);
+    this.name = 'HiringEvaluationContextLockError';
   }
 }
 
@@ -107,6 +120,42 @@ export type CreateHiringSimulationConfigurationInput = {
   };
 };
 
+export type LockHiringEvaluationContextInput = {
+  cohortId: number;
+  companyId: number;
+  expectedConfigurationHash: string;
+  expectedQuestionSetSnapshotId: number;
+  contextSnapshotVersion: string;
+  contextHash: string;
+  snapshotJson: HiringEvaluationContextSnapshotJson;
+};
+
+export type HiringAnswerEvaluationSourceRecord = {
+  applicationId: number | null;
+  postingId: number | null;
+  candidateId: number;
+  sessionId: number;
+  interviewType: string;
+  sessionStatus: string;
+  assignedQuestions: Array<{
+    questionId: number;
+    questionType: QuestionType;
+    content: string;
+    sortOrder: number;
+  }>;
+  primaryAnswer: {
+    answerId: number;
+    questionId: number;
+    transcript: string | null;
+  };
+  followUpAnswer?: {
+    answerId: number;
+    questionId: number;
+    transcript: string | null;
+  };
+  followUpsUsed: number;
+};
+
 export interface CompanyInterviewRepository {
   findPosting(postingId: number): Promise<PostingRecord | undefined>;
   findDefaultPosting(companyId: number): Promise<PostingRecord | undefined>;
@@ -138,6 +187,14 @@ export interface CompanyInterviewRepository {
   createHiringSimulationConfiguration(
     input: CreateHiringSimulationConfigurationInput,
   ): Promise<HiringSimulationConfigurationRecord>;
+  lockHiringEvaluationContext(
+    input: LockHiringEvaluationContextInput,
+  ): Promise<HiringSimulationConfigurationRecord>;
+  findHiringAnswerEvaluationSource(
+    sessionId: number,
+    questionId: number,
+    primaryAnswerId: number,
+  ): Promise<HiringAnswerEvaluationSourceRecord | undefined>;
   findHiringSimulationConfiguration(
     cohortId: number,
   ): Promise<HiringSimulationConfigurationRecord | undefined>;

@@ -1,3 +1,5 @@
+import type { NcsEvaluationSnapshot } from '../interview/ncs-evaluation/ncs-evaluation-snapshot';
+
 export type PostingStatus =
   | 'DRAFT'
   | 'OPEN'
@@ -84,6 +86,75 @@ export type HiringQuestionSetSnapshotJson = {
   questionCount: number;
   maxFollowUpCount: number;
   questions: HiringQuestionSnapshotItem[];
+};
+
+export type TalentRubricSnapshotJson = {
+  contractVersion: 'talent-rubric-snapshot.v1';
+  rubricVersion: string;
+  sourceHash: string;
+  criteria: Array<{
+    id: string;
+    name: string;
+    definition: string;
+    weight: number;
+    behaviorIndicators: Array<{
+      id: string;
+      evidenceType: 'ACTION' | 'RATIONALE' | 'RESULT' | 'REFLECTION';
+      observability: 'ANSWER_TRANSCRIPT';
+      description: string;
+    }>;
+    requiredEvidence: Array<'ACTION' | 'RATIONALE' | 'RESULT' | 'REFLECTION'>;
+    scoringAnchors: Array<{
+      level: 1 | 2 | 3 | 4 | 5;
+      evidenceStrength: 1 | 2 | 3 | 4 | 5;
+      label: string;
+      description: string;
+    }>;
+  }>;
+  evidencePolicy: {
+    source: 'ANSWER_TRANSCRIPT';
+    requiredEvidenceRule: 'ALL_REQUIRED';
+    missingRequiredEvidenceStatus: 'INSUFFICIENT_EVIDENCE';
+    insufficientEvidenceScore: null;
+  };
+  prohibitedSignals: Array<{
+    category: 'SENSITIVE_ATTRIBUTE' | 'NONVERBAL_SIGNAL';
+    signals: string[];
+    detectedInSource: string[];
+    disposition: 'EXCLUDE_FROM_SCORING';
+  }>;
+};
+
+export type HiringEvaluationContextSnapshotJson = {
+  schemaVersion: 'hiring-evaluation-context.v1';
+  contextVersion: string;
+  contextHash: string;
+  calculationContractVersion: 'hiring-evaluation.v1';
+  cohort: {
+    cohortId: number;
+    companyId: number;
+    postingId: number;
+    configurationHash: string;
+  };
+  sourceConfiguration: {
+    policyId: number;
+    policyVersion: string;
+    questionSetSnapshotId: number;
+    questionSetSnapshotVersion: string;
+  };
+  policy: HiringPolicySnapshot;
+  questionSet: {
+    sourceQuestionSetId: number;
+    jobRole: string;
+    mode: HiringQuestionSetMode;
+    questionCount: number;
+    maxFollowUpCount: number;
+    questions: Array<HiringQuestionSnapshotItem & {
+      questionType: 'TECHNICAL' | 'EXPERIENCE' | 'SITUATION';
+      ncsEvaluationSnapshot: NcsEvaluationSnapshot;
+    }>;
+  };
+  talentRubric: TalentRubricSnapshotJson;
 };
 
 export type PostingRecord = {
@@ -173,7 +244,9 @@ export type HiringQuestionSetSnapshotRecord = {
   mode: HiringQuestionSetMode;
   questionCount: number;
   maxFollowUpCount: number;
-  snapshotJson: HiringQuestionSetSnapshotJson;
+  snapshotJson:
+    | HiringQuestionSetSnapshotJson
+    | HiringEvaluationContextSnapshotJson;
   createdAt: Date;
 };
 
@@ -191,6 +264,7 @@ export type HiringEvaluationCohortRecord = {
   status: HiringCohortStatus;
   capacity: number;
   openedAt: Date;
+  lockedAt?: Date | null;
   createdAt: Date;
 };
 
