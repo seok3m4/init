@@ -374,6 +374,54 @@ test("mock text practice upserts one answer and can complete without media", asy
   );
 });
 
+test("mock text practice can enrich an answered question before moving to the next question", async () => {
+  const repository = new InMemoryCandidateRepository();
+  const candidateService = new CandidateService(repository);
+  const interviewRepository = new InMemoryInterviewRepository();
+  const controller = new InterviewController(new InterviewService(candidateService, interviewRepository));
+
+  const started = await controller.startMockInterview(validCandidateRequest, {
+    questionTypes: ["TECHNICAL", "EXPERIENCE"],
+    showQuestionText: true,
+  });
+  const questions = await controller.listMockQuestions(validCandidateRequest, String(started.data.sessionId));
+  const firstQuestionId = questions.data.questions[0]?.questionId ?? 0;
+  const secondQuestionId = questions.data.questions[1]?.questionId ?? 0;
+  assert.notEqual(firstQuestionId, secondQuestionId);
+
+  const first = await controller.saveMockAnswer(validCandidateRequest, String(started.data.sessionId), {
+    questionId: firstQuestionId,
+    answerSource: "TEXT_INPUT",
+    transcript: "WebSocket을 선택했습니다.",
+    durationSeconds: 5,
+  });
+  const enriched = await controller.saveMockAnswer(validCandidateRequest, String(started.data.sessionId), {
+    questionId: firstQuestionId,
+    answerSource: "TEXT_INPUT",
+    transcript: "WebSocket을 선택했습니다. 동시 연결과 재연결 상황도 검증했습니다.",
+    durationSeconds: 12,
+  });
+
+  assert.equal(enriched.data.answer.answerId, first.data.answer.answerId);
+  assert.match(enriched.data.answer.transcript ?? "", /재연결/);
+
+  const fresh = await controller.startMockInterview(validCandidateRequest, {
+    questionTypes: ["TECHNICAL", "EXPERIENCE"],
+    showQuestionText: true,
+  });
+  const freshQuestions = await controller.listMockQuestions(validCandidateRequest, String(fresh.data.sessionId));
+  await assertInterviewHttpError(
+    () => controller.saveMockAnswer(validCandidateRequest, String(fresh.data.sessionId), {
+      questionId: freshQuestions.data.questions[1]?.questionId ?? 0,
+      answerSource: "TEXT_INPUT",
+      transcript: "현재 질문을 건너뛴 답변입니다.",
+      durationSeconds: 5,
+    }),
+    409,
+    "COMMON_CONFLICT",
+  );
+});
+
 test("mock realtime session creates a client handoff for an active interview session", async () => {
   const originalProvider = process.env.AI_INTERVIEWER_REALTIME_PROVIDER;
   process.env.AI_INTERVIEWER_REALTIME_PROVIDER = "mock";

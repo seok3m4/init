@@ -484,17 +484,22 @@ export class InterviewService {
     currentUser: CurrentCandidateUser,
   ): Promise<{ data: SaveInterviewAnswerResult; meta: { traceId: string; timestamp: string } }> {
     const requestBody = this.assertAnswerRequest(dto);
-    if (!requestBody.allowReanswer && !requestBody.retryAnswerId) {
+    const textInputAnswer = requestBody.answerSource === "TEXT_INPUT";
+    let existingAnswer = textInputAnswer
+      ? await this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId)
+      : undefined;
+    const updatingExistingTextAnswer =
+      textInputAnswer && existingAnswer !== undefined && session.questionIds.includes(requestBody.questionId);
+
+    if (!requestBody.allowReanswer && !requestBody.retryAnswerId && !updatingExistingTextAnswer) {
       session = await this.syncCurrentQuestionToFirstUnanswered(session);
     }
 
     this.assertInProgress(session);
-    const textInputAnswer = requestBody.answerSource === "TEXT_INPUT";
     if (textInputAnswer) {
       this.assertTextInputAnswerRequest(session, requestBody);
     }
 
-    let existingAnswer: InterviewAnswer | undefined;
     if (requestBody.retryAnswerId) {
       existingAnswer = await this.interviewRepository.findAnswerById(session.sessionId, requestBody.retryAnswerId);
       if (!existingAnswer || existingAnswer.questionId !== requestBody.questionId) {
@@ -510,13 +515,17 @@ export class InterviewService {
       }
       session.currentQuestionIndex = retryQuestionIndex;
     } else {
-      const currentQuestionId = this.currentQuestionId(session);
-      if (requestBody.questionId !== currentQuestionId) {
-        throw new CandidateDomainError("COMMON_CONFLICT", "Answer must match the current question.", 409, [
-          { field: "questionId", reason: `current question is ${currentQuestionId}` },
-        ]);
+      if (updatingExistingTextAnswer) {
+        session.currentQuestionIndex = session.questionIds.indexOf(requestBody.questionId);
+      } else {
+        const currentQuestionId = this.currentQuestionId(session);
+        if (requestBody.questionId !== currentQuestionId) {
+          throw new CandidateDomainError("COMMON_CONFLICT", "Answer must match the current question.", 409, [
+            { field: "questionId", reason: `current question is ${currentQuestionId}` },
+          ]);
+        }
       }
-      existingAnswer = await this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId);
+      existingAnswer ??= await this.interviewRepository.findAnswer(session.sessionId, requestBody.questionId);
       if (existingAnswer && !requestBody.allowReanswer && !textInputAnswer) {
         throw new CandidateDomainError("COMMON_CONFLICT", "Current question has already been answered.", 409, [
           { field: "questionId", reason: "question already answered" },
