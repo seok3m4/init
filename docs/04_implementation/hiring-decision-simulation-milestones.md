@@ -17,6 +17,52 @@
 - 코호트 상태는 `OPEN -> LOCKED -> EVALUATED -> FINALIZED` 단방향으로 전이한다.
 - 최종 결과는 `PASS`, `WAITLIST`, `FAIL`, `INSUFFICIENT_EVIDENCE` 중 하나다.
 
+## M0 Calculation Contract
+
+### Track Scores And Coverage
+
+- 모든 원시 행동 점수는 `0~100` 범위다. `INSUFFICIENT_EVIDENCE`는 `0`이 아니라 `null`로 유지한다.
+- 직무 점수는 질문 snapshot에 고정된 NCS 행동 포인트의 유효 점수를 세부 가중치로 가중 평균한다. 세부 가중치가 없으면 동일 가중치를 사용한다.
+- 인재상 점수는 `talent-rubric-snapshot.v1` criterion의 유효 점수를 criterion weight로 가중 평균한다.
+- `null` 항목은 점수 분자와 분모에서 제외하되, 제외된 비중은 근거 충족률에서 그대로 미충족으로 계산한다. 따라서 일부 항목만 답해 점수를 높이는 효과는 최소 근거 gate로 차단한다.
+- 직무 근거 충족률은 평가 완료 NCS 행동 포인트 가중치 합계 비율이고, 인재상 근거 충족률은 평가 완료 criterion weight 합계 비율이다.
+- 종합 근거 충족률은 `직무 근거 충족률 * 직무 비중 + 인재상 근거 충족률 * 인재상 비중`을 `100`으로 나눈 값이다. 비중이 `0`인 트랙은 근거 gate에서 제외한다.
+- 비중이 양수인 트랙의 점수가 `null`이거나 종합 근거 충족률이 관리자 최소값보다 낮으면 지원자 상태는 `INSUFFICIENT_EVIDENCE`다.
+- 모든 중간 계산은 반올림하지 않는다. 저장·비교 직전 최종 트랙 점수, 종합점수와 근거 충족률만 decimal half-up 방식으로 소수 둘째 자리까지 반올림한다.
+- 종합점수 공식은 `(직무 점수 * 직무 비중 + 인재상 점수 * 인재상 비중) / 100`이다.
+
+### Decision Modes
+
+| Mode | Evidence gate | Absolute score gate | Capacity ranking |
+| --- | --- | --- | --- |
+| `ABSOLUTE` | 적용 | 적용 | 미적용. gate 통과자는 `PASS`, 미통과자는 `FAIL` |
+| `RELATIVE` | 적용 | 미적용 | 적용. 근거 gate 통과자를 동일 comparator로 순위화 |
+| `HYBRID` | 적용 | 적용 | 적용. 절대 gate 통과자만 상대평가 진입 |
+
+- 절대 score gate는 비중이 양수인 트랙에만 적용한다. 예를 들어 인재상 비중이 `0`이면 `minimumTalentScore`는 판정에 사용하지 않는다.
+- `RELATIVE`에서도 근거 gate는 생략하지 않는다. 근거가 부족한 지원자는 순위 대상이 아니며 `INSUFFICIENT_EVIDENCE`다.
+- `ABSOLUTE`의 `capacity`는 정책 snapshot에 보존하지만 판정에는 사용하지 않는다.
+
+### Ranking, Ties And Percentile
+
+- 상대평가 comparator는 `종합점수 -> 더 높은 관리자 비중 트랙 점수 -> 해당 트랙 세부 점수 vector -> 종합 근거 충족률` 순서다.
+- 세부 점수 vector는 snapshot에 고정된 세부 가중치 내림차순, 동일 가중치이면 snapshot 순서로 정렬한 점수를 앞에서부터 사전식 비교한다. ID나 응시 시각은 값 비교에 사용하지 않는다.
+- 두 트랙 비중이 같으면 특정 트랙 점수와 세부 vector 비교를 모두 생략한다.
+- 모든 comparator 값이 같으면 competition ranking(`1, 2, 2, 4`)으로 동일 순위를 부여한다.
+- 동점 그룹이 합격 정원 경계를 가로지르면 그룹 전체를 `WAITLIST`로 둔다. 정원 안에 완전히 포함된 상위 그룹은 `PASS`, 경계 아래 그룹은 `FAIL`이다. 이 규칙은 정원을 억지로 채우기 위해 동점을 임의 분리하지 않는다.
+- 백분위는 절대 gate를 통과해 실제 순위가 있는 지원자만 계산한다. 공식은 지원자 수가 1명이면 `100`, 그 외에는 `(eligibleCount - rank) / (eligibleCount - 1) * 100`이다.
+- 절대 gate 미통과자와 `INSUFFICIENT_EVIDENCE`는 rank와 percentile이 `null`이다. `RELATIVE`에서 정원 밖 `FAIL`은 실제 rank와 percentile을 유지한다.
+
+### Snapshot And State Lifecycle
+
+1. M2는 관리자 입력과 선택 질문을 `hiring-question-set-configuration.v1` 불변 snapshot으로 생성하고 `OPEN` 코호트에 연결한다.
+2. M4는 `OPEN` 코호트를 잠글 때 공식/대체 NCS 평가 snapshot과 검증된 인재상 루브릭을 포함한 `hiring-evaluation-context.v1` 새 row를 생성한다. 기존 M2 snapshot row는 수정하지 않는다.
+3. 같은 transaction에서 코호트의 `question_set_snapshot_id`를 M4 snapshot으로 교체하고 상태를 `LOCKED`로 전이한다.
+4. `LOCKED` 이후에는 정책, 질문 순서, NCS 단위, 인재상 루브릭, 꼬리질문 한도와 지원자 집합을 변경하지 않는다.
+5. M4 답변 평가는 이 최종 context version과 질문 identity가 일치할 때만 실행한다.
+6. M5 집계 결과가 모두 terminal이면 `EVALUATED`, M6 최종 ranking snapshot을 선택하면 `FINALIZED`로 전이한다.
+7. `EVALUATED` 상태에서는 입력이 같은 재실행은 기존 revision을 재사용하고, 입력 변경 재평가는 새 revision을 만든다. `FINALIZED` 이후에는 새 판정 revision을 만들지 않는다.
+
 ## Milestone Order
 
 | Order | Milestone | Deliverable | Dependency |

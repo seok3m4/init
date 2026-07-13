@@ -1949,6 +1949,7 @@ AI 리포트 금지 기준:
 - UI Type: form
 - 상태 코드: 201 Created
 - 비동기: N
+- 계산 계약: `docs/03_contracts/hiring-evaluation.md`
 - 요청 데이터:
   - `postingId`: number, required, 1 이상의 정수
   - `sourceQuestionSetId`: number, required, 1 이상의 정수
