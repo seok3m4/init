@@ -116,13 +116,33 @@ test("민감 속성과 비언어 신호를 점수 기준에서 제거하고 금�
   );
 
   const technicalIncident = generateTalentRubricSnapshot([
-    { name: "장애 대응", description: "서비스 장애 원인을 분석하고 복구 결과를 확인한다." },
+    {
+      name: "장애 대응",
+      description: "서비스 장애를 자세히 분석하고 장애가 발생하면 빠르게 복구한 결과를 확인한다.",
+    },
   ]);
   assert.equal(technicalIncident.criteria[0]?.name, "장애 대응");
-  assert.equal(technicalIncident.criteria[0]?.definition, "서비스 장애 원인을 분석하고 복구 결과를 확인한다.");
+  assert.equal(
+    technicalIncident.criteria[0]?.definition,
+    "서비스 장애를 자세히 분석하고 장애가 발생하면 빠르게 복구한 결과를 확인한다.",
+  );
   assert.deepEqual(
     technicalIncident.prohibitedSignals.find((signal) => signal.category === "SENSITIVE_ATTRIBUTE")?.detectedInSource,
     [],
+  );
+  assert.deepEqual(
+    technicalIncident.prohibitedSignals.find((signal) => signal.category === "NONVERBAL_SIGNAL")?.detectedInSource,
+    [],
+  );
+});
+
+test("금지 신호 제거 후 같은 이름이 되는 인재상은 중복으로 거부한다", () => {
+  assertValidationError(
+    () => generateTalentRubricSnapshot([
+      { name: "남성 책임감", description: "맡은 일을 끝까지 수행한다." },
+      { name: "여성 책임감", description: "약속한 결과를 확인한다." },
+    ]),
+    "DUPLICATE_NAME",
   );
 });
 

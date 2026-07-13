@@ -35,7 +35,7 @@ const SIGNAL_GROUPS: readonly SignalGroup[] = [
       { label: "외모/용모", pattern: /외모|용모|\bappearance\b/giu },
       {
         label: "장애 여부",
-        pattern: /장애(?!물|\s*(?:대응|복구|발생|원인|예방|탐지|분석|처리|상황|시간|율|건수|영향))|\bdisabilit(?:y|ies)\b/giu,
+        pattern: /장애(?!물)\s*(?:여부|인|가\s*있는|를\s*가진|을\s*가진)?|\bdisabilit(?:y|ies)\b/giu,
       },
       { label: "인종/민족/국적", pattern: /인종|민족|국적|\brace\b|\bethnicity\b|\bnationality\b/giu },
       { label: "종교", pattern: /종교|\breligion\b/giu },
@@ -49,7 +49,10 @@ const SIGNAL_GROUPS: readonly SignalGroup[] = [
       { label: "시선/눈맞춤", pattern: /시선|눈\s*맞춤|아이\s*컨택|\bgaze\b|\beye\s+contact\b/giu },
       { label: "표정", pattern: /표정|\bfacial\s+expression\b/giu },
       { label: "목소리 톤/음색/억양", pattern: /목소리(?:의)?\s*톤|음색|억양|\bvoice\s+tone\b|\bintonation\b/giu },
-      { label: "자세/몸짓/제스처", pattern: /자세|몸짓|제스처|\bposture\b|\bgesture\b/giu },
+      {
+        label: "자세/몸짓/제스처",
+        pattern: /자세(?!히|하게|한)|몸짓|제스처|\bposture\b|\bgesture\b/giu,
+      },
       { label: "말하기 속도", pattern: /말(?:하기|의)?\s*속도|말하는\s*속도|\bspeaking\s+(?:pace|speed)\b/giu },
     ],
   },
@@ -59,6 +62,12 @@ export interface SanitizedTalentMeaning {
   readonly name: string;
   readonly definition: string;
 }
+
+const TECHNICAL_INCIDENT_SENTINEL = "__TECHNICAL_INCIDENT__";
+const TECHNICAL_INCIDENT_PREFIX =
+  /((?:서비스|시스템|서버|네트워크|데이터베이스|DB|인프라|애플리케이션|앱|소프트웨어|프로덕션|배포|운영)\s*)장애/giu;
+const TECHNICAL_INCIDENT_ACTION =
+  /장애(?=(?:를|을|가|는|의|로|에)?\s*(?:(?:신속(?:히|하게)|즉시|빠르게|자세히|자세하게|직접|먼저|자동으로)\s*)?(?:대응|복구|발생|원인|예방|탐지|분석|처리|해결|전파|알림|상황|시간|율|건수|영향))/giu;
 
 export function sanitizeTalentMeaning(
   item: NormalizedTalentProfileItem,
@@ -91,14 +100,14 @@ export function summarizeProhibitedSignals(
     category: group.category,
     signals: [...group.signals],
     detectedInSource: group.rules
-      .filter((rule) => matches(rule.pattern, source))
+      .filter((rule) => matchesRule(rule, source))
       .map((rule) => rule.label),
     disposition: "EXCLUDE_FROM_SCORING",
   }));
 }
 
 function sanitizeText(source: string): string {
-  let sanitized = source;
+  let sanitized = protectTechnicalIncidentTerms(source);
   for (const group of SIGNAL_GROUPS) {
     for (const rule of group.rules) {
       sanitized = sanitized.replace(clonePattern(rule.pattern), " ");
@@ -110,7 +119,22 @@ function sanitizeText(source: string): string {
     .replace(/(?:\s*[,;:/|·-]\s*){2,}/gu, ", ")
     .replace(/^[\s,;:/|·-]+|[\s,;:/|·-]+$/gu, "")
     .replace(/\s+/gu, " ")
-    .trim();
+    .trim()
+    .replaceAll(TECHNICAL_INCIDENT_SENTINEL, "장애");
+}
+
+function matchesRule(rule: SignalRule, source: string): boolean {
+  const candidate = rule.label === "장애 여부" ? protectTechnicalIncidentTerms(source) : source;
+  return matches(rule.pattern, candidate);
+}
+
+function protectTechnicalIncidentTerms(source: string): string {
+  return source
+    .replace(
+      clonePattern(TECHNICAL_INCIDENT_PREFIX),
+      (_match, prefix: string) => `${prefix}${TECHNICAL_INCIDENT_SENTINEL}`,
+    )
+    .replace(clonePattern(TECHNICAL_INCIDENT_ACTION), TECHNICAL_INCIDENT_SENTINEL);
 }
 
 function matches(pattern: RegExp, source: string): boolean {

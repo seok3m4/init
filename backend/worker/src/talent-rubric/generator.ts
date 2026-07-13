@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { sanitizeTalentMeaning, summarizeProhibitedSignals } from "./prohibited-signals";
+import {
+  sanitizeTalentMeaning,
+  summarizeProhibitedSignals,
+  type SanitizedTalentMeaning,
+} from "./prohibited-signals";
 import {
   TALENT_RUBRIC_CONTRACT_VERSION,
   TALENT_RUBRIC_VERSION,
@@ -10,7 +14,11 @@ import {
   type TalentRubricSnapshot,
   type TalentScoringAnchor,
 } from "./types";
-import { validateAndNormalizeTalentProfileItems, type NormalizedTalentProfileItem } from "./validation";
+import {
+  TalentRubricValidationError,
+  validateAndNormalizeTalentProfileItems,
+  type NormalizedTalentProfileItem,
+} from "./validation";
 import { normalizeTalentWeights } from "./weight-normalizer";
 
 const REQUIRED_EVIDENCE: readonly TalentEvidenceType[] = ["ACTION", "RATIONALE", "RESULT", "REFLECTION"];
@@ -54,8 +62,10 @@ export function generateTalentRubricSnapshot(
   const normalized = validateAndNormalizeTalentProfileItems(input);
   const normalizedWeights = normalizeTalentWeights(normalized.map((item) => item.sourceWeight));
   const sourceHash = createTalentRubricSourceHash(normalized);
+  const meanings = normalized.map((item, index) => sanitizeTalentMeaning(item, index));
+  assertUniqueSanitizedNames(meanings);
   const criteria = normalized.map((item, index) =>
-    buildCriterion(item, index, normalizedWeights[index] ?? 0),
+    buildCriterion(item, meanings[index]!, normalizedWeights[index] ?? 0),
   );
 
   if (criteria.reduce((sum, criterion) => sum + criterion.weight, 0) !== 100) {
@@ -88,10 +98,9 @@ function createTalentRubricSourceHash(items: readonly NormalizedTalentProfileIte
 
 function buildCriterion(
   source: NormalizedTalentProfileItem,
-  index: number,
+  meaning: SanitizedTalentMeaning,
   weight: number,
 ): TalentRubricCriterion {
-  const meaning = sanitizeTalentMeaning(source, index);
   const id = `talent-criterion-${sha256(JSON.stringify({ name: source.name, description: source.description })).slice(0, 16)}`;
   return {
     id,
@@ -102,6 +111,21 @@ function buildCriterion(
     requiredEvidence: [...REQUIRED_EVIDENCE],
     scoringAnchors: SCORING_ANCHORS.map((anchor) => ({ ...anchor })),
   };
+}
+
+function assertUniqueSanitizedNames(meanings: readonly SanitizedTalentMeaning[]): void {
+  const seen = new Set<string>();
+  meanings.forEach((meaning, index) => {
+    const key = meaning.name.normalize("NFKC").toLocaleLowerCase("ko-KR");
+    if (seen.has(key)) {
+      throw new TalentRubricValidationError(
+        "DUPLICATE_NAME",
+        `items[${index}].name`,
+        "must be unique after prohibited signals are removed",
+      );
+    }
+    seen.add(key);
+  });
 }
 
 function buildBehaviorIndicators(
