@@ -176,6 +176,21 @@ export interface NcsEvaluationRevisionRecord {
   output: unknown;
 }
 
+export interface HiringAnswerEvaluationRevisionRecord {
+  processLogId: number;
+  cohortId: number;
+  candidateId: number;
+  sessionId: number;
+  questionId: number;
+  primaryAnswerId: number;
+  contextVersion: string;
+  answerRevisionHash: string;
+  contractVersion: string;
+  evaluatorVersion: string;
+  inputSnapshot: unknown;
+  output: unknown;
+}
+
 export interface AiResultRepository {
   markDocumentExtractionStarted(record: DocumentExtractionStatusRecord): Promise<void>;
   saveDocumentExtraction(record: DocumentExtractionRecord): Promise<void>;
@@ -188,6 +203,7 @@ export interface AiResultRepository {
   saveGeneratedReport(record: GeneratedReportRecord): Promise<void>;
   markReportFailed(record: FailedReportRecord): Promise<void>;
   saveNcsEvaluationRevision(record: NcsEvaluationRevisionRecord): Promise<void>;
+  saveHiringAnswerEvaluationRevision(record: HiringAnswerEvaluationRevisionRecord): Promise<void>;
   upsertEmbedding(record: Omit<EmbeddingRecord, "sourceTextHash"> & { sourceText: string }): Promise<EmbeddingRecord>;
 }
 
@@ -270,6 +286,7 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   readonly generatedReports = new Map<number, GeneratedReportRecord>();
   readonly failedReports = new Map<number, FailedReportRecord>();
   readonly ncsEvaluationRevisions = new Map<number, NcsEvaluationRevisionRecord>();
+  readonly hiringAnswerEvaluationRevisions = new Map<number, HiringAnswerEvaluationRevisionRecord>();
   readonly embeddings = new Map<string, EmbeddingRecord>();
 
   private readonly documentExtractionsById = new Map<number, DocumentExtractionRecord>();
@@ -352,6 +369,12 @@ export class InMemoryAiResultRepository implements AiResultRepository {
   async saveNcsEvaluationRevision(record: NcsEvaluationRevisionRecord): Promise<void> {
     if (!this.ncsEvaluationRevisions.has(record.processLogId)) {
       this.ncsEvaluationRevisions.set(record.processLogId, structuredClone(record));
+    }
+  }
+
+  async saveHiringAnswerEvaluationRevision(record: HiringAnswerEvaluationRevisionRecord): Promise<void> {
+    if (!this.hiringAnswerEvaluationRevisions.has(record.processLogId)) {
+      this.hiringAnswerEvaluationRevisions.set(record.processLogId, structuredClone(record));
     }
   }
 

@@ -101,6 +101,7 @@ DTO와 API client 타입은 아래 naming을 따른다. 같은 요청/응답 타
 | `hiring_question_set_snapshots` | 코호트 공통 질문과 순서, 본질문/꼬리질문 한도 | C | D/E |
 | `hiring_evaluation_cohorts` | 코호트 생성, 정원, `OPEN -> LOCKED` | C | D/E |
 | `hiring_evaluation_cohorts` | `LOCKED -> EVALUATED -> FINALIZED` | C/E | B/D 제한 조회 |
+| `hiring_answer_evaluation_revisions` | 질문별 NCS·인재상 평가 revision과 발화 근거 | E | C/D 제한 조회 |
 | `candidate_evaluation_summaries` | 지원자별 NCS/인재상 집계와 근거 충족률 | D/E | C/B 제한 조회 |
 | `hiring_ranking_snapshots`, `hiring_ranking_entries` | 상대평가 revision, 순위, 백분위, 시뮬레이션 판정 | C/E | B/D 제한 조회 |
 

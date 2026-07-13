@@ -91,6 +91,18 @@ test("follow-up 질문에서는 추가 꼬리질문 생성을 중단한다", () 
   assert.equal(output.followUp.suggestedQuestion, null);
 });
 
+test("컨텍스트의 꼬리질문 한도를 소진하면 본질문 평가에서도 추가 생성을 중단한다", () => {
+  const output = new ProductEvidenceStateNcsEvaluationAdapter().evaluate({
+    ...productPayload({ transcript: "실행 계획을 확인했습니다." }),
+    followUpsUsed: 2,
+    maxFollowUps: 2,
+  });
+
+  assert.equal(output.followUp.required, false);
+  assert.equal(output.followUp.suggestedQuestion, null);
+  assert.ok(output.followUp.missingEvidence.length > 0);
+});
+
 test("고정 점수표와 질문 identity가 변조된 snapshot을 거부한다", () => {
   const adapter = new ProductEvidenceStateNcsEvaluationAdapter();
   const tamperedScoreMap = productPayload();

@@ -272,6 +272,7 @@ model CandidateProfile {
   paymentCustomers    PaymentCustomer[]
   paymentOrders       PaymentOrder[]
   evaluationSummaries CandidateEvaluationSummary[]
+  hiringAnswerEvaluationRevisions HiringAnswerEvaluationRevision[]
 
   @@map("candidate_profiles")
 }
@@ -358,6 +359,7 @@ model Question {
   sessionQuestions InterviewSessionQuestion[]
   ncsEvaluationSnapshots NcsEvaluationSnapshot[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
+  hiringAnswerEvaluationRevisions HiringAnswerEvaluationRevision[]
 
   @@map("question_bank")
 }
@@ -476,6 +478,7 @@ model InterviewSession {
   clientPerformanceLogs ClientPerformanceLog[]
   mockPassUsages        CandidateMockInterviewPassLedger[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
+  hiringAnswerEvaluationRevisions HiringAnswerEvaluationRevision[]
   candidateEvaluationSummaries CandidateEvaluationSummary[]
 
   @@map("interview_sessions")
@@ -554,6 +557,7 @@ model InterviewAnswer {
   followUpQuestions FollowUpQuestion[]
   reportEvidences   ReportEvidence[]
   ncsEvaluationRevisions NcsEvaluationRevision[]
+  hiringAnswerEvaluationRevisions HiringAnswerEvaluationRevision[]
 
   @@index([sessionQuestionId], map: "idx_interview_answers_session_question")
   @@map("interview_answers")
@@ -673,6 +677,7 @@ model AiProcessLog {
   clientPerformanceLogs ClientPerformanceLog[]
   createdQuestionSets   InterviewQuestionSet[]
   ncsEvaluationRevision NcsEvaluationRevision?
+  hiringAnswerEvaluationRevision HiringAnswerEvaluationRevision?
 
   @@map("ai_process_logs")
 }
@@ -735,6 +740,7 @@ model HiringQuestionSetSnapshot {
   posting               Posting?                 @relation(fields: [postingId], references: [postingId], onDelete: SetNull, map: "fk_hiring_question_set_snapshots_posting")
   sourceQuestionSet     InterviewQuestionSet?    @relation(fields: [sourceQuestionSetId], references: [questionSetId], onDelete: SetNull, map: "fk_hiring_question_set_snapshots_source_set")
   cohorts               HiringEvaluationCohort[]
+  hiringAnswerEvaluationRevisions HiringAnswerEvaluationRevision[]
 
   @@index([postingId, createdAt], map: "idx_hiring_question_set_snapshots_posting_created")
   @@index([sourceQuestionSetId], map: "idx_hiring_question_set_snapshots_source_set")
@@ -767,6 +773,7 @@ model HiringEvaluationCohort {
   createdBy             User                         @relation("HiringCohortCreator", fields: [createdByUserId], references: [userId], onDelete: Restrict, map: "fk_hiring_evaluation_cohorts_created_by")
   candidateSummaries    CandidateEvaluationSummary[]
   rankingSnapshots      HiringRankingSnapshot[]
+  answerEvaluationRevisions HiringAnswerEvaluationRevision[]
 
   @@unique([createdByUserId, requestKey], map: "uk_hiring_evaluation_cohorts_creator_request")
   @@index([companyId, status], map: "idx_hiring_evaluation_cohorts_company_status")
@@ -774,6 +781,36 @@ model HiringEvaluationCohort {
   @@index([policyId], map: "idx_hiring_evaluation_cohorts_policy")
   @@index([questionSetSnapshotId], map: "idx_hiring_evaluation_cohorts_question_snapshot")
   @@map("hiring_evaluation_cohorts")
+}
+
+model HiringAnswerEvaluationRevision {
+  revisionId         BigInt                    @id @default(autoincrement()) @map("revision_id")
+  processLogId       BigInt                    @unique(map: "uk_hiring_answer_eval_revisions_process") @map("process_log_id")
+  cohortId           BigInt                    @map("cohort_id")
+  candidateId        BigInt                    @map("candidate_id")
+  sessionId          BigInt                    @map("session_id")
+  questionId         BigInt                    @map("question_id")
+  primaryAnswerId    BigInt                    @map("primary_answer_id")
+  contextVersion     String                    @map("context_version") @db.VarChar(128)
+  answerRevisionHash String                    @map("answer_revision_hash") @db.VarChar(80)
+  contractVersion    String                    @map("contract_version") @db.VarChar(80)
+  evaluatorVersion   String                    @map("evaluator_version") @db.VarChar(128)
+  inputSnapshotJson  String                    @map("input_snapshot_json")
+  outputJson         String                    @map("output_json")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  processLog         AiProcessLog              @relation(fields: [processLogId], references: [processLogId], onDelete: Cascade, map: "fk_hiring_answer_eval_revisions_process")
+  cohort             HiringEvaluationCohort    @relation(fields: [cohortId], references: [cohortId], onDelete: Cascade, map: "fk_hiring_answer_eval_revisions_cohort")
+  candidate          CandidateProfile          @relation(fields: [candidateId], references: [candidateId], onDelete: Restrict, map: "fk_hiring_answer_eval_revisions_candidate")
+  session            InterviewSession          @relation(fields: [sessionId], references: [sessionId], onDelete: Restrict, map: "fk_hiring_answer_eval_revisions_session")
+  question           Question                  @relation(fields: [questionId], references: [questionId], onDelete: Restrict, map: "fk_hiring_answer_eval_revisions_question")
+  primaryAnswer      InterviewAnswer           @relation(fields: [primaryAnswerId], references: [answerId], onDelete: Restrict, map: "fk_hiring_answer_eval_revisions_answer")
+  contextSnapshot    HiringQuestionSetSnapshot @relation(fields: [contextVersion], references: [snapshotVersion], onDelete: Restrict, map: "fk_hiring_answer_eval_revisions_context")
+
+  @@unique([cohortId, candidateId, questionId, answerRevisionHash], map: "uk_hiring_answer_eval_revisions_input")
+  @@index([cohortId, candidateId, createdAt], map: "idx_hiring_answer_eval_revisions_candidate")
+  @@index([sessionId, questionId, createdAt], map: "idx_hiring_answer_eval_revisions_session")
+  @@index([contextVersion], map: "idx_hiring_answer_eval_revisions_context")
+  @@map("hiring_answer_evaluation_revisions")
 }
 
 model CandidateEvaluationSummary {

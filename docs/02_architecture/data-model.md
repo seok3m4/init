@@ -526,6 +526,27 @@
 
 코호트 상태는 `OPEN -> LOCKED -> EVALUATED -> FINALIZED`로만 전이한다. `LOCKED` 이후에는 `policy_id`, `question_set_snapshot_id`, `capacity`와 지원자 집합을 변경하지 않는다. `(created_by_user_id, request_key)`는 unique이며 같은 hash 재전달은 기존 코호트를 재사용하고 다른 hash는 충돌로 거부한다.
 
+### hiring_answer_evaluation_revisions
+
+| Column | Definition | Description |
+| --- |--- |--- |
+| revision_id | BIGINT PRIMARY KEY | 질문별 NCS·인재상 이중 평가 불변 revision PK |
+| process_log_id | BIGINT NOT NULL UNIQUE | 평가를 실행한 AI process FK |
+| cohort_id | BIGINT NOT NULL | 잠긴 평가 컨텍스트의 코호트 FK |
+| candidate_id | BIGINT NOT NULL | 평가 지원자 FK |
+| session_id | BIGINT NOT NULL | 실제 발화가 저장된 면접 세션 FK |
+| question_id | BIGINT NOT NULL | context에 고정된 본질문 FK |
+| primary_answer_id | BIGINT NOT NULL | 본질문 답변 FK |
+| context_version | VARCHAR(128) NOT NULL | `hiring_question_set_snapshots.snapshot_version` FK |
+| answer_revision_hash | VARCHAR(80) NOT NULL | context, 지원자, 세션, 질문과 답변 turn 전체의 SHA-256 |
+| contract_version | VARCHAR(80) NOT NULL | `hiring-answer-evaluation.v1` |
+| evaluator_version | VARCHAR(128) NOT NULL | 이중 평가기 구현 버전 |
+| input_snapshot_json | TEXT NOT NULL | context와 PRIMARY/FOLLOW_UP 발화의 canonical 불변 입력 |
+| output_json | TEXT NOT NULL | NCS와 인재상 독립 결과 및 정확한 발화 offset |
+| created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | revision 생성 시각 |
+
+`process_log_id` 재전달은 같은 revision을 재사용한다. `(cohort_id, candidate_id, question_id, answer_revision_hash)`도 unique이므로 동일 답변 revision을 다른 process로 중복 저장할 수 없다. `context_version`은 실제 snapshot row를 참조하고, service와 worker가 `hiring-evaluation-context.v1` 계약 및 hash를 검증해 M2 설정 snapshot을 평가 컨텍스트로 사용하는 것을 차단한다.
+
 ### candidate_evaluation_summaries
 
 | Column | Definition | Description |

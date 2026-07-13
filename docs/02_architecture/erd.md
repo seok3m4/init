@@ -75,6 +75,7 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | hiring_evaluation_policies | policy_id | 13 | 관리자 비중과 절대 gate의 불변 정책 | posting_id -> postings.posting_id / created_by_user_id -> users.user_id |
 | hiring_question_set_snapshots | question_set_snapshot_id | 10 | 코호트 공통 질문·순서·개수 불변 snapshot | posting_id -> postings.posting_id / source_question_set_id -> interview_question_sets.question_set_id |
 | hiring_evaluation_cohorts | cohort_id | 18 | 동일 조건 상대평가 지원자 집합과 생성 멱등성 | company_id -> companies.company_id / posting_id -> postings.posting_id / policy_id -> hiring_evaluation_policies.policy_id / question_set_snapshot_id -> hiring_question_set_snapshots.question_set_snapshot_id / created_by_user_id -> users.user_id |
+| hiring_answer_evaluation_revisions | revision_id | 14 | 잠긴 context와 실제 답변 revision의 NCS·인재상 이중 평가 | process_log_id -> ai_process_logs.process_log_id / cohort_id -> hiring_evaluation_cohorts.cohort_id / candidate_id -> candidate_profiles.candidate_id / session_id -> interview_sessions.session_id / question_id -> question_bank.question_id / primary_answer_id -> interview_answers.answer_id / context_version -> hiring_question_set_snapshots.snapshot_version |
 | candidate_evaluation_summaries | summary_id | 15 | 지원자별 직무·인재상 종합점수와 근거 충족률 | cohort_id -> hiring_evaluation_cohorts.cohort_id / candidate_id -> candidate_profiles.candidate_id / session_id -> interview_sessions.session_id |
 | hiring_ranking_snapshots | ranking_snapshot_id | 10 | 코호트 순위 계산 revision | cohort_id -> hiring_evaluation_cohorts.cohort_id |
 | hiring_ranking_entries | ranking_entry_id | 9 | snapshot별 지원자 순위·백분위·판정 | ranking_snapshot_id -> hiring_ranking_snapshots.ranking_snapshot_id / summary_id -> candidate_evaluation_summaries.summary_id |
@@ -145,6 +146,13 @@ ERDCloud SQL을 사람이 읽는 테이블/관계 문서로 변환한다.
 | hiring_evaluation_cohorts | policy_id | hiring_evaluation_policies.policy_id | fk_hiring_evaluation_cohorts_policy |
 | hiring_evaluation_cohorts | question_set_snapshot_id | hiring_question_set_snapshots.question_set_snapshot_id | fk_hiring_evaluation_cohorts_question_snapshot |
 | hiring_evaluation_cohorts | created_by_user_id | users.user_id | fk_hiring_evaluation_cohorts_created_by |
+| hiring_answer_evaluation_revisions | process_log_id | ai_process_logs.process_log_id | fk_hiring_answer_eval_revisions_process |
+| hiring_answer_evaluation_revisions | cohort_id | hiring_evaluation_cohorts.cohort_id | fk_hiring_answer_eval_revisions_cohort |
+| hiring_answer_evaluation_revisions | candidate_id | candidate_profiles.candidate_id | fk_hiring_answer_eval_revisions_candidate |
+| hiring_answer_evaluation_revisions | session_id | interview_sessions.session_id | fk_hiring_answer_eval_revisions_session |
+| hiring_answer_evaluation_revisions | question_id | question_bank.question_id | fk_hiring_answer_eval_revisions_question |
+| hiring_answer_evaluation_revisions | primary_answer_id | interview_answers.answer_id | fk_hiring_answer_eval_revisions_answer |
+| hiring_answer_evaluation_revisions | context_version | hiring_question_set_snapshots.snapshot_version | fk_hiring_answer_eval_revisions_context |
 | candidate_evaluation_summaries | cohort_id | hiring_evaluation_cohorts.cohort_id | fk_candidate_evaluation_summaries_cohort |
 | candidate_evaluation_summaries | candidate_id | candidate_profiles.candidate_id | fk_candidate_evaluation_summaries_candidate |
 | candidate_evaluation_summaries | session_id | interview_sessions.session_id | fk_candidate_evaluation_summaries_session |

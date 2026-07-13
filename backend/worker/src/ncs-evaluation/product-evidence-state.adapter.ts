@@ -19,7 +19,7 @@ import type { GuardrailDecision } from "../worker.types";
 
 export const NCS_EVALUATION_PRODUCT_CONTRACT_VERSION = "ncs-evaluation-product.v1" as const;
 
-interface NcsEvaluationProductSnapshot {
+export interface NcsEvaluationProductSnapshot {
   contractVersion: typeof NCS_EVALUATION_PRODUCT_CONTRACT_VERSION;
   snapshotVersion: string;
   locale: "ko-KR";
@@ -36,6 +36,10 @@ interface ParsedNcsEvaluationPayload {
   answerId?: number;
   transcript: string;
   evaluationSnapshot: NcsEvaluationProductSnapshot;
+  interviewContext: {
+    followUpsUsed: number;
+    maxFollowUps: number;
+  };
 }
 
 export interface NcsEvaluationProductOutput {
@@ -144,6 +148,18 @@ function parsePayload(payload: Record<string, unknown>): ParsedNcsEvaluationPayl
   const answerId = optionalPositiveInteger(payload.answerId, "payload.answerId");
   const transcript = canonicalTranscript(payload.transcript);
   const evaluationSnapshot = parseSnapshot(payload.evaluationSnapshot);
+  const defaultFollowUpsUsed = evaluationSnapshot.question.questionType === "FOLLOW_UP" ? 1 : 0;
+  const followUpsUsed = optionalNonNegativeInteger(
+    payload.followUpsUsed,
+    "payload.followUpsUsed",
+  ) ?? defaultFollowUpsUsed;
+  const maxFollowUps = optionalNonNegativeInteger(
+    payload.maxFollowUps,
+    "payload.maxFollowUps",
+  ) ?? 1;
+  if (followUpsUsed > maxFollowUps) {
+    throw invalid("payload.followUpsUsed", "must not exceed payload.maxFollowUps");
+  }
 
   if (evaluationSnapshot.question.questionId !== String(questionId)) {
     throw invalid("payload.evaluationSnapshot.question.questionId", "must match payload.questionId");
@@ -155,6 +171,7 @@ function parsePayload(payload: Record<string, unknown>): ParsedNcsEvaluationPayl
     ...(answerId !== undefined ? { answerId } : {}),
     transcript,
     evaluationSnapshot,
+    interviewContext: { followUpsUsed, maxFollowUps },
   };
 }
 
@@ -341,7 +358,7 @@ function toEvaluationInput(parsed: ParsedNcsEvaluationPayload): NcsEvaluationInp
   const snapshot = parsed.evaluationSnapshot;
   const transcriptHash = createHash("sha256").update(parsed.transcript).digest("hex").slice(0, 16);
   const answerIdentity = parsed.answerId === undefined ? "text-" + transcriptHash : String(parsed.answerId);
-  const followUpsUsed = snapshot.question.questionType === "FOLLOW_UP" ? 1 : 0;
+  const { followUpsUsed, maxFollowUps } = parsed.interviewContext;
 
   return {
     contractVersion: NCS_EVALUATION_CONTRACT_VERSION,
@@ -356,7 +373,7 @@ function toEvaluationInput(parsed: ParsedNcsEvaluationPayload): NcsEvaluationInp
     behaviorPoints: snapshot.behaviorPoints,
     interviewContext: {
       attemptNumber: followUpsUsed + 1,
-      maxFollowUps: 1,
+      maxFollowUps,
       followUpsUsed,
     },
     evaluationPolicy: snapshot.evaluationPolicy,
@@ -408,7 +425,8 @@ function toProductFollowUp(
   const missingEvidence = EVIDENCE_TYPES.filter((type) =>
     evaluated.behaviorEvaluations.some((evaluation) => evaluation.missingEvidence.includes(type)),
   );
-  const required = missingEvidence.length > 0 && parsed.evaluationSnapshot.question.questionType !== "FOLLOW_UP";
+  const required = missingEvidence.length > 0
+    && parsed.interviewContext.followUpsUsed < parsed.interviewContext.maxFollowUps;
   const roleOrUnitName = parsed.evaluationSnapshot.jobRole ?? parsed.evaluationSnapshot.ncsContext.unit.name;
   const roleDomainRelevant = isJobRoleDomainRelevant(roleOrUnitName, parsed.transcript);
 
@@ -595,6 +613,14 @@ function positiveInteger(value: unknown, field: string): number {
 
 function optionalPositiveInteger(value: unknown, field: string): number | undefined {
   return value === undefined ? undefined : positiveInteger(value, field);
+}
+
+function optionalNonNegativeInteger(value: unknown, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || Number(value) < 0) {
+    throw invalid(field, "non-negative integer is required");
+  }
+  return Number(value);
 }
 
 function optionalJobRole(value: unknown, field: string): string | null {

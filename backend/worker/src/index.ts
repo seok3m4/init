@@ -1,4 +1,5 @@
 export * from "./ai-result.repository";
+export * from "./hiring-evaluation";
 export * from "./mock-ai-task.handler";
 export * from "./ncs-evaluation/product-evidence-state.adapter";
 export * from "./openai-follow-up.provider";

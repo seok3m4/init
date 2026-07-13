@@ -24,6 +24,11 @@ import {
   ncsEvaluationGuardrailDecision,
   ProductEvidenceStateNcsEvaluationAdapter
 } from "./ncs-evaluation/product-evidence-state.adapter";
+import {
+  HiringAnswerEvaluator,
+  hiringAnswerEvaluationGuardrailDecision,
+  type HiringAnswerEvaluationInput,
+} from "./hiring-evaluation";
 
 interface WorkerInput {
   kind?: string;
@@ -66,6 +71,7 @@ const MOCK_HIRING_DECISION_TERMS = [
 
 export class MockAiTaskHandler implements AiTaskHandler {
   private readonly ncsEvaluationAdapter = new ProductEvidenceStateNcsEvaluationAdapter();
+  private readonly hiringAnswerEvaluator = new HiringAnswerEvaluator();
 
   constructor(
     private readonly results: AiResultRepository,
@@ -235,6 +241,30 @@ export class MockAiTaskHandler implements AiTaskHandler {
 
   private reportGenerate(kind: string, payload: Record<string, unknown>, processLogId: number): AiTaskResult {
     switch (payload.step) {
+      case "HIRING_ANSWER_EVALUATION": {
+        if (kind !== "HIRING_ANSWER_EVALUATION") {
+          throw new NonRetryableAiWorkerFailure("hiring answer evaluation requires HIRING_ANSWER_EVALUATION kind");
+        }
+        const output = this.hiringAnswerEvaluator.evaluate(payload as unknown as HiringAnswerEvaluationInput);
+        return {
+          outputRef: JSON.stringify(output),
+          guardrail: hiringAnswerEvaluationGuardrailDecision(output),
+          finalSave: () => this.results.saveHiringAnswerEvaluationRevision({
+            processLogId,
+            cohortId: output.cohortId,
+            candidateId: output.candidateId,
+            sessionId: output.sessionId,
+            questionId: output.questionId,
+            primaryAnswerId: output.primaryAnswerId,
+            contextVersion: output.contextVersion,
+            answerRevisionHash: output.answerRevisionHash,
+            contractVersion: output.contractVersion,
+            evaluatorVersion: output.metadata.evaluatorVersion,
+            inputSnapshot: { kind, payload },
+            output,
+          }),
+        };
+      }
       case "NCS_ANSWER_EVALUATION": {
         if (kind !== "MOCK_NCS_ANSWER_EVALUATION") {
           throw new NonRetryableAiWorkerFailure("NCS answer evaluation requires MOCK_NCS_ANSWER_EVALUATION kind");

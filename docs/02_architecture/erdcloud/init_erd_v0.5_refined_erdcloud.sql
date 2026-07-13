@@ -709,6 +709,23 @@ CREATE TABLE hiring_evaluation_cohorts (
     updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE hiring_answer_evaluation_revisions (
+    revision_id BIGINT PRIMARY KEY,
+    process_log_id BIGINT NOT NULL,
+    cohort_id BIGINT NOT NULL,
+    candidate_id BIGINT NOT NULL,
+    session_id BIGINT NOT NULL,
+    question_id BIGINT NOT NULL,
+    primary_answer_id BIGINT NOT NULL,
+    context_version VARCHAR(128) NOT NULL,
+    answer_revision_hash VARCHAR(80) NOT NULL,
+    contract_version VARCHAR(80) NOT NULL,
+    evaluator_version VARCHAR(128) NOT NULL,
+    input_snapshot_json TEXT NOT NULL,
+    output_json TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE candidate_evaluation_summaries (
     summary_id BIGINT PRIMARY KEY,
     cohort_id BIGINT NOT NULL,
@@ -1025,6 +1042,34 @@ ALTER TABLE hiring_evaluation_cohorts
     ADD CONSTRAINT fk_hiring_evaluation_cohorts_created_by
     FOREIGN KEY (created_by_user_id) REFERENCES users(user_id);
 
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_process
+    FOREIGN KEY (process_log_id) REFERENCES ai_process_logs(process_log_id);
+
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_cohort
+    FOREIGN KEY (cohort_id) REFERENCES hiring_evaluation_cohorts(cohort_id);
+
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_candidate
+    FOREIGN KEY (candidate_id) REFERENCES candidate_profiles(candidate_id);
+
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_session
+    FOREIGN KEY (session_id) REFERENCES interview_sessions(session_id);
+
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_question
+    FOREIGN KEY (question_id) REFERENCES question_bank(question_id);
+
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_answer
+    FOREIGN KEY (primary_answer_id) REFERENCES interview_answers(answer_id);
+
+ALTER TABLE hiring_answer_evaluation_revisions
+    ADD CONSTRAINT fk_hiring_answer_eval_revisions_context
+    FOREIGN KEY (context_version) REFERENCES hiring_question_set_snapshots(snapshot_version);
+
 ALTER TABLE candidate_evaluation_summaries
     ADD CONSTRAINT fk_candidate_evaluation_summaries_cohort
     FOREIGN KEY (cohort_id) REFERENCES hiring_evaluation_cohorts(cohort_id);
@@ -1115,6 +1160,11 @@ CREATE INDEX idx_hiring_evaluation_cohorts_company_status ON hiring_evaluation_c
 CREATE INDEX idx_hiring_evaluation_cohorts_policy ON hiring_evaluation_cohorts(policy_id);
 CREATE INDEX idx_hiring_evaluation_cohorts_question_snapshot ON hiring_evaluation_cohorts(question_set_snapshot_id);
 CREATE UNIQUE INDEX uk_hiring_evaluation_cohorts_creator_request ON hiring_evaluation_cohorts(created_by_user_id, request_key);
+CREATE UNIQUE INDEX uk_hiring_answer_eval_revisions_process ON hiring_answer_evaluation_revisions(process_log_id);
+CREATE UNIQUE INDEX uk_hiring_answer_eval_revisions_input ON hiring_answer_evaluation_revisions(cohort_id, candidate_id, question_id, answer_revision_hash);
+CREATE INDEX idx_hiring_answer_eval_revisions_candidate ON hiring_answer_evaluation_revisions(cohort_id, candidate_id, created_at);
+CREATE INDEX idx_hiring_answer_eval_revisions_session ON hiring_answer_evaluation_revisions(session_id, question_id, created_at);
+CREATE INDEX idx_hiring_answer_eval_revisions_context ON hiring_answer_evaluation_revisions(context_version);
 CREATE UNIQUE INDEX uk_candidate_evaluation_summaries_cohort_candidate ON candidate_evaluation_summaries(cohort_id, candidate_id);
 CREATE UNIQUE INDEX uk_candidate_evaluation_summaries_cohort_session ON candidate_evaluation_summaries(cohort_id, session_id);
 CREATE INDEX idx_candidate_evaluation_summaries_cohort_status ON candidate_evaluation_summaries(cohort_id, status);

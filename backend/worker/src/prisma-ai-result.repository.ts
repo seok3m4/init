@@ -10,6 +10,7 @@ import {
   GeneratedDraftRecord,
   GeneratedReportRecord,
   GeneratedReportScoreRecord,
+  HiringAnswerEvaluationRevisionRecord,
   NcsEvaluationRevisionRecord,
   assertQuestionEvaluationsHaveEvidence,
   TranscriptRecord,
@@ -50,6 +51,9 @@ interface PrismaAiResultClient {
     update(args: unknown): Promise<unknown>;
   };
   ncsEvaluationRevision: {
+    upsert(args: unknown): Promise<unknown>;
+  };
+  hiringAnswerEvaluationRevision: {
     upsert(args: unknown): Promise<unknown>;
   };
 }
@@ -219,6 +223,29 @@ export class PrismaAiResultRepository implements AiResultRepository {
         contractVersion: record.contractVersion,
         snapshotVersion: record.snapshotVersion,
         strategyId: record.strategyId,
+        inputSnapshotJson: JSON.stringify(record.inputSnapshot),
+        outputJson: JSON.stringify(record.output),
+        createdAt: new Date()
+      },
+      update: {}
+    });
+  }
+
+  async saveHiringAnswerEvaluationRevision(record: HiringAnswerEvaluationRevisionRecord): Promise<void> {
+    await this.prisma.hiringAnswerEvaluationRevision.upsert({
+      where: { processLogId: BigInt(record.processLogId) },
+      create: {
+        revisionId: this.nextId(),
+        processLogId: BigInt(record.processLogId),
+        cohortId: BigInt(record.cohortId),
+        candidateId: BigInt(record.candidateId),
+        sessionId: BigInt(record.sessionId),
+        questionId: BigInt(record.questionId),
+        primaryAnswerId: BigInt(record.primaryAnswerId),
+        contextVersion: record.contextVersion,
+        answerRevisionHash: record.answerRevisionHash,
+        contractVersion: record.contractVersion,
+        evaluatorVersion: record.evaluatorVersion,
         inputSnapshotJson: JSON.stringify(record.inputSnapshot),
         outputJson: JSON.stringify(record.output),
         createdAt: new Date()

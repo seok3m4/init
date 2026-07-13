@@ -423,6 +423,33 @@ test("PrismaAiResultRepository stores an immutable NCS evaluation revision by pr
   assert.match(call?.args.create.inputSnapshotJson, /MOCK_NCS_ANSWER_EVALUATION/);
 });
 
+test("PrismaAiResultRepository stores an immutable hiring answer revision by process", async () => {
+  const calls: Array<{ model: string; method: string; args: any }> = [];
+  const repository = new PrismaAiResultRepository(fakePrisma(calls));
+
+  await repository.saveHiringAnswerEvaluationRevision({
+    processLogId: 902,
+    cohortId: 41,
+    candidateId: 301,
+    sessionId: 101,
+    questionId: 501,
+    primaryAnswerId: 701,
+    contextVersion: "hiring-evaluation-context-v1-test",
+    answerRevisionHash: `sha256:${"a".repeat(64)}`,
+    contractVersion: "hiring-answer-evaluation.v1",
+    evaluatorVersion: "hiring-dual-evaluator.v1",
+    inputSnapshot: { kind: "HIRING_ANSWER_EVALUATION" },
+    output: { contractVersion: "hiring-answer-evaluation.v1" },
+  });
+
+  const call = calls.find((item) => item.model === "hiringAnswerEvaluationRevision");
+  assert.equal(call?.method, "upsert");
+  assert.equal(call?.args.where.processLogId, BigInt(902));
+  assert.equal(call?.args.create.cohortId, BigInt(41));
+  assert.equal(call?.args.create.primaryAnswerId, BigInt(701));
+  assert.deepEqual(call?.args.update, {});
+});
+
 function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) {
   return {
     application: {
@@ -492,6 +519,11 @@ function fakePrisma(calls: Array<{ model: string; method: string; args: any }>) 
     ncsEvaluationRevision: {
       async upsert(args: any) {
         calls.push({ model: "ncsEvaluationRevision", method: "upsert", args });
+      }
+    },
+    hiringAnswerEvaluationRevision: {
+      async upsert(args: any) {
+        calls.push({ model: "hiringAnswerEvaluationRevision", method: "upsert", args });
       }
     }
   };
