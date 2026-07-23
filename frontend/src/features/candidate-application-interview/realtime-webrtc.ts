@@ -45,6 +45,10 @@ export interface RealtimeInterviewWebRtcConnection {
    * Outbound microphone tracks used only by the realtime provider.
    * They are cloned from the recording stream so UI recording and metering stay active
    * while provider input is gated during assistant speech playback.
+   *
+   * 공부용 핵심: 여기서 끄는 것은 AI 면접관에게 보내는 "복사 마이크"뿐이다.
+   * 녹화와 STT가 쓰는 원래 마이크는 계속 켜져 있으므로, 스피커 소리가 마이크에
+   * 되들어오면 STT 쪽에서는 그 소리도 들을 수 있다.
    */
   localAudioTracks: MediaStreamTrack[];
   close(): void;
@@ -131,6 +135,8 @@ export function createRealtimeInterviewSpeechResponseEvent({
     type: "response.create",
     event_id: `interview_${purpose}_${questionId ?? "session"}_${playbackId}`,
     response: {
+      // 공부용 발화 요청: 이전 Realtime 대화에 넣지 않고, 아래 input의 text를
+      // 이번 한 번의 음성 응답에만 쓰도록 out-of-band 요청을 만든다.
       conversation: "none",
       output_modalities: ["audio"],
       metadata,
@@ -162,6 +168,8 @@ export function sendRealtimeSpeechClientEvent(
   connection: RealtimeInterviewWebRtcConnection | null | undefined,
   event: RealtimeInterviewSpeechResponseEvent,
 ): boolean {
+  // AI 음성이 AI 입력으로 되먹임되지 않게 복사 마이크를 잠근 뒤 DataChannel로 보낸다.
+  // 이 잠금은 녹화/STT의 원본 마이크에는 적용되지 않는다.
   setRealtimeInterviewMicrophoneEnabled(connection, false);
   const sent = sendRealtimeClientEvent(connection, event);
   if (!sent) {
@@ -231,6 +239,8 @@ export function shouldRestoreRealtimeMicrophoneAfterSpeechResponse({
   purpose,
   completed,
 }: RealtimeResponseMetadata): boolean {
+  // response.done은 응답 생성 완료이고, 스피커 재생 완료는 output_audio_buffer.stopped다.
+  // 격려 직후 문제를 볼 때는 두 이벤트의 실제 도착 순서도 함께 확인해야 한다.
   return completed && purpose === "interview_encouragement";
 }
 
@@ -258,6 +268,7 @@ export async function createRealtimeInterviewWebRtcConnection({
   if (sourceAudioTracks.length === 0) {
     throw new Error("Realtime WebRTC connection requires a live microphone track.");
   }
+  // 녹화/STT 원본은 그대로 두고, OpenAI Realtime 입력에만 쓸 마이크 복사본을 만든다.
   const realtimeAudioTracks = sourceAudioTracks.map((track) => track.clone());
   realtimeAudioTracks.forEach((track) => {
     track.enabled = false;
@@ -354,10 +365,12 @@ export async function createRealtimeInterviewWebRtcConnection({
   }
   dataChannel.onmessage = (event) => {
     if (!onEvent) return;
+    // OpenAI가 DataChannel로 보낸 JSON 이벤트(response.done 등)를 화면 코드에 돌려준다.
     onEvent(parseRealtimeDataChannelMessage(event.data));
   };
 
   peerConnection.ontrack = (event) => {
+    // OpenAI가 돌려준 실제 AI 음성 트랙은 <audio>에 연결되어 스피커로 재생된다.
     const remoteStream = event.streams[0] ?? (fallbackRemoteStream ??= new MediaStream());
     if (!event.streams[0]) {
       remoteStream.addTrack(event.track);
@@ -381,6 +394,8 @@ export async function createRealtimeInterviewWebRtcConnection({
     }
 
     await peerConnection.setLocalDescription(offer);
+    // OpenAI 직접 호출 2: 서버에서 받은 짧은 수명의 clientSecret과 브라우저의 SDP offer를
+    // OpenAI Realtime endpoint에 보낸다. openai npm SDK가 아니라 브라우저 fetch/WebRTC를 쓴다.
     const response = await fetcher(session.endpoint, {
       method: "POST",
       body: offer.sdp,
@@ -390,6 +405,7 @@ export async function createRealtimeInterviewWebRtcConnection({
       },
     });
 
+    // OpenAI의 HTTP 응답은 JSON이 아니라 연결 방법이 적힌 SDP answer 문자열이다.
     const answerSdp = await response.text();
     if (!response.ok) {
       throw new Error(`Realtime WebRTC answer request failed with status ${response.status}.`);

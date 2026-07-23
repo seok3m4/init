@@ -1,3 +1,4 @@
+// 우리 Nest API를 호출할 때 쓰는 공통 fetch 래퍼다. 로그인 토큰과 쿠키를 붙여 준다.
 import { authFetch } from "../../api/client";
 
 export type PostingStatus = "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED" | "ARCHIVED";
@@ -1334,6 +1335,7 @@ export function createCandidateApiClient(options: CandidateApiClientOptions = {}
         body: JSON.stringify(body),
       }),
     createRecruitingRealtimeSession: (sessionId, body) =>
+      // 브라우저가 먼저 우리 서버에 OpenAI용 ephemeral clientSecret을 요청하는 REST 호출이다.
       request<ApiResponse<RealtimeInterviewSessionResponse>>(candidateApiPaths.recruitingRealtimeSession(sessionId), {
         method: "POST",
         body: JSON.stringify(body),

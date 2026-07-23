@@ -14,6 +14,7 @@ import {
 } from "../dto/interview.runtime.dto";
 import { UpdateMockSessionTitleDto } from "../dto/update-mock-session-title.dto";
 import { interviewApiRoutePrefix, interviewApiRoutes } from "../interview.routes";
+// Controller는 URL을 받고, 실제 OpenAI 호출은 이 서비스에 맡긴다.
 import { InterviewService } from "../service/interview.service";
 
 type CandidateRequest = RequestLike & { currentUser: CurrentUser };
@@ -245,6 +246,7 @@ export class InterviewController {
     @Param("sessionId") sessionId: string,
     @Body() dto: CreateRealtimeInterviewSessionDto,
   ) {
+    // 프론트의 createRecruitingRealtimeSession 요청이 이 경로로 들어온다.
     return this.handle(() =>
       this.interviewService.createRecruitingRealtimeSession(Number(sessionId), dto, resolveCurrentCandidate(request.currentUser)),
     );

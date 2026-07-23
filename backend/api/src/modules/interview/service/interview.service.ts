@@ -857,6 +857,8 @@ export class InterviewService {
 
     const model = process.env.OPENAI_REALTIME_MODEL || DEFAULT_REALTIME_MODEL;
     const voice = process.env.OPENAI_REALTIME_VOICE || DEFAULT_REALTIME_VOICE;
+    // OpenAI 직접 호출 1: Node.js 20의 내장 fetch를 사용하므로 openai SDK import는 없다.
+    // 서버의 진짜 OPENAI_API_KEY로 브라우저용 짧은 수명의 clientSecret을 발급받는다.
     const response = await fetch(this.realtimeClientSecretsEndpoint(), {
       method: "POST",
       headers: {
@@ -873,6 +875,8 @@ export class InterviewService {
             input: {
               turn_detection: {
                 type: "server_vad",
+                // 마이크 소리는 감지하지만 그것만으로 AI 응답을 자동 생성하지 않는다.
+                // 브라우저가 response.create 이벤트를 보낼 때만 AI가 말한다.
                 create_response: false,
                 interrupt_response: false,
               },
@@ -884,6 +888,7 @@ export class InterviewService {
         },
       }),
     });
+    // OpenAI의 JSON 응답을 문자열로 받은 뒤 clientSecret/value와 만료 시간을 꺼낸다.
     const rawBody = await response.text();
     const payload = this.parseOpenAiRealtimeClientSecret(rawBody);
     if (!response.ok) {

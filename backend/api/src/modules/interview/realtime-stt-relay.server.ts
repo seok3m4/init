@@ -2,6 +2,7 @@ import type { IncomingMessage } from "http";
 import type { Socket } from "net";
 import { Logger } from "@nestjs/common";
 import jwt from "jsonwebtoken";
+// STT 통로는 OpenAI SDK 대신 ws 패키지로 WebSocket을 직접 연다.
 import WebSocket, { WebSocketServer } from "ws";
 import type { JwtPayload } from "../auth/auth.types";
 import { resolveCurrentCandidate, type CurrentCandidateUser } from "../candidate";
@@ -139,6 +140,7 @@ function connectOpenAiRealtimeTranscription(
   const model = process.env.OPENAI_REALTIME_STT_MODEL || DEFAULT_REALTIME_STT_MODEL;
   const language = process.env.OPENAI_STT_LANGUAGE || DEFAULT_REALTIME_STT_LANGUAGE;
   const delay = process.env.OPENAI_REALTIME_STT_DELAY || "low";
+  // OpenAI STT 직접 호출: 우리 서버에서 OpenAI /v1/realtime?intent=transcription으로 연결한다.
   const upstream = new WebSocket(openAiRealtimeWebSocketUrl(), {
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -155,6 +157,7 @@ function connectOpenAiRealtimeTranscription(
 
   upstream.on("open", () => {
     upstreamOpen = true;
+    // 연결 직후 PCM 24kHz, 한국어, STT 모델 설정을 OpenAI에 보낸다.
     upstream.send(
       JSON.stringify({
         type: "session.update",
@@ -180,6 +183,7 @@ function connectOpenAiRealtimeTranscription(
   });
 
   upstream.on("message", (raw) => {
+    // OpenAI가 보내는 delta(중간 글자)와 completed(최종 문장)를 여기서 받는다.
     const event = parseOpenAiEvent(raw);
     if (!event?.type) return;
 
@@ -255,6 +259,8 @@ function connectOpenAiRealtimeTranscription(
 
   client.on("message", (data, isBinary) => {
     if (isBinary) {
+      // 브라우저에서 온 PCM을 OpenAI input_audio_buffer.append로 그대로 이어 보낸다.
+      // 서버는 이 소리가 지원자 말인지, 스피커에서 새어 들어온 AI 말인지 구분하지 못한다.
       const audio = binaryMessageToBase64(data);
       if (!audio) return;
       if (transcriptionSessionReady && upstream.readyState === WebSocket.OPEN) {
@@ -346,6 +352,7 @@ function verifyPublicInterviewToken(token: string | null): PublicInterviewAccess
 }
 
 function appendAudio(upstream: WebSocket, audio: string) {
+  // 실제 음성 조각이 OpenAI로 전송되는 마지막 한 줄이다.
   upstream.send(JSON.stringify({ type: "input_audio_buffer.append", audio }));
 }
 

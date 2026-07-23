@@ -1578,6 +1578,8 @@ export function getRealtimeSilenceEncouragementDecision({
     return { shouldEncourage: false, nextSilenceStartedAtMs };
   }
 
+  // 처음부터 말이 없으면 15초, 한 번 말한 뒤 멈추면 20초를 기다린다.
+  // 화면에서 silenceGraceMs(현재 2초)를 더하므로 실제 격려 시점은 약 17초/22초다.
   const thresholdMs = hasDetectedVoiceDuringAnswer ? 20000 : 15000;
   if (nowMs - nextSilenceStartedAtMs < thresholdMs + Math.max(0, silenceGraceMs)) {
     return { shouldEncourage: false, nextSilenceStartedAtMs };

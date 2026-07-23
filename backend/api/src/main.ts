@@ -9,6 +9,7 @@ import { ApiResponseInterceptor } from "./shared/api-response.interceptor";
 import { createCorsOriginDelegate } from "./shared/cors-origin";
 import { setupSwagger } from "./swagger/swagger";
 import { InterviewService } from "./modules/interview/service/interview.service";
+// Nest HTTP 서버에 STT용 WebSocket upgrade 통로를 붙이는 함수다.
 import { attachRealtimeSttRelayServer } from "./modules/interview/realtime-stt-relay.server";
 
 async function bootstrap() {

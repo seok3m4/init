@@ -77,6 +77,7 @@ import { isCandidateApplicationCancelable } from "./application-cancellation";
 import { isCandidateDemoCommandShortcut } from "./candidate-demo-tools";
 import { getRecruitingRuntimeTotalQuestions } from "./demo-preset-runtime";
 import {
+  // OpenAI 음성 요청 JSON 생성, WebRTC 연결, 응답 이벤트 해석을 담당한다.
   createRealtimeInterviewSpeechResponseEvent,
   createRealtimeInterviewWebRtcConnection,
   getRealtimeAudioCompletedResponseId,
@@ -89,6 +90,7 @@ import {
   type RealtimeResponseMetadata,
 } from "./realtime-webrtc";
 import {
+  // 원본 마이크를 PCM으로 바꾸어 우리 API 서버의 STT WebSocket에 보내는 별도 통로다.
   createRealtimeSttRelaySession,
   type RealtimeSttRelayMetric,
   type RealtimeSttRelaySession,
@@ -281,6 +283,8 @@ const NONVERBAL_PERSON_SAMPLE_INTERVAL_MS = 500;
 const NONVERBAL_MULTIPLE_PEOPLE_CONFIRMATION_WINDOW_MS = 1500;
 const NONVERBAL_MULTIPLE_PEOPLE_REQUIRED_SAMPLES = 2;
 const NONVERBAL_MULTIPLE_PEOPLE_RELEASE_GRACE_MS = 1500;
+// 이 30초는 AI 음성 완료 신호가 없을 때 브라우저 음성으로 바꾸는 제한 시간이다.
+// 지원자가 조용할 때 격려하는 시간은 view-model.ts의 15초/20초 계산을 사용한다.
 const REALTIME_SPEECH_RESPONSE_TIMEOUT_MS = 30000;
 const BROWSER_SPEECH_START_TIMEOUT_MS = 2500;
 const BROWSER_SPEECH_MIN_COMPLETION_TIMEOUT_MS = 8000;
@@ -3850,6 +3854,8 @@ function InterviewRuntimePanel({
       mode === "recruiting"
         ? `안녕하세요. 지금부터 채용 AI 면접을 시작하겠습니다. ${timingGuide}`
         : `안녕하세요. 지금부터 AI 모의면접을 시작하겠습니다. ${timingGuide}`;
+    // 정상 시작 문장은 바로 위에서 만든 고정 문장이다.
+    // 이전 STT 문자열을 이 text 앞에 붙이는 코드는 이 함수에 없다.
 
     stopQuestionSpeech({ restoreRealtimeMicrophone: !realtimeSpeechReady && !forceBrowserSpeech });
     introPlaybackStartedSessionRef.current = sessionId;
@@ -3859,6 +3865,8 @@ function InterviewRuntimePanel({
 
     if (realtimeSpeechReady && !forceBrowserSpeech) {
       setRealtimeMicrophoneOpen(false);
+      // response.create JSON을 만든 다음 sendRealtimeSpeechClientEvent가 OpenAI DataChannel로 보낸다.
+      // 즉 녹음 파일을 읽는 단순 TTS가 아니라 Realtime 모델에게 이 문장을 말하도록 요청한다.
       const sent = sendRealtimeSpeechClientEvent(
         realtimeConnectionRef.current,
         createRealtimeInterviewSpeechResponseEvent({
@@ -4235,6 +4243,8 @@ function InterviewRuntimePanel({
 
       const sessionId = currentRuntimeSessionIdRef.current;
       if (!isCurrentSpeechPlayback(metadata.playbackId, metadata.questionId, sessionId)) return;
+      // 격려 응답은 response.done에서 복사 마이크를 다시 연다. 실제 스피커 재생 종료는
+      // 위의 output_audio_buffer.stopped 경로이므로 두 이벤트의 도착 순서를 함께 살핀다.
       if (shouldRestoreRealtimeMicrophoneAfterSpeechResponse(metadata)) {
         setRealtimeMicrophoneOpen(true);
       }
@@ -4843,6 +4853,8 @@ function InterviewRuntimePanel({
     const questionId = currentQuestion.questionId;
     if (realtimeEncouragedQuestionRef.current === questionId) return;
 
+    // 답변 녹화 중 0.5초마다 침묵 시간을 확인하고, 조건을 만족하면
+    // "괜찮습니다..." 또는 "좋습니다..." 격려를 OpenAI 음성으로 요청한다.
     const intervalId = window.setInterval(() => {
       const decision = getRealtimeSilenceEncouragementDecision({
         nowMs: Date.now(),
@@ -6672,6 +6684,8 @@ function InterviewRuntimePanel({
     discardRealtimeSttRelay();
     realtimeSttTranscriptByQuestionRef.current.delete(questionId);
     try {
+      // 여기의 stream은 OpenAI 면접관용 복사본이 아니라 녹화에도 쓰는 원본 마이크다.
+      // 그래서 격려 음성이 재생되는 동안에도 STT 수집은 자동으로 멈추지 않는다.
       realtimeSttRelayRef.current = await createRealtimeSttRelaySession({
         mode,
         sessionId: data?.runtime.sessionId ?? 0,
@@ -6716,6 +6730,8 @@ function InterviewRuntimePanel({
   }
 
   function attachRealtimeTranscriptToRequest(request: SaveInterviewAnswerRequest): SaveInterviewAnswerRequest {
+    // STT 결과를 지원자 답변 저장 요청의 transcript에 붙이는 지점이다.
+    // 앞에서 AI 격려 음성이 잘못 인식됐다면 그 문자열도 여기서 답변처럼 저장될 수 있다.
     const transcript = request.transcript?.trim() || realtimeSttTranscriptByQuestionRef.current.get(request.questionId)?.trim();
     return transcript ? { ...request, transcript } : request;
   }
@@ -7310,6 +7326,8 @@ function InterviewRuntimePanel({
           ? savedAnswer.transcript.trim()
           : "";
       if (realtimeTranscript) {
+        // Realtime STT 문장은 저장에서 끝나지 않고 아래 FOLLOW_UP 요청의 입력으로도 쓰인다.
+        // 따라서 오염된 STT는 이후 꼬리질문의 문맥까지 이상하게 만들 수 있다.
         const answerWithTranscript = { ...savedAnswer, transcript: realtimeTranscript };
 
         const isFollowUpAnswer = question?.questionType === "FOLLOW_UP";
@@ -8167,6 +8185,8 @@ function InterviewRuntimePanel({
     setRealtimeLastError("");
 
     const body = { mode: "realtime-voice" as const, transport: "webrtc" as const };
+    // OpenAI 직접 호출 1의 시작점: 먼저 우리 Nest API에 ephemeral clientSecret을 요청한다.
+    // 실제 OpenAI API key는 브라우저에 주지 않고 백엔드만 사용한다.
     const request =
       mode === "mock"
         ? runtimeApi.createMockRealtimeSession(data.runtime.sessionId, body)
@@ -8181,6 +8201,7 @@ function InterviewRuntimePanel({
 
         if (realtimeSession.provider === "openai") {
           setRealtimeSessionStatus("connecting");
+          // 받은 clientSecret으로 realtime-webrtc.ts가 OpenAI와 WebRTC를 직접 연결한다.
           const connection = await createRealtimeInterviewWebRtcConnection({
             session: realtimeSession,
             localStream,
@@ -8191,6 +8212,7 @@ function InterviewRuntimePanel({
               setRealtimeRemoteAudioReady(true);
               setRealtimeRemoteAudioStream(stream);
             },
+            // OpenAI DataChannel의 response.done 같은 JSON 응답은 이 함수로 되돌아온다.
             onEvent: handleRealtimeDataEvent,
             onConnectionFailure: (connectionError) => {
               const realtimeMessage = `실시간 AI 면접 연결이 끊겼습니다: ${connectionError.message}`;

@@ -119,6 +119,8 @@ export async function createRealtimeSttRelaySession(
 
   const socket = new WebSocket(buildRealtimeSttRelayUrl(options));
   socket.binaryType = "arraybuffer";
+  // 이 stream은 답변 녹화에도 쓰는 원본 마이크다. 브라우저의 에코 제거가
+  // 스피커 소리를 완전히 지우지 못하면 AI 격려 음성도 PCM으로 서버에 갈 수 있다.
   const source = audioContext.createMediaStreamSource(options.stream);
   const processor = new AudioWorkletNode(audioContext, AUDIO_WORKLET_PROCESSOR_NAME, {
     numberOfInputs: 1,
@@ -132,6 +134,7 @@ export async function createRealtimeSttRelaySession(
     if (stopped || !(event.data instanceof Float32Array)) return;
     const resampled = resampleFloat32(event.data, audioContext.sampleRate, TARGET_SAMPLE_RATE);
     const pcm16 = float32ToPcm16(resampled);
+    // 브라우저 WebSocket으로 우리 Nest 서버에 PCM 조각을 전송한다.
     sendOrQueueChunk(socket, pendingChunks, pcm16);
   };
 
@@ -159,6 +162,7 @@ export async function createRealtimeSttRelaySession(
   });
 
   socket.addEventListener("message", (event) => {
+    // 우리 Nest 서버가 OpenAI STT 응답을 transcript.delta/final 모양으로 바꿔 돌려준다.
     const relayEvent = parseRelayServerEvent(event.data);
     if (!relayEvent?.type) return;
 
